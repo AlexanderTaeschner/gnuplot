@@ -46,3 +46,6 @@ make.log
 docs/figures.*
 docs/pdf_figures
 share/Gnuplot
+
+/config/msvc/gnuplot/wgnuplot/Debug
+.vs
