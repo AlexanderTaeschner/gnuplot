@@ -49,3 +49,4 @@ share/Gnuplot
 
 /config/msvc/gnuplot/wgnuplot/Debug
 .vs
+/config/msvc/gnuplot/Debug

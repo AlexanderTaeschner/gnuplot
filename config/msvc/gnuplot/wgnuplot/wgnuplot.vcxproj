@@ -208,6 +208,9 @@
   <ItemGroup>
     <ClInclude Include="..\config.h" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="..\..\..\..\src\win\wgnuplot.mnu" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
