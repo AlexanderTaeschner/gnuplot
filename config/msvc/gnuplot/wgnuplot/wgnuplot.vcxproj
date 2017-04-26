@@ -88,7 +88,7 @@
       </PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>WIN32;_DEBUG;_WINDOWS;HAVE_CONFIG_H;USE_MOUSE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;_DEBUG;_WINDOWS;HAVE_CONFIG_H;USE_MOUSE;HAVE_LIBGD;HAVE_GD_H;HAVE_GD_GIF;GIF_ANIMATION;HAVE_GD_PNG;HAVE_GD_JPEG;HAVE_GD_TTF;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>$(SolutionDir)..\..\..\src;$(SolutionDir)..\..\..\term;$(SolutionDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
