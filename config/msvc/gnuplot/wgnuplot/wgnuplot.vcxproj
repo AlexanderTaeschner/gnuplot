@@ -210,6 +210,7 @@
     <ClInclude Include="..\config.h" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="..\..\..\..\README.md" />
     <None Include="..\..\..\..\src\win\wgnuplot.mnu">
       <DeploymentContent>true</DeploymentContent>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
