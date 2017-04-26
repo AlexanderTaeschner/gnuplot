@@ -93,7 +93,7 @@
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
-      <AdditionalDependencies>Gdiplus.lib;Comctl32.lib;Shlwapi.lib;Msimg32.lib;Htmlhelp.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>Gdiplus.lib;Comctl32.lib;Shlwapi.lib;Msimg32.lib;Htmlhelp.lib;d2d1.lib;dwrite.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -195,6 +195,7 @@
     <ClCompile Include="..\..\..\..\src\variable.c" />
     <ClCompile Include="..\..\..\..\src\version.c" />
     <ClCompile Include="..\..\..\..\src\win\screenbuf.c" />
+    <ClCompile Include="..\..\..\..\src\win\wd2d.cpp" />
     <ClCompile Include="..\..\..\..\src\win\wgdiplus.cpp" />
     <ClCompile Include="..\..\..\..\src\win\wgnuplib.c" />
     <ClCompile Include="..\..\..\..\src\win\wgraph.c" />
@@ -209,7 +210,10 @@
     <ClInclude Include="..\config.h" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="..\..\..\..\src\win\wgnuplot.mnu" />
+    <None Include="..\..\..\..\src\win\wgnuplot.mnu">
+      <DeploymentContent>true</DeploymentContent>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
