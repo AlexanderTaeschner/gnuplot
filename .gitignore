@@ -50,3 +50,7 @@ share/Gnuplot
 /config/msvc/gnuplot/wgnuplot/Debug
 .vs
 /config/msvc/gnuplot/Debug
+/config/msvc/gnuplot/x64
+/config/msvc/gnuplot/wgnuplot/x64
+/config/msvc/gnuplot/Release
+/config/msvc/gnuplot/wgnuplot/Release
