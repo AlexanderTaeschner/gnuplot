@@ -661,8 +661,7 @@
 
 /* The Microsoft visual C++ compiler spews about 1000 warnings during */
 /* compilation of gnuplot. The following lines disable most of them.  */
-//#pragma warning(disable: 4018 4056 4113 4244 4305 4761 4756 4996)
-#pragma warning(disable: 4018 4113 4244 4305 4996)
+#pragma warning(disable: 4018 4113 4244 4267 4305 4996)
 #define _CRT_SECURE_NO_WARNINGS
 
 #ifndef __MSC__

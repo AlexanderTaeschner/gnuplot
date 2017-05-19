@@ -501,7 +501,7 @@ set title "Ag 108 decay data"
 set xlabel "Time (sec)" 
 set ylabel "Rate" 
 Shadecolor = "#80E0A080"
-plot 'silver.dat' using 1:($2+$3):($2-$3) with filledcurve fc rgb Shadecolor title "Shaded error region", \
+plot demo . 'silver.dat' using 1:($2+$3):($2-$3) with filledcurve fc rgb Shadecolor title "Shaded error region", \
      '' using 1:2 smooth mcspline lw 1.5  title "Monotonic spline through data"     
 #
 # Histograms
@@ -557,12 +557,12 @@ set linetype 14 lc rgb "gray70"
 set style fill solid 1.0 border -1
 
 plot newhistogram lt 11, \
-     'histopt.dat' using 1 title column, \
+     demo . 'histopt.dat' using 1 title column, \
      '' using 2 title column
 } else {
 # patterned fill for pdf
 # set style fill pattern
-plot 'histopt.dat' using 1 title column, \
+plot demo . 'histopt.dat' using 1 title column, \
      '' using 2 title column
 }
 
@@ -583,7 +583,7 @@ set paxis 2 range [0:30]
 set paxis 4 range [-1:15]
 set paxis 4 tics  auto 1 left offset 5
 
-plot 'silver.dat' using 2:3:1:($3/2):(int($0/25)) with parallel lt 1 lc variable
+plot demo . 'silver.dat' using 2:3:1:($3/2):(int($0/25)) with parallel lt 1 lc variable
 
 #
 # Filled curves

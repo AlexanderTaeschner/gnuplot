@@ -7,8 +7,9 @@ image: Visual Studio 2017
 install:
   - IF NOT EXIST vcpkg git clone https://github.com/Microsoft/vcpkg  
   - cd vcpkg
-  - git pull
   - powershell -exec bypass scripts\bootstrap.ps1
+  - git pull
+  - vcpkg.exe remove --outdated --recurse
   - vcpkg install libgd:x86-windows-static libgd:x64-windows-static
   - vcpkg update
   - vcpkg integrate install

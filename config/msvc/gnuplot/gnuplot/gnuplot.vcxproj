@@ -20,9 +20,9 @@
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>15.0</VCProjectVersion>
-    <ProjectGuid>{D824ED67-D000-4DBB-960C-43B8C70FAF47}</ProjectGuid>
+    <ProjectGuid>{0736B3E8-9B2A-438F-BE58-AF1FA49A8087}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
-    <RootNamespace>wgnuplot</RootNamespace>
+    <RootNamespace>gnuplot</RootNamespace>
     <WindowsTargetPlatformVersion>10.0.15063.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
@@ -96,17 +96,16 @@
       </PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>HAVE_CONFIG_H;USE_MOUSE;HAVE_LIBGD;HAVE_GD_H;HAVE_GD_GIF;GIF_ANIMATION;HAVE_GD_PNG;HAVE_GD_JPEG;HAVE_GD_TTF;HAVE_LIBPNG;BGDWIN32;NONDLL;GNUPLOT_PS_DIR="share\\PostScript";USE_FAKEPIPES;WIN32;_DEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>HAVE_CONFIG_H;USE_MOUSE;HAVE_LIBGD;HAVE_GD_H;HAVE_GD_GIF;GIF_ANIMATION;HAVE_GD_PNG;HAVE_GD_JPEG;HAVE_GD_TTF;HAVE_LIBPNG;BGDWIN32;NONDLL;GNUPLOT_PS_DIR="share\\PostScript";USE_FAKEPIPES;WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>$(SolutionDir)..\..\..\src;$(SolutionDir)..\..\..\term;$(SolutionDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
     </ClCompile>
     <Link>
-      <SubSystem>Windows</SubSystem>
+      <SubSystem>Console</SubSystem>
       <AdditionalDependencies>Gdiplus.lib;Comctl32.lib;Shlwapi.lib;Msimg32.lib;Htmlhelp.lib;d2d1.lib;dwrite.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
-      <Command>
-      </Command>
+      <Command>xcopy /S /E /I /Y $(VcpkgRoot)tools\fontconfig\fonts $(TargetDir)fonts</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -115,17 +114,16 @@
       </PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>HAVE_CONFIG_H;USE_MOUSE;HAVE_LIBGD;HAVE_GD_H;HAVE_GD_GIF;GIF_ANIMATION;HAVE_GD_PNG;HAVE_GD_JPEG;HAVE_GD_TTF;HAVE_LIBPNG;BGDWIN32;NONDLL;GNUPLOT_PS_DIR="share\\PostScript";USE_FAKEPIPES;_DEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>HAVE_CONFIG_H;USE_MOUSE;HAVE_LIBGD;HAVE_GD_H;HAVE_GD_GIF;GIF_ANIMATION;HAVE_GD_PNG;HAVE_GD_JPEG;HAVE_GD_TTF;HAVE_LIBPNG;BGDWIN32;NONDLL;GNUPLOT_PS_DIR="share\\PostScript";PIPES;WGP_CONSOLE;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>$(SolutionDir)..\..\..\src;$(SolutionDir)..\..\..\term;$(SolutionDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
     </ClCompile>
     <Link>
-      <SubSystem>Windows</SubSystem>
+      <SubSystem>Console</SubSystem>
       <AdditionalDependencies>Gdiplus.lib;Comctl32.lib;Shlwapi.lib;Msimg32.lib;Htmlhelp.lib;d2d1.lib;dwrite.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
-      <Command>
-      </Command>
+      <Command>xcopy /S /E /I /Y $(VcpkgRoot)tools\fontconfig\fonts $(TargetDir)fonts</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -136,19 +134,18 @@
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <PreprocessorDefinitions>HAVE_CONFIG_H;USE_MOUSE;HAVE_LIBGD;HAVE_GD_H;HAVE_GD_GIF;GIF_ANIMATION;HAVE_GD_PNG;HAVE_GD_JPEG;HAVE_GD_TTF;HAVE_LIBPNG;BGDWIN32;NONDLL;GNUPLOT_PS_DIR="share\\PostScript";USE_FAKEPIPES;WIN32;NDEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>HAVE_CONFIG_H;USE_MOUSE;HAVE_LIBGD;HAVE_GD_H;HAVE_GD_GIF;GIF_ANIMATION;HAVE_GD_PNG;HAVE_GD_JPEG;HAVE_GD_TTF;HAVE_LIBPNG;BGDWIN32;NONDLL;GNUPLOT_PS_DIR="share\\PostScript";USE_FAKEPIPES;WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>$(SolutionDir)..\..\..\src;$(SolutionDir)..\..\..\term;$(SolutionDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
     </ClCompile>
     <Link>
-      <SubSystem>Windows</SubSystem>
+      <SubSystem>Console</SubSystem>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <AdditionalDependencies>Gdiplus.lib;Comctl32.lib;Shlwapi.lib;Msimg32.lib;Htmlhelp.lib;d2d1.lib;dwrite.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
-      <Command>
-      </Command>
+      <Command>xcopy /S /E /I /Y $(VcpkgRoot)tools\fontconfig\fonts $(TargetDir)fonts</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -159,19 +156,18 @@
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <PreprocessorDefinitions>HAVE_CONFIG_H;USE_MOUSE;HAVE_LIBGD;HAVE_GD_H;HAVE_GD_GIF;GIF_ANIMATION;HAVE_GD_PNG;HAVE_GD_JPEG;HAVE_GD_TTF;HAVE_LIBPNG;BGDWIN32;NONDLL;GNUPLOT_PS_DIR="share\\PostScript";USE_FAKEPIPES;NDEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>HAVE_CONFIG_H;USE_MOUSE;HAVE_LIBGD;HAVE_GD_H;HAVE_GD_GIF;GIF_ANIMATION;HAVE_GD_PNG;HAVE_GD_JPEG;HAVE_GD_TTF;HAVE_LIBPNG;BGDWIN32;NONDLL;GNUPLOT_PS_DIR="share\\PostScript";USE_FAKEPIPES;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>$(SolutionDir)..\..\..\src;$(SolutionDir)..\..\..\term;$(SolutionDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
     </ClCompile>
     <Link>
-      <SubSystem>Windows</SubSystem>
+      <SubSystem>Console</SubSystem>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <AdditionalDependencies>Gdiplus.lib;Comctl32.lib;Shlwapi.lib;Msimg32.lib;Htmlhelp.lib;d2d1.lib;dwrite.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
-      <Command>
-      </Command>
+      <Command>xcopy /S /E /I /Y $(VcpkgRoot)tools\fontconfig\fonts $(TargetDir)fonts</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -228,27 +224,19 @@
     <ClCompile Include="..\..\..\..\src\util3d.c" />
     <ClCompile Include="..\..\..\..\src\variable.c" />
     <ClCompile Include="..\..\..\..\src\version.c" />
-    <ClCompile Include="..\..\..\..\src\win\screenbuf.c" />
     <ClCompile Include="..\..\..\..\src\win\wd2d.cpp" />
     <ClCompile Include="..\..\..\..\src\win\wgdiplus.cpp" />
     <ClCompile Include="..\..\..\..\src\win\wgnuplib.c" />
     <ClCompile Include="..\..\..\..\src\win\wgraph.c" />
     <ClCompile Include="..\..\..\..\src\win\winmain.c" />
-    <ClCompile Include="..\..\..\..\src\win\wmenu.c" />
     <ClCompile Include="..\..\..\..\src\win\wpause.c" />
     <ClCompile Include="..\..\..\..\src\win\wprinter.c" />
-    <ClCompile Include="..\..\..\..\src\win\wredirect.cpp" />
-    <ClCompile Include="..\..\..\..\src\win\wtext.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\config.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\..\..\README.md" />
-    <None Include="..\..\..\..\src\win\wgnuplot.mnu">
-      <DeploymentContent>true</DeploymentContent>
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
