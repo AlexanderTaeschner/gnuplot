@@ -1,4 +1,4 @@
-# gnuplot [![Build status](https://ci.appveyor.com/api/projects/status/vnyn8yrfit4wewc0/branch/dev?svg=true)](https://ci.appveyor.com/project/AlexanderTaeschner/gnuplot/branch/dev)
+# gnuplot
 
 Source code cloned from the original CVS source with additional files and changes to make building with VC2017 easier. 
 
@@ -24,3 +24,8 @@ C:\src\vcpkg> .\vcpkg install libgd:x86-windows-static libgd:x64-windows-static
 Finally, open the VC2017 solution `config\msvc\gnuplot\gnuplot.sln` and build the solution.
 
 In the `dev` branch you find further modifications to the source code.
+
+| Branch | Build status |
+| ------ | ------------ |
+| master | [![Build status](https://ci.appveyor.com/api/projects/status/vnyn8yrfit4wewc0/branch/master?svg=true)](https://ci.appveyor.com/project/AlexanderTaeschner/gnuplot/branch/master) |
+| dev    | [![Build status](https://ci.appveyor.com/api/projects/status/vnyn8yrfit4wewc0/branch/dev?svg=true)](https://ci.appveyor.com/project/AlexanderTaeschner/gnuplot/branch/dev) |
