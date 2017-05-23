@@ -7,15 +7,40 @@ image: Visual Studio 2017
 install:
   - IF NOT EXIST vcpkg git clone https://github.com/Microsoft/vcpkg  
   - cd vcpkg
-  - powershell -exec bypass scripts\bootstrap.ps1
   - git pull
+  - powershell -exec bypass scripts\bootstrap.ps1
   - vcpkg.exe remove --outdated --recurse
-  - vcpkg install libgd:x86-windows-static libgd:x64-windows-static
+  - vcpkg install zlib:%PLATFORM%-windows-static
+  - vcpkg install bzip2:%PLATFORM%-windows-static
+  - vcpkg install libpng:%PLATFORM%-windows-static
+  - vcpkg install freetype:%PLATFORM%-windows-static
+  - vcpkg install libjpeg-turbo:%PLATFORM%-windows-static
+  - vcpkg install libwebp:%PLATFORM%-windows-static
+  - vcpkg install liblzma:%PLATFORM%-windows-static
+  - vcpkg install freeglut:%PLATFORM%-windows-static
+  - vcpkg install tiff:%PLATFORM%-windows-static
+  - vcpkg install expat:%PLATFORM%-windows-static
+  - vcpkg install libiconv:%PLATFORM%-windows-static
+  - vcpkg install fontconfig:%PLATFORM%-windows-static
+  - vcpkg install libgd:%PLATFORM%-windows-static
   - vcpkg update
   - vcpkg integrate install
   - cd ..
 cache:
   - vcpkg
+environment:
+  APPVEYOR_SAVE_CACHE_ON_ERROR: true
+  APPVEYOR_CACHE_ENTRY_ZIP_ARGS: -t7z -mx
 build:
   project: config\msvc\gnuplot\gnuplot.sln
   verbosity: minimal
+platform:
+  - x86
+  - x64
+configuration:
+  - Debug
+  - Release
+artifacts:
+  - path: config\msvc\gnuplot\$(platform)\$(configuration)
+    name: gnuplot_$(platform)_$(configuration)
+    type: zip

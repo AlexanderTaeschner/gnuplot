@@ -71,16 +71,24 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <LinkIncremental>true</LinkIncremental>
+    <LinkIncremental>false</LinkIncremental>
+    <OutDir>$(PlatformShortName)\$(Configuration)\</OutDir>
+    <IntDir>$(PlatformShortName)\$(Configuration)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-    <LinkIncremental>true</LinkIncremental>
+    <LinkIncremental>false</LinkIncremental>
+    <OutDir>$(PlatformShortName)\$(Configuration)\</OutDir>
+    <IntDir>$(PlatformShortName)\$(Configuration)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
+    <OutDir>$(PlatformShortName)\$(Configuration)\</OutDir>
+    <IntDir>$(PlatformShortName)\$(Configuration)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
+    <OutDir>$(PlatformShortName)\$(Configuration)\</OutDir>
+    <IntDir>$(PlatformShortName)\$(Configuration)\</IntDir>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
@@ -96,10 +104,10 @@
     </Link>
     <PostBuildEvent>
       <Command>$(TargetPath) $(SolutionDir)..\..\..\docs\gnuplot.doc $(SolutionDir)..\..\..\docs\windows\
-$(TargetDir)gnuplot.exe -d -e "winhelp=1; cd '$(SolutionDir)..\..\..\docs'" plotstyles.gnu
+$(SolutionDir)$(PlatformShortName)\$(Configuration)\gnuplot.exe -d -e "winhelp=1; cd '$(SolutionDir)..\..\..\docs'" plotstyles.gnu
 "C:\Program Files (x86)\HTML Help Workshop\hhc.exe" $(SolutionDir)..\..\..\docs\windows\wgnuplot.hhp
 IF ERRORLEVEL 1 ver &gt; nul
-copy /y $(SolutionDir)..\..\..\docs\windows\wgnuplot.chm $(TargetDir)wgnuplot.chm</Command>
+copy /y $(SolutionDir)..\..\..\docs\windows\wgnuplot.chm $(SolutionDir)$(PlatformShortName)\$(Configuration)\wgnuplot.chm</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
@@ -116,10 +124,10 @@ copy /y $(SolutionDir)..\..\..\docs\windows\wgnuplot.chm $(TargetDir)wgnuplot.ch
     </Link>
     <PostBuildEvent>
       <Command>$(TargetPath) $(SolutionDir)..\..\..\docs\gnuplot.doc $(SolutionDir)..\..\..\docs\windows\
-$(TargetDir)gnuplot.exe -d -e "winhelp=1; cd '$(SolutionDir)..\..\..\docs'" plotstyles.gnu
+$(SolutionDir)$(PlatformShortName)\$(Configuration)\gnuplot.exe -d -e "winhelp=1; cd '$(SolutionDir)..\..\..\docs'" plotstyles.gnu
 "C:\Program Files (x86)\HTML Help Workshop\hhc.exe" $(SolutionDir)..\..\..\docs\windows\wgnuplot.hhp
 IF ERRORLEVEL 1 ver &gt; nul
-copy /y $(SolutionDir)..\..\..\docs\windows\wgnuplot.chm $(TargetDir)wgnuplot.chm</Command>
+copy /y $(SolutionDir)..\..\..\docs\windows\wgnuplot.chm $(SolutionDir)$(PlatformShortName)\$(Configuration)\wgnuplot.chm</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -137,13 +145,15 @@ copy /y $(SolutionDir)..\..\..\docs\windows\wgnuplot.chm $(TargetDir)wgnuplot.ch
       <SubSystem>Console</SubSystem>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
+      <GenerateDebugInformation>false</GenerateDebugInformation>
+      <LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration>
     </Link>
     <PostBuildEvent>
       <Command>$(TargetPath) $(SolutionDir)..\..\..\docs\gnuplot.doc $(SolutionDir)..\..\..\docs\windows\
-$(TargetDir)gnuplot.exe -d -e "winhelp=1; cd '$(SolutionDir)..\..\..\docs'" plotstyles.gnu
+$(SolutionDir)$(PlatformShortName)\$(Configuration)\gnuplot.exe -d -e "winhelp=1; cd '$(SolutionDir)..\..\..\docs'" plotstyles.gnu
 "C:\Program Files (x86)\HTML Help Workshop\hhc.exe" $(SolutionDir)..\..\..\docs\windows\wgnuplot.hhp
 IF ERRORLEVEL 1 ver &gt; nul
-copy /y $(SolutionDir)..\..\..\docs\windows\wgnuplot.chm $(TargetDir)wgnuplot.chm</Command>
+copy /y $(SolutionDir)..\..\..\docs\windows\wgnuplot.chm $(SolutionDir)$(PlatformShortName)\$(Configuration)\wgnuplot.chm</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -161,13 +171,15 @@ copy /y $(SolutionDir)..\..\..\docs\windows\wgnuplot.chm $(TargetDir)wgnuplot.ch
       <SubSystem>Console</SubSystem>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
+      <LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration>
+      <GenerateDebugInformation>false</GenerateDebugInformation>
     </Link>
     <PostBuildEvent>
       <Command>$(TargetPath) $(SolutionDir)..\..\..\docs\gnuplot.doc $(SolutionDir)..\..\..\docs\windows\
-$(TargetDir)gnuplot.exe -d -e "winhelp=1; cd '$(SolutionDir)..\..\..\docs'" plotstyles.gnu
+$(SolutionDir)$(PlatformShortName)\$(Configuration)\gnuplot.exe -d -e "winhelp=1; cd '$(SolutionDir)..\..\..\docs'" plotstyles.gnu
 "C:\Program Files (x86)\HTML Help Workshop\hhc.exe" $(SolutionDir)..\..\..\docs\windows\wgnuplot.hhp
 IF ERRORLEVEL 1 ver &gt; nul
-copy /y $(SolutionDir)..\..\..\docs\windows\wgnuplot.chm $(TargetDir)wgnuplot.chm</Command>
+copy /y $(SolutionDir)..\..\..\docs\windows\wgnuplot.chm $(SolutionDir)$(PlatformShortName)\$(Configuration)\wgnuplot.chm</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
