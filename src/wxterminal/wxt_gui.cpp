@@ -88,6 +88,14 @@
  * or multi-threaded operation.
  */
 
+extern "C" {
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+#ifdef HAVE_SYS_SELECT_H
+# include <sys/select.h>
+#endif
+}
 
 /* define DEBUG here to have debugging messages in stderr */
 #include "wxt_gui.h"
@@ -116,15 +124,6 @@
 /* standard icon art from wx */
 #include <wx/artprov.h>
 #include <wx/printdlg.h>
-
-extern "C" {
-#ifdef HAVE_CONFIG_H
-# include "config.h"
-#endif
-#ifdef HAVE_SYS_SELECT_H
-# include <sys/select.h>
-#endif
-}
 
 /* Interactive toggle control variables
  */

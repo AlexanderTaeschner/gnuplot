@@ -16,9 +16,11 @@ Then, to hook up user-wide integration, run (note: requires admin on first use)
 ```
 C:\src\vcpkg> .\vcpkg integrate install
 ```
-Install libgd packages (static builds) with
+Install pango, libgd and wxwidgets packages (static builds) with
 ```
+C:\src\vcpkg> .\vcpkg install pango:x86-windows-static pango:x64-windows-static
 C:\src\vcpkg> .\vcpkg install libgd:x86-windows-static libgd:x64-windows-static
+C:\src\vcpkg> .\vcpkg install wxwidgets:x86-windows-static wxwidgets:x64-windows-static
 ```
 
 Finally, open the VC2017 solution `config\msvc\gnuplot\gnuplot.sln` and build the solution.
