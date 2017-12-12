@@ -5,12 +5,6 @@ branches:
   - dev
 image: Visual Studio 2017
 install:
-  - IF NOT EXIST vcpkg git clone --depth 1 https://github.com/Microsoft/vcpkg  
-  - cd vcpkg
-  - git fetch --depth=1
-  - git reset --hard origin/master
-  - powershell -exec bypass scripts\bootstrap.ps1
-  - vcpkg.exe remove --outdated --recurse
   - vcpkg install zlib:%PLATFORM%-windows-static
   - vcpkg install pcre:%PLATFORM%-windows-static
   - vcpkg install libffi:%PLATFORM%-windows-static
@@ -35,14 +29,8 @@ install:
 ######
   - vcpkg install libgd:%PLATFORM%-windows-static
   - vcpkg install wxwidgets:%PLATFORM%-windows-static
-######
-  - vcpkg integrate install
-  - IF EXIST buildtrees rmdir /s /q buildtrees
-  - IF EXIST downloads rmdir /s /q downloads
-  - IF EXIST packages rmdir /s /q packages
-  - cd ..
 cache:
-  - vcpkg
+  - c:\tools\vcpkg\installed\
 environment:
   APPVEYOR_SAVE_CACHE_ON_ERROR: true
   APPVEYOR_CACHE_ENTRY_ZIP_ARGS: -t7z -mx
