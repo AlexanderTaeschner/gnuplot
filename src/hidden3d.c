@@ -46,6 +46,7 @@
 #include "command.h"
 #include "dynarray.h"
 #include "graph3d.h"
+#include "misc.h"
 #include "tables.h"
 #include "term_api.h"
 #include "util.h"
@@ -56,16 +57,9 @@
 /* Configuration section */
 /*************************/
 
-/* If this module is compiled with HIDDEN3D_GRIDBOX = 1 defined, it
- * will store the information about {x|y}{min|max} in an other
- * (additional!) form: a bit mask, with each bit representing one
- * horizontal or vertical strip of the screen. The bits for strips a
- * polygon spans are set to one. This allows to test for xy overlap
- * of an edge with a polygon simply by comparing bit patterns.  */
-#ifndef HIDDEN3D_GRIDBOX
-#define HIDDEN3D_GRIDBOX 0
-#endif
-
+/* Original HIDDEN3D_QUADTREE comment
+ * (prior "gridbox" method removed 20 years later Jan 2019)
+ */
 /* HBB 19991204: new code started to finally implement a spatially
  * ordered data structure to store the polygons in. This is meant to
  * speed up the HLR process. Before, the hot spot of hidden3d was the
@@ -75,12 +69,6 @@
  * first place. Instead, store the polygons in an xy grid of lists,
  * so we can select a sample of these lists to test a given edge
  * against. */
-#ifndef HIDDEN3D_QUADTREE
-#define HIDDEN3D_QUADTREE 0
-#endif
-#if HIDDEN3D_QUADTREE && HIDDEN3D_GRIDBOX
-# warning HIDDEN3D_QUADTREE & HIDDEN3D_GRIDBOX do not work together, sensibly!
-#endif
 
 /* If you don't want the color-distinction between the
  * 'top' and 'bottom' sides of the surface, like I do, then just compile
@@ -173,7 +161,7 @@ typedef struct edge {
     struct lp_style_type *lp;	/* line/point style attributes */
     long next;			/* index of next edge in z-sorted list */
 } edge;
-typedef edge GPHUGE *p_edge;
+typedef edge *p_edge;
 
 
 /* One triangle of the surface mesh(es). */
@@ -184,23 +172,8 @@ typedef struct mesh_triangle {
     coordval xmin, xmax, ymin, ymax, zmin, zmax;
     t_plane plane;		/* the plane coefficients */
     TBOOLEAN frontfacing;	/* is polygon facing front- or backwards? */
-#if ! HIDDEN3D_QUADTREE
-    long next;			/* index of next polygon in z-sorted list */
-#endif
-#if HIDDEN3D_GRIDBOX
-    unsigned long xbits;	/* x coverage mask of bounding box */
-    unsigned long ybits;	/* y coverage mask of bounding box */
-#endif
 } mesh_triangle;
-typedef mesh_triangle GPHUGE *p_polygon;
-
-#if HIDDEN3D_GRIDBOX
-# define UINT_BITS (CHAR_BIT * sizeof(unsigned int))
-# define COORD_TO_BITMASK(x,shift)							\
-  (~0U << (unsigned int) ((((x) / surface_scale) + 1.0) / 2.0 * UINT_BITS + (shift)))
-# define CALC_BITRANGE(range_min, range_max)				 \
-  ((~COORD_TO_BITMASK((range_max), 1)) & COORD_TO_BITMASK(range_min, 0))
-#endif
+typedef mesh_triangle *p_polygon;
 
 /* Enumeration of possible types of line, for use with the
  * store_edge() function. Influences the position in the grid the
@@ -238,7 +211,6 @@ static dynarray vertices, edges, polygons;
 static long pfirst;		/* first polygon in zsorted chain*/
 static long efirst;		/* first edges in zsorted chain */
 
-#if HIDDEN3D_QUADTREE
 /* HBB 20000716: spatially oriented hierarchical data structure to
  * store polygons in. For now, it's a simple xy grid of z-sorted
  * lists. A single polygon can appear in several lists, if it spans
@@ -247,7 +219,7 @@ typedef struct qtreelist {
     long p;			/* the polygon */
     long next;			/* next element in this chain */
 } qtreelist;
-typedef qtreelist GPHUGE *p_qtreelist;
+typedef qtreelist *p_qtreelist;
 
 /* The quadtree algorithm sorts the objects into lists indexed by x/y.     */
 /* The number of cells in x and y direction has a huge effect on run time. */
@@ -276,42 +248,35 @@ coord_to_treecell(coordval x)
 /* the dynarray to actually store all that stuff in: */
 static dynarray qtree;
 #define qlist ((p_qtreelist) qtree.v)
-#endif /* HIDDEN3D_QUADTREE*/
 
 /* Prototypes for internal functions of this module. */
-static long int store_vertex __PROTO((struct coordinate GPHUGE *point,
-				      lp_style_type *lp_style, TBOOLEAN color_from_column));
-static long int make_edge __PROTO((long int vnum1, long int vnum2,
-				   struct lp_style_type *lp,
-				   int style, int next));
-static long int store_edge __PROTO((long int vnum1, edge_direction direction,
-				    long int crvlen, struct lp_style_type *lp,
-				    int style));
-static GP_INLINE double eval_plane_equation __PROTO((t_plane p, p_vertex v));
-static GP_INLINE double intersect_line_plane __PROTO((p_vertex v1, p_vertex v2, t_plane p));
-static double intersect_line_line __PROTO((p_vertex v1, p_vertex v2, p_vertex w1, p_vertex w2));
-static int cover_point_poly __PROTO((p_vertex v1, p_vertex v2, double u, p_polygon poly));
-static long int store_polygon __PROTO((long int vnum1,
-				       polygon_direction direction,
-				       long int crvlen));
-static void color_edges __PROTO((long int new_edge, long int old_edge,
-				 long int new_poly, long int old_poly,
-				 int style_above, int style_below));
-static void build_networks __PROTO((struct surface_points * plots,
-				    int pcount));
-static int compare_edges_by_zmin __PROTO((SORTFUNC_ARGS p1, SORTFUNC_ARGS p2));
-static int compare_polys_by_zmax __PROTO((SORTFUNC_ARGS p1, SORTFUNC_ARGS p2));
-static void sort_edges_by_z __PROTO((void));
-static void sort_polys_by_z __PROTO((void));
-static TBOOLEAN get_plane __PROTO((p_polygon p, t_plane plane));
-static long split_line_at_ratio __PROTO((long int vnum1, long int vnum2, double w));
-static GP_INLINE double area2D __PROTO((p_vertex v1, p_vertex v2,
-					p_vertex v3));
-static void draw_vertex __PROTO((p_vertex v));
-static GP_INLINE void draw_edge __PROTO((p_edge e, p_vertex v1, p_vertex v2));
-static int in_front __PROTO((long int edgenum,
-			     long int vnum1, long int vnum2,
-			     long int *firstpoly));
+static long int store_vertex(struct coordinate *point,
+			      lp_style_type *lp_style, TBOOLEAN color_from_column);
+static long int make_edge(long int vnum1, long int vnum2,
+			   struct lp_style_type *lp,
+			   int style, int next);
+static long int store_edge(long int vnum1, edge_direction direction,
+			    long int crvlen, struct lp_style_type *lp,
+			    int style);
+static GP_INLINE double eval_plane_equation(t_plane p, p_vertex v);
+static GP_INLINE double intersect_line_plane(p_vertex v1, p_vertex v2, t_plane p);
+static double intersect_line_line(p_vertex v1, p_vertex v2, p_vertex w1, p_vertex w2);
+static int cover_point_poly(p_vertex v1, p_vertex v2, double u, p_polygon poly);
+static long int store_polygon(long int vnum1, polygon_direction direction, long int crvlen);
+static void color_edges(long int new_edge, long int old_edge,
+			long int new_poly, long int old_poly,
+			int style_above, int style_below);
+static void build_networks(struct surface_points * plots, int pcount);
+static int compare_edges_by_zmin(SORTFUNC_ARGS p1, SORTFUNC_ARGS p2);
+static int compare_polys_by_zmax(SORTFUNC_ARGS p1, SORTFUNC_ARGS p2);
+static void sort_edges_by_z(void);
+static void sort_polys_by_z(void);
+static TBOOLEAN get_plane(p_polygon p, t_plane plane);
+static long split_line_at_ratio(long int vnum1, long int vnum2, double w);
+static GP_INLINE double area2D(p_vertex v1, p_vertex v2, p_vertex v3);
+static void draw_vertex(p_vertex v);
+static GP_INLINE void draw_edge(p_edge e, p_vertex v1, p_vertex v2);
+static int in_front(long int edgenum, long int vnum1, long int vnum2, long int *firstpoly);
 
 
 /* Set the options for hidden3d. To be called from set.c, when the
@@ -457,10 +422,7 @@ init_hidden_line_removal()
     init_dynarray(&vertices, sizeof(vertex), 100, 100);
     init_dynarray(&edges, sizeof(edge), 100, 100);
     init_dynarray(&polygons, sizeof(mesh_triangle), 100, 100);
-#if HIDDEN3D_QUADTREE
     init_dynarray(&qtree, sizeof(qtreelist), 100, 100);
-#endif
-
 }
 
 /* Reset the hidden line data to a fresh start. */
@@ -470,9 +432,7 @@ reset_hidden_line_removal()
     vertices.end = 0;
     edges.end = 0;
     polygons.end = 0;
-#if HIDDEN3D_QUADTREE
     qtree.end = 0;
-#endif
 }
 
 
@@ -484,9 +444,7 @@ term_hidden_line_removal()
     free_dynarray(&polygons);
     free_dynarray(&edges);
     free_dynarray(&vertices);
-#if HIDDEN3D_QUADTREE
     free_dynarray(&qtree);
-#endif
 }
 
 
@@ -504,7 +462,7 @@ do {									\
 
 static long int
 store_vertex (
-    struct coordinate GPHUGE * point,
+    struct coordinate * point,
     lp_style_type *lp_style,
     TBOOLEAN color_from_column)
 {
@@ -522,11 +480,9 @@ store_vertex (
     } else
 	thisvert->real_z = point->z;
 
-#ifdef HIDDEN3D_VAR_PTSIZE
     /* Store pointer back to original point */
     /* Needed to support variable pointsize or pointtype */
     thisvert->original = point;
-#endif
 	
     return (thisvert - vlist);
 }
@@ -553,10 +509,12 @@ make_edge(
 	thisedge->v1 = vnum1;
 	thisedge->v2 = vnum2;
 	if (lp->p_type == PT_ARROWHEAD) thisedge->style = PT_ARROWHEAD;
+	if (lp->p_type == PT_BACKARROW) thisedge->style = PT_BACKARROW;
     } else {
 	thisedge->v1 = vnum2;
 	thisedge->v2 = vnum1;
 	if (lp->p_type == PT_ARROWHEAD) thisedge->style = PT_BACKARROW;
+	if (lp->p_type == PT_BACKARROW) thisedge->style = PT_ARROWHEAD;
     }
 
     return thisedge - elist;
@@ -851,9 +809,6 @@ store_polygon(long vnum1, polygon_direction direction, long crvlen)
     p = nextfrom_dynarray(&polygons);
 
     memcpy (p->vertex, v, sizeof(v));
-#if ! HIDDEN3D_QUADTREE
-    p->next = -1;
-#endif
 
     /* Some helper macros for repeated code blocks: */
 
@@ -892,11 +847,6 @@ store_polygon(long vnum1, polygon_direction direction, long crvlen)
     GET_MAX(p, z, p->zmax);
 #undef GET_MIN
 #undef GET_MAX
-
-#if HIDDEN3D_GRIDBOX
-    p->xbits = CALC_BITRANGE(p->xmin, p->xmax);
-    p->ybits = CALC_BITRANGE(p->ymin, p->ymax);
-#endif
 
     p->frontfacing = get_plane(p, p->plane);
 
@@ -1047,14 +997,14 @@ build_networks(struct surface_points *plots, int pcount)
 	long int crvlen;
 	
 	/* Quietly skip empty plots */
-	if (this_plot->plot_type == NODATA)
+	if (this_plot->plot_type == NODATA || this_plot->plot_type == KEYENTRY)
 	    continue;
-
-	crvlen = this_plot->iso_crvs->p_count;
 
 	/* Allow individual plots to opt out of hidden3d calculations */
 	if (this_plot->opt_out_of_hidden3d)
 	    continue;
+
+	crvlen = this_plot->iso_crvs->p_count;
 
 	/* register maximal isocurve length. Only necessary for
 	 * grid-topology plots that will create polygons, so I can do
@@ -1117,6 +1067,13 @@ build_networks(struct surface_points *plots, int pcount)
 	case RGBA_IMAGE:
 	    /* Ignore these */
 	    break;
+	case CIRCLES:
+	    this_plot->lp_properties.flags |= LP_SHOW_POINTS;
+	    this_plot->lp_properties.p_type = PT_CIRCLE;
+	    this_plot->lp_properties.p_size = PTSZ_VARIABLE;
+	    nv += nverts;
+	    ne += nverts; /* a 'phantom edge' per isolated point */
+	    break;
 	case DOTS:
 	    this_plot->lp_properties.flags |= LP_SHOW_POINTS;
 	    this_plot->lp_properties.p_type = -1;
@@ -1160,7 +1117,7 @@ build_networks(struct surface_points *plots, int pcount)
 	lp = &(this_plot->lp_properties);
 
 	/* Quietly skip empty plots */
-	if (this_plot->plot_type == NODATA)
+	if (this_plot->plot_type == NODATA || this_plot->plot_type == KEYENTRY)
 	    continue;
 
 	/* Allow individual plots to opt out of hidden3d calculations */
@@ -1198,6 +1155,8 @@ build_networks(struct surface_points *plots, int pcount)
 
 	if (this_plot->plot_style == VECTOR) {
 	    lp->p_type = PT_ARROWHEAD;
+	    if (this_plot->arrow_properties.head == BACKHEAD)
+		lp->p_type = PT_BACKARROW;
 	    if (this_plot->arrow_properties.head == NOHEAD) {
 		this_plot->arrow_properties.head_length= 1;
 		this_plot->arrow_properties.head_angle = 0;
@@ -1213,7 +1172,7 @@ build_networks(struct surface_points *plots, int pcount)
 	    for (crv = 0, icrvs = this_plot->iso_crvs;
 		 icrvs;
 		 crv++, icrvs = icrvs->next) {
-		struct coordinate GPHUGE *points = icrvs->points;
+		struct coordinate *points = icrvs->points;
 		long int previousvertex = -1;
 
 		/* To handle labels we must look inside a separate list */
@@ -1336,7 +1295,7 @@ build_networks(struct surface_points *plots, int pcount)
 	for (crv = 0, icrvs = this_plot->iso_crvs;
 	     icrvs;
 	     crv++, icrvs = icrvs->next) {
-	    struct coordinate GPHUGE *points = icrvs->points;
+	    struct coordinate *points = icrvs->points;
 
 	    for (i = 0; i < icrvs->p_count; i++) {
 		long int thisvertex, basevertex;
@@ -1596,7 +1555,6 @@ sort_polys_by_z()
 
     /* traverse plist in the order given by sortarray, and set the
      * 'next' pointers */
-#if HIDDEN3D_QUADTREE
     /* HBB 20000716: Loop backwards, to ease construction of
      * linked lists from the head: */
     {
@@ -1628,15 +1586,6 @@ sort_polys_by_z()
 	}
     }
 
-#else /* HIDDEN3D_QUADTREE */
-    this = plist + sortarray[0];
-    for (i = 1; i < polygons.end; i++) {
-	this->next = sortarray[i];
-	this = plist + sortarray[i];
-    }
-    this->next = -1L;
-    /* 'pfirst' is the index of the leading element of plist */
-#endif /* HIDDEN3D_QUADTREE */
     pfirst = sortarray[0];
 
     free(sortarray);
@@ -1652,7 +1601,7 @@ sort_polys_by_z()
 static void
 draw_vertex(p_vertex v)
 {
-    unsigned int x, y;
+    int x, y;
     int p_type;
 
     if (v->lp_style == NULL)
@@ -1661,7 +1610,8 @@ draw_vertex(p_vertex v)
     p_type = v->lp_style->p_type;
 
     TERMCOORD(v, x, y);
-    if ((p_type >= -1 || p_type == PT_CHARACTER || p_type == PT_VARIABLE) && !clip_point(x,y)) {
+    if ((p_type >= -1 || p_type == PT_CHARACTER || p_type == PT_VARIABLE || p_type == PT_CIRCLE)
+    &&  !clip_point(x,y)) {
 	struct t_colorspec *tc = &(v->lp_style->pm3d_color);
 
 	if (v->label)  {
@@ -1685,17 +1635,23 @@ draw_vertex(p_vertex v)
 	else if (tc->type == TC_Z)
 	    set_color( cb2gray(z2cb(v->real_z)) );
 
-#ifdef HIDDEN3D_VAR_PTSIZE
+	if (p_type == PT_CIRCLE) {
+	    double radius = v->original->CRD_PTSIZE * radius_scaler;
+	    do_arc(x, y, radius, 0., 360., 
+		style_from_fill(&default_fillstyle), FALSE);
+	    if (need_fill_border(&default_fillstyle))
+		do_arc(x, y, radius, 0., 360., 0, FALSE);
+	    v->lp_style = NULL;
+	    return;
+	}
+
 	if (v->lp_style->p_size == PTSZ_VARIABLE)
 	    (term->pointsize)(pointsize * v->original->CRD_PTSIZE);
-#endif
 
 	if (p_type == PT_CHARACTER)
 	    (term->put_text)(x, y, v->lp_style->p_char);
-#ifdef HIDDEN3D_VAR_PTSIZE
 	else if (p_type == PT_VARIABLE)
 	    (term->point)(x, y, (int)(v->original->CRD_PTTYPE) - 1);
-#endif
 	else
 	    (term->point)(x, y, p_type);
 
@@ -1774,21 +1730,30 @@ draw_edge(p_edge e, p_vertex v1, p_vertex v2)
     /* Only the original tip of an arrow should show an arrowhead */
     /* FIXME:  Arrowhead lines are not themselves subject to hidden line removal */
     if (arrow) {
-	if (e->v2 != v2-vlist && e->v1 != v1-vlist) {
+	/* FIXME: e->lp points to this_plot->lp_properties but what we need is */
+	/* a pointer to the immediately following field e->arrow_properties.   */
+	lp_style_type *lp = e->lp;
+	arrow_style_type *as = (arrow_style_type *)(&lp[1]);
+	apply_head_properties(as);
+	if (as->head == BOTH_HEADS)
+	    lptemp.p_type = PT_BOTHHEADS;
+
+	if (e->v2 != v2-vlist && e->v1 != v1-vlist)
 		lptemp.p_type = 0;
-	} else if (e->style == PT_BACKARROW) {
+
+	if (lptemp.p_type == PT_BACKARROW) {
 	    if (e->v2 == v2-vlist && e->v1 != v1-vlist)
 		lptemp.p_type = 0;
-	} else {
+	}
+	if (lptemp.p_type == PT_ARROWHEAD) {
 	    if (e->v1 == v1-vlist && e->v2 != v2-vlist)
 		lptemp.p_type = 0;
 	}
-	if (lptemp.p_type == PT_BACKARROW || lptemp.p_type == PT_ARROWHEAD) {
-	    /* FIXME: e->lp points to this_plot->lp_properties but what we need is */
-	    /* a pointer to the immediately following field e->arrow_properties.   */
-	    lp_style_type *lp = e->lp;
-	    arrow_style_type *as = (arrow_style_type *)(&lp[1]);
-	    apply_head_properties(as);
+	if (lptemp.p_type == PT_BOTHHEADS) {
+	    if (e->v1 == v1-vlist && e->v2 != v2-vlist)
+		lptemp.p_type = PT_BACKARROW;
+	    if (e->v2 == v2-vlist && e->v1 != v1-vlist)
+		lptemp.p_type = PT_ARROWHEAD;
 	}
     }
 
@@ -1891,24 +1856,10 @@ in_front(
     coordval xmin, xmax;	/* all of these are for the edge */
     coordval ymin, ymax;
     coordval zmin;
-#if HIDDEN3D_GRIDBOX
-    unsigned int xextent;	/* extent bitmask in x direction */
-    unsigned int yextent;	/* same, in y direction */
-
-# define SET_XEXTENT \
-  xextent = CALC_BITRANGE(xmin, xmax);
-# define SET_YEXTENT \
-  yextent = CALC_BITRANGE(ymin, ymax);
-#else
-# define SET_XEXTENT /* nothing */
-# define SET_YEXTENT /* nothing */
-#endif
-#if HIDDEN3D_QUADTREE
     int grid_x, grid_y;
     int grid_x_low, grid_x_high;
     int grid_y_low, grid_y_high;
     long listhead;
-#endif
 
     /* zmin of the edge, as it started out. This is needed separately to
      * allow modifying '*firstpoly', without moving it too far to the
@@ -1943,14 +1894,12 @@ in_front(
 	} else {				\
 	    xmin = v1->x;	xmax = v2->x;	\
 	}					\
-	SET_XEXTENT;				\
 						\
 	if (v1->y > v2->y) {			\
 	    ymin = v2->y;	ymax = v1->y;	\
 	} else {				\
 	    ymin = v1->y;	ymax = v2->y;	\
 	}					\
-	SET_YEXTENT;				\
     } while (0) /* end macro setup_edge */
 
     /* use the macro for initial setup, too: */
@@ -1960,7 +1909,6 @@ in_front(
 
     enter_vertices = vertices.end;
 
-#if HIDDEN3D_QUADTREE
     grid_x_low = coord_to_treecell(xmin);
     grid_x_high = coord_to_treecell(xmax);
     grid_y_low = coord_to_treecell(ymin);
@@ -1971,18 +1919,11 @@ in_front(
 	    for (listhead = quadtree[grid_x][grid_y];
 		 listhead >= 0;
 		 listhead = qlist[listhead].next)
-#else /* HIDDEN3D_QUADTREE */
-    /* loop over all the polygons in the sorted list, starting at the
-     * currently first (i.e. furthest, from the viewer) polygon. */
-    for (polynum = *firstpoly; polynum >=0; polynum = p->next)
-#endif /* HIDDEN3D_QUADTREE */
 	{
 	    /* shortcut variables for the three vertices of 'p':*/
 	    p_vertex w1, w2, w3;
 
-#if HIDDEN3D_QUADTREE
 	    polynum = qlist[listhead].p;
-#endif
 	    p = plist + polynum;
 
 	    /* OK, off we go with the real work. This algorithm had its
@@ -1999,11 +1940,6 @@ in_front(
 	    /* Test 1 (2D): minimax tests. Do x/y ranges of polygon
 	     * and edge have any overlap? */
 	    if (0
-#if HIDDEN3D_GRIDBOX
-		/* First, check by comparing the extent bit patterns: */
-		|| (!(xextent & p->xbits))
-		|| (!(yextent & p->ybits))
-#endif
 		|| (p->xmax < xmin)
 		|| (p->xmin > xmax)
 		|| (p->ymax < ymin)
@@ -2159,13 +2095,7 @@ in_front(
 				 * segment near end of an edge.  Simply ignore.
 				 */
 				if (newvert[1] != vnum1) {
-#if HIDDEN3D_QUADTREE
 				    in_front(edgenum, newvert[1], vnum2, &polynum);
-#else
-				    /* Avoid checking against the same polygon again. */
-				    in_front(edgenum, newvert[1], vnum2,
-						&plist[polynum].next);
-#endif
 				    setup_edge(vnum1, newvert[0]);
 				}
 				break;

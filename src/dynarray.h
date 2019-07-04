@@ -41,15 +41,15 @@ typedef struct dynarray {
     long end;			/* index of first unused entry */
     long increment;		/* amount to increment size by, on realloc */
     size_t entry_size;		/* size of the entries in this array */
-    void GPHUGE *v;		/* the vector itself */
+    void *v;		/* the vector itself */
 } dynarray;
 
 /* Prototypes */
-void init_dynarray __PROTO((dynarray * array, size_t element, long size, long increment));
-void free_dynarray __PROTO((dynarray * array));
-void extend_dynarray __PROTO((dynarray * array, long increment));
-void resize_dynarray __PROTO((dynarray * array, long newsize));
-void GPHUGE *nextfrom_dynarray __PROTO((dynarray * array));
-void droplast_dynarray __PROTO((dynarray * array));
+void init_dynarray(dynarray * array, size_t element, long size, long increment);
+void free_dynarray(dynarray * array);
+void extend_dynarray(dynarray * array, long increment);
+void resize_dynarray(dynarray * array, long newsize);
+void *nextfrom_dynarray(dynarray * array);
+void droplast_dynarray(dynarray * array);
 
 #endif /* DYNARRAY_H */

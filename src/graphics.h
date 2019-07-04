@@ -53,7 +53,7 @@ typedef struct curve_points {
     char *title;		/* plot title, a.k.a. key entry */
     t_position *title_position;	/* title at {beginning|end|<xpos>,<ypos>} */
     TBOOLEAN title_no_enhanced;	/* don't typeset title in enhanced mode */
-    TBOOLEAN title_is_filename;	/* TRUE if title was auto-generated from filename */
+    TBOOLEAN title_is_automated;/* TRUE if title was auto-generated */
     TBOOLEAN title_is_suppressed;/* TRUE if 'notitle' was specified */
     TBOOLEAN noautoscale;	/* ignore data from this plot during autoscaling */
     struct lp_style_type lp_properties;
@@ -80,10 +80,9 @@ typedef struct curve_points {
     AXIS_INDEX y_axis;		/* FIRST_Y_AXIS or SECOND_Y_AXIS */
     AXIS_INDEX z_axis;		/* same as either x_axis or y_axis, for 5-column plot types */
     int current_plotno;		/* Only used by "pn" option of linespoints */
-    int n_par_axes;		/* Only used for parallel axis plots */
-    double **z_n;		/* Only used for parallel axis plots */
+    AXIS_INDEX p_axis;		/* Only used for parallel axis plots */
     double *varcolor;		/* Only used if plot has variable color */
-    struct coordinate GPHUGE *points;
+    struct coordinate *points;
 } curve_points;
 
 /* externally visible variables of graphics.h */
@@ -101,13 +100,12 @@ extern double rgbmax;
 
 /* function prototypes */
 
-void do_plot __PROTO((struct curve_points *, int));
-void map_position __PROTO((struct position * pos, int *x, int *y, const char *what));
-void map_position_r __PROTO((struct position* pos, double* x, double* y,
-			     const char* what));
+void do_plot(struct curve_points *, int);
+void map_position(struct position * pos, int *x, int *y, const char *what);
+void map_position_r(struct position* pos, double* x, double* y, const char* what);
 
-void init_histogram __PROTO((struct histogram_style *hist, text_label *title));
-void free_histlist __PROTO((struct histogram_style *hist));
+void init_histogram(struct histogram_style *hist, text_label *title);
+void free_histlist(struct histogram_style *hist);
 
 typedef enum en_procimg_action {
     IMG_PLOT,
@@ -115,19 +113,14 @@ typedef enum en_procimg_action {
     IMG_UPDATE_CORNERS
 } t_procimg_action;
 
-void process_image __PROTO((void *plot, t_procimg_action action));
-TBOOLEAN check_for_variable_color __PROTO((struct curve_points *plot, double *colorvalue));
+void process_image(void *plot, t_procimg_action action);
+TBOOLEAN check_for_variable_color(struct curve_points *plot, double *colorvalue);
+void autoscale_boxplot(struct curve_points *plot);
 
+void place_objects(struct object *listhead, int layer, int dimensions);
+void do_ellipse(int dimensions, t_ellipse *e, int style, TBOOLEAN do_own_mapping );
 
-#ifdef EAM_OBJECTS
-void place_objects __PROTO((struct object *listhead, int layer, int dimensions));
-void do_ellipse __PROTO((int dimensions, t_ellipse *e, int style, TBOOLEAN do_own_mapping ));
-void do_polygon __PROTO((int dimensions, t_polygon *p, int style, t_clip_object clip, int facing ));
-#else
-#define place_objects(listhead,layer,dimensions) /* void() */
-#endif
-
-int filter_boxplot __PROTO((struct curve_points *));
-void attach_title_to_plot __PROTO((struct curve_points *this_plot, legend_key *key));
+int filter_boxplot(struct curve_points *);
+void attach_title_to_plot(struct curve_points *this_plot, legend_key *key);
 
 #endif /* GNUPLOT_GRAPHICS_H */

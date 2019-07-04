@@ -44,44 +44,42 @@
 
 /* Variables of misc.c needed by other modules: */
 
+/* Used by postscript terminal if a font file is found by loadpath_fopen() */
+extern char *loadpath_fontname;
+
 /* these two are global so that plot.c can load them on program entry */
 extern char *call_args[10];
 extern int call_argc;
 
 /* Prototypes from file "misc.c" */
 
-struct iso_curve * iso_alloc __PROTO((int num));
-void iso_extend __PROTO((struct iso_curve *ip, int num));
-void iso_free __PROTO((struct iso_curve *ip));
-const char *expand_call_arg __PROTO((int c));
-void load_file __PROTO((FILE *fp, char *name, int calltype));
-FILE *lf_top __PROTO((void));
-TBOOLEAN lf_pop __PROTO((void));
-void lf_push __PROTO((FILE *fp, char *name, char *cmdline));
-void load_file_error __PROTO((void));
-FILE *loadpath_fopen __PROTO((const char *, const char *));
-char *fontpath_fullname __PROTO((const char *));
-void push_terminal __PROTO((int is_interactive));
-void pop_terminal __PROTO((void));
+const char *expand_call_arg(int c);
+void load_file(FILE *fp, char *name, int calltype);
+FILE *lf_top(void);
+TBOOLEAN lf_pop(void);
+void lf_push(FILE *fp, char *name, char *cmdline);
+void load_file_error(void);
+FILE *loadpath_fopen(const char *, const char *);
+void push_terminal(int is_interactive);
+void pop_terminal(void);
 
 /* moved here, from setshow */
-enum PLOT_STYLE get_style __PROTO((void));
-void get_filledcurves_style_options __PROTO((filledcurves_opts *));
-void filledcurves_options_tofile __PROTO((filledcurves_opts *, FILE *));
-int lp_parse __PROTO((struct lp_style_type *lp, lp_class destination_class, TBOOLEAN allow_point));
+enum PLOT_STYLE get_style(void);
+void get_filledcurves_style_options(filledcurves_opts *);
+void filledcurves_options_tofile(filledcurves_opts *, FILE *);
+int lp_parse(struct lp_style_type *lp, lp_class destination_class, TBOOLEAN allow_point);
 
-void arrow_parse __PROTO((struct arrow_style_type *, TBOOLEAN));
-void arrow_use_properties __PROTO((struct arrow_style_type *arrow, int tag));
+void arrow_parse(struct arrow_style_type *, TBOOLEAN);
+void arrow_use_properties(struct arrow_style_type *arrow, int tag);
 
-void parse_fillstyle __PROTO((struct fill_style_type *fs, int def_style,
-                              int def_density, int def_pattern, t_colorspec def_border ));
-void parse_colorspec __PROTO((struct t_colorspec *tc, int option));
-long parse_color_name __PROTO((void));
-TBOOLEAN need_fill_border __PROTO((struct fill_style_type *fillstyle));
+void parse_fillstyle(struct fill_style_type *fs);
+void parse_colorspec(struct t_colorspec *tc, int option);
+long parse_color_name(void);
+TBOOLEAN need_fill_border(struct fill_style_type *fillstyle);
 
-void get_image_options __PROTO((t_image *image));
+void get_image_options(t_image *image);
 
-int parse_dashtype __PROTO((struct t_dashtype *dt));
+int parse_dashtype(struct t_dashtype *dt);
 
 /* State information for load_file(), to recover from errors
  * and properly handle recursive load_file calls
@@ -104,12 +102,9 @@ typedef struct lf_state_struct {
     int c_token;		/* Which one were we on ? */
     struct lf_state_struct *prev;			/* defines a stack */
     int call_argc;		/* This saves the _caller's_ argc */
-    char *call_args[10];	/* args when file is 'call'ed instead of 'load'ed */
+    char *call_args[10];	/* ARG0 through ARG9 from "call" command */
+    struct value argv[10];	/* content of global ARGV[] array */
 }  LFS;
 extern LFS *lf_head;
-
-/* encoding stuff */
-enum set_encoding_id encoding_from_locale(void);
-void init_encoding(void);
 
 #endif /* GNUPLOT_MISC_H */

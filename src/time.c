@@ -31,15 +31,10 @@
 ]*/
 
 
-/* This module either adds a routine gstrptime() to read a formatted time,
- * augmenting the standard suite of time routines provided by ansi,
- * or it completely replaces the whole lot with a new set of routines
- * which count time relative to the EPOCH date. Default is to use the
- * new routines. Define USE_SYSTEM_TIME to use the system routines, at your
- * own risk. One problem in particular is that not all systems allow
- * the time with integer value 0 to be represented symbolically, which
- * prevents use of relative times.  Also, the system routines do not allow
- * you to read in fractional seconds.
+/* This module provides a set of routines to read or write times using
+ * human-friendly units (hours, days, years, etc).  Unlike similar
+ * ansi routines, these ones support sub-second precision and relative
+ * times.  E.g.   -1.23 seconds is a valid time.
  */
 
 
@@ -48,7 +43,7 @@
 #include "util.h"
 #include "variable.h"
 
-static char *read_int __PROTO((char *s, int nr, int *d));
+static char *read_int(char *s, int nr, int *d);
 
 static char *
 read_int(char *s, int nr, int *d)
@@ -63,18 +58,11 @@ read_int(char *s, int nr, int *d)
 }
 
 
-
-#ifndef USE_SYSTEM_TIME
-
-/* a new set of routines to completely replace the ansi ones
- * Use at your own risk
- */
-
-static int gdysize __PROTO((int yr));
+static int gdysize(int yr);
 
 static int mndday[12] = { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
 
-static size_t xstrftime __PROTO((char *buf, size_t bufsz, const char *fmt, struct tm * tm, double usec, double fulltime));
+static size_t xstrftime(char *buf, int bsz, const char *fmt, struct tm * tm, double usec, double fulltime);
 
 /* days in year */
 static int
@@ -116,6 +104,8 @@ gstrptime(char *s, char *fmt, struct tm *tm, double *usec, double *reltime)
     tm->tm_mon = tm->tm_hour = tm->tm_min = tm->tm_sec = 0;
     /* make relative times work (user-defined tic step) */
     tm->tm_year = ZERO_YEAR;
+
+    init_timezone(tm);
 
     /* Fractional seconds will be returned separately, since
      * there is no slot for the fraction in struct tm.
@@ -294,6 +284,41 @@ gstrptime(char *s, char *fmt, struct tm *tm, double *usec, double *reltime)
 		break;
 	    }
 
+	case 'a':		/* weekday name (ignored) */
+	case 'A':		/* weekday name (ignored) */
+	    while (isalpha(*s))
+		s++;
+	    break;
+	case 'w':		/* one or two digit weekday number (ignored) */
+	case 'W':		/* one or two digit week number (ignored) */
+	    if (isdigit(*s))
+		s++;
+	    if (isdigit(*s))
+		s++;
+	    break;
+
+#ifdef HAVE_STRUCT_TM_TM_GMTOFF
+	case 'z':		/* timezone offset  */
+	    {
+		int neg = (*s == '-') ? -1 : 1;
+		int off_h, off_m;
+		if (*s == '-' || *s == '+')
+		    s++;
+		s = read_int(s, 2, &off_h);
+		if (*s == ':')
+		    s++;
+		s = read_int(s, 2, &off_m);
+		tm->tm_gmtoff = 3600*off_h + 60*off_m;
+		tm->tm_gmtoff *= neg;
+
+	        break;
+	    }
+	case 'Z':		/* timezone name (ignored) */
+	    while (*s && !isspace(*s))
+		s++;
+	    break;
+#endif
+
 	default:
 	    int_warn(DATAFILE, "Bad time format in string");
 	}
@@ -391,7 +416,7 @@ gstrftime(char *s, size_t bsz, const char *fmt, double l_clock)
 static size_t
 xstrftime(
     char *str,			/* output buffer */
-    size_t bsz,			/* space available */
+    int bsz,			/* remaining space available in buffer */
     const char *fmt,
     struct tm *tm,
     double usec,
@@ -401,6 +426,9 @@ xstrftime(
     int incr = 0;			/* chars just written */
     char *s = str;
     TBOOLEAN sign_printed = FALSE;
+
+    if (bsz <= 0)
+	return 0;
 
     memset(str, '\0', bsz);
 
@@ -722,7 +750,7 @@ double
 gtimegm(struct tm *tm)
 {
     int i;
-    /* returns sec from year ZERO_YEAR, defined in gp_time.h */
+    /* returns sec from year ZERO_YEAR in UTC, defined in gp_time.h */
     double dsec = 0.;
 
     if (tm->tm_year < ZERO_YEAR) {
@@ -750,8 +778,13 @@ gtimegm(struct tm *tm)
     dsec *= 60.0;
     dsec += tm->tm_sec;
 
-    FPRINTF((stderr, "broken-down time : %02d/%02d/%d:%02d:%02d:%02d = %g seconds\n", tm->tm_mday, tm->tm_mon + 1, tm->tm_year, tm->tm_hour,
-	     tm->tm_min, tm->tm_sec, dsec));
+#ifdef HAVE_STRUCT_TM_TM_GMTOFF
+    dsec -= tm->tm_gmtoff;
+
+    FPRINTF((stderr, "broken-down time : %02d/%02d/%d:%02d:%02d:%02d:(%02d:%02d) = %g seconds\n",
+	     tm->tm_mday, tm->tm_mon + 1, tm->tm_year, tm->tm_hour,
+	     tm->tm_min, tm->tm_sec, tm->tm_gmtoff / 3600, (tm->tm_gmtoff % 3600) / 60, dsec));
+#endif
 
     return (dsec);
 }
@@ -773,14 +806,9 @@ ggmtime(struct tm *tm, double l_clock)
 
     tm->tm_year = ZERO_YEAR;
     tm->tm_mday = tm->tm_yday = tm->tm_mon = tm->tm_hour = tm->tm_min = tm->tm_sec = 0;
-    if (l_clock < 0) {
-	while (l_clock < 0) {
-	    int days_in_year = gdysize(--tm->tm_year);
-	    l_clock += days_in_year * DAY_SEC;	/* 24*3600 */
-	    /* adding 371 is noop in modulo 7 arithmetic, but keeps wday +ve */
-	    wday += 371 - days_in_year;
-	}
-    } else {
+    init_timezone(tm);
+
+    if (l_clock >= 0) {
 	for (;;) {
 	    int days_in_year = gdysize(tm->tm_year);
 	    if (l_clock < days_in_year * DAY_SEC)
@@ -789,6 +817,13 @@ ggmtime(struct tm *tm, double l_clock)
 	    tm->tm_year++;
 	    /* only interested in result modulo 7, but %7 is expensive */
 	    wday += (days_in_year - 364);
+	}
+    } else {
+	while (l_clock < 0) {
+	    int days_in_year = gdysize(--tm->tm_year);
+	    l_clock += days_in_year * DAY_SEC;	/* 24*3600 */
+	    /* adding 371 is noop in modulo 7 arithmetic, but keeps wday +ve */
+	    wday += 371 - days_in_year;
 	}
     }
     tm->tm_yday = (int) (l_clock / DAY_SEC);
@@ -807,6 +842,12 @@ ggmtime(struct tm *tm, double l_clock)
     while (days >= (i = mndday[tm->tm_mon] + (tm->tm_mon == 1 && (gdysize(tm->tm_year) > 365)))) {
 	days -= i;
 	tm->tm_mon++;
+	/* This catches round-off error that initially assigned a date to year N-1 */
+	/* but counting out seconds puts it in the first second of Jan year N.     */
+	if (tm->tm_mon > 11) {
+	    tm->tm_mon = 0;
+	    tm->tm_year++;
+	}
     }
     tm->tm_mday = days + 1;
 
@@ -815,105 +856,3 @@ ggmtime(struct tm *tm, double l_clock)
     return (0);
 }
 
-
-
-
-#else /* USE_SYSTEM_TIME */
-
-/* define gnu time routines in terms of system time routines */
-
-size_t
-gstrftime(char *buf, size_t bufsz, const char *fmt, double l_clock)
-{
-    time_t t = (time_t) l_clock;
-    return strftime(buf, bufsz, fmt, gmtime(&t));
-}
-
-double
-gtimegm(struct tm *tm)
-{
-    return (double) mktime(tm);
-}
-
-int
-ggmtime(struct tm *tm, double l_clock)
-{
-    time_t t = (time_t) l_clock;
-    struct tm *m = gmtime(&t);
-    *tm = *m;			/* can any non-ansi compilers not do this ? */
-    return 0;
-}
-
-/* supplemental routine gstrptime() to read a formatted time */
-
-char *
-gstrptime(char *s, char *fmt, struct tm *tm)
-{
-    FPRINTF((stderr, "gstrptime(\"%s\", \"%s\")\n", s, fmt));
-
-    /* linux does not appear to like years before 1902
-     * NT complains if its before 1970
-     * initialise fields to midnight, 1st Jan, 1970 (for relative times)
-     */
-    tm->tm_sec = tm->tm_min = tm->tm_hour = 0;
-    tm->tm_mday = 1;
-    tm->tm_mon = 0;
-    tm->tm_year = 70;
-    /* oops - it goes wrong without this */
-    tm->tm_isdst = 0;
-
-    for (; *fmt && *s; ++fmt) {
-	if (*fmt != '%') {
-	    if (*s != *fmt)
-		return s;
-	    ++s;
-	    continue;
-	}
-	assert(*fmt == '%');
-
-	switch (*++fmt) {
-	case 0:
-	    /* uh oh - % is last character in format */
-	    return s;
-	case '%':
-	    /* literal % */
-	    if (*s++ != '%')
-		return s - 1;
-	    continue;
-
-#define NOTHING	/* nothing */
-#define LETTER(L, width, field, extra)		\
-	case L:					\
-	    s=read_int(s,width,&tm->field);	\
-	    extra;				\
-	    continue;
-
-	    LETTER('d', 2, tm_mday, NOTHING);
-	    LETTER('m', 2, tm_mon, NOTHING);
-	    LETTER('y', 2, tm_year, NOTHING);
-	    LETTER('Y', 4, tm_year, tm->tm_year -= 1900);
-	    LETTER('H', 2, tm_hour, NOTHING);
-	    LETTER('M', 2, tm_min, NOTHING);
-	    LETTER('S', 2, tm_sec, NOTHING);
-#undef NOTHING
-#undef LETTER
-
-	default:
-	    int_error(DATAFILE, "incorrect time format character");
-	}
-    }
-
-    FPRINTF((stderr, "Before mktime : %d/%d/%d:%d:%d:%d\n", tm->tm_mday, tm->tm_mon, tm->tm_year, tm->tm_hour, tm->tm_min, tm->tm_sec));
-    /* mktime range-checks the time */
-
-    if (mktime(tm) == -1) {
-	FPRINTF((stderr, "mktime() was not happy\n"));
-	int_error(DATAFILE, "Invalid date/time [mktime() did not like it]");
-    }
-    FPRINTF((stderr, "After mktime : %d/%d/%d:%d:%d:%d\n", tm->tm_mday, tm->tm_mon, tm->tm_year, tm->tm_hour, tm->tm_min, tm->tm_sec));
-
-    return s;
-}
-
-
-#endif /* USE_SYSTEM_TIME */

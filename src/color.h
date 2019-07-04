@@ -26,41 +26,33 @@ of palettes between terminals and making palette routines.
 # include "config.h"
 #endif
 
+typedef enum colortype {
+	TC_DEFAULT	= 0,	/* Use default color, set separately */
+	TC_LT		= 1,	/* Use the color of linetype <n> */
+	TC_LINESTYLE	= 2,	/* Use the color of line style <n> */
+	TC_RGB		= 3,	/* Explicit RGB triple provided by user */
+	TC_CB		= 4,	/* "palette cb <value>" */
+	TC_FRAC		= 5,	/* "palette frac <value> */
+	TC_Z		= 6,	/* "palette z" */
+	TC_VARIABLE	= 7	/* only used for "tc", never "lc" */
+} colortype;
+
 /* Generalized pm3d-compatible color specifier
  * Supplements basic linetype choice */
 typedef struct t_colorspec {
-    int type;			/* TC_<type> definitions below */
+    colortype type;		/* TC_<type> definitions below */
     int lt;			/* used for TC_LT, TC_LINESTYLE and TC_RGB */
     double value;		/* used for TC_CB and TC_FRAC */
 } t_colorspec;
-#define	TC_DEFAULT	0	/* Use default color, set separately */
-#define	TC_LT		1	/* Use the color of linetype <n> */
-#define	TC_LINESTYLE	2	/* Use the color of line style <n> */
-#define	TC_RGB		3	/* Explicit RGB triple provided by user */
-#define	TC_CB		4	/* "palette cb <value>" */
-#define	TC_FRAC		5	/* "palette frac <value> */
-#define	TC_Z		6	/* "palette z" */
-#define	TC_VARIABLE	7	/* only used for "tc", never "lc" */
 
 #define DEFAULT_COLORSPEC {TC_DEFAULT, 0, 0.0}
 #define BLACK_COLORSPEC {TC_LT, LT_BLACK, 0.0}
 #define BACKGROUND_COLORSPEC {TC_LT, LT_BACKGROUND, 0.0}
 
-#ifdef EXTENDED_COLOR_SPECS
-typedef struct {
-    double gray;
-    /* to be extended */
-} colorspec_t;
-#endif
-
 /* EAM July 2004 - Disentangle polygon support and PM3D support  */
 /* a point (with integer coordinates) for use in polygon drawing */
 typedef struct {
     int x, y;
-#ifdef EXTENDED_COLOR_SPECS
-    double z;
-    colorspec_t spec;
-#endif
     int style;
 } gpiPoint;
 
@@ -205,65 +197,37 @@ typedef struct {
 
 extern t_sm_palette sm_palette;
 
-#ifdef EXTENDED_COLOR_SPECS
-extern int supply_extended_color_specs;
-#endif
-
 
 /* ROUTINES */
 
 
-void init_color __PROTO((void));  /* call once to initialize variables */
+void init_color(void);  /* call once to initialize variables */
 
 
 /*
   Make the colour palette. Return 0 on success
   Put number of allocated colours into sm_palette.colors
 */
-int make_palette __PROTO((void));
+int make_palette(void);
 
-void invalidate_palette __PROTO((void));
+void invalidate_palette(void);
 
 /*
    Send current colour to the terminal
 */
-void set_color __PROTO(( double gray ));
-void set_rgbcolor_var __PROTO(( unsigned int rgbvalue ));
-void set_rgbcolor_const __PROTO(( unsigned int rgbvalue ));
-
-void ifilled_quadrangle __PROTO((gpiPoint* icorners));
-
-/*
-   The routine above for 4 points explicitly
-*/
-#ifdef EXTENDED_COLOR_SPECS
-void filled_quadrangle __PROTO((gpdPoint *corners, gpiPoint* icorners));
-#else
-void filled_quadrangle __PROTO((gpdPoint *corners));
-#endif
-
-/*
-   Makes mapping from real 3D coordinates, passed as coords array,
-   to 2D terminal coordinates, then draws filled polygon
-*/
-/* HBB 20010216: added 'GPHUGE' attribute */
-void filled_polygon_3dcoords __PROTO((int points, struct coordinate GPHUGE *coords));
-
-/*
-   Makes mapping from real 3D coordinates, passed as coords array, but at z coordinate
-   fixed (base_z, for instance) to 2D terminal coordinates, then draws filled polygon
-*/
-void filled_polygon_3dcoords_zfixed __PROTO((int points, struct coordinate GPHUGE *coords, double z));
+void set_color( double gray );
+void set_rgbcolor_var( unsigned int rgbvalue );
+void set_rgbcolor_const( unsigned int rgbvalue );
 
 /*
   Draw colour smooth box
 */
-void draw_color_smooth_box __PROTO((int plot_mode));
+void draw_color_smooth_box(int plot_mode);
 
 /*
  Support for user-callable routines
 */
-void f_hsv2rgb __PROTO((union argument *));
+void f_hsv2rgb(union argument *);
 
 #endif /* COLOR_H */
 

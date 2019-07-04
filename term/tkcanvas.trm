@@ -102,19 +102,21 @@ register_term(tkcanvas)
 #endif
 
 #ifdef TERM_PROTO
-TERM_PUBLIC void TK_options __PROTO((void));
-TERM_PUBLIC void TK_init __PROTO((void));
-TERM_PUBLIC void TK_graphics __PROTO((void));
-TERM_PUBLIC void TK_text __PROTO((void));
-TERM_PUBLIC void TK_linetype __PROTO((int linetype));
-TERM_PUBLIC void TK_move __PROTO((unsigned int x, unsigned int y));
-TERM_PUBLIC void TK_vector __PROTO((unsigned int x, unsigned int y));
+TERM_PUBLIC void TK_options(void);
+TERM_PUBLIC void TK_init(void);
+TERM_PUBLIC void TK_graphics(void);
+TERM_PUBLIC void TK_text(void);
+TERM_PUBLIC void TK_linetype(int linetype);
+TERM_PUBLIC void TK_move(unsigned int x, unsigned int y);
+TERM_PUBLIC void TK_vector(unsigned int x, unsigned int y);
 TERM_PUBLIC int  TK_text_angle(int ang);
 TERM_PUBLIC void TK_put_text(unsigned int x, unsigned int y, const char *str);
 TERM_PUBLIC void TK_reset(void);
 TERM_PUBLIC int  TK_justify_text(enum JUSTIFY);
 TERM_PUBLIC void TK_point(unsigned int, unsigned int, int);
+#if 0
 TERM_PUBLIC void TK_arrow(unsigned int, unsigned int, unsigned int, unsigned int, int);
+#endif
 TERM_PUBLIC int  TK_set_font(const char *font);
 TERM_PUBLIC void TK_enhanced_open(char * fontname, double fontsize,
 				  double base, TBOOLEAN widthflag, TBOOLEAN showflag, int overprint);
@@ -128,9 +130,7 @@ TERM_PUBLIC void TK_filled_polygon(int points, gpiPoint *corners);
 TERM_PUBLIC void TK_image(unsigned m, unsigned n, coordval *image, gpiPoint *corner, t_imagecolor color_mode);
 #endif
 TERM_PUBLIC void TK_dashtype(int dt, t_dashtype *custom_dash_pattern);
-#ifdef EAM_BOXED_TEXT
 TERM_PUBLIC void TK_boxed_text(unsigned int x, unsigned int y, int option);
-#endif
 
 /* nominal canvas size */
 #define TK_XMAX 1000
@@ -207,7 +207,7 @@ static void TK_put_noenhanced_text(unsigned int x, unsigned int y, const char *s
 static void TK_put_enhanced_text(unsigned int x, unsigned int y, const char *str);
 static void TK_rectangle(int x1, int y1, int x2, int y2, char * color, char * stipple);
 static void TK_add_path_point(int x, int y); /* add a new point to current path or line */
-static void TK_flush_line(); /* finish a poly-line */
+static void TK_flush_line(void); /* finish a poly-line */
 
 
 enum TK_id {
@@ -551,10 +551,12 @@ TK_graphics()
     /* Reset to start of output file.  If the user mistakenly tries to	*/
     /* plot again into the same file, it will overwrite the original	*/
     /* rather than corrupting it.					*/
-    fseek(gpoutfile, 0L, SEEK_SET);
-    fflush(gpoutfile);
-    if (ftruncate(fileno(gpoutfile), (off_t)0) != 0)
-	int_error(NO_CARET,"Error re-writing output file: %s", strerror(errno));
+    if (gpoutfile != stdout) {
+	fseek(gpoutfile, 0L, SEEK_SET);
+	fflush(gpoutfile);
+	if (ftruncate(fileno(gpoutfile), (off_t)0) != 0)
+	    int_warn(NO_CARET,"Error re-writing output file: %s", strerror(errno));
+    }
 
     if (!tk_standalone && 
 	((tk_script_language == TK_LANG_PERL) || (tk_script_language == TK_LANG_PERLTKX)))
@@ -644,6 +646,8 @@ TK_color(t_colorspec *colorspec)
 	    snprintf(tmp_color, sizeof(tk_color), "#%02x%02x%02x", red, green, blue);
 	    break;
 	}
+    default:
+	    break;
     }
 
     if (strcmp(tk_color, tmp_color) != 0) {
@@ -1117,24 +1121,7 @@ TK_put_noenhanced_text(unsigned int x, unsigned int y, const char *str)
 
     TK_flush_line();
     if (tk_script_language == TK_LANG_TCL) {
-	/* Have to escape several characters: []{}"$; */
-	for (i = 0; str[i] != '\0'; i++) {
-	    if ((str[i] == '[') || (str[i] == ']') ||
-		(str[i] == '{') || (str[i] == '}') ||
-		(str[i] == '$') || (str[i] == ';'))
-		newsize++;
-	    newsize++;
-	}
-	quoted_str = (char *) gp_alloc(newsize + 1, "TK_put_text: quoted string");
-
-	for (i = 0, newsize = 0; str[i] != '\0'; i++) {
-	    if ((str[i] == '[') || (str[i] == ']') ||
-		(str[i] == '{') || (str[i] == '}') ||
-		(str[i] == '$') || (str[i] == ';'))
-		quoted_str[newsize++] = '\\';
-	    quoted_str[newsize++] = str[i];
-	}
-	quoted_str[newsize] = '\0';
+	quoted_str = escape_reserved_chars(str, "[]{}$;");
     }
     if ((tk_script_language == TK_LANG_REXX) ||
 	(tk_script_language == TK_LANG_RUBY) ||
@@ -1551,6 +1538,7 @@ TK_point(unsigned int x, unsigned int y, int point)
 }
 
 
+#if (0) /* private arrow routine does not handle HEAD_ONLY */
 static char *tk_line_arrow[TK_LANG_MAX] = {
   /* Tcl */
     " -arrow %s",
@@ -1584,8 +1572,8 @@ static char *tk_line_arrowshape[TK_LANG_MAX] = {
 TERM_PUBLIC
 void TK_arrow(unsigned int usx, unsigned int usy, unsigned int uex, unsigned int uey, int head)
 {
-    /* NOHEAD = 0, END_HEAD = 1, BACKHEAD = 2, BOTH_HEADS = 3 */
-    const char * arrow[BOTH_HEADS + 1] = { "none", "last", "first", "both" };
+    /* NOHEAD = 0, END_HEAD = 1, BACKHEAD = 2, BOTH_HEADS = 3, HEADS_ONLY = 4 */
+    const char * arrow[4] = { "none", "last", "first", "both" };
     /* NOTE: we really need integer arguments. Why are the arguments unsigned in the first place? */
     int sx = (int) usx;
     int sy = (int) usy;
@@ -1594,7 +1582,6 @@ void TK_arrow(unsigned int usx, unsigned int usy, unsigned int uex, unsigned int
 
     TK_flush_line();
     if (curr_arrow_headfilled >= AS_FILLED) { /* AS_FILLED, AS_NOBORDER */
-	assert(abs(head) <= BOTH_HEADS);
 
 	fputs(tk_line_segment_start[tk_script_language], gpoutfile);
 	fprintf(gpoutfile, tk_poly_point[tk_script_language], sx, TK_YMAX - sy);
@@ -1613,7 +1600,7 @@ void TK_arrow(unsigned int usx, unsigned int usy, unsigned int uex, unsigned int
 	    if (length <= 1) length = 2;
 	    if (tiplen < 1) tiplen = 1;
 
-	    fprintf(gpoutfile, tk_line_arrow[tk_script_language], arrow[abs(head)]);
+	    fprintf(gpoutfile, tk_line_arrow[tk_script_language], arrow[ (head & BOTH_HEADS) ]);
 	    fprintf(gpoutfile, tk_line_arrowshape[tk_script_language], length, tiplen, width);
 	} else if (head != NOHEAD) {
 	    double dx = sx - ex;
@@ -1624,7 +1611,7 @@ void TK_arrow(unsigned int usx, unsigned int usy, unsigned int uex, unsigned int
 	    int length = (int) (COS15 * head_coeff);
 	    int width  = (int) (SIN15 * head_coeff);
 
-	    fprintf(gpoutfile, tk_line_arrow[tk_script_language], arrow[abs(head)]);
+	    fprintf(gpoutfile, tk_line_arrow[tk_script_language], arrow[ (head & BOTH_HEADS) ]);
 	    fprintf(gpoutfile, tk_line_arrowshape[tk_script_language], length, length, width);
 	}
 	if (tk_dashpattern[0] != NUL)
@@ -1636,6 +1623,7 @@ void TK_arrow(unsigned int usx, unsigned int usy, unsigned int uex, unsigned int
 	do_arrow(sx, sy, ex, ey, head);
     }
 }
+#endif
 
 
 static char *tk_endblock[TK_LANG_MAX] = {
@@ -2065,7 +2053,6 @@ static char *tk_box_finish[TK_LANG_MAX] = {
 };
 
 
-#ifdef EAM_BOXED_TEXT
 TERM_PUBLIC void
 TK_boxed_text(unsigned int x, unsigned int y, int option)
 {
@@ -2091,7 +2078,6 @@ TK_boxed_text(unsigned int x, unsigned int y, int option)
 	break;
     }
 }
-#endif
 
 #endif /* TERM_BODY */
 
@@ -2103,7 +2089,7 @@ TERM_TABLE_START(tkcanvas)
     TK_options, TK_init, TK_reset,
     TK_text, null_scale, TK_graphics, TK_move, TK_vector,
     TK_linetype, TK_put_text, null_text_angle,
-    TK_justify_text, TK_point, TK_arrow, TK_set_font,
+    TK_justify_text, TK_point, do_arrow, TK_set_font,
     NULL /* set_pointsize */,
     TERM_CAN_MULTIPLOT |  TERM_ENHANCED_TEXT,
     /* FIXME: Options not yet implemented */
@@ -2119,9 +2105,7 @@ TERM_TABLE_START(tkcanvas)
     NULL /* layer */, TK_path,
     0.0,
     NULL /* hypertext */,
-#ifdef EAM_BOXED_TEXT
     TK_boxed_text, 
-#endif
     NULL, TK_dashtype
 TERM_TABLE_END(tkcanvas)
 #undef LAST_TERM

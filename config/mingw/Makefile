@@ -159,6 +159,13 @@ CERF=1
 # Uncomment if you want to use Direct2D 1.1 (Windows 8 and Windows 7 Platform Update)
 DIRECT2D11=1
 
+# GRX graphics library, for debugging the DJGPP svga terminal
+#GRX=1
+GRXPATH=c:/Source/grx249
+# or, the MGRX fork of GRX
+#MGRX=1
+MGRXPATH=c:/Source/mgrx110
+
 
 # Below you can adapt paths according to your software setup:
 
@@ -415,8 +422,8 @@ endif
 
 ifdef CAIROLIBS
 	CAIRO_CFLAGS := $(shell pkg-config --cflags cairo | sed s_-Ic:_-I/c_g)
-	PANGOCAIRO_CFLAGS := $(shell pkg-config --cflags pangocairo cairo | sed s_-Ic:_-I/c_g)
-	PANGOCAIRO_LIBS := $(shell pkg-config --libs pangocairo cairo | sed s_-Lc:_-L/c_g)
+	PANGOCAIRO_CFLAGS := $(shell pkg-config --cflags glib-2.0 gobject-2.0 pangocairo cairo | sed s_-Ic:_-I/c_g)
+	PANGOCAIRO_LIBS := $(shell pkg-config --libs glib-2.0 gobject-2.0 pangocairo cairo | sed s_-Lc:_-L/c_g)
 	CAIRO_OBJS := gp_cairo.$(O) gp_cairo_helpers.$(O)
 	TERMFLAGS += $(PANGOCAIRO_CFLAGS)
 endif
@@ -477,6 +484,22 @@ ifdef CACA
 	TERMLIBS += -lcaca
 endif
 
+ifdef MGRX
+	CFLAGS += -I$(MGRXPATH)/include -DHAVE_GRX -DHAVE_MGRX
+ifdef M32
+	TERMLIBS += -L$(MGRXPATH)/lib/win32/ -lmgrx -lgdi32 -lfreetype
+else
+	TERMLIBS += -L$(MGRXPATH)/lib/win64/ -lmgrx -lgdi32 -lfreetype
+endif
+else
+ifdef GRX
+ifdef M32
+	CFLAGS += -I$(GRXPATH)/include -DHAVE_GRX
+	TERMLIBS += -L$(GRXPATH)/lib/win32/ -lgrx20 -lgdi32
+endif
+endif
+endif
+
 ifdef ICONV
 	CFLAGS += -DHAVE_ICONV
 	TERMLIBS += -liconv
@@ -535,17 +558,17 @@ LONGVERSION := $(MAINVERSION).0
 endif
 FULLVERSION := $(MAINVERSION) patchlevel $(PATCHLEVEL)
 
-TARGETS_PLAIN = wgnuplot.exe wgnuplot.mnu
+TARGETS_PLAIN = $(VERSIONING) config.h wgnuplot.exe wgnuplot.mnu $(QT_TARGET)
 ifndef MINGW64
 	EXTRA_CPPFLAGS_PLAIN += -DUSE_FAKEPIPES
 else
 	EXTRA_CPPFLAGS_PLAIN += -DPIPES
 endif
 
-TARGETS_PIPES = wgnuplot_pipes.exe wgnuplot.mnu
+TARGETS_PIPES = $(VERSIONING) config.h wgnuplot_pipes.exe wgnuplot.mnu $(QT_TARGET)
 EXTRA_CPPFLAGS_PIPES += -DPIPES
 
-TARGETS_CONSOLE = gnuplot.exe
+TARGETS_CONSOLE = $(VERSIONING) config.h gnuplot.exe $(QT_TARGET)
 EXTRA_CPPFLAGS_CONSOLE += -DWGP_CONSOLE -DPIPES
 
 DEFAULT_TARGETS = $(VERSIONING) config.h $(TARGETS_$(VARIANT)) $(QT_TARGET)
@@ -560,7 +583,9 @@ pipes: $(TARGETS_PIPES)
 
 console: $(TARGETS_CONSOLE)
 
-docs: gnuplot.pdf tutorial.pdf ps_symbols.pdf ps_fontfile_doc.pdf ps_guide.pdf
+docs: gnuplot.pdf ps_symbols.pdf ps_fontfile_doc.pdf ps_guide.pdf faq.pdf
+
+faq: faq.pdf
 
 helpfile: $(HELPFILE)
 
@@ -668,11 +693,12 @@ term.co: term.c term.h plot.h setshow.h bitmap.h $(CORETERM)
 	$(CC) -c $(CFLAGS) $(EXTRA_CPPFLAGS_CONSOLE) $(TERMFLAGS) -MMD -MT '$*.co' -MF $*.cd -o $@ $<
 
 ifndef RELEASE
-timestamp.h: $(TOP)/ChangeLog
+git_current := $(shell cut -c6- $(TOP)/.git/HEAD)
+timestamp.h: $(TOP)/.git/${git_current} Makefile
 	@echo Creating $@
 	@echo "#ifndef GNUPLOT_TIMEBASE_H_INCLUDED" >$@t
 	@echo "#define GNUPLOT_TIMEBASE_H_INCLUDED" >>$@t
-	@head -1 $< | sed -e 's,\(^[0-9-]* \).*$$,const char gnuplot_date[] = "\1";,' >>$@t
+	@echo "const char gnuplot_date[] = \"`git log -1 --format=%ci | cut -b-11`\";" >>$@t
 	@echo "#endif /* GNUPLOT_TIMEBASE_H_INCLUDED */" >> $@t
 	@if cmp -s $@ $@t; then rm -f $@t; else mv $@t $@; fi
 else
@@ -815,7 +841,7 @@ wgnuplot-ja.chm: $(JASRC) doc2html-ja.exe \
 	-$(HHC) $(JADW)wgnuplot.hhp
 	cp $(JADW)wgnuplot.chm $(HELPFILEJA)
 
-doc2html.exe: $(D)windows/doc2html.c $(D)termdoc.c $(D)xref.c version.o $(LUA_HELP)
+doc2html.exe: $(CORETERM) $(D)windows/doc2html.c $(D)termdoc.c $(D)xref.c version.o $(LUA_HELP)
 	$(LD) $(LDFLAGS) -o $@ -DWINDOWS_NO_GUI \
 	    -DVERSION_MAJOR='"$(MAINVERSION)"' -DPATCHLEVEL='"$(PATCHLEVEL)"' \
 	    $(CFLAGS) -I. -I$(D:/=) -I$(T:/=) \
@@ -947,7 +973,7 @@ tutorial.pdf: $(TUT)/eg1.plt $(TUT)/eg2.plt $(TUT)/eg3.plt $(TUT)/eg4.plt \
 #ifdef LUA
 	GNUPLOT_LIB=$(TUT) GNUPLOT_LUA_DIR=$(T)lua ./$(TARGET) test_tikz.plt
 #endif
-	# run latex twice to get refernces right
+	# run latex twice to get references right
 	TEXINPUTS=.:$(TUT) latex tutorial.tex
 	TEXINPUTS=.:$(TUT) latex tutorial.tex
 	dvipdfm tutorial.dvi
@@ -967,6 +993,11 @@ ps_fontfile_doc.pdf: $(D)psdoc/ps_fontfile_doc.tex
 
 ps_guide.pdf: $(D)psdoc/ps_guide.ps
 	ps2pdf $(D)psdoc/ps_guide.ps ps_guide.pdf
+
+faq.pdf: $(TOP)/faq/faq.tex
+	pdflatex $<
+	pdflatex $<
+	pdflatex $<
 
 # clean up temporary files
 clean:
@@ -992,7 +1023,7 @@ veryclean: clean
 	$(RM) gnuplot_qt.exe qtgnuplot_*.qm
 	$(RM) $(HELPFILE) $(HELPFILEJA) wgnuplot.chw wgnuplot.gid wgnuplot.mnu
 	$(RM) gnuplot.ps gnuplot.pdf
-	$(RM) tutorial.pdf
+	-$(RM) tutorial.pdf faq.pdf
 	$(RM) ps_fontfile_doc.pdf ps_fontfile_doc.ps ps_guide.pdf
 	$(RM) ps_symbols.ps ps_symbols.pdf
 	$(RM) $(M)binary[123] $(M)fit.log $(M)soundfit.par
@@ -1068,8 +1099,8 @@ endif
 # docs
 	mkdir -p $(DESTDIR)/docs
 	-cp -p gnuplot.pdf $(DESTDIR)/docs/
-	cp -p $(TOP)/FAQ.pdf $(DESTDIR)/docs/
-	-cp -p tutorial.pdf $(DESTDIR)/docs/
+	cp -p FAQ.pdf $(DESTDIR)/docs/FAQ.pdf
+	#-cp -p tutorial.pdf $(DESTDIR)/docs/
 	mkdir -p $(DESTDIR)/docs/psdoc
 	cp -p $(D)psdoc/ps_file.doc $(DESTDIR)/docs/psdoc/ps_file_doc.txt
 	cp -p $(D)psdoc/ps_guide.ps $(DESTDIR)/docs/psdoc/

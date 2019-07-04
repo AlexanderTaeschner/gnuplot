@@ -68,6 +68,7 @@ extern "C" {
 	#include "win/wtext.h"    // for kbhit, getchar
 	#include <io.h>           // for isatty
 #endif
+	#include "readline.h"	// for wrap_readline_signal_handler() to catch ^Z
 	#include <signal.h>
 }
 
@@ -200,23 +201,30 @@ static double qt_max_neg_base = 0.0;
 /* ------------------------------------------------------
  * Helpers
  * ------------------------------------------------------*/
+// Adjust for the mismatch of real coords 0->ymax and pixel coords [0:ymax-1]
+#ifndef QT_YBASE
+#define QT_YBASE 1
+#endif
 
 // Convert gnuplot coordinates into floating point term coordinates
 QPointF qt_termCoordF(int x, int y)
 {
-	return QPointF(double(x)/qt_oversamplingF, double(int(term->ymax) - y)/qt_oversamplingF);
+	return QPointF(double(x)/qt_oversamplingF,
+			double(int(term->ymax) - QT_YBASE - y)/qt_oversamplingF);
 }
 
 // The same, but with coordinates clipped to the nearest pixel
 QPoint qt_termCoord(int x, int y)
 {
-	return QPoint(qRound(double(x)/qt_oversamplingF), qRound(double(term->ymax - y)/qt_oversamplingF));
+	return QPoint(qRound(double(x)/qt_oversamplingF),
+			qRound(double(term->ymax - QT_YBASE - y)/qt_oversamplingF));
 }
 
 // Inverse of the previous function
 QPoint qt_gnuplotCoord(int x, int y)
 {
-	return QPoint(x*qt_oversampling, int(term->ymax) - y*qt_oversampling);
+	return QPoint(x*qt_oversampling,
+			int(term->ymax) - QT_YBASE - y*qt_oversampling);
 }
 
 #ifndef GNUPLOT_QT
@@ -419,6 +427,11 @@ bool qt_processTermEvent(gp_event_t* event)
 		paused_for_mouse = 0;
 		return true;
 	}
+	if ((event->type == GE_reset))
+	{
+		paused_for_mouse = 0;
+		return true;
+	}
 
 	return false;
 }
@@ -443,7 +456,7 @@ void qt_init()
 	// The creation of a QApplication mangled our locale settings
 #ifdef HAVE_LOCALE_H
 	setlocale(LC_NUMERIC, "C");
-	setlocale(LC_TIME, current_locale);
+	setlocale(LC_TIME, time_locale);
 #endif
 
 	qt->out.setVersion(QDataStream::Qt_4_4);
@@ -481,13 +494,16 @@ void qt_sendFont()
 			if (qt->socket.bytesAvailable() < (int)sizeof(gp_event_t)) {
 				fprintf(stderr, (waitcount++ % 10 > 0) ? "  ."
 					: "\nWarning: slow font initialization");
-#ifdef Q_OS_MAC
+#ifndef Q_OS_MAC
 				// OSX can be slow (>30 seconds?!) in determining font metrics
-				// Give it more time rather than failing after 1 second
-				// Possibly this is only relevant to Qt5
-				GP_SLEEP(0.5);
-				continue;
+				// Always give it more time rather than failing after 1 second
+				// Everyone else can use --slow on the command line
+				if (slow_font_startup)
 #endif
+				{
+				    GP_SLEEP(0.5);
+				    continue;
+				}
 				return;
 			}
 			while (qt->socket.bytesAvailable() >= (int)sizeof(gp_event_t))
@@ -816,7 +832,7 @@ int qt_set_font(const char* font)
 
 	/* Optimize by leaving early if there is no change */
 	if (qt->currentFontSize == qt_previousFontSize
-	&&  qt->currentFontName == qt->currentFontName) {
+	&&  qt->currentFontName == qt_previousFontName) {
 		return 1;
 	}
 
@@ -1025,6 +1041,10 @@ int qt_waitforinput(int options)
 						timeout );
 
 		if (n_changed_fds < 0) {
+			if (errno == EINTR) {
+				wrap_readline_signal_handler();
+				continue;
+			}
 			// Display the error message except when Ctrl + C is pressed
 			if (errno != 4)
 				fprintf(stderr, "Qt terminal communication error: select() error %i %s\n", errno, strerror(errno));
@@ -1502,8 +1522,9 @@ void qt_options()
 		qt_setPosition = true;
 	}
 
+	termOptions += " font \"" + fontSettings + '"';
+
 	if (set_enhanced) termOptions += qt_optionEnhanced ? " enhanced" : " noenhanced";
-	                  termOptions += " font \"" + fontSettings + '"';
 	if (set_linewidth) termOptions += " linewidth " + QString::number(qt_optionLineWidth);
 	if (set_dashlength) termOptions += " dashlength " + QString::number(qt_optionDashLength);
 	if (set_widget)   termOptions += " widget \"" + qt_option->Widget + '"';
@@ -1557,7 +1578,6 @@ void qt_hypertext( int type, const char *text )
 		qt->out << GEHypertext << qt->codec->toUnicode(text);
 }
 
-#ifdef EAM_BOXED_TEXT
 void qt_boxed_text(unsigned int x, unsigned int y, int option)
 {
 	if (option == TEXTBOX_MARGINS) {
@@ -1568,7 +1588,6 @@ void qt_boxed_text(unsigned int x, unsigned int y, int option)
 	} else
 	    qt->out << GETextBox << qt_termCoordF(x, y) << option;
 }
-#endif
 
 void qt_modify_plots(unsigned int ops, int plotno)
 {

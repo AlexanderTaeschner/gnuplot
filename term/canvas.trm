@@ -14,7 +14,7 @@
  *
  * Additions
  *   Ethan A Merritt, Jan 2009
- *	CANVAS_set_color(), CANVAS_make_palette(), CANVAS_fillbox(), fillstyles, 
+ *	CANVAS_set_color(), CANVAS_make_palette(), CANVAS_fillbox(), fillstyles,
  *	CANVAS_point(), CANVAS_pointsize()
  *	"name <foo>" option to create only a callable javascript file foo.js
  *	"fsize <F>" option to select font size (default remains 10.0)
@@ -38,6 +38,10 @@
  *	Handle image data by storing it in a parallel PNG file
  *   Ethan A Merritt, Mar 2012
  *	Hypertext
+ *   Ethan A Merritt, Jan 2018
+ *	Always apply new color, including alpha channel, to both strokeStyle
+ *	and fillStyle. This allows the terminal to honor RGBA colors for
+ *	lines and points (added to core code in version 4.6)
  *
  * send your comments or suggestions to (gnuplot-info@lists.sourceforge.net).
  *
@@ -49,38 +53,37 @@ register_term(canvas_driver)
 #endif
 
 #ifdef TERM_PROTO
-TERM_PUBLIC void CANVAS_options __PROTO((void));
-TERM_PUBLIC void CANVAS_init __PROTO((void));
-TERM_PUBLIC void CANVAS_graphics __PROTO((void));
-TERM_PUBLIC int CANVAS_justify_text __PROTO((enum JUSTIFY mode));
-TERM_PUBLIC void CANVAS_text __PROTO((void));
-TERM_PUBLIC void CANVAS_reset __PROTO((void));
-TERM_PUBLIC void CANVAS_linetype __PROTO((int linetype));
-TERM_PUBLIC void CANVAS_dashtype __PROTO((int type, t_dashtype *custom_dash_type));
-TERM_PUBLIC void CANVAS_fillbox __PROTO((int style, unsigned int x1, unsigned int y1,
-					unsigned int width, unsigned int height));
-TERM_PUBLIC void CANVAS_linewidth __PROTO((double linewidth));
-TERM_PUBLIC void CANVAS_move __PROTO((unsigned int x, unsigned int y));
-TERM_PUBLIC void CANVAS_vector __PROTO((unsigned int x, unsigned int y));
-TERM_PUBLIC void CANVAS_point __PROTO((unsigned int x, unsigned int y, int number));
-TERM_PUBLIC void CANVAS_pointsize __PROTO((double size));
-TERM_PUBLIC void CANVAS_put_text __PROTO((unsigned int x, unsigned int y,
-					const char *str));
-TERM_PUBLIC int CANVAS_text_angle __PROTO((int ang));
-TERM_PUBLIC void CANVAS_filled_polygon __PROTO((int, gpiPoint *));
-TERM_PUBLIC void CANVAS_set_color __PROTO((t_colorspec *colorspec));
-TERM_PUBLIC int CANVAS_make_palette __PROTO((t_sm_palette *palette));
-TERM_PUBLIC void CANVAS_layer __PROTO((t_termlayer));
-TERM_PUBLIC void CANVAS_path __PROTO((int));
-TERM_PUBLIC void CANVAS_hypertext __PROTO((int, const char *));
-TERM_PUBLIC int CANVAS_set_font __PROTO((const char *));
+TERM_PUBLIC void CANVAS_options(void);
+TERM_PUBLIC void CANVAS_init(void);
+TERM_PUBLIC void CANVAS_graphics(void);
+TERM_PUBLIC int CANVAS_justify_text(enum JUSTIFY mode);
+TERM_PUBLIC void CANVAS_text(void);
+TERM_PUBLIC void CANVAS_reset(void);
+TERM_PUBLIC void CANVAS_linetype(int linetype);
+TERM_PUBLIC void CANVAS_dashtype(int type, t_dashtype *custom_dash_type);
+TERM_PUBLIC void CANVAS_fillbox(int style, unsigned int x1, unsigned int y1,
+				unsigned int width, unsigned int height);
+TERM_PUBLIC void CANVAS_linewidth(double linewidth);
+TERM_PUBLIC void CANVAS_move(unsigned int x, unsigned int y);
+TERM_PUBLIC void CANVAS_vector(unsigned int x, unsigned int y);
+TERM_PUBLIC void CANVAS_point(unsigned int x, unsigned int y, int number);
+TERM_PUBLIC void CANVAS_pointsize(double size);
+TERM_PUBLIC void CANVAS_put_text(unsigned int x, unsigned int y, const char *str);
+TERM_PUBLIC int CANVAS_text_angle(int ang);
+TERM_PUBLIC void CANVAS_filled_polygon(int, gpiPoint *);
+TERM_PUBLIC void CANVAS_set_color(t_colorspec *colorspec);
+TERM_PUBLIC int CANVAS_make_palette(t_sm_palette *palette);
+TERM_PUBLIC void CANVAS_layer(t_termlayer);
+TERM_PUBLIC void CANVAS_path(int);
+TERM_PUBLIC void CANVAS_hypertext(int, const char *);
+TERM_PUBLIC int CANVAS_set_font(const char *);
 
-TERM_PUBLIC void ENHCANVAS_OPEN __PROTO((char *, double, double, TBOOLEAN, TBOOLEAN, int));
-TERM_PUBLIC void ENHCANVAS_FLUSH __PROTO((void));
-TERM_PUBLIC void ENHCANVAS_put_text __PROTO((unsigned int, unsigned int, const char *));
+TERM_PUBLIC void ENHCANVAS_OPEN(char *, double, double, TBOOLEAN, TBOOLEAN, int);
+TERM_PUBLIC void ENHCANVAS_FLUSH(void);
+TERM_PUBLIC void ENHCANVAS_put_text(unsigned int, unsigned int, const char *);
 
 #define CANVAS_OVERSAMPLE	10.
-#define CANVAS_XMAX		(600 * CANVAS_OVERSAMPLE) 
+#define CANVAS_XMAX		(600 * CANVAS_OVERSAMPLE)
 #define CANVAS_YMAX 		(400 * CANVAS_OVERSAMPLE)
 #define CANVASVTIC		(10  * CANVAS_OVERSAMPLE)
 #define CANVASHTIC		(10  * CANVAS_OVERSAMPLE)
@@ -136,14 +139,14 @@ static canvas_imagefile *imagelist = NULL;
 static struct {
     int  previous_linewidth;
     double alpha;		/* alpha channel */
-    char color[18];		/* rgb(rrr,ggg,bbb) */
-    char previous_color[18];	/* rgb(rrr,ggg,bbb) */
+    char color[24];		/* rgba(rrr,ggg,bbb,aaaa) */
+    char previous_color[24];	/* rgba(rrr,ggg,bbb,aaaa) */
     char previous_fill[24];	/* rgba(rrr,ggg,bbb,aaaa) */
     int  plotno;		/* Which plot are we in? */
 } canvas_state;
 
 enum CANVAS_case {
-    CANVAS_SIZE, CANVAS_FONT, CANVAS_FSIZE, 
+    CANVAS_SIZE, CANVAS_FONT, CANVAS_FSIZE,
     CANVAS_NAME, CANVAS_STANDALONE, CANVAS_TITLE,
     CANVAS_LINEWIDTH, CANVAS_MOUSING, CANVAS_JSDIR, CANVAS_ENH, CANVAS_NOENH,
     CANVAS_FONTSCALE, CANVAS_SOLID, CANVAS_DASHED, CANVAS_DASHLENGTH,
@@ -274,7 +277,7 @@ CANVAS_options()
 	    break;
 
 	case CANVAS_FONT:
-	/* FIXME: See note at CANVAS_set_font() */ 
+	/* FIXME: See note at CANVAS_set_font() */
 	    free(canvas_font_name);
 	    if (!(canvas_font_name = try_to_get_string()))
 		int_error(c_token,"font: expecting string");
@@ -344,9 +347,9 @@ CANVAS_options()
 
 	case CANVAS_BACKGROUND:
 	    canvas_background = parse_color_name();
-	    sprintf(CANVAS_background,"rgb(%03d,%03d,%03d)",
+	    sprintf(CANVAS_background," rgb(%03d,%03d,%03d)",
 		(canvas_background >> 16) & 0xff,
-		(canvas_background >> 8) & 0xff, 
+		(canvas_background >> 8) & 0xff,
 		canvas_background & 0xff);
 	    break;
 
@@ -361,11 +364,11 @@ CANVAS_options()
 
     if (canvas_dashlength_factor != 1.0)
 	sprintf(term_options + strlen(term_options), " dashlength %3.1f", canvas_dashlength_factor);
-    sprintf(term_options + strlen(term_options), 
-	canvas_linecap == ROUNDED ? " rounded" : 
+    sprintf(term_options + strlen(term_options),
+	canvas_linecap == ROUNDED ? " rounded" :
 	canvas_linecap == SQUARE ? " square" : " butt");
     sprintf(term_options + strlen(term_options), " size %d,%d", (int)(term->xmax/CANVAS_OVERSAMPLE), (int)(term->ymax/CANVAS_OVERSAMPLE));
-    sprintf(term_options + strlen(term_options), "%s fsize %g lw %g", 
+    sprintf(term_options + strlen(term_options), "%s fsize %g lw %g",
 	term->put_text == ENHCANVAS_put_text ? " enhanced" : "",
 	canvas_font_size, canvas_linewidth);
     sprintf(term_options + strlen(term_options), " fontscale %g", canvas_fontscale);
@@ -393,9 +396,8 @@ CANVAS_init()
 TERM_PUBLIC void
 CANVAS_graphics()
 {
-#if !defined(VMS)
     int len;
-#endif
+
     /* Force initialization at the beginning of each plot */
     canvas_line_type = LT_UNDEFINED;
     canvas_text_angle = 0;
@@ -403,7 +405,7 @@ CANVAS_graphics()
     canvas_state.previous_linewidth = -1;
     canvas_state.previous_color[0] = '\0';
     canvas_state.previous_fill[0] = '\0';
-    strcpy(canvas_state.color,"rgb(000,000,000)");
+    strcpy(canvas_state.color,"rgba(000,000,000,0.00)");
     canvas_state.plotno = 0;
 
     /*
@@ -413,9 +415,9 @@ CANVAS_graphics()
      */
     if (CANVAS_scriptdir == NULL) {
 #ifdef GNUPLOT_JS_DIR
-# if defined(_WIN32)
+# if defined(_WIN32) || defined(MSDOS) || defined(OS2)
 	CANVAS_scriptdir = RelativePathToGnuplot(GNUPLOT_JS_DIR);
-# else /* !_WIN32 */
+# else
 	/* use hardcoded _absolute_ path */
 	CANVAS_scriptdir = strdup(GNUPLOT_JS_DIR);
 # endif
@@ -424,15 +426,14 @@ CANVAS_graphics()
 #endif /* GNUPLOT_JS_DIR */
     }
 
-#if !defined(VMS)
     len = strlen(CANVAS_scriptdir);
-# if defined(_WIN32)
+# if defined(_WIN32) || defined(MSDOS) || defined(OS2)
     if (*CANVAS_scriptdir && CANVAS_scriptdir[len-1] != '\\' && CANVAS_scriptdir[len-1] != '/') {
 	CANVAS_scriptdir = gp_realloc(CANVAS_scriptdir, len+2, "jsdir");
 	if (CANVAS_scriptdir[len-1] == '\\') /* use backslash if used in jsdir, otherwise slash */
-	    strcat(CANVAS_scriptdir,"\\");
+	    strcat(CANVAS_scriptdir, "\\");
 	else
-	    strcat(CANVAS_scriptdir,"/");
+	    strcat(CANVAS_scriptdir, "/");
     }
 # else
     if (*CANVAS_scriptdir && CANVAS_scriptdir[len-1] != '/') {
@@ -440,7 +441,6 @@ CANVAS_graphics()
 	strcat(CANVAS_scriptdir,"/");
     }
 # endif
-#endif
 
     if (CANVAS_standalone) {
 	fprintf(gpoutfile,
@@ -574,7 +574,7 @@ CANVAS_graphics()
 
     fprintf(gpoutfile,
 	    "CanvasTextFunctions.enable(ctx);\n"
-	    "ctx.strokeStyle = \"rgb(215,215,215)\";\n"
+	    "ctx.strokeStyle = \" rgb(215,215,215)\";\n"
 	    "ctx.lineWidth = %.1g;\n\n",
 	canvas_linewidth
     );
@@ -587,7 +587,7 @@ CANVAS_mouse_param( char *gp_name, const char *js_name )
     if ((udv = add_udv_by_name(gp_name))) {
 	if (udv->udv_value.type == INTGR) {
 	    fprintf(gpoutfile, "%s = ", js_name);
-	    fprintf(gpoutfile, "%d", udv->udv_value.v.int_val);
+	    fprintf(gpoutfile, PLD, udv->udv_value.v.int_val);
 	    fprintf(gpoutfile, "\n");
 	} else if (udv->udv_value.type == CMPLX) {
 	    fprintf(gpoutfile, "%s = %g;\n", js_name, udv->udv_value.v.cmplx_val.real);
@@ -598,6 +598,8 @@ CANVAS_mouse_param( char *gp_name, const char *js_name )
 TERM_PUBLIC void
 CANVAS_text()
 {
+    struct axis *this_axis;
+
     CANVAS_finish();
 
     /* FIXME: I am not sure whether these variable names should always be the */
@@ -624,7 +626,7 @@ CANVAS_text()
 	    MOUSE_PARAM("GPVAL_X_MAX", "gnuplot.plot_axis_xmax");
 	}
 	/* FIXME: Should this inversion be done at a higher level? */
-	if (is_3d_plot && splot_map) { 
+	if (is_3d_plot && splot_map) {
 	    MOUSE_PARAM("GPVAL_Y_MAX", "gnuplot.plot_axis_ymin");
 	    MOUSE_PARAM("GPVAL_Y_MIN", "gnuplot.plot_axis_ymax");
 	} else {
@@ -643,7 +645,7 @@ CANVAS_text()
 	    MOUSE_PARAM("GPVAL_X2_MAX", "gnuplot.plot_axis_x2max");
 	} else
 	    fprintf(gpoutfile, "gnuplot.plot_axis_x2min = \"none\"\n");
-	if (axis_array[SECOND_X_AXIS].linked_to_primary 
+	if (axis_array[SECOND_X_AXIS].linked_to_primary
 	&&  axis_array[FIRST_X_AXIS].link_udf->at) {
 	    fprintf(gpoutfile, "gnuplot.x2_mapping = function(x) { return x; };");
 	    fprintf(gpoutfile, "  // replace returned value with %s\n",
@@ -654,7 +656,7 @@ CANVAS_text()
 	    MOUSE_PARAM("GPVAL_Y2_MAX", "gnuplot.plot_axis_y2max");
 	} else
 	    fprintf(gpoutfile, "gnuplot.plot_axis_y2min = \"none\"\n");
-	if (axis_array[SECOND_Y_AXIS].linked_to_primary 
+	if (axis_array[SECOND_Y_AXIS].linked_to_primary
 	&&  axis_array[FIRST_Y_AXIS].link_udf->at) {
 	    fprintf(gpoutfile, "gnuplot.y2_mapping = function(y) { return y; };");
 	    fprintf(gpoutfile, "  // replace returned value with %s\n",
@@ -662,20 +664,38 @@ CANVAS_text()
 	}
 #undef MOUSE_PARAM
 
+	/*
+	 * Note:
+	 * Offline mousing cannot automatically deal with
+	 * (1) nonlinear axes other than logscale
+	 * (2) [x,y]->plot_coordinates as specified by mouse_mode 8
+	 *		'set mouse mouseformat function <foo>'
+	 *     Both of these states are noted by gnuplot_svg.plot_logaxis_* < 0
+	 *     Linked axes that happen to be nonlinear are incorrectly treated as linear
+	 * (3) generic user-specified coordinate format (mouse_alt_string)
+	 *      	'set mouse mouseformat "foo"'
+	 *     Special case mouse_alt_string formats recognized by gnuplot_svg.js are
+	 *     "Time", "Date", and "DateTime".
+	 * FIXME: This all needs to be documented somewhere!
+	 */
+#       define is_nonlinear(axis) ((axis)->linked_to_primary != NULL \
+                         && (axis)->link_udf->at != NULL \
+			 && (axis)->index == -((axis)->linked_to_primary->index))
+
+	this_axis = &axis_array[FIRST_X_AXIS];
 	fprintf(gpoutfile, "gnuplot.plot_logaxis_x = %d;\n",
-		axis_array[FIRST_X_AXIS].log ? 1: 0);
+		this_axis->log ? 1
+		: (mouse_mode == MOUSE_COORDINATES_FUNCTION || is_nonlinear(this_axis)) ? -1
+		: 0);
+	this_axis = &axis_array[FIRST_Y_AXIS];
 	fprintf(gpoutfile, "gnuplot.plot_logaxis_y = %d;\n",
-		axis_array[FIRST_Y_AXIS].log ? 1: 0);
+		this_axis->log ? 1
+		: (mouse_mode == MOUSE_COORDINATES_FUNCTION || is_nonlinear(this_axis)) ? -1
+		: 0);
 	if (polar)
 	    fprintf(gpoutfile, "gnuplot.plot_logaxis_r = %d;\n",
 		axis_array[POLAR_AXIS].log ? 1: 0);
 
-	/* 
-	 * Note: mouse_alt_string is set by 'set mouse mouseformat "foo"'
-	 * The only strings currently recognized by gnuplot_mouse.js are
-	 * "Time" and "Date", but the user could modify gnuplot_mouse.js to
-	 * recognize additional formats.
-	 */
 	if (axis_array[FIRST_X_AXIS].datatype == DT_TIMEDATE) {
 	    /* May need to reconstruct time to millisecond precision */
 	    fprintf(gpoutfile, "gnuplot.plot_axis_xmin = %.3f;\n",
@@ -858,23 +878,23 @@ CANVAS_linetype(int linetype)
     /* NB: These values are manipulated as numbers; */
     /* it does not work to give only the color name */
     static const char * pen_type[17] = {
-	"rgb(255,255,255)", /* should be background */
-	"rgb(000,000,000)", /* black */
-	"rgb(160,160,160)", /* grey */
-	"rgb(255,000,000)", /* red */
-	"rgb(000,171,000)", /* green */
-	"rgb(000,000,225)", /* blue */
-        "rgb(190,000,190)", /* purple */ 
-	"rgb(000,255,255)", /* cyan */
-	"rgb(021,117,069)", /* pine green*/
-	"rgb(000,000,148)", /* navy */
-	"rgb(255,153,000)", /* orange */
-	"rgb(000,153,161)", /* green blue*/
-	"rgb(214,214,069)", /* olive*/
-	"rgb(163,145,255)", /* cornflower*/
-	"rgb(255,204,000)", /* gold*/
-	"rgb(214,000,120)", /* mulberry*/
-	"rgb(171,214,000)", /* green yellow*/
+	" rgb(255,255,255)", /* should be background */
+	" rgb(000,000,000)", /* black */
+	" rgb(160,160,160)", /* grey */
+	" rgb(255,000,000)", /* red */
+	" rgb(000,171,000)", /* green */
+	" rgb(000,000,225)", /* blue */
+        " rgb(190,000,190)", /* purple */
+	" rgb(000,255,255)", /* cyan */
+	" rgb(021,117,069)", /* pine green*/
+	" rgb(000,000,148)", /* navy */
+	" rgb(255,153,000)", /* orange */
+	" rgb(000,153,161)", /* green blue*/
+	" rgb(214,214,069)", /* olive*/
+	" rgb(163,145,255)", /* cornflower*/
+	" rgb(255,204,000)", /* gold*/
+	" rgb(214,000,120)", /* mulberry*/
+	" rgb(171,214,000)", /* green yellow*/
     };
 
     /* FIXME if (linetype == canvas_line_type) return; */
@@ -894,11 +914,17 @@ CANVAS_linetype(int linetype)
 	fprintf(gpoutfile, "ctx.strokeStyle = \"%s\";\n", canvas_state.color);
 	strcpy(canvas_state.previous_color, canvas_state.color);
     }
+
+    if (canvas_line_type == LT_NODRAW)
+	CANVAS_dashtype(DASHTYPE_NODRAW, NULL);
 }
 
 TERM_PUBLIC void
 CANVAS_dashtype(int type, t_dashtype *custom_dash_type)
 {
+    if (canvas_line_type == LT_NODRAW)
+	type = DASHTYPE_NODRAW;
+
     if (canvas_line_type == LT_AXIS)
 	type = DASHTYPE_AXIS;
 
@@ -911,6 +937,10 @@ CANVAS_dashtype(int type, t_dashtype *custom_dash_type)
     case DASHTYPE_SOLID:
 	if (canvas_dash_type != DASHTYPE_SOLID)
 	    fprintf(gpoutfile, "DT(gnuplot.solid);\n");
+	break;
+
+    case DASHTYPE_NODRAW:
+	fprintf(gpoutfile, "DT([0.0,1.0]);\n");
 	break;
 
     default:
@@ -1124,14 +1154,15 @@ CANVAS_set_color(t_colorspec *colorspec)
 
     CANVAS_finish();
 
-    sprintf(canvas_state.color,"rgb(%03d,%03d,%03d)", rgb255.r, rgb255.g, rgb255.b);
+    /* Jan 2017: Always allow for alpha channel */
+    sprintf(canvas_state.color,"rgba(%03d,%03d,%03d,%4.2f)",
+	    rgb255.r, rgb255.g, rgb255.b, 1.0 - canvas_state.alpha);
+    /* Jan 2017: Apply color to BOTH strokeStyle and fillStyle */
     if (strcmp(canvas_state.color, canvas_state.previous_color)) {
-	if (canvas_state.alpha > 0)
-	    fprintf(gpoutfile, "ctx.strokeStyle = \"rgba(%11.11s,%4.2f)\";\n",
-			&canvas_state.color[4], 1.0 - canvas_state.alpha);
-	else
-	    fprintf(gpoutfile, "ctx.strokeStyle = \"%s\";\n", canvas_state.color);
+	fprintf(gpoutfile, "ctx.strokeStyle = \"%s\";\n", canvas_state.color);
+	fprintf(gpoutfile, "ctx.fillStyle = \"%s\";\n", canvas_state.color);
 	strcpy(canvas_state.previous_color, canvas_state.color);
+	strcpy(canvas_state.previous_fill, canvas_state.color);
     }
     canvas_line_type = LT_UNDEFINED;
 }
@@ -1154,7 +1185,7 @@ CANVAS_fillstyle(int style)
     switch (style & 0xf) {
 	case FS_TRANSPARENT_SOLID:
 		sprintf(fillcolor,"rgba(%11.11s,%4.2f)%c",
-			&canvas_state.color[4], density, '\0');
+			&canvas_state.color[5], density, '\0');
 		break;
 	case FS_EMPTY:
 		strcpy(fillcolor,"rgba(255,255,255,0.00)");
@@ -1195,22 +1226,22 @@ CANVAS_fillstyle(int style)
 	case FS_SOLID:
 		if (canvas_state.alpha > 0) {
 		    sprintf(fillcolor,"rgba(%11.11s,%4.2f)%c",
-			&canvas_state.color[4], 1.0 - canvas_state.alpha, '\0');
+			&canvas_state.color[5], 1.0 - canvas_state.alpha, '\0');
 		} else if (density == 1) {
 		    strcpy(fillcolor,canvas_state.color);
 		} else {
-		    int r = atoi(&canvas_state.color[4]);
-		    int g = atoi(&canvas_state.color[8]);
-		    int b = atoi(&canvas_state.color[12]);
+		    int r = atoi(&canvas_state.color[5]);
+		    int g = atoi(&canvas_state.color[9]);
+		    int b = atoi(&canvas_state.color[13]);
 		    r = (float)r*density + 255.*(1.-density);
 		    g = (float)g*density + 255.*(1.-density);
 		    b = (float)b*density + 255.*(1.-density);
-		    sprintf(fillcolor,"rgb(%3d,%3d,%3d)%c", r, g, b, '\0');
+		    sprintf(fillcolor," rgb(%3d,%3d,%3d)%c", r, g, b, '\0');
 		}
 		break;
 	default:
 		/* Use current color, wherever it came from */
-		sprintf(fillcolor,"%s%c",canvas_state.color,'\0');
+		memcpy(fillcolor, canvas_state.color, sizeof(fillcolor));
     }
 
     return fillcolor;
@@ -1281,7 +1312,7 @@ CANVAS_fillbox(int style, unsigned int x1, unsigned int y1, unsigned int width, 
 		x1, canvas_ymax - (y1+height), width, height);
 }
 
-TERM_PUBLIC void 
+TERM_PUBLIC void
 CANVAS_layer(t_termlayer layer)
 {
     char *basename = (CANVAS_name) ? CANVAS_name : "gp";
@@ -1460,7 +1491,7 @@ static int canvas_strwidth(char *s)
 	else if (encoding != S_ENC_UTF8) s++;
 	else if ((*s & 0xE0) == 0xC0) s += 2;
 	else if ((*s & 0xF0) == 0xE0) s += 3;
-	else s += 4; 
+	else s += 4;
 	width += 18;	/* Assumed average width for UTF8 characters */
 	if (s > end) break;
     }
@@ -1512,7 +1543,7 @@ ENHCANVAS_put_text(unsigned int x, unsigned int y, const char *str)
     if (!strlen(str))
 	return;
 
-    if (ignore_enhanced_text || !strpbrk(str, "{}^_@&~")) {
+    if (ignore_enhanced_text || (!strpbrk(str, "{}^_@&~") && !contains_unicode(str))) {
 	CANVAS_put_text(x, y, str);
 	return;
     }
@@ -1570,12 +1601,12 @@ ENHCANVAS_put_text(unsigned int x, unsigned int y, const char *str)
 
 #ifdef WRITE_PNG_IMAGE
 TERM_PUBLIC void
-CANVAS_image (unsigned m, unsigned n, coordval *image, gpiPoint *corner, t_imagecolor color_mode) 
+CANVAS_image (unsigned m, unsigned n, coordval *image, gpiPoint *corner, t_imagecolor color_mode)
 {
     char *image_file;
     char *base_name = CANVAS_name ? CANVAS_name : "gp";
     canvas_imagefile *thisimage = NULL;
-   
+
     /* Write the image to a png file */
     image_file = gp_alloc(strlen(base_name)+16, "CANVAS_image");
     sprintf(image_file, "%s_image_%02d.png", base_name, ++CANVAS_imageno);
@@ -1584,7 +1615,7 @@ CANVAS_image (unsigned m, unsigned n, coordval *image, gpiPoint *corner, t_image
     /* Map it onto the terminals coordinate system. */
     fprintf(gpoutfile, "gnuplot.ZI(%s_image_%02d, %d, %d, %d, %d, %d, %d);\n",
 	base_name, CANVAS_imageno, m, n,
-	corner[0].x, canvas_ymax - corner[0].y, 
+	corner[0].x, canvas_ymax - corner[0].y,
 	corner[1].x, canvas_ymax - corner[1].y);
 
     /* Maintain a linked list of imageno|filename pairs */
@@ -1607,7 +1638,7 @@ TERM_TABLE_START(canvas_driver)
     CANVASVTIC, CANVASHTIC, CANVAS_options, CANVAS_init, CANVAS_reset,
     CANVAS_text, null_scale, CANVAS_graphics, CANVAS_move, CANVAS_vector,
     CANVAS_linetype, CANVAS_put_text, CANVAS_text_angle,
-    CANVAS_justify_text, CANVAS_point, do_arrow, 
+    CANVAS_justify_text, CANVAS_point, do_arrow,
     CANVAS_set_font,
     CANVAS_pointsize,
     TERM_CAN_MULTIPLOT|TERM_ALPHA_CHANNEL|TERM_LINEWIDTH|TERM_CAN_DASH,
@@ -1627,9 +1658,7 @@ TERM_TABLE_START(canvas_driver)
     , CANVAS_path		/* path */
     , 1.0			/* Should this be CANVAS_OVERSAMPLE? */
     , CANVAS_hypertext
-#ifdef EAM_BOXED_TEXT
     , NULL			/* boxed text */
-#endif 
     , NULL			/* modify_plots */
     , CANVAS_dashtype
 TERM_TABLE_END(canvas_driver)

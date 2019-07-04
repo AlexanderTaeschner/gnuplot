@@ -219,6 +219,12 @@ plot demo . 'ellipses.dat' u 1:2:3:4:5 with ellipses units xy title "with ellips
 reset
 set output out . 'figure_heatmap' . ext
 set title "2D Heat map from in-line array of values" offset 0,-1
+$HEATMAP << EOD
+5 4 3 1 0
+2 2 0 0 1
+0 0 0 1 0
+0 1 2 4 3
+EOD
 unset key
 set bmargin 1
 set tmargin 3
@@ -231,14 +237,7 @@ set yrange  [3.5:-0.5]
 set x2tics 0,1
 set ytics  0,1
 set palette rgbformula -3,-3,-3
-plot '-' matrix with image
-5 4 3 1 0
-2 2 0 0 1
-0 0 0 1 0
-0 1 2 4 3
-e
-e
-
+plot $HEATMAP matrix with image
 #
 # 3D Plot styles
 # ==============
@@ -364,6 +363,33 @@ if (GPVAL_TERM eq "pdfcairo") \
     set term pdfcairo color font fontspec size 3.5,2.0 dashlength 0.2
 
 #
+# Use of `keyentry` to construct a key
+# ====================================
+#
+reset
+set output out . 'figure_keyentry' . ext
+set title "Construct key from custom entries"
+set tics scale 0
+unset xtics
+set xrange  [-0.5:4.5]
+set x2range [-0.5:4.5]
+set yrange  [3.5:-0.5]
+set x2tics 0,1
+set ytics  0,1
+set palette rgbform -7,2,-7
+unset colorbox
+set style fill solid border lc "black"
+set key outside right center reverse Left samplen 1
+set key title "Outcomes" left
+
+plot $HEATMAP matrix with image notitle, \
+    keyentry with boxes fc palette cb 0 title "no effect", \
+    keyentry with boxes fc palette cb 1 title "threshold", \
+    keyentry with boxes fc palette cb 3 title "typical range", \
+    keyentry with labels title "as reported in [12]", \
+    keyentry with boxes fc palette cb 5 title "strong effect"
+
+#
 # Polar plot
 # ==========
 #
@@ -384,7 +410,6 @@ unset ytics
 set ttics ("0" 0, "π/2" 90, "π" 180, "3π/2" 270)
 set rrange [ 0.1 : 4.0 ]
 butterfly(x)=exp(cos(x))-2*cos(4*x)+sin(x/12)**5
-GPFUN_butterfly = "butterfly(x)=exp(cos(x))-2*cos(4*x)+sin(x/12)**5"
 plot 3.+sin(t)*cos(5*t) with filledcurve above r=2.5 notitle, \
      3.+sin(t)*cos(5*t) with line
 
@@ -501,7 +526,7 @@ set title "Ag 108 decay data"
 set xlabel "Time (sec)" 
 set ylabel "Rate" 
 Shadecolor = "#80E0A080"
-plot demo . 'silver.dat' using 1:($2+$3):($2-$3) with filledcurve fc rgb Shadecolor title "Shaded error region", \
+plot 'silver.dat' using 1:($2+$3):($2-$3) with filledcurve fc rgb Shadecolor title "Shaded error region", \
      '' using 1:2 smooth mcspline lw 1.5  title "Monotonic spline through data"     
 #
 # Histograms
@@ -557,12 +582,12 @@ set linetype 14 lc rgb "gray70"
 set style fill solid 1.0 border -1
 
 plot newhistogram lt 11, \
-     demo . 'histopt.dat' using 1 title column, \
+     'histopt.dat' using 1 title column, \
      '' using 2 title column
 } else {
 # patterned fill for pdf
 # set style fill pattern
-plot demo . 'histopt.dat' using 1 title column, \
+plot 'histopt.dat' using 1 title column, \
      '' using 2 title column
 }
 
@@ -575,15 +600,16 @@ reset
 set output out . 'figure_parallel' . ext
 unset border
 unset key
-set xrange [] noextend
+set xrange [.5:4.5]
 unset ytics
-set xtics 1 format "axis %g" scale 0,0
+set xtics 1,1,4 format "axis %g" scale 0,0
 set for [axis=1:4] paxis axis tics
 set paxis 2 range [0:30]
 set paxis 4 range [-1:15]
 set paxis 4 tics  auto 1 left offset 5
 
-plot demo . 'silver.dat' using 2:3:1:($3/2):(int($0/25)) with parallel lt 1 lc variable
+set style data parallelaxes
+plot 'silver.dat' using 2:(int($0/25)) lt 1 lc variable, '' using 3, '' using 1, '' using ($3/2)
 
 #
 # Filled curves
@@ -619,10 +645,10 @@ set ytics nomirror rangelimited scale 0
 unset key
 
 set multiplot layout 1, 2 
-set jitter over 0.5 spread 1.9
+set jitter over 0.5 spread 1.6 swarm
 set title "swarm (default)"
-plot $data using 1:2:1 with points pt 6 lc variable
-set jitter over 0.5 spread 1.9 square
+plot $data using 1:2:1 with points pt 6 ps 0.8 lc variable
+set jitter over 0.5 spread 1.6 square
 set title "square"
 replot
 unset multiplot
@@ -671,6 +697,25 @@ sinc(u,v) = sin(sqrt(u**2+v**2)) / sqrt(u**2+v**2)
 set style fill  solid 0.5 noborder
 splot for [x=-2:2][y=-50:50:3] '+' using (x):($1/100.):(-1):(-1):(sinc($1/10., 1.+2*x)) with zerrorfill
 reset
+
+# Voxel data
+set output out. 'figure_isosurface' . ext
+set title "isosurface generated from voxel data" offset 0,1
+set vgrid $helix size 20
+set vxrange [-2:2]; set vyrange [-2:2]; set vzrange [0:11]
+set xrange [-2:2]; set yrange [-2:2]; set zrange [0:11]
+set xyplane at 0
+set style fill solid 0.3
+set pm3d depthorder border lc "blue" lw 0.2
+set border 0
+unset tics
+set xzeroaxis; set yzeroaxis; set zzeroaxis
+set view 60, 30, 1.6, 1.1
+
+vfill sample [t=0:20] '+'  using (cos($1)):(sin($1)):($1):(0.9):(10.0)
+splot $helix with isosurface level 1.0 lt 3 notitle
+
+unset vgrid $helix
 
 # close last file
 unset outp

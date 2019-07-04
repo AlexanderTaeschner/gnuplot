@@ -62,35 +62,33 @@ register_term(dumb_driver)
 #endif
 
 #ifdef TERM_PROTO
-TERM_PUBLIC void DUMB_options __PROTO((void));
-TERM_PUBLIC void DUMB_init __PROTO((void));
-TERM_PUBLIC void DUMB_graphics __PROTO((void));
-TERM_PUBLIC void DUMB_text __PROTO((void));
-TERM_PUBLIC void DUMB_reset __PROTO((void));
-TERM_PUBLIC void DUMB_linetype __PROTO((int linetype));
-TERM_PUBLIC void DUMB_move __PROTO((unsigned int x, unsigned int y));
-TERM_PUBLIC void DUMB_point __PROTO((unsigned int x, unsigned int y,
-				     int point));
-TERM_PUBLIC void DUMB_vector __PROTO((unsigned int x, unsigned int y));
-TERM_PUBLIC void DUMB_put_text __PROTO((unsigned int x, unsigned int y,
-					const char *str));
-TERM_PUBLIC void DUMB_arrow __PROTO((unsigned int sx, unsigned int sy,
-				     unsigned int ex, unsigned int ey,
-				     int head));
+TERM_PUBLIC void DUMB_options(void);
+TERM_PUBLIC void DUMB_init(void);
+TERM_PUBLIC void DUMB_graphics(void);
+TERM_PUBLIC void DUMB_text(void);
+TERM_PUBLIC void DUMB_reset(void);
+TERM_PUBLIC void DUMB_linetype(int linetype);
+TERM_PUBLIC void DUMB_move(unsigned int x, unsigned int y);
+TERM_PUBLIC void DUMB_point(unsigned int x, unsigned int y, int point);
+TERM_PUBLIC void DUMB_vector(unsigned int x, unsigned int y);
+TERM_PUBLIC void DUMB_put_text(unsigned int x, unsigned int y, const char *str);
+TERM_PUBLIC void DUMB_arrow(unsigned int sx, unsigned int sy,
+			    unsigned int ex, unsigned int ey,
+			    int head);
 
 #ifndef NO_DUMB_ENHANCED_SUPPORT
 /* To support "set term dumb enhanced" (don't ask why!) */
-TERM_PUBLIC void ENHdumb_put_text __PROTO((unsigned int x, unsigned int y, const char str[]));
-TERM_PUBLIC void ENHdumb_OPEN __PROTO((char * fontname, double fontsize,
-	                            double base, TBOOLEAN widthflag, TBOOLEAN showflag,
-				    int overprint));
-TERM_PUBLIC void ENHdumb_FLUSH __PROTO((void));
+TERM_PUBLIC void ENHdumb_put_text(unsigned int x, unsigned int y, const char str[]);
+TERM_PUBLIC void ENHdumb_OPEN(char * fontname, double fontsize,
+	                      double base, TBOOLEAN widthflag, TBOOLEAN showflag,
+			      int overprint);
+TERM_PUBLIC void ENHdumb_FLUSH(void);
 #else
 #define ENHdumb_put_text NULL
 #endif
 #ifndef NO_DUMB_COLOR_SUPPORT
-TERM_PUBLIC int dumb_make_palette __PROTO((t_sm_palette *palette));
-TERM_PUBLIC void dumb_set_color __PROTO((t_colorspec *));
+TERM_PUBLIC int dumb_make_palette(t_sm_palette *palette);
+TERM_PUBLIC void dumb_set_color(t_colorspec *);
 #endif
 
 #define DUMB_XMAX 79
@@ -103,6 +101,7 @@ TERM_PUBLIC void dumb_set_color __PROTO((t_colorspec *));
 #define DUMB_AXIS_CONST '\1'
 #define DUMB_BORDER_CONST '\2'
 #define DUMB_FILL_CONST '\3'
+#define DUMB_NODRAW_CONST '\4'
 
 #ifdef HAVE_STDINT_H
 #include <stdint.h>
@@ -138,7 +137,7 @@ static int dumb_colormode = 0;
 
 #define DUMB_PIXEL(x,y) dumb_matrix[dumb_xmax*(y)+(x)]
 
-static void dumb_set_pixel __PROTO((int x, int y, int v));
+static void dumb_set_pixel(int x, int y, int v);
 
 enum DUMB_id { DUMB_FEED, DUMB_NOFEED, DUMB_ENH, DUMB_NOENH, 
                DUMB_SIZE, DUMB_ASPECT,
@@ -438,6 +437,8 @@ DUMB_text()
 		memcpy(&dumb_prev_color, color, sizeof(t_colorspec));
 		break;
 	    }
+	    default:
+		break;
 	    }
 #endif
 #ifdef DUMB_UTF8
@@ -480,6 +481,8 @@ DUMB_linetype(int linetype)
 	dumb_pen = DUMB_BORDER_CONST;
     else if (linetype == LT_AXIS)
 	dumb_pen = DUMB_AXIS_CONST;
+    else if (linetype == LT_NODRAW)
+	dumb_pen = DUMB_NODRAW_CONST;
     else if (linetype <= LT_NODRAW)
 	dumb_pen = ' ';
     else {
@@ -517,6 +520,11 @@ DUMB_vector(unsigned int arg_x, unsigned int arg_y)
     int y = arg_y;		/* abs and cast to double wouldn't work */
     char pen, pen1;
     int delta;
+
+    if (dumb_pen == DUMB_NODRAW_CONST) {
+	DUMB_move(x, y);
+	return;
+    }
 
     if (ABS(y - dumb_y) > ABS(x - dumb_x)) {
 	switch (dumb_pen) {
@@ -620,7 +628,7 @@ DUMB_put_text(unsigned int x, unsigned int y, const char *str)
 {
     int i, length;
 
-    if ((unsigned int) y > dumb_ymax)
+    if (y > dumb_ymax)
 	return;
 
     length = gp_strlen(str);
@@ -628,7 +636,7 @@ DUMB_put_text(unsigned int x, unsigned int y, const char *str)
 	x = GPMAX(0, dumb_xmax - length);
 
 #ifdef DUMB_UTF8
-    for (i = 0; i < length; i++, x++) {
+    for (i = 0; i < length && x < dumb_xmax; i++, x++) {
 	utf8_copy_one( (char *)(&DUMB_PIXEL(x, y)), gp_strchrn(str,i));
 #ifndef NO_DUMB_COLOR_SUPPORT
 	memcpy(&dumb_colors[dumb_xmax * y + x], &dumb_color, sizeof(t_colorspec));
@@ -643,10 +651,16 @@ DUMB_put_text(unsigned int x, unsigned int y, const char *str)
 
 TERM_PUBLIC void
 DUMB_arrow(
-    unsigned int sx, unsigned int sy,
-    unsigned int ex, unsigned int ey,
+    unsigned int usx, unsigned int usy,
+    unsigned int uex, unsigned int uey,
     int head)	/* mostly ignored */
 {
+    /* we have GOT to ditch this unsigned coord madness! */
+    int sx = (int)(usx);
+    int sy = (int)(usy);
+    int ex = (int)(uex);
+    int ey = (int)(uey);
+
     char saved_pen;
     char saved_x;
     char saved_y;
@@ -661,10 +675,21 @@ DUMB_arrow(
     else dumb_pen = '.';
     dumb_x = sx;
     dumb_y = sy;
-    DUMB_vector(ex, ey);
+    if (!(head & HEADS_ONLY))
+	DUMB_vector(ex, ey);
+
+    /* Arrow tail */
+    if ((head & BACKHEAD)) {
+	char tailsym;
+	if (ex > sx) tailsym = '<';
+	else if (ex < sx) tailsym = '>';
+	else if (ey > sy) tailsym = 'v';
+	else tailsym = '^';
+	dumb_set_pixel(sx, sy, tailsym);
+    }
 
     /* Arrow head */
-    if (head != NOHEAD) {
+    if ((head & END_HEAD)) {
 	char headsym;
 	if (ex > sx) headsym = '>';
 	else if (ex < sx) headsym = '<';
@@ -746,7 +771,7 @@ ENHdumb_FLUSH()
 
 	/* print the string fragment, perhaps invisibly */
 	/* NB: base expresses offset from current y pos */
-	if (ENHdumb_show) {
+	if (ENHdumb_show && y < dumb_ymax) {
 #ifdef DUMB_UTF8
 	    for (i = 0; i < len && x < dumb_xmax; i++, x++) {
 		utf8_copy_one( (char *)(&DUMB_PIXEL(x, y)), gp_strchrn(str,i));
@@ -777,12 +802,20 @@ ENHdumb_FLUSH()
 TERM_PUBLIC void
 ENHdumb_put_text(unsigned int x, unsigned int y, const char *str)
 {
+    int length;
+
     /* If no enhanced text processing is needed, we can use the plain  */
     /* vanilla put_text() routine instead of this fancy recursive one. */
-    if (ignore_enhanced_text || !strpbrk(str, "{}^_@&~")) {
+    if (ignore_enhanced_text || (!strpbrk(str, "{}^_@&~") && !contains_unicode(str))) {
 	DUMB_put_text(x,y,str);
 	return;
     }
+
+    length = estimate_strlen(str);
+    if (x + length > dumb_xmax)
+	x = GPMAX(0, dumb_xmax - length);
+    if (y > dumb_ymax)
+	return;
 
     /* Set up global variables needed by enhanced_recursion() */
     enhanced_fontscale = 1.0;
@@ -837,7 +870,7 @@ dumb_float_compare(const void * elem1, const void * elem2)
 {
 	int val = *(float *)elem1 - *(float *)elem2;
 	return (0 < val) - (val < 0);
-};
+}
 
 /* adopted copy from caca.trm */
 TERM_PUBLIC void

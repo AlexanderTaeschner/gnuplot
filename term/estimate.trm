@@ -19,11 +19,10 @@
 #include "driver.h"
 
 #ifdef TERM_PROTO
-TERM_PUBLIC void ENHest_put_text __PROTO((unsigned int x, unsigned int y, const char str[]));
-TERM_PUBLIC void ENHest_OPEN __PROTO((char * fontname, double fontsize,
-	                            double base, TBOOLEAN widthflag, TBOOLEAN showflag,
-				    int overprint));
-TERM_PUBLIC void ENHest_FLUSH __PROTO((void));
+TERM_PUBLIC void ENHest_put_text(unsigned int x, unsigned int y, const char str[]);
+TERM_PUBLIC void ENHest_OPEN(char * fontname, double fontsize, double base,
+				TBOOLEAN widthflag, TBOOLEAN showflag, int overprint);
+TERM_PUBLIC void ENHest_FLUSH(void);
 #endif /* TERM_PROTO */
 
 #ifdef TERM_BODY
@@ -46,7 +45,7 @@ static TBOOLEAN ENHest_widthflag = TRUE;
 static double ENHest_base;
 
 /* Internal routines for UTF-8 support */
-static size_t strwidth_utf8 __PROTO((const char *s));
+static size_t strwidth_utf8(const char *s);
 
 TERM_PUBLIC void
 ENHest_OPEN(
@@ -135,7 +134,7 @@ ENHest_put_text(unsigned int x, unsigned int y, const char *str)
     ENHest_plaintext_pos = 0;
 
     /* If no enhanced text processing is needed, strlen() is sufficient */
-    if (ignore_enhanced_text || !strpbrk(str, "{}^_@&~\n")) {
+    if (ignore_enhanced_text || (!strpbrk(str, "{}^_@&~\n") && !contains_unicode(str))) {
 	if (encoding == S_ENC_UTF8)
 	    term->xmax = strwidth_utf8(str);
 	else
@@ -182,7 +181,7 @@ ENHest_writec(int c)
 	    ENHest_fragment_width += ENHest_fontsize;
 	    /* [most] characters above 0x3000 are square CJK glyphs, */
 	    /* which are wider than western characters.              */
-	    if ((unsigned int)c >= 0xec)
+	    if ((unsigned char)c >= 0xec)
 		ENHest_fragment_width += ENHest_fontsize;
 	}
     } else

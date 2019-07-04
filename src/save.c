@@ -51,12 +51,12 @@
 #include "pm3d.h"
 #include "getcolor.h"
 
-static void save_functions__sub __PROTO((FILE *));
-static void save_variables__sub __PROTO((FILE *));
-static void save_tics __PROTO((FILE *, struct axis *));
-static void save_mtics __PROTO((FILE *, struct axis *));
-static void save_zeroaxis __PROTO((FILE *,AXIS_INDEX));
-static void save_set_all __PROTO((FILE *));
+static void save_functions__sub(FILE *);
+static void save_variables__sub(FILE *);
+static void save_tics(FILE *, struct axis *);
+static void save_mtics(FILE *, struct axis *);
+static void save_zeroaxis(FILE *,AXIS_INDEX);
+static void save_set_all(FILE *);
 
 const char *coord_msg[] = {"first ", "second ", "graph ", "screen ", "character ", "polar "};
 /*
@@ -134,11 +134,13 @@ save_variables__sub(FILE *fp)
 
     while (udv) {
 	if (udv->udv_value.type != NOTDEFINED) {
-	    if (udv->udv_value.type == ARRAY) {
+	    if ((udv->udv_value.type == ARRAY)
+		&& strncmp(udv->udv_name,"ARGV",4)) {
 		fprintf(fp,"array %s[%d] = ", udv->udv_name,
-			udv->udv_value.v.value_array[0].v.int_val);
+			(int)(udv->udv_value.v.value_array[0].v.int_val));
 		save_array_content(fp, udv->udv_value.v.value_array);
 	    } else if (strncmp(udv->udv_name,"GPVAL_",6)
+		 && strncmp(udv->udv_name,"GPFUN_",6)
 		 && strncmp(udv->udv_name,"MOUSE_",6)
 		 && strncmp(udv->udv_name,"$",1)
 		 && (strncmp(udv->udv_name,"ARG",3) || (strlen(udv->udv_name) != 4))
@@ -236,10 +238,12 @@ save_set_all(FILE *fp)
     fprintf(fp, "\
 %sset clip points\n\
 %sset clip one\n\
-%sset clip two\n",
+%sset clip two\n\
+%sset clip radial\n",
 	    (clip_points) ? "" : "un",
 	    (clip_lines1) ? "" : "un",
-	    (clip_lines2) ? "" : "un"
+	    (clip_lines2) ? "" : "un",
+	    (clip_radial) ? "" : "un"
 	    );
 
     save_bars(fp);
@@ -267,11 +271,11 @@ save_set_all(FILE *fp)
     else
 	fprintf(fp, "set boxwidth %g %s\n", boxwidth,
 		(boxwidth_is_absolute) ? "absolute" : "relative");
+    fprintf(fp, "set boxdepth %g\n", boxdepth > 0 ? boxdepth : 0.0);
 
     fprintf(fp, "set style fill ");
     save_fillstyle(fp, &default_fillstyle);
 
-#ifdef EAM_OBJECTS
     /* Default rectangle style */
     fprintf(fp, "set style rectangle %s fc ",
 	    default_rectangle.layer > 0 ? "front" :
@@ -301,7 +305,6 @@ save_set_all(FILE *fp)
 	    fputs("yy\n", fp);
 	    break;
     }
-#endif
 
     if (dgrid3d) {
       if (dgrid3d_mode == DGRID3D_QNORM) {
@@ -374,7 +377,9 @@ save_set_all(FILE *fp)
 	fputs("\n", fp);
 #undef SAVE_GRID
 
-	fprintf(fp, "set grid %s  ", (grid_layer==-1) ? "layerdefault" : ((grid_layer==0) ? "back" : "front"));
+	fprintf(fp, "set grid %s%s  ",
+		(grid_vertical_lines) ? "vertical " : "",
+		(grid_layer==-1) ? "layerdefault" : ((grid_layer==0) ? "back" : "front"));
 	save_linetype(fp, &grid_lp, FALSE);
 	fprintf(fp, ", ");
 	save_linetype(fp, &mgrid_lp, FALSE);
@@ -503,10 +508,11 @@ save_set_all(FILE *fp)
 	    save_linetype(fp, &(this_label->lp_properties), TRUE);
 	}
 	save_position(fp, &this_label->offset, 3, TRUE);
-#ifdef EAM_BOXED_TEXT
-	if (this_label->boxed)
+	if (this_label->boxed) {
 	    fprintf(fp," boxed ");
-#endif
+	    if (this_label->boxed > 0)
+		fprintf(fp,"bs %d ",this_label->boxed);
+	}
 	fputc('\n', fp);
     }
     fputs("unset arrow\n", fp);
@@ -543,9 +549,10 @@ save_set_all(FILE *fp)
 	}
 	fprintf(fp, "\n");
     }
-#if TRUE || defined(BACKWARDS_COMPATIBLE)
-    fprintf(fp, "set style increment %s\n", prefer_line_styles ? "userstyles" : "default");
-#endif
+
+    /* Mostly for backwards compatibility */
+    if (prefer_line_styles)
+	fprintf(fp, "set style increment userstyles\n");
     fputs("unset style line\n", fp);
     for (this_linestyle = first_linestyle; this_linestyle != NULL;
 	 this_linestyle = this_linestyle->next) {
@@ -553,7 +560,7 @@ save_set_all(FILE *fp)
 	save_linetype(fp, &(this_linestyle->lp_properties), TRUE);
 	fprintf(fp, "\n");
     }
-	/* TODO save "set linetype" as well, or instead */ 
+
     fputs("unset style arrow\n", fp);
     for (this_arrowstyle = first_arrowstyle; this_arrowstyle != NULL;
 	 this_arrowstyle = this_arrowstyle->next) {
@@ -583,21 +590,15 @@ save_set_all(FILE *fp)
     fprintf(fp, "set style histogram ");
     save_histogram_opts(fp);
 
-#ifdef EAM_OBJECTS
     fprintf(fp, "unset object\n");
     save_object(fp, 0);
     fprintf(fp, "unset walls\n");
     save_walls(fp);
-#endif
 
-#ifdef EAM_BOXED_TEXT
-    fprintf(fp, "set style textbox");
     save_style_textbox(fp);
-#endif
 
     save_offsets(fp, "set offsets");
 
-    /* FIXME */
     fprintf(fp, "\
 set pointsize %g\n\
 set pointintervalbox %g\n\
@@ -622,6 +623,10 @@ set encoding %s\n\
     fputs("set view ", fp);
     if (splot_map == TRUE)
 	fprintf(fp, "map scale %g", mapview_scale);
+    else if (xz_projection)
+	fprintf(fp, "projection xz");
+    else if (yz_projection)
+	fprintf(fp, "projection yz");
     else {
 	fprintf(fp, "%g, %g, %g, %g",
 	    surface_rot_x, surface_rot_z, surface_scale, surface_zscale);
@@ -691,6 +696,7 @@ set isosamples %d, %d\n\
 	fprintf(fp, "set datafile fortran\n");
     if (df_nofpe_trap)
 	fprintf(fp, "set datafile nofpe_trap\n");
+    fprintf(fp, "%s datafile columnheaders\n", df_columnheaders ? "set" : "unset");
 
     save_hidden3doptions(fp);
     fprintf(fp, "set cntrparam order %d\n", contour_order);
@@ -706,15 +712,14 @@ set isosamples %d, %d\n\
 	fputs("bspline\n", fp);
 	break;
     }
-    fputs("set cntrparam levels ", fp);
+    fprintf(fp, "set cntrparam levels %d\nset cntrparam levels ", contour_levels);
     switch (contour_levels_kind) {
     case LEVELS_AUTO:
-	fprintf(fp, "auto %d", contour_levels);
+	fprintf(fp, "auto");
 	break;
     case LEVELS_INCREMENTAL:
-	fprintf(fp, "incremental %g,%g,%g",
-		contour_levels_list[0], contour_levels_list[1],
-		contour_levels_list[0] + contour_levels_list[1] * contour_levels);
+	fprintf(fp, "incremental %g,%g",
+		contour_levels_list[0], contour_levels_list[1]);
 	break;
     case LEVELS_DISCRETE:
 	{
@@ -724,8 +729,8 @@ set isosamples %d, %d\n\
 		fprintf(fp, ",%g ", contour_levels_list[i]);
 	}
     }
+    fprintf(fp, "\nset cntrparam firstlinetype %d", contour_firstlinetype);
     fprintf(fp, " %ssorted\n", contour_sortlevels ? "" : "un");
-    fprintf(fp, "set cntrparam firstlinetype %d\n", contour_firstlinetype);
     fprintf(fp, "\
 set cntrparam points %d\n\
 set size ratio %g %g,%g\n\
@@ -775,9 +780,9 @@ set origin %g,%g\n",
     save_tics(fp, &R_AXIS);
     save_tics(fp, &THETA_AXIS);
     for (axis=0; axis<num_parallel_axes; axis++)
-	save_tics(fp, &parallel_axis[axis]);
+	save_tics(fp, &parallel_axis_array[axis]);
 
-#define SAVE_AXISLABEL_OR_TITLE(name,suffix,lab)			 \
+#define SAVE_AXISLABEL_OR_TITLE(name,suffix,lab,savejust)		 \
     {									 \
 	fprintf(fp, "set %s%s \"%s\" ",					 \
 		name, suffix, lab.text ? conv_text(lab.text) : "");	 \
@@ -785,6 +790,7 @@ set origin %g,%g\n",
 	save_position(fp, &(lab.offset), 3, TRUE);			 \
 	fprintf(fp, " font \"%s\"", lab.font ? conv_text(lab.font) : "");\
 	save_textcolor(fp, &(lab.textcolor));				 \
+	if (savejust && (lab.pos != CENTRE)) save_justification(lab.pos,fp); \
 	if (lab.tag == ROTATE_IN_3D_LABEL_TAG)				 \
 	    fprintf(fp, " rotate parallel");				 \
 	else if (lab.rotate == TEXT_VERTICAL)				 \
@@ -796,10 +802,10 @@ set origin %g,%g\n",
 	fprintf(fp, "%s\n", (lab.noenhanced) ? " noenhanced" : "");	 \
     }
 
-    SAVE_AXISLABEL_OR_TITLE("", "title", title);
+    SAVE_AXISLABEL_OR_TITLE("", "title", title, TRUE);
 
     fprintf(fp, "set timestamp %s \n", timelabel_bottom ? "bottom" : "top");
-    SAVE_AXISLABEL_OR_TITLE("", "timestamp", timelabel);
+    SAVE_AXISLABEL_OR_TITLE("", "timestamp", timelabel, FALSE);
 
     save_prange(fp, axis_array + T_AXIS);
     save_prange(fp, axis_array + U_AXIS);
@@ -807,7 +813,7 @@ set origin %g,%g\n",
 
 #define SAVE_AXISLABEL(axis)					\
     SAVE_AXISLABEL_OR_TITLE(axis_name(axis),"label",	\
-			    axis_array[axis].label)
+			    axis_array[axis].label, TRUE)
 
     SAVE_AXISLABEL(FIRST_X_AXIS);
     SAVE_AXISLABEL(SECOND_X_AXIS);
@@ -829,7 +835,7 @@ set origin %g,%g\n",
     save_prange(fp, axis_array + POLAR_AXIS);
 
     for (axis=0; axis<num_parallel_axes; axis++)
-	save_prange(fp, &parallel_axis[axis]);
+	save_prange(fp, &parallel_axis_array[axis]);
 
 #undef SAVE_AXISLABEL
 #undef SAVE_AXISLABEL_OR_TITLE
@@ -871,7 +877,7 @@ set origin %g,%g\n",
     case PM3D_SCANS_AUTOMATIC: fputs("scansautomatic\n", fp); break;
     case PM3D_SCANS_FORWARD: fputs("scansforward\n", fp); break;
     case PM3D_SCANS_BACKWARD: fputs("scansbackward\n", fp); break;
-    case PM3D_DEPTH: fputs("depthorder\n", fp); break;
+    case PM3D_DEPTH: fprintf(fp, "depthorder %s\n", pm3d.base_sort ? "base" : ""); break;
     }
     fprintf(fp, "set pm3d interpolate %d,%d", pm3d.interp_i, pm3d.interp_j);
     fputs(" flush ", fp);
@@ -903,10 +909,15 @@ set origin %g,%g\n",
     }
     fputs("\n", fp);
 
+    fprintf(fp, "set pm3d %s %s\n",
+		pm3d.clip == PM3D_CLIP_1IN ? "clip1in" : "clip4in",
+		pm3d.no_clipcb ? "noclipcb" : "");
+
     if (pm3d_shade.strength <= 0)
 	fputs("set pm3d nolighting\n",fp);
     else
-	fprintf(fp, "set pm3d lighting primary %g specular %g\n", pm3d_shade.strength, pm3d_shade.spec);
+	fprintf(fp, "set pm3d lighting primary %g specular %g spec2 %g\n",
+		pm3d_shade.strength, pm3d_shade.spec, pm3d_shade.spec2);
 
     /*
      *  Save palette information
@@ -927,7 +938,6 @@ set origin %g,%g\n",
 	case C_MODEL_RGB: fputs( "RGB ", fp ); break;
 	case C_MODEL_HSV: fputs( "HSV ", fp ); break;
 	case C_MODEL_CMY: fputs( "CMY ", fp ); break;
-	case C_MODEL_XYZ: fputs( "XYZ ", fp ); break;
       }
       fputs( "\nset palette ", fp );
       switch( sm_palette.colorMode ) {
@@ -1000,13 +1010,10 @@ set origin %g,%g\n",
 	fputc('\n', fp);
     }
 
-    fputs("set fontpath ", fp);
-    {
-	char *s;
-	while ((s = save_fontpath()) != NULL)
-	    fprintf(fp, "\"%s\" ", s);
-	fputc('\n', fp);
-    }
+    if (PS_fontpath)
+	fprintf(fp, "set fontpath \"%s\"\n", PS_fontpath);
+    else
+	fprintf(fp, "set fontpath\n");
 
     if (PS_psdir)
 	fprintf(fp, "set psdir \"%s\"\n", PS_psdir);
@@ -1018,20 +1025,7 @@ set origin %g,%g\n",
 	fprintf(fp, " nologfile");
     else if (fitlogfile)
 	fprintf(fp, " logfile \'%s\'", fitlogfile);
-    switch (fit_verbosity) {
-	case QUIET:
-	    fprintf(fp, " quiet");
-	    break;
-	case RESULTS:
-	    fprintf(fp, " results");
-	    break;
-	case BRIEF:
-	    fprintf(fp, " brief");
-	    break;
-	case VERBOSE:
-	    fprintf(fp, " verbose");
-	    break;
-    }
+    fprintf(fp, " %s", reverse_table_lookup(fit_verbosity_level, fit_verbosity));
     fprintf(fp, " %serrorvariables",
 	fit_errorvariables ? "" : "no");
     fprintf(fp, " %scovariancevariables",
@@ -1053,7 +1047,7 @@ set origin %g,%g\n",
 	    fprintf(fp, " limit_abs %g", epsilon_abs);
 
 	v = get_udv_by_name((char *)FITMAXITER);
-	i = ((v != NULL) && (v->udv_value.type != NOTDEFINED)) ? real_int(&(v->udv_value)) : -1;
+	i = ((v != NULL) && (v->udv_value.type != NOTDEFINED)) ? real(&(v->udv_value)) : -1;
 	if (i > 0)
 	    fprintf(fp, " maxiter %i", i);
 
@@ -1230,27 +1224,34 @@ save_style_parallel(FILE *fp)
     fprintf(fp, "\n");
 }
 
-#ifdef EAM_BOXED_TEXT
 void
 save_style_textbox(FILE *fp)
 {
-    fprintf(fp, " %s margins %4.1f, %4.1f",
-	    textbox_opts.opaque ? "opaque": "transparent",
-	    textbox_opts.xmargin, textbox_opts.ymargin);
-    if (textbox_opts.opaque) {
-	fprintf(fp, " fc ");
-	save_pm3dcolor(fp, &(textbox_opts.fillcolor));
+    int bs;
+    for (bs = 0; bs < NUM_TEXTBOX_STYLES; bs++) {
+	textbox_style *textbox = &textbox_opts[bs];
+	if (textbox->linewidth <= 0)
+	    continue;
+	fprintf(fp, "set style textbox ");
+	if (bs > 0)
+	    fprintf(fp,"%d ", bs);
+	fprintf(fp, " %s margins %4.1f, %4.1f",
+		textbox->opaque ? "opaque": "transparent",
+		textbox->xmargin, textbox->ymargin);
+	if (textbox->opaque) {
+	    fprintf(fp, " fc ");
+	    save_pm3dcolor(fp, &(textbox->fillcolor));
+	}
+	if (textbox->noborder) {
+	    fprintf(fp, " noborder");
+	} else {
+	    fprintf(fp, " border ");
+	    save_pm3dcolor(fp, &(textbox->border_color));
+	}
+	fprintf(fp, " linewidth %4.1f", textbox->linewidth);
+	fputs("\n",fp);
     }
-    if (textbox_opts.noborder) {
-	fprintf(fp, " noborder");
-    } else {
-	fprintf(fp, " border ");
-	save_pm3dcolor(fp, &(textbox_opts.border_color));
-    }
-    fprintf(fp, " linewidth %4.1f", textbox_opts.linewidth);
-    fputs("\n",fp);
 }
-#endif
 
 void
 save_position(FILE *fp, struct position *pos, int ndim, TBOOLEAN offset)
@@ -1299,6 +1300,8 @@ save_position(FILE *fp, struct position *pos, int ndim, TBOOLEAN offset)
 void
 save_prange(FILE *fp, struct axis *this_axis)
 {
+    TBOOLEAN noextend = FALSE;
+
     fprintf(fp, "set %srange [ ", axis_name(this_axis->index));
     if (this_axis->set_autoscale & AUTOSCALE_MIN) {
 	if (this_axis->min_constraint & CONSTRAINT_LOWER ) {
@@ -1337,6 +1340,13 @@ save_prange(FILE *fp, struct axis *this_axis)
 	return;
     }
 
+    if ((this_axis->set_autoscale & AUTOSCALE_FIXMIN)
+    &&  (this_axis->set_autoscale & AUTOSCALE_FIXMAX)) {
+	fprintf(fp, " noextend");
+	noextend = TRUE;
+    }
+    
+
     if (this_axis->set_autoscale && fp == stderr) {
 	/* add current (hidden) range as comments */
 	fputs("  # (currently [", fp);
@@ -1351,7 +1361,7 @@ save_prange(FILE *fp, struct axis *this_axis)
     } else
 	putc('\n', fp);
 
-    if (fp != stderr) {
+    if (!noextend && (fp != stderr)) {
 	if (this_axis->set_autoscale & (AUTOSCALE_FIXMIN))
 	    fprintf(fp, "set autoscale %sfixmin\n", axis_name(this_axis->index));
 	if (this_axis->set_autoscale & AUTOSCALE_FIXMAX)
@@ -1488,111 +1498,26 @@ save_pm3dcolor(FILE *fp, const struct t_colorspec *tc)
 void
 save_data_func_style(FILE *fp, const char *which, enum PLOT_STYLE style)
 {
-    switch (style) {
-    case LINES:
-	fputs("lines\n", fp);
-	break;
-    case POINTSTYLE:
-	fputs("points\n", fp);
-	break;
-    case IMPULSES:
-	fputs("impulses\n", fp);
-	break;
-    case LINESPOINTS:
-	fputs("linespoints\n", fp);
-	break;
-    case DOTS:
-	fputs("dots\n", fp);
-	break;
-    case YERRORLINES:
-	fputs("yerrorlines\n", fp);
-	break;
-    case XERRORLINES:
-	fputs("xerrorlines\n", fp);
-	break;
-    case XYERRORLINES:
-	fputs("xyerrorlines\n", fp);
-	break;
-    case YERRORBARS:
-	fputs("yerrorbars\n", fp);
-	break;
-    case XERRORBARS:
-	fputs("xerrorbars\n", fp);
-	break;
-    case XYERRORBARS:
-	fputs("xyerrorbars\n", fp);
-	break;
-    case BOXES:
-	fputs("boxes\n", fp);
-	break;
-    case HISTOGRAMS:
-	fputs("histograms\n", fp);
-	break;
-    case FILLEDCURVES:
-	fputs("filledcurves ", fp);
+    char *answer = strdup(reverse_table_lookup(plotstyle_tbl, style));
+    char *idollar = strchr(answer, '$');
+    if (idollar) {
+	do {
+	    *idollar = *(idollar+1);
+	    idollar++;
+	} while (*idollar);
+
+    }
+    fputs(answer, fp);
+    free(answer);
+
+    if (style == FILLEDCURVES) {
+	fputs(" ", fp);
 	if (!strcmp(which, "data") || !strcmp(which, "Data"))
 	    filledcurves_options_tofile(&filledcurves_opts_data, fp);
 	else
 	    filledcurves_options_tofile(&filledcurves_opts_func, fp);
-	fputc('\n', fp);
-	break;
-    case BOXERROR:
-	fputs("boxerrorbars\n", fp);
-	break;
-    case BOXXYERROR:
-	fputs("boxxyerror\n", fp);
-	break;
-    case STEPS:
-	fputs("steps\n", fp);
-	break;			/* JG */
-    case FSTEPS:
-	fputs("fsteps\n", fp);
-	break;			/* HOE */
-    case HISTEPS:
-	fputs("histeps\n", fp);
-	break;			/* CAC */
-    case VECTOR:
-	fputs("vector\n", fp);
-	break;
-    case FINANCEBARS:
-	fputs("financebars\n", fp);
-	break;
-    case CANDLESTICKS:
-	fputs("candlesticks\n", fp);
-	break;
-    case BOXPLOT:
-	fputs("boxplot\n", fp);
-	break;
-    case PM3DSURFACE:
-	fputs("pm3d\n", fp);
-	break;
-    case LABELPOINTS:
-	fputs("labels\n", fp);
-	break;
-    case IMAGE:
-	fputs("image\n", fp);
-	break;
-    case RGBIMAGE:
-	fputs("rgbimage\n", fp);
-	break;
-#ifdef EAM_OBJECTS
-	case CIRCLES:
-	fputs("circles\n", fp);
-	break;
-	case ELLIPSES:
-	fputs("ellipses\n", fp);
-	break;
-#endif
-    case SURFACEGRID:
-	fputs("surfaces\n", fp);
-	break;
-    case PARALLELPLOT:
-	fputs("parallelaxes\n", fp);
-	break;
-    case PLOT_STYLE_NONE:
-    default:
-	fputs("---error!---\n", fp);
     }
+    fputc('\n', fp);
 }
 
 void
@@ -1660,8 +1585,10 @@ save_linetype(FILE *fp, lp_style_type *lp, TBOOLEAN show_point)
 	    fprintf(fp, " pointsize default");
 	else
 	    fprintf(fp, " pointsize %.3f", lp->p_size);
-	fprintf(fp, " pointinterval %d", lp->p_interval);
-	fprintf(fp, " pointnumber %d", lp->p_number);
+	if (lp->p_interval != 0)
+	    fprintf(fp, " pointinterval %d", lp->p_interval);
+	if (lp->p_number != 0)
+	    fprintf(fp, " pointnumber %d", lp->p_number);
     }
 
 }
@@ -1717,8 +1644,6 @@ save_histogram_opts (FILE *fp)
     save_position(fp, &histogram_opts.title.offset, 2, TRUE);
     fprintf(fp, "\n");
 }
-
-#ifdef EAM_OBJECTS
 
 /* Save/show rectangle <tag> (0 means show all) */
 void
@@ -1841,9 +1766,9 @@ save_walls(FILE *fp)
 {
     static const char* wall_name[5] = {"y0", "x0", "y1", "x1", "z0"};
     t_object *this_object;
-    int i, tag;
+    int i;
 
-    for (i = 0; i <= 5; i++) {
+    for (i = 0; i < 5; i++) {
     	this_object = &grid_wall[i];
 	if (this_object->layer == LAYER_FRONTBACK) {
 	    fprintf(fp, "set wall %s ", wall_name[i]);
@@ -1855,6 +1780,4 @@ save_walls(FILE *fp)
 
     }
 }
-
-#endif
 

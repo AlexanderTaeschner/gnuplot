@@ -67,7 +67,7 @@ typedef double transform_matrix[4][4]; /* HBB 990826: added */
 
 typedef struct gnuplot_contours {
     struct gnuplot_contours *next;
-    struct coordinate GPHUGE *coords;
+    struct coordinate *coords;
     char isNewLevel;
     char label[32];
     int num_pts;
@@ -78,7 +78,7 @@ typedef struct iso_curve {
     struct iso_curve *next;
     int p_max;			/* how many points are allocated */
     int p_count;			/* count of points in points */
-    struct coordinate GPHUGE *points;
+    struct coordinate *points;
 } iso_curve;
 
 typedef struct surface_points {
@@ -90,7 +90,7 @@ typedef struct surface_points {
     char *title;		/* plot title, a.k.a. key entry */
     t_position *title_position;	/* title at {beginning|end|<xpos>,<ypos>} */
     TBOOLEAN title_no_enhanced;	/* don't typeset title in enhanced mode */
-    TBOOLEAN title_is_filename;	/* not used in 3D */
+    TBOOLEAN title_is_automated;/* TRUE if title was auto-generated */
     TBOOLEAN title_is_suppressed;/* TRUE if 'notitle' was specified */
     TBOOLEAN noautoscale;	/* ignore data from this plot during autoscaling */
     struct lp_style_type lp_properties;
@@ -111,6 +111,9 @@ typedef struct surface_points {
     int has_grid_topology;
     int iteration;		/* needed for tracking iteration */
 
+    struct vgrid *vgrid;	/* used only for voxel plots */
+    double iso_level;		/* used only for voxel plots */
+
     /* Data files only - num of isolines read from file. For functions,  */
     /* num_iso_read is the number of 'primary' isolines (in x direction) */
     int num_iso_read;
@@ -128,6 +131,7 @@ extern double ceiling_z, base_z; /* made exportable for PM3D */
 extern transform_matrix trans_mat;
 extern double xscale3d, yscale3d, zscale3d;
 extern double xcenter3d, ycenter3d, zcenter3d;
+extern double radius_scaler;
 
 extern t_contour_placement draw_contour;
 extern TBOOLEAN	clabel_onecolor;
@@ -149,7 +153,7 @@ extern float surface_zscale;
 extern float surface_lscale;
 extern float mapview_scale;
 extern float azimuth;
-extern int splot_map;
+extern TBOOLEAN splot_map, xz_projection, yz_projection;
 
 typedef struct { 
     double z; 
@@ -166,13 +170,21 @@ extern int iso_samples_2;
 extern int axis3d_o_x, axis3d_o_y, axis3d_x_dx, axis3d_x_dy, axis3d_y_dx, axis3d_y_dy;
 #endif
 
+typedef enum {
+    NORMAL_REPLOT = 0,	/* e.g. "replot" command */
+    AXIS_ONLY_ROTATE,	/* suppress replots during 3D rotation by ctrl-left-mouse */
+    NORMAL_REFRESH,	/* e.g. "refresh" command */
+    QUICK_REFRESH	/* auto-generated refresh during 3D rotation */
+} REPLOT_TYPE;
+    
+
 /* Prototypes from file "graph3d.c" */
 
-void do_3dplot __PROTO((struct surface_points *plots, int pcount, int quick));
-void map3d_position __PROTO((struct position *pos, int *x, int *y, const char *what));
-void map3d_position_double __PROTO((struct position *pos, double *x, double *y, const char *what));
-void map3d_position_r __PROTO((struct position *pos, int *x, int *y, const char *what));
-void map3d_position_r_double __PROTO((struct position *pos, double *x, double *y, const char *what));
+void do_3dplot(struct surface_points *plots, int pcount, REPLOT_TYPE quick);
+void map3d_position(struct position *pos, int *x, int *y, const char *what);
+void map3d_position_double(struct position *pos, double *x, double *y, const char *what);
+void map3d_position_r(struct position *pos, int *x, int *y, const char *what);
+void map3d_position_r_double(struct position *pos, double *x, double *y, const char *what);
 
 
 #endif /* GNUPLOT_GRAPH3D_H */

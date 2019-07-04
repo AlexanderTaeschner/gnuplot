@@ -46,6 +46,7 @@
 #define _MOUSE_C		/* FIXME HBB 20010207: violates Codestyle */
 #ifdef USE_MOUSE		/* comment out whole file, otherwise... */
 
+#include "eval.h"		/* for mouse_readout_function */
 #include "mouse.h"
 #include "pm3d.h"
 #include "alloc.h"
@@ -61,6 +62,7 @@
 #include "term_api.h"
 #include "util3d.h"
 #include "hidden3d.h"
+#include "plot.h"	/* for interactive */
 
 #ifdef _WIN32
 # include "win/winmain.h"
@@ -73,6 +75,7 @@
 
 /********************** variables ***********************************************************/
 char mouse_fmt_default[] = "% #g";
+udft_entry mouse_readout_function = {NULL, "mouse_readout_function", NULL, NULL, 2 /*dummy_values[]*/};
 
 mouse_setting_t default_mouse_setting = DEFAULT_MOUSE_SETTING;
 mouse_setting_t         mouse_setting = DEFAULT_MOUSE_SETTING;
@@ -161,98 +164,99 @@ static const int NO_KEY = -1;
 static TBOOLEAN trap_release = FALSE;
 
 /* forward declarations */
-static void alert __PROTO((void));
-static void MousePosToGraphPosReal __PROTO((int xx, int yy, double *x, double *y, double *x2, double *y2));
-static char *xy_format __PROTO((void));
-static char *zoombox_format __PROTO((void));
-static char *GetAnnotateString __PROTO((char *s, double x, double y, int mode, char *fmt));
-static char *xDateTimeFormat __PROTO((double x, char *b, int mode));
-static void GetRulerString __PROTO((char *p, double x, double y));
-static void apply_zoom __PROTO((struct t_zoom * z));
-static void do_zoom __PROTO((double xmin, double ymin, double x2min,
-			     double y2min, double xmax, double ymax, double x2max, double y2max));
-static void ZoomNext __PROTO((void));
-static void ZoomPrevious __PROTO((void));
-static void ZoomUnzoom __PROTO((void));
-static void incr_mousemode __PROTO((const int amount));
-static void UpdateStatuslineWithMouseSetting __PROTO((mouse_setting_t * ms));
+static void alert(void);
+static void MousePosToGraphPosReal(int xx, int yy, double *x, double *y, double *x2, double *y2);
+static char *xy_format(void);
+static char *zoombox_format(void);
+static char *GetAnnotateString(char *s, double x, double y, int mode, char *fmt);
+static char *xDateTimeFormat(double x, char *b, int mode);
+static void GetRulerString(char *p, double x, double y);
+static void apply_zoom(struct t_zoom * z);
+static void do_zoom(double xmin, double ymin, double x2min,
+		    double y2min, double xmax, double ymax, double x2max, double y2max);
+static void ZoomNext(void);
+static void ZoomPrevious(void);
+static void ZoomUnzoom(void);
+static void incr_mousemode(const int amount);
+static void UpdateStatuslineWithMouseSetting(mouse_setting_t * ms);
 
-static void event_keypress __PROTO((struct gp_event_t * ge, TBOOLEAN current));
-static void ChangeView __PROTO((int x, int z));
-static void ChangeAzimuth __PROTO((int x));
-static void event_buttonpress __PROTO((struct gp_event_t * ge));
-static void event_buttonrelease __PROTO((struct gp_event_t * ge));
-static void event_motion __PROTO((struct gp_event_t * ge));
-static void event_modifier __PROTO((struct gp_event_t * ge));
-static void do_save_3dplot __PROTO((struct surface_points *, int, int));
-static void load_mouse_variables __PROTO((double, double, TBOOLEAN, int));
+static bind_t * get_binding(struct gp_event_t * ge, TBOOLEAN current);
+static void event_keypress(struct gp_event_t * ge, TBOOLEAN current);
+static void ChangeView(int x, int z);
+static void ChangeAzimuth(int x);
+static void event_buttonpress(struct gp_event_t * ge);
+static void event_buttonrelease(struct gp_event_t * ge);
+static void event_motion(struct gp_event_t * ge);
+static void event_modifier(struct gp_event_t * ge);
+static void do_save_3dplot(struct surface_points *, int, REPLOT_TYPE);
+static void load_mouse_variables(double, double, TBOOLEAN, int);
 
-static void do_zoom_in_around_mouse __PROTO((void));
-static void do_zoom_out_around_mouse __PROTO((void));
-static void do_zoom_in_X __PROTO((void));
-static void do_zoom_out_X __PROTO((void));
-static void do_zoom_scroll_up __PROTO((void));
-static void do_zoom_scroll_down __PROTO((void));
-static void do_zoom_scroll_left __PROTO((void));
-static void do_zoom_scroll_right __PROTO((void));
+static void do_zoom_in_around_mouse(void);
+static void do_zoom_out_around_mouse(void);
+static void do_zoom_in_X(void);
+static void do_zoom_out_X(void);
+static void do_zoom_scroll_up(void);
+static void do_zoom_scroll_down(void);
+static void do_zoom_scroll_left(void);
+static void do_zoom_scroll_right(void);
 
 /* builtins */
-static char *builtin_autoscale __PROTO((struct gp_event_t * ge));
-static char *builtin_toggle_border __PROTO((struct gp_event_t * ge));
-static char *builtin_replot __PROTO((struct gp_event_t * ge));
-static char *builtin_toggle_grid __PROTO((struct gp_event_t * ge));
-static char *builtin_help __PROTO((struct gp_event_t * ge));
-static char *builtin_set_plots_visible __PROTO((struct gp_event_t * ge));
-static char *builtin_set_plots_invisible __PROTO((struct gp_event_t * ge));
-static char *builtin_invert_plot_visibilities __PROTO((struct gp_event_t * ge));
-static char *builtin_toggle_log __PROTO((struct gp_event_t * ge));
-static char *builtin_nearest_log __PROTO((struct gp_event_t * ge));
-static char *builtin_toggle_mouse __PROTO((struct gp_event_t * ge));
-static char *builtin_toggle_ruler __PROTO((struct gp_event_t * ge));
-static char *builtin_decrement_mousemode __PROTO((struct gp_event_t * ge));
-static char *builtin_increment_mousemode __PROTO((struct gp_event_t * ge));
-static char *builtin_toggle_polardistance __PROTO((struct gp_event_t * ge));
-static char *builtin_toggle_verbose __PROTO((struct gp_event_t * ge));
-static char *builtin_toggle_ratio __PROTO((struct gp_event_t * ge));
-static char *builtin_zoom_next __PROTO((struct gp_event_t * ge));
-static char *builtin_zoom_previous __PROTO((struct gp_event_t * ge));
-static char *builtin_unzoom __PROTO((struct gp_event_t * ge));
-static char *builtin_rotate_right __PROTO((struct gp_event_t * ge));
-static char *builtin_rotate_up __PROTO((struct gp_event_t * ge));
-static char *builtin_rotate_left __PROTO((struct gp_event_t * ge));
-static char *builtin_rotate_down __PROTO((struct gp_event_t * ge));
-static char *builtin_azimuth_left __PROTO((struct gp_event_t * ge));
-static char *builtin_azimuth_right __PROTO((struct gp_event_t * ge));
-static char *builtin_cancel_zoom __PROTO((struct gp_event_t * ge));
-static char *builtin_zoom_in_around_mouse __PROTO((struct gp_event_t * ge));
-static char *builtin_zoom_out_around_mouse __PROTO((struct gp_event_t * ge));
+static char *builtin_autoscale(struct gp_event_t * ge);
+static char *builtin_toggle_border(struct gp_event_t * ge);
+static char *builtin_replot(struct gp_event_t * ge);
+static char *builtin_toggle_grid(struct gp_event_t * ge);
+static char *builtin_help(struct gp_event_t * ge);
+static char *builtin_set_plots_visible(struct gp_event_t * ge);
+static char *builtin_set_plots_invisible(struct gp_event_t * ge);
+static char *builtin_invert_plot_visibilities(struct gp_event_t * ge);
+static char *builtin_toggle_log(struct gp_event_t * ge);
+static char *builtin_nearest_log(struct gp_event_t * ge);
+static char *builtin_toggle_mouse(struct gp_event_t * ge);
+static char *builtin_toggle_ruler(struct gp_event_t * ge);
+static char *builtin_decrement_mousemode(struct gp_event_t * ge);
+static char *builtin_increment_mousemode(struct gp_event_t * ge);
+static char *builtin_toggle_polardistance(struct gp_event_t * ge);
+static char *builtin_toggle_verbose(struct gp_event_t * ge);
+static char *builtin_toggle_ratio(struct gp_event_t * ge);
+static char *builtin_zoom_next(struct gp_event_t * ge);
+static char *builtin_zoom_previous(struct gp_event_t * ge);
+static char *builtin_unzoom(struct gp_event_t * ge);
+static char *builtin_rotate_right(struct gp_event_t * ge);
+static char *builtin_rotate_up(struct gp_event_t * ge);
+static char *builtin_rotate_left(struct gp_event_t * ge);
+static char *builtin_rotate_down(struct gp_event_t * ge);
+static char *builtin_azimuth_left(struct gp_event_t * ge);
+static char *builtin_azimuth_right(struct gp_event_t * ge);
+static char *builtin_cancel_zoom(struct gp_event_t * ge);
+static char *builtin_zoom_in_around_mouse(struct gp_event_t * ge);
+static char *builtin_zoom_out_around_mouse(struct gp_event_t * ge);
 #if (0)	/* Not currently used */
-static char *builtin_zoom_scroll_left __PROTO((struct gp_event_t * ge));
-static char *builtin_zoom_scroll_right __PROTO((struct gp_event_t * ge));
-static char *builtin_zoom_scroll_up __PROTO((struct gp_event_t * ge));
-static char *builtin_zoom_scroll_down __PROTO((struct gp_event_t * ge));
-static char *builtin_zoom_in_X __PROTO((struct gp_event_t * ge));
-static char *builtin_zoom_out_X __PROTO((struct gp_event_t * ge));
+static char *builtin_zoom_scroll_left(struct gp_event_t * ge);
+static char *builtin_zoom_scroll_right(struct gp_event_t * ge);
+static char *builtin_zoom_scroll_up(struct gp_event_t * ge);
+static char *builtin_zoom_scroll_down(struct gp_event_t * ge);
+static char *builtin_zoom_in_X(struct gp_event_t * ge);
+static char *builtin_zoom_out_X(struct gp_event_t * ge);
 #endif
 
 /* prototypes for bind stuff
  * which are used only here. */
-static void bind_install_default_bindings __PROTO((void));
-static void bind_clear __PROTO((bind_t * b));
-static int lookup_key __PROTO((char *ptr, int *len));
-static int bind_scan_lhs __PROTO((bind_t * out, const char *in));
-static char *bind_fmt_lhs __PROTO((const bind_t * in));
-static int bind_matches __PROTO((const bind_t * a, const bind_t * b));
-static void bind_display_one __PROTO((bind_t * ptr));
-static void bind_display __PROTO((char *lhs));
-static void bind_all __PROTO((char *lhs));
-static void bind_remove __PROTO((bind_t * b));
-static void bind_append __PROTO((char *lhs, char *rhs, char *(*builtin) (struct gp_event_t * ge)));
-static void recalc_ruler_pos __PROTO((void));
-static void turn_ruler_off __PROTO((void));
-static int nearest_label_tag __PROTO((int x, int y));
-static void remove_label __PROTO((int x, int y));
-static void put_label __PROTO((char *label, double x, double y));
+static void bind_install_default_bindings(void);
+static void bind_clear(bind_t * b);
+static int lookup_key(char *ptr, int *len);
+static int bind_scan_lhs(bind_t * out, const char *in);
+static char *bind_fmt_lhs(const bind_t * in);
+static int bind_matches(const bind_t * a, const bind_t * b);
+static void bind_display_one(bind_t * ptr);
+static void bind_display(char *lhs);
+static void bind_all(char *lhs);
+static void bind_remove(bind_t * b);
+static void bind_append(char *lhs, char *rhs, char *(*builtin) (struct gp_event_t * ge));
+static void recalc_ruler_pos(void);
+static void turn_ruler_off(void);
+static int nearest_label_tag(int x, int y);
+static void remove_label(int x, int y);
+static void put_label(char *label, double x, double y);
 
 /********* functions ********************************************/
 
@@ -274,14 +278,6 @@ alert()
 # endif
 }
 
-/* always include the prototype. The prototype might even not be
- * declared if the system supports stpcpy(). E.g. on Linux I would
- * have to define __USE_GNU before including string.h to get the
- * prototype (joze) */
-/* HBB 20001109: *BUT* if a prototype is there, this one may easily
- * conflict with it... */
-char *stpcpy __PROTO((char *s, const char *p));
-
 # ifndef HAVE_STPCPY
 /* handy function for composing strings; note: some platforms may
  * already provide it, how should we handle that? autoconf? -- ptdb */
@@ -294,27 +290,15 @@ stpcpy(char *s, const char *p)
 # endif
 
 
-/* main job of transformation, which is not device dependent
-*/
+/*
+ * Transform mouse coordinates to graph coordinates
+ */
 static void
 MousePosToGraphPosReal(int xx, int yy, double *x, double *y, double *x2, double *y2)
 {
-    if (!is_3d_plot) {
-	if (plot_bounds.xright == plot_bounds.xleft)
-	    *x = *x2 = VERYLARGE;	/* protection */
-	else {
-	    *x = AXIS_MAPBACK(FIRST_X_AXIS, xx);
-	    *x2 = AXIS_MAPBACK(SECOND_X_AXIS, xx);
-	}
-	if (plot_bounds.ytop == plot_bounds.ybot)
-	    *y = *y2 = VERYLARGE;	/* protection */
-	else {
-	    *y = AXIS_MAPBACK(FIRST_Y_AXIS, yy);
-	    *y2 = AXIS_MAPBACK(SECOND_Y_AXIS, yy);
-	}
-	FPRINTF((stderr, "POS: xx=%i, yy=%i  =>  x=%g  y=%g\n", xx, yy, *x, *y));
+    AXIS *secondary;
 
-    } else {
+    if (is_3d_plot) {
 	/* for 3D plots, we treat the mouse position as if it is
 	 * in the bottom plane, i.e., the plane of the x and y axis */
 	/* note: at present, this projection is only correct if
@@ -341,7 +325,7 @@ MousePosToGraphPosReal(int xx, int yy, double *x, double *y, double *x2, double 
 		+ ((double) xx) / axis3d_y_dx * (axis_array[FIRST_Y_AXIS].max -
 						 axis_array[FIRST_Y_AXIS].min);
 	} else if (axis3d_y_dy != 0) {
-	    if (splot_map) 
+	    if (splot_map)
 		*y = axis_array[FIRST_Y_AXIS].max
 		    + ((double) yy) / axis3d_y_dy * (axis_array[FIRST_Y_AXIS].min -
 						     axis_array[FIRST_Y_AXIS].max);
@@ -355,52 +339,57 @@ MousePosToGraphPosReal(int xx, int yy, double *x, double *y, double *x2, double 
 	}
 
 	*x2 = *y2 = VERYLARGE;	/* protection */
+	return;
     }
-    /*
-       Note: there is plot_bounds.xleft+0.5 in "#define map_x" in graphics.c, which
-       makes no major impact here. It seems that the mistake of the real
-       coordinate is at about 0.5%, which corresponds to the screen resolution.
-       It would be better to round the distance to this resolution, and thus
-       *x = xmin + rounded-to-screen-resolution (xdistance)
-     */
+
+    /* 2D plot */
+    if (plot_bounds.xright == plot_bounds.xleft)
+	*x = *x2 = VERYLARGE;	/* protection */
+    else {
+	*x = AXIS_MAPBACK(FIRST_X_AXIS, xx);
+	*x2 = AXIS_MAPBACK(SECOND_X_AXIS, xx);
+    }
+    if (plot_bounds.ytop == plot_bounds.ybot)
+	*y = *y2 = VERYLARGE;	/* protection */
+    else {
+	*y = AXIS_MAPBACK(FIRST_Y_AXIS, yy);
+	*y2 = AXIS_MAPBACK(SECOND_Y_AXIS, yy);
+    }
+    FPRINTF((stderr, "POS: xx=%i, yy=%i  =>  x=%g  y=%g\n", xx, yy, *x, *y));
 
     /* If x2 or y2 is linked to a primary axis via mapping function, apply it now */
-    if (!is_3d_plot) {
-	AXIS *secondary = &axis_array[SECOND_X_AXIS];
-	if (secondary->linked_to_primary && secondary->link_udf->at)
-	    *x2 = eval_link_function(secondary, *x);
-	secondary = &axis_array[SECOND_Y_AXIS];
-	if (secondary->linked_to_primary && secondary->link_udf->at)
-	    *y2 = eval_link_function(secondary, *y);
-    }
+    /* FIXME:  this triggers on both linked x1/x2 and on nonlinear x2 */
+    secondary = &axis_array[SECOND_X_AXIS];
+    if (nonlinear(secondary))
+	*x2 = eval_link_function(secondary, *x);
+    secondary = &axis_array[SECOND_Y_AXIS];
+    if (nonlinear(secondary))
+	*y2 = eval_link_function(secondary, *y);
 
     /* If x or y is linked to a (hidden) primary axis, it's a bit more complicated */
-    if (!is_3d_plot) {
-	AXIS *secondary;
-	secondary = &axis_array[FIRST_X_AXIS];
-	if (secondary->linked_to_primary
-	&&  secondary->linked_to_primary->index == -FIRST_X_AXIS) {
-	    *x = axis_mapback(secondary->linked_to_primary, xx);
-	    *x = eval_link_function(secondary, *x);
-	}
-	secondary = &axis_array[FIRST_Y_AXIS];
-	if (secondary->linked_to_primary
-	&&  secondary->linked_to_primary->index == -FIRST_Y_AXIS) {
-	    *y = axis_mapback(secondary->linked_to_primary, yy);
-	    *y = eval_link_function(secondary, *y);
-	}
-	secondary = &axis_array[SECOND_X_AXIS];
-	if (secondary->linked_to_primary
-	&&  secondary->linked_to_primary->index == -SECOND_X_AXIS) {
-	    *x2 = axis_mapback(secondary->linked_to_primary, xx);
-	    *x2 = eval_link_function(secondary, *x2);
-	}
-	secondary = &axis_array[SECOND_Y_AXIS];
-	if (secondary->linked_to_primary
-	&&  secondary->linked_to_primary->index == -SECOND_Y_AXIS) {
-	    *y2 = axis_mapback(secondary->linked_to_primary, yy);
-	    *y2 = eval_link_function(secondary, *y2);
-	}
+    secondary = &axis_array[FIRST_X_AXIS];
+    if (secondary->linked_to_primary
+    &&  secondary->linked_to_primary->index == -FIRST_X_AXIS) {
+	*x = axis_mapback(secondary->linked_to_primary, xx);
+	*x = eval_link_function(secondary, *x);
+    }
+    secondary = &axis_array[FIRST_Y_AXIS];
+    if (secondary->linked_to_primary
+    &&  secondary->linked_to_primary->index == -FIRST_Y_AXIS) {
+	*y = axis_mapback(secondary->linked_to_primary, yy);
+	*y = eval_link_function(secondary, *y);
+    }
+    secondary = &axis_array[SECOND_X_AXIS];
+    if (secondary->linked_to_primary
+    &&  secondary->linked_to_primary->index == -SECOND_X_AXIS) {
+	*x2 = axis_mapback(secondary->linked_to_primary, xx);
+	*x2 = eval_link_function(secondary, *x2);
+    }
+    secondary = &axis_array[SECOND_Y_AXIS];
+    if (secondary->linked_to_primary
+    &&  secondary->linked_to_primary->index == -SECOND_Y_AXIS) {
+	*y2 = axis_mapback(secondary->linked_to_primary, yy);
+	*y2 = eval_link_function(secondary, *y2);
     }
 }
 
@@ -410,7 +399,7 @@ xy_format()
     static char format[64];
     format[0] = NUL;
     strncat(format, mouse_setting.fmt, 30);
-    strncat(format, ", ", 2);
+    strncat(format, ", ", 3);
     strncat(format, mouse_setting.fmt, 30);
     return format;
 }
@@ -475,36 +464,54 @@ GetAnnotateString(char *s, double x, double y, int mode, char *fmt)
 	}
     } else if (mode == MOUSE_COORDINATES_REAL1) {
 	sprintf(s, xy_format(), x, y);	/* w/o brackets */
-    } else if (mode == MOUSE_COORDINATES_ALT && (fmt || polar)) {
-	if (polar) {
-	    double r;
-	    double phi = atan2(y,x);
-	    double rmin = (R_AXIS.autoscale & AUTOSCALE_MIN) ? 0.0 : R_AXIS.set_min;
-	    double theta = phi / DEG2RAD;
+    } else if ((mode == MOUSE_COORDINATES_ALT) && polar) {
+	double r;
+	double phi = atan2(y,x);
+	double rmin = (R_AXIS.autoscale & AUTOSCALE_MIN) ? 0.0 : R_AXIS.set_min;
+	double theta = phi / DEG2RAD;
 
-	    /* Undo "set theta" */
-	    theta = (theta - theta_origin) * theta_direction;
-	    if (theta > 180.)
-		theta = theta - 360.;
+	/* Undo "set theta" */
+	theta = (theta - theta_origin) * theta_direction;
+	if (theta > 180.)
+	    theta = theta - 360.;
 
-	    if (nonlinear(&R_AXIS))
-		r = eval_link_function(&R_AXIS, x/cos(phi) + R_AXIS.linked_to_primary->min);
-	    else if (R_AXIS.log)
-		r = rmin + x/cos(phi);
-	    else if (inverted_raxis)
-		r = rmin - x/cos(phi);
-	    else
-		r = rmin + x/cos(phi);
+	if (nonlinear(&R_AXIS))
+	    r = eval_link_function(&R_AXIS, x/cos(phi) + R_AXIS.linked_to_primary->min);
+	else if (R_AXIS.log)
+	    r = rmin + x/cos(phi);
+	else if (inverted_raxis)
+	    r = rmin - x/cos(phi);
+	else
+	    r = rmin + x/cos(phi);
 
-	    if (fmt)
-		sprintf(s, fmt, theta, r);
-	    else {
-		sprintf(s, "theta: %.1f%s  r: %g", theta, degree_sign, r);
-	    }
+	if (fmt)
+	    sprintf(s, fmt, theta, r);
+	else
+	    sprintf(s, "theta: %.1f%s  r: %g", theta, degree_sign, r);
+    } else if ((mode == MOUSE_COORDINATES_ALT) && fmt) {
+	sprintf(s, fmt, x, y);	/* user defined format */
+    } else if (mode == MOUSE_COORDINATES_FUNCTION) {
+	/* EXPERIMENTAL !!! */
+	t_value original_x, original_y;
+	struct value readout;
+	struct udvt_entry *plot_x = add_udv_by_name("x");
+	struct udvt_entry *plot_y = add_udv_by_name("y");
+	original_x = plot_x->udv_value;
+	original_y = plot_y->udv_value;
+	Gcomplex(&(plot_x->udv_value), x, 0);
+	Gcomplex(&(plot_y->udv_value), y, 0);
+	readout.type = NOTDEFINED;
+	evaluate_at(mouse_readout_function.at, &readout);
+	plot_x->udv_value = original_x;
+	plot_y->udv_value = original_y;
+	if (readout.type != STRING) {
+	    int_warn(NO_CARET, "mouseformat function did not return a string");
 	} else {
-	    sprintf(s, fmt, x, y);	/* user defined format */
+	    sprintf(s, "%s", readout.v.string_val);
 	}
+	gpfree_string(&readout);
     } else {
+	/* Default format ("set mouse mouseformat" is not active) */
 	sprintf(s, xy_format(), x, y);	/* usual x,y values */
     }
     return s + strlen(s);
@@ -534,8 +541,6 @@ xDateTimeFormat(double x, char *b, int mode)
 		tm.tm_hour, tm.tm_min);
 	break;
     case MOUSE_COORDINATES_TIMEFMT:
-	/* FIXME HBB 20000507: timefmt is for *reading* timedata, not
-	 * for writing them! */
 	gstrftime(b, 0xff, timefmt, x);
 	break;
     default:
@@ -544,24 +549,35 @@ xDateTimeFormat(double x, char *b, int mode)
     return b;
 }
 
+/* Format one axis coordinate for output to mouse status or
+ * button 2 label text
+ */
+static char *
+mkstr(char *sp, double x, AXIS_INDEX axis)
+{
+    if (x >= VERYLARGE)
+	return sp;
 
+    if (axis == FIRST_X_AXIS
+	&& (mouse_mode == MOUSE_COORDINATES_XDATE
+	|| mouse_mode == MOUSE_COORDINATES_XTIME
+	|| mouse_mode == MOUSE_COORDINATES_XDATETIME
+	|| mouse_mode == MOUSE_COORDINATES_TIMEFMT)) {
+	/* mouseformats 3 4 5 6 use specific time format for x coord */
+	xDateTimeFormat(x, sp, mouse_mode);
 
-/* HBB 20000507: fixed a construction error. Was using the 'timefmt'
- * string (which is for reading, not writing time data) to output the
- * value. Code is now closer to what setup_tics does. */
-#define MKSTR(sp,x,axis)					\
-do {								\
-    if (x >= VERYLARGE)	break;					\
-    if (axis_array[axis].datatype == DT_TIMEDATE) {		\
-	char *format = copy_or_invent_formatstring(&axis_array[axis]);	\
-	while (strchr(format,'\n'))				\
-	     *(strchr(format,'\n')) = ' ';			\
-	gstrftime(sp, 40, format, x);				\
-    } else {							\
-	sprintf(sp, mouse_setting.fmt ,x);			\
-    }								\
-    sp += strlen(sp);						\
-} while (0)
+    } else if (axis_array[axis].datatype == DT_TIMEDATE) {
+	char *format = copy_or_invent_formatstring(&axis_array[axis]);
+	while (strchr(format,'\n'))
+	    *(strchr(format,'\n')) = ' ';
+	gstrftime(sp, 40, format, x);
+
+    } else {
+	sprintf(sp, mouse_setting.fmt ,x);
+    }
+
+    return (sp + strlen(sp));
+}
 
 
 /* ratio for log, distance for linear */
@@ -820,16 +836,21 @@ static void
 incr_mousemode(const int amount)
 {
     long int old = mouse_mode;
+    TBOOLEAN found_a_new_one = FALSE;
+
     mouse_mode += amount;
-    if (MOUSE_COORDINATES_ALT == mouse_mode && !(mouse_alt_string || polar))
-	mouse_mode += amount;	/* stepping over */
-    if (mouse_mode > MOUSE_COORDINATES_ALT) {
-	mouse_mode = MOUSE_COORDINATES_REAL1;
-    } else if (mouse_mode <= MOUSE_COORDINATES_REAL) {
-	mouse_mode = MOUSE_COORDINATES_ALT;
-	if (!(mouse_alt_string || polar))
-	    mouse_mode--;	/* stepping over */
-    }
+    while (!found_a_new_one) {
+	if (MOUSE_COORDINATES_ALT == mouse_mode && !(mouse_alt_string || polar))
+	    mouse_mode += amount;	/* stepping over */
+	else if (MOUSE_COORDINATES_FUNCTION == mouse_mode && mouse_readout_function.at == NULL)
+	    mouse_mode += amount;	/* stepping over */
+	else if (mouse_mode > MOUSE_COORDINATES_FUNCTION)
+	    mouse_mode = MOUSE_COORDINATES_REAL1;
+	else if (mouse_mode <= MOUSE_COORDINATES_REAL)
+	    mouse_mode = MOUSE_COORDINATES_FUNCTION;
+	else
+	    found_a_new_one = TRUE;
+	}
     UpdateStatusline();
     if (display_ipc_commands())
 	fprintf(stderr, "switched mouse format from %ld to %ld\n", old, mouse_mode);
@@ -847,20 +868,16 @@ static void
 UpdateStatuslineWithMouseSetting(mouse_setting_t * ms)
 {
     char s0[256], *sp;
+    s0[0] = 0;
 
-/* This suppresses mouse coordinate update after a ^C, but I think
- * that the relevant terminals do their own checks anyhow so we
- * we can just let the ones that care silently skip the update
- * while the ones that don't care keep on updating as usual.
- */
-#if (0)
+/* This suppresses mouse coordinate update after a ^C */
     if (!term_initialised)
 	return;
-#endif
 
-    if (!ms->on) {
-	s0[0] = 0;
-    } else if (!ALMOST2D) {
+    if (!ms->on)
+	return;
+
+    if (!ALMOST2D) {
 	char format[0xff];
 	format[0] = '\0';
 	strcat(format, "view: ");
@@ -875,30 +892,29 @@ UpdateStatuslineWithMouseSetting(mouse_setting_t * ms)
     } else if (!TICS_ON(axis_array[SECOND_X_AXIS].ticmode) && !TICS_ON(axis_array[SECOND_Y_AXIS].ticmode)) {
 	/* only first X and Y axis are in use */
 	sp = GetAnnotateString(s0, real_x, real_y, mouse_mode, mouse_alt_string);
-	if (ruler.on) {
+	if (ruler.on)
 	    GetRulerString(sp, real_x, real_y);
-	}
     } else {
 	/* X2 and/or Y2 are in use: use more verbose format */
 	sp = s0;
 	if (TICS_ON(axis_array[FIRST_X_AXIS].ticmode)) {
 	    sp = stpcpy(sp, "x=");
-	    MKSTR(sp, real_x, FIRST_X_AXIS);
+	    sp = mkstr(sp, real_x, FIRST_X_AXIS);
 	    *sp++ = ' ';
 	}
 	if (TICS_ON(axis_array[FIRST_Y_AXIS].ticmode)) {
 	    sp = stpcpy(sp, "y=");
-	    MKSTR(sp, real_y, FIRST_Y_AXIS);
+	    sp = mkstr(sp, real_y, FIRST_Y_AXIS);
 	    *sp++ = ' ';
 	}
 	if (TICS_ON(axis_array[SECOND_X_AXIS].ticmode)) {
 	    sp = stpcpy(sp, "x2=");
-	    MKSTR(sp, real_x2, SECOND_X_AXIS);
+	    sp = mkstr(sp, real_x2, SECOND_X_AXIS);
 	    *sp++ = ' ';
 	}
 	if (TICS_ON(axis_array[SECOND_Y_AXIS].ticmode)) {
 	    sp = stpcpy(sp, "y2=");
-	    MKSTR(sp, real_y2, SECOND_Y_AXIS);
+	    sp = mkstr(sp, real_y2, SECOND_Y_AXIS);
 	    *sp++ = ' ';
 	}
 	if (ruler.on) {
@@ -926,12 +942,10 @@ UpdateStatuslineWithMouseSetting(mouse_setting_t * ms)
 	}
 	*--sp = 0;		/* delete trailing space */
     }
-    if (term->put_tmptext) {
-	(term->put_tmptext) (0, s0);
-    }
-}
-#undef MKSTR
 
+    if (term->put_tmptext && *s0)
+	(term->put_tmptext) (0, s0);
+}
 
 void
 recalc_statusline()
@@ -1097,7 +1111,7 @@ builtin_nearest_log(struct gp_event_t *ge)
 	if (mouse_x > plot_bounds.xright - (plot_bounds.xright - plot_bounds.xleft) / 4
 	&&  mouse_y > plot_bounds.ybot && mouse_y < plot_bounds.ytop)
 	    change_y2 = TRUE;
-	
+
 	if (change_x1)
 	    do_string(axis_array[FIRST_X_AXIS].log ? "unset log x" : "set log x");
 	if (change_y1)
@@ -1108,7 +1122,7 @@ builtin_nearest_log(struct gp_event_t *ge)
 	    do_string(axis_array[SECOND_Y_AXIS].log ? "unset log y2" : "set log y2");
 	if (!change_x1 && !change_y1 && splot_map)
 	    do_string_replot( Z_AXIS.log ? "unset log z" : "set log z");
-	
+
 	if (change_x1 || change_y1 || change_x2 || change_y2)
 	    do_string_replot("");
     }
@@ -1376,6 +1390,55 @@ builtin_cancel_zoom(struct gp_event_t *ge)
     return (char *) 0;
 }
 
+/* Check whether this event is bound to a command.
+ * If so return a pointer to the binding, otherwise return NULL.
+ */
+static bind_t *
+get_binding(struct gp_event_t *ge, TBOOLEAN current)
+{
+    int c, par2;
+    bind_t *ptr;
+    bind_t keypress;
+
+
+    if (ge->type == GE_buttonpress || ge->type == GE_buttonrelease) {
+	int b = ge->par1;
+	c = (b == 3) ? GP_Button3 : (b == 2) ? GP_Button2 : GP_Button1;
+	par2 = 0;
+    } else {
+	c = ge->par1;
+	if ((modifier_mask & Mod_Shift) && ((c & 0xff) == 0))
+	    c = toupper(c);
+	par2 = ge->par2;
+    }
+
+    if (!bindings)
+	bind_install_default_bindings();
+
+    bind_clear(&keypress);
+    keypress.key = c;
+    keypress.modifier = modifier_mask;
+
+    for (ptr = bindings; ptr; ptr = ptr->next) {
+	if (bind_matches(&keypress, ptr)) {
+	    /* Always honor keys set with "bind all" */
+	    if (ptr->allwindows && ptr->command)
+		return ptr;
+	    /* But otherwise ignore inactive windows */
+	    else if (!current)
+		break;
+	    /* Let user defined bindings overwrite the builtin bindings */
+	    else if ((par2 & 1) == 0 && ptr->command)
+		return ptr;
+	    else if (ptr->builtin)
+		return ptr;
+	    else
+		FPRINTF((stderr, "%s:%d protocol error\n", __FILE__, __LINE__));
+	}
+    }
+    return NULL;
+}
+
 static void
 event_keypress(struct gp_event_t *ge, TBOOLEAN current)
 {
@@ -1383,27 +1446,22 @@ event_keypress(struct gp_event_t *ge, TBOOLEAN current)
     int c, par2;
     bind_t *ptr;
     bind_t keypress;
+    struct udvt_entry *keywin;
 
     c = ge->par1;
+    if ((modifier_mask & Mod_Shift) && ((c & 0xff) == 0))
+	c = toupper(c);
     par2 = ge->par2;
     x = ge->mx;
     y = ge->my;
-
-    if (!bindings) {
-	bind_install_default_bindings();
-    }
-
-    if ((modifier_mask & Mod_Shift) && ((c & 0xff) == 0)) {
-	c = toupper(c);
-    }
 
     bind_clear(&keypress);
     keypress.key = c;
     keypress.modifier = modifier_mask;
 
     /*
-     * On 'pause mouse keypress' in active window export current keypress 
-     * and mouse coords to user variables. A key with 'bind all' terminates 
+     * On 'pause mouse keypress' in active window export current keypress
+     * and mouse coords to user variables. A key with 'bind all' terminates
      * a pause even from non-active windows.
      * Ignore NULL keypress.
      *
@@ -1417,39 +1475,23 @@ event_keypress(struct gp_event_t *ge, TBOOLEAN current)
 	return;
     }
 
-    for (ptr = bindings; ptr; ptr = ptr->next) {
-	if (bind_matches(&keypress, ptr)) {
-	    struct udvt_entry *keywin;
-	    if ((keywin = add_udv_by_name("MOUSE_KEY_WINDOW"))) {
-		Ginteger(&keywin->udv_value, ge->winid);
-	    }
-	    /* Always honor keys set with "bind all" */
-	    if (ptr->allwindows && ptr->command) {
-		if (current)
-		    load_mouse_variables(x, y, FALSE, c);
-		else
-		    /* FIXME - Better to clear MOUSE_[XY] than to set it wrongly. */
-		    /*         This may be worth a separate subroutine.           */
-		    load_mouse_variables(0, 0, FALSE, c);
-		do_string(ptr->command);
-		/* Treat as a current event after we return to x11.trm */
-		ge->type = GE_keypress;
-		break;
-	    /* But otherwise ignore inactive windows */
-	    } else if (!current) {
-		break;
-	    /* Let user defined bindings overwrite the builtin bindings */
-	    } else if ((par2 & 1) == 0 && ptr->command) {
-		do_string(ptr->command);
-		break;
-	    } else if (ptr->builtin) {
-		ptr->builtin(ge);
-	    } else {
-		fprintf(stderr, "%s:%d protocol error\n", __FILE__, __LINE__);
-	    }
-	}
-    }
+    if (!(ptr = get_binding(ge, current)))
+	return;
 
+    if ((keywin = add_udv_by_name("MOUSE_KEY_WINDOW")))
+	Ginteger(&keywin->udv_value, ge->winid);
+
+    if (current)
+	load_mouse_variables(x, y, FALSE, c);
+    else
+	load_mouse_variables(0, 0, FALSE, c);
+
+    if (ptr->allwindows && ptr->command)
+	do_string(ptr->command);
+    else if ((par2 & 1) == 0 && ptr->command)
+	do_string(ptr->command);
+    else if (ptr->builtin)
+	ptr->builtin(ge);
 }
 
 
@@ -1485,7 +1527,7 @@ ChangeView(int x, int z)
 	fprintf(stderr, "changing view to %f, %f.\n", surface_rot_x, surface_rot_z);
     }
 
-    do_save_3dplot(first_3dplot, plot3d_num, 0 /* not quick */ );
+    do_save_3dplot(first_3dplot, plot3d_num, NORMAL_REPLOT);
 
     if (ALMOST2D) {
 	/* 2D plot, or suitably aligned 3D plot: update statusline */
@@ -1516,18 +1558,18 @@ ChangeAzimuth(int x)
     if (display_ipc_commands())
 	fprintf(stderr, "changing azimuth to %f.\n", azimuth);
 
-    do_save_3dplot(first_3dplot, plot3d_num, 0 /* not quick */ );
+    do_save_3dplot(first_3dplot, plot3d_num, NORMAL_REPLOT);
 }
 
 
 int is_mouse_outside_plot(void)
 {
-#define CHECK_AXIS_OUTSIDE(real, axis)                                  \
-    ( axis_array[axis].min <  VERYLARGE &&                              \
-      axis_array[axis].max > -VERYLARGE &&                              \
-      ( (real < axis_array[axis].min &&        \
-         real < axis_array[axis].max) ||       \
-        (real > axis_array[axis].min &&        \
+#define CHECK_AXIS_OUTSIDE(real, axis)        \
+    ( axis_array[axis].min <  VERYLARGE &&    \
+      axis_array[axis].max > -VERYLARGE &&    \
+      ( (real < axis_array[axis].min &&       \
+         real < axis_array[axis].max) ||      \
+        (real > axis_array[axis].min &&       \
          real > axis_array[axis].max)))
 
     return
@@ -1543,7 +1585,7 @@ int is_mouse_outside_plot(void)
  * combination of the current limits.
  */
 static double
-rescale(int AXIS, double w1, double w2) 
+rescale(int AXIS, double w1, double w2)
 {
     double newlimit;
     struct axis *axis = &axis_array[AXIS];
@@ -1591,14 +1633,14 @@ static void
 do_zoom_scroll_left()
 {
     zoom_rescale_xyx2y2(1.1, -0.1,
-                        1,   0,
-                        1.1, -0.1,
-                        1,   0,
-                        0.1, 0.9,
-                        0,   1,
-                        0.1, 0.9,
-                        0,   1,
-                        "scroll left.\n");
+			1,   0,
+			1.1, -0.1,
+			1,   0,
+			0.1, 0.9,
+			0,   1,
+			0.1, 0.9,
+			0,   1,
+			"scroll left.\n");
 }
 
 /* Scroll right. */
@@ -1606,14 +1648,14 @@ static void
 do_zoom_scroll_right()
 {
     zoom_rescale_xyx2y2(0.9,  0.1,
-                        1,    0,
-                        0.9,  0.1,
-                        1,    0,
-                        -0.1, 1.1,
-                        0,    1,
-                        -0.1, 1.1,
-                        0,    1,
-                        "scroll right");
+			1,    0,
+			0.9,  0.1,
+			1,    0,
+			-0.1, 1.1,
+			0,    1,
+			-0.1, 1.1,
+			0,    1,
+			"scroll right");
 }
 
 /* Scroll up. */
@@ -1621,14 +1663,14 @@ static void
 do_zoom_scroll_up()
 {
     zoom_rescale_xyx2y2(1,    0,
-                        0.9,  0.1,
-                        1,    0,
-                        0.9,  0.1,
-                        0,    1,
-                        -0.1, 1.1,
-                        0,    1,
-                        -0.1, 1.1,
-                        "scroll up");
+			0.9,  0.1,
+			1,    0,
+			0.9,  0.1,
+			0,    1,
+			-0.1, 1.1,
+			0,    1,
+			-0.1, 1.1,
+			"scroll up");
 }
 
 /* Scroll down. */
@@ -1636,14 +1678,14 @@ static void
 do_zoom_scroll_down()
 {
     zoom_rescale_xyx2y2(1,   0,
-                        1.1, -0.1,
-                        1,   0,
-                        1.1, -0.1,
-                        0,   1,
-                        0.1, 0.9,
-                        0,   1,
-                        0.1, 0.9,
-                        "scroll down");
+			1.1, -0.1,
+			1,   0,
+			1.1, -0.1,
+			0,   1,
+			0.1, 0.9,
+			0,   1,
+			0.1, 0.9,
+			"scroll down");
 }
 
 
@@ -1662,7 +1704,7 @@ rescale_around_mouse(double *newmin, double *newmax, int AXIS, double mouse_pos,
 	axmin = eval_link_function(primary, axmin);
 	axmax = eval_link_function(primary, axmax);
 	mouse_pos = eval_link_function(primary, mouse_pos);
-    } 
+    }
 
   *newmin = mouse_pos + (axmin - mouse_pos) * scale;
   *newmax = mouse_pos + (axmax - mouse_pos) * scale;
@@ -1679,22 +1721,22 @@ static void
 zoom_in_X(int zoom_key)
 {
     if (is_mouse_outside_plot()) {
-        /* zoom in (X axis only) */
-        double w1 = (zoom_key=='+') ? 23./25. : 23./21.;
-        double w2 = (zoom_key=='+') ?  2./25. : -2./21.;
-        zoom_rescale_xyx2y2(w1,w2, 1,0, w1,w2, 1,0,  w2,w1, 0,1, w2,w1, 0,1, 
-                            (zoom_key=='+' ? "zoom in X" : "zoom out X"));
+	/* zoom in (X axis only) */
+	double w1 = (zoom_key=='+') ? 23./25. : 23./21.;
+	double w2 = (zoom_key=='+') ?  2./25. : -2./21.;
+	zoom_rescale_xyx2y2(w1,w2, 1,0, w1,w2, 1,0,  w2,w1, 0,1, w2,w1, 0,1,
+			    (zoom_key=='+' ? "zoom in X" : "zoom out X"));
     } else {
-        double xmin, ymin, x2min, y2min, xmax, ymax, x2max, y2max;
+	double xmin, ymin, x2min, y2min, xmax, ymax, x2max, y2max;
 	double scale = (zoom_key=='+') ? 0.75 : 1.25;
 	rescale_around_mouse(&xmin,  &xmax,  FIRST_X_AXIS,  real_x,  scale);
 	rescale_around_mouse(&x2min, &x2max, SECOND_X_AXIS, real_x2, scale);
 
-        ymin  = rescale(FIRST_Y_AXIS,  1,0);
-        y2min = rescale(SECOND_Y_AXIS, 1,0);
-        ymax  = rescale(FIRST_Y_AXIS,  0,1);
-        y2max = rescale(SECOND_Y_AXIS, 0,1);
-        do_zoom(xmin, ymin, x2min, y2min, xmax, ymax, x2max, y2max);
+	ymin  = rescale(FIRST_Y_AXIS,  1,0);
+	y2min = rescale(SECOND_Y_AXIS, 1,0);
+	ymax  = rescale(FIRST_Y_AXIS,  0,1);
+	y2max = rescale(SECOND_Y_AXIS, 0,1);
+	do_zoom(xmin, ymin, x2min, y2min, xmax, ymax, x2max, y2max);
     }
 }
 
@@ -1859,19 +1901,19 @@ event_buttonpress(struct gp_event_t *ge)
 	/* Ctrl+Shift+wheel up or Squeeze (not implemented) */
 	if ((modifier_mask & Mod_Ctrl) && (modifier_mask & Mod_Shift))
 	    do_zoom_in_X();
-	
+
 	/* Ctrl+wheel up or Ctrl+stroke */
 	else if ((modifier_mask & Mod_Ctrl))
 	    do_zoom_in_around_mouse();
 
 	/* Horizontal stroke (button 6) or Shift+wheel up */
-	else if (b == 6 || (modifier_mask & Mod_Shift)) 
+	else if (b == 6 || (modifier_mask & Mod_Shift))
 	    do_zoom_scroll_left();
-	
+
 	/* Wheel up (no modifier keys) */
 	else
 	    do_zoom_scroll_up();
-	
+
     } else if (((b == 5) || (b == 7)) && /* 5 - wheel down, 7 - wheel right */
 	       (!replot_disabled || (E_REFRESH_NOT_OK != refresh_ok))	/* Use refresh if available */
 	       && !(paused_for_mouse & PAUSE_BUTTON3)) {
@@ -1879,31 +1921,39 @@ event_buttonpress(struct gp_event_t *ge)
 	/* Ctrl+Shift+wheel down or Unsqueeze (not implemented) */
 	if ((modifier_mask & Mod_Ctrl) && (modifier_mask & Mod_Shift))
 	    do_zoom_out_X();
-	
+
 	/* Ctrl+wheel down or Ctrl+stroke */
 	else if ((modifier_mask & Mod_Ctrl))
 	    do_zoom_out_around_mouse();
 
 	/* Horizontal stroke (button 7) or Shift+wheel down */
-	else if (b == 7 || (modifier_mask & Mod_Shift)) 
+	else if (b == 7 || (modifier_mask & Mod_Shift))
 	    do_zoom_scroll_right();
-	
+
 	/* Wheel down (no modifier keys) */
 	else
 	    do_zoom_scroll_down();
-	
+
     } else if (ALMOST2D) {
-        if (!setting_zoom_region) {
-	    if (1 == b) {
-		/* "pause button1" or "pause any" takes precedence over key bindings */
-		if (paused_for_mouse & PAUSE_BUTTON1) {
-		    load_mouse_variables(mouse_x, mouse_y, TRUE, b);
-		    trap_release = TRUE;	/* Don't trigger on release also */
-		    return;
-		}
-	    } else if (2 == b) {
-		/* not bound in 2d graphs */
-	    } else if (3 == b && 
+	/* "pause button1" or "pause any" takes precedence over key bindings */
+	if (1 == b) {
+	    if (paused_for_mouse & PAUSE_BUTTON1) {
+		load_mouse_variables(mouse_x, mouse_y, TRUE, b);
+		trap_release = TRUE;	/* Don't trigger on release also */
+		return;
+	    }
+	}
+
+	/* In 2D mouse buttons 1-3 are available for "bind" commands */
+	if (b == 1 || b == 2 || b == 3) {
+	    if (get_binding(ge, TRUE)) {
+		event_keypress(ge, TRUE);
+		return;
+	    }
+	}
+
+	if (!setting_zoom_region) {
+	    if (3 == b &&
 	    	(!replot_disabled || (E_REFRESH_NOT_OK != refresh_ok))	/* Use refresh if available */
 		&& !(paused_for_mouse & PAUSE_BUTTON3)) {
 		/* start zoom; but ignore it when
@@ -1944,14 +1994,13 @@ event_buttonpress(struct gp_event_t *ge)
 		    fprintf(stderr, "starting zoom region.\n");
 		}
 	    }
+
 	} else {
+	    /* complete zoom (any button finishes zooming) */
 
-	    /* complete zoom (any button
-	     * finishes zooming.) */
-
-	    /* the following variables are used to check,
-	     * if the box is big enough to be considered
-	     * as zoom box. */
+	    /* the following variables are used to check if the box
+	     * is big enough to be considered as zoom box.
+	     */
 	    int dist_x = setting_zoom_x - mouse_x;
 	    int dist_y = setting_zoom_y - mouse_y;
 	    int dist = sqrt((double)(dist_x * dist_x + dist_y * dist_y));
@@ -2030,12 +2079,19 @@ event_buttonrelease(struct gp_event_t *ge)
 
     button &= ~(1 << b);	/* remove button */
 
-    if (setting_zoom_region) {
+    if (setting_zoom_region)
 	return;
-    }
+
+    /* FIXME:  This mechanism may no longer be needed */
     if (TRUE == trap_release) {
 	trap_release = FALSE;
 	return;
+    }
+
+    /* binding takes precedence over default action */
+    if (b == 1 || b == 2 || b == 3) {
+	if (get_binding(ge, TRUE))
+	    return;
     }
 
     MousePosToGraphPosReal(mouse_x, mouse_y, &real_x, &real_y, &real_x2, &real_y2);
@@ -2045,8 +2101,9 @@ event_buttonrelease(struct gp_event_t *ge)
 
     if (ALMOST2D) {
 	char s0[256];
-	if (b == 1 && term->set_clipboard && ((doubleclick <= mouse_setting.doubleclick)
-					      || !mouse_setting.doubleclick)) {
+
+	if (b == 1 && term->set_clipboard
+	&&  ((doubleclick <= mouse_setting.doubleclick) || !mouse_setting.doubleclick)) {
 
 	    /* put coordinates to clipboard. For 3d plots this takes
 	     * only place, if the user didn't drag (rotate) the plot */
@@ -2059,8 +2116,8 @@ event_buttonrelease(struct gp_event_t *ge)
 		}
 	    }
 	}
-	if (b == 2) {
 
+	if (b == 2) {
 	    /* draw temporary annotation or label. For 3d plots this is
 	     * only done if the user didn't drag (scale) the plot */
 
@@ -2096,7 +2153,10 @@ event_buttonrelease(struct gp_event_t *ge)
 	if (!!(modifier_mask & Mod_Ctrl) && !needreplot) {
 	    /* redraw the 3d plot if its last redraw was 'quick'
 	     * (only axes) because modifier key was pressed */
-	    do_save_3dplot(first_3dplot, plot3d_num, 0);
+	    do_save_3dplot(first_3dplot, plot3d_num, NORMAL_REPLOT);
+	} else if (b==1) {
+	    /* Needed if the previous plot was QUICK_REFRESH */
+	    do_save_3dplot(first_3dplot, plot3d_num, NORMAL_REPLOT);
 	}
 	if (term->set_cursor)
 	    term->set_cursor((button & (1 << 1)) ? 1 : (button & (1 << 2)) ? 2 : 0,
@@ -2106,15 +2166,6 @@ event_buttonrelease(struct gp_event_t *ge)
     /* Export current mouse coords to user-accessible variables also */
     load_mouse_variables(mouse_x, mouse_y, TRUE, b);
     UpdateStatusline();
-
-    /* In 2D mouse button 1 is available for "bind" commands */
-    if (!is_3d_plot && (b == 1)) {
-	int save = ge->par1;
-	ge->par1 = GP_Button1;
-	ge->par2 = 0;
-	event_keypress(ge, TRUE);
-	ge->par1 = save;	/* needed for "pause mouse" */
-    }
 }
 
 
@@ -2194,7 +2245,8 @@ event_motion(struct gp_event_t *ge)
 		 * then replot while
 		 * disabling further replots until it completes */
 		allowmotion = FALSE;
-		do_save_3dplot(first_3dplot, plot3d_num, !!(modifier_mask & Mod_Ctrl));
+		do_save_3dplot(first_3dplot, plot3d_num,
+			((modifier_mask & Mod_Ctrl) != 0) ? AXIS_ONLY_ROTATE : QUICK_REFRESH);
 		fill_gpval_float("GPVAL_VIEW_ROT_X", surface_rot_x);
 		fill_gpval_float("GPVAL_VIEW_ROT_Z", surface_rot_z);
 		fill_gpval_float("GPVAL_VIEW_SCALE", surface_scale);
@@ -2234,7 +2286,7 @@ event_modifier(struct gp_event_t *ge)
 
     if (modifier_mask == 0 && is_3d_plot && (button & ((1 << 1) | (1 << 2))) && !needreplot) {
 	/* redraw the 3d plot if modifier key released */
-	do_save_3dplot(first_3dplot, plot3d_num, 0);
+	do_save_3dplot(first_3dplot, plot3d_num, NORMAL_REPLOT);
     }
 }
 
@@ -2244,7 +2296,8 @@ event_plotdone()
 {
     if (needreplot) {
 	needreplot = FALSE;
-	do_save_3dplot(first_3dplot, plot3d_num, !!(modifier_mask & Mod_Ctrl));
+	do_save_3dplot(first_3dplot, plot3d_num,
+			((modifier_mask & Mod_Ctrl) != 0) ? AXIS_ONLY_ROTATE : NORMAL_REPLOT);
     } else {
 	allowmotion = TRUE;
     }
@@ -2265,19 +2318,22 @@ event_reset(struct gp_event_t *ge)
 	}
     }
 
+    /* This hack is necessary on some systems in order to prevent one  */
+    /* character of input from being swallowed when the plot window is */
+    /* closed. But which systems, exactly, and in what circumstances?  */
+    if (paused_for_mouse || !interactive) {
+	if (term && (!strncmp("x11",term->name,3)
+		 || !strncmp("wxt",term->name,3)
+		 || !strncmp("qt",term->name,2)))
+	    ungetc('\n',stdin);
+    }
+
     if (paused_for_mouse) {
 	paused_for_mouse = 0;
 #ifdef _WIN32
 	/* close pause message box */
 	kill_pending_Pause_dialog();
 #endif
-	/* This hack is necessary on some systems in order to prevent one  */
-	/* character of input from being swallowed when the plot window is */
-	/* closed. But which systems, exactly?                             */
-	if (term && (!strncmp("x11",term->name,3) 
-		 || !strncmp("wxt",term->name,3)
-		 || !strncmp("qt",term->name,2)))
-	    ungetc('\n',stdin);
     }
 
     /* Dummy up a keystroke event so that we can conveniently check for a  */
@@ -2407,15 +2463,43 @@ do_event(struct gp_event_t *ge)
     replot_disabled = FALSE;	/* enable replot again */
 }
 
-static void
-do_save_3dplot(struct surface_points *plots, int pcount, int quick)
-{
-#if (0)
-#define M_TEST_AXIS(A) \
-     (A.log && ((!(A.set_autoscale & AUTOSCALE_MIN) && A.set_min <= 0) || \
-		(!(A.set_autoscale & AUTOSCALE_MAX) && A.set_max <= 0)))
-#endif
 
+/* convenience wrapper for do_event();
+   returns TRUE if it ends pause mouse;
+   currently used by caca.trm, djsvga.trm, and pc.trm */
+TBOOLEAN
+exec_event(char type, int mx, int my, int par1, int par2, int winid)
+{
+    struct gp_event_t ge;
+
+    ge.type = type;
+    ge.mx = mx;
+    ge.my = my;
+    ge.par1 = par1;
+    ge.par2 = par2;
+    ge.winid = winid;
+
+    do_event(&ge);
+
+    /* end pause mouse? */
+    if ((type == GE_buttonrelease) && (paused_for_mouse & PAUSE_CLICK) &&
+	(((par1 == 1) && (paused_for_mouse & PAUSE_BUTTON1)) ||
+	 ((par1 == 2) && (paused_for_mouse & PAUSE_BUTTON2)) ||
+	 ((par1 == 3) && (paused_for_mouse & PAUSE_BUTTON3)))) {
+	paused_for_mouse = 0;
+	return TRUE;
+    }
+    if ((type == GE_keypress) && (paused_for_mouse & PAUSE_KEYSTROKE) && (par1 != NUL)) {
+	paused_for_mouse = 0;
+	return TRUE;
+    }
+    return FALSE;
+}
+
+
+static void
+do_save_3dplot(struct surface_points *plots, int pcount, REPLOT_TYPE quick)
+{
     if (!plots || (E_REFRESH_NOT_OK == refresh_ok)) {
 	/* !plots might happen after the `reset' command for example
 	 * (reported by Franz Bakan).
@@ -2424,18 +2508,8 @@ do_save_3dplot(struct surface_points *plots, int pcount, int quick)
 	 */
 	replotrequest();
     } else {
-#if (0)	/* Dead code.  This error is now trapped elsewhere */
-	if (M_TEST_AXIS(X_AXIS) || M_TEST_AXIS(Y_AXIS) || M_TEST_AXIS(Z_AXIS)
-	    || M_TEST_AXIS(CB_AXIS)
-	    ) {
-		int_error(NO_CARET, "axis ranges must be above 0 for log scale!");
-		return;
-	}
-#endif
 	do_3dplot(plots, pcount, quick);
     }
-
-#undef M_TEST_AXIS
 }
 
 
@@ -2598,8 +2672,8 @@ bind_matches(const bind_t * a, const bind_t * b)
     int a_mod = a->modifier;
     int b_mod = b->modifier;
 
-    /* discard Shift modifier (except for mouse button) */
-    if (a->key != GP_Button1) {
+    /* discard Shift modifier (except for mouse buttons) */
+    if (a->key < GP_Button1) {
 	a_mod &= (Mod_Ctrl | Mod_Alt);
 	b_mod &= (Mod_Ctrl | Mod_Alt);
     }
@@ -2978,8 +3052,8 @@ remove_label(int x, int y)
 static void
 put_label(char *label, double x, double y)
 {
-    char cmd[0xff];
-    sprintf(cmd, "set label \"%s\" at %g,%g %s", label, x, y, 
+    char cmd[512];
+    sprintf(cmd, "set label \"%s\" at %g,%g %s", label, x, y,
 	mouse_setting.labelopts ? mouse_setting.labelopts : "point pt 1");
     do_string_replot(cmd);
 }
@@ -2988,8 +3062,8 @@ put_label(char *label, double x, double y)
 /* routine required by pm.trm: fill in information needed for (un)checking
    menu items in the Presentation Manager terminal
 */
-void 
-PM_set_gpPMmenu __PROTO((struct t_gpPMmenu * gpPMmenu))
+void
+PM_set_gpPMmenu(struct t_gpPMmenu * gpPMmenu)
 {
     gpPMmenu->use_mouse = mouse_setting.on;
     if (zoom_now == NULL)

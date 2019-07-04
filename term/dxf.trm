@@ -56,17 +56,16 @@ register_term(dxf)
 #endif
 
 #ifdef TERM_PROTO
-TERM_PUBLIC void DXF_init __PROTO((void));
-TERM_PUBLIC void DXF_graphics __PROTO((void));
-TERM_PUBLIC void DXF_text __PROTO((void));
-TERM_PUBLIC void DXF_linetype __PROTO((int linetype));
-TERM_PUBLIC void DXF_move __PROTO((unsigned int x, unsigned int y));
-TERM_PUBLIC void DXF_vector __PROTO((unsigned int ux, unsigned int uy));
-TERM_PUBLIC void DXF_put_text __PROTO((unsigned int x, unsigned int y,
-				       const char str[]));
-TERM_PUBLIC int DXF_text_angle __PROTO((int ang));
-TERM_PUBLIC int DXF_justify_text __PROTO((enum JUSTIFY mode));
-TERM_PUBLIC void DXF_reset __PROTO((void));
+TERM_PUBLIC void DXF_init(void);
+TERM_PUBLIC void DXF_graphics(void);
+TERM_PUBLIC void DXF_text(void);
+TERM_PUBLIC void DXF_linetype(int linetype);
+TERM_PUBLIC void DXF_move(unsigned int x, unsigned int y);
+TERM_PUBLIC void DXF_vector(unsigned int ux, unsigned int uy);
+TERM_PUBLIC void DXF_put_text(unsigned int x, unsigned int y, const char str[]);
+TERM_PUBLIC int DXF_text_angle(int ang);
+TERM_PUBLIC int DXF_justify_text(enum JUSTIFY mode);
+TERM_PUBLIC void DXF_reset(void);
 
 #define DXF_XMAX (120.0 * DXF_UNIT)
 #define DXF_YMAX (80.0 * DXF_UNIT)
@@ -153,7 +152,7 @@ DXF_graphics()
 {
     register struct termentry *t = term;
     int i;
-    static char GPFAR dxfi1[] = "\
+    static char dxfi1[] = "\
 999\n\
 %% GNUPLOT: dxf file for AutoCad\n\
   0\nSECTION\n  2\nHEADER\n\
@@ -176,7 +175,7 @@ DXF_graphics()
   9\n$MENU\n  1\nacad\n\
   0\nENDSEC\n\
   0\nSECTION\n  2\nTABLES\n";
-    static char GPFAR dxfi2[] = "\
+    static char dxfi2[] = "\
 0\nTABLE\n  2\nLTYPE\n 70\n    %d\n\
 0\nLTYPE\n  2\nCONTINUOUS\n 70\n    64\n\
   3\nSolid line\n 72\n    65\n 73\n      0\n 40\n0.0\n\

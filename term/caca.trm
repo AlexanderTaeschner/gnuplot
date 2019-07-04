@@ -1,3 +1,5 @@
+/* -*- Mode: C; indent-tabs-mode: t; c-basic-offset: 4; tab-width: 4 -*- */
+
 /*
  * GNUPLOT - caca.trm
  *
@@ -76,9 +78,7 @@ TERM_PUBLIC void CACA_enhanced_open(char * fontname, double fontsize,
 					double base, TBOOLEAN widthflag, TBOOLEAN showflag, int overprint);
 TERM_PUBLIC void CACA_enhanced_flush(void);
 TERM_PUBLIC void CACA_hypertext(int type, const char *text);
-#ifdef EAM_BOXED_TEXT
 TERM_PUBLIC void CACA_boxed_text(unsigned int x, unsigned int y, int option);
-#endif
 TERM_PUBLIC void CACA_modify_plots(unsigned int operations, int plotno);
 
 #endif /* TERM_PROTO */
@@ -101,6 +101,9 @@ extern TBOOLEAN CACA_window_opened(void);
 #ifdef _WIN32
 # ifndef _WIN32_WINNT
 #  define _WIN32_WINNT 0x0501
+# endif
+# ifndef WIN32_LEAN_AND_MEAN
+#  define WIN32_LEAN_AND_MEAN
 # endif
 # include <windows.h>
 #endif
@@ -143,9 +146,6 @@ static uint8_t CACA_rgb_to_ansi(uint32_t color); /* Convert RGB to ANSI backgrou
 static char const * CACA_get_color_name(uint8_t color); /* Find name of nearest matching predefined color */
 static char * CACA_encode_text(const char *str); /* map strings according to current encoding */
 
-#ifdef USE_MOUSE
-static TBOOLEAN process_event(char type, int mx, int my, int par1, int par2, int winid); /* wrapper for do_event() */
-#endif
 static int gp_kbhit(void); /* kbhit() implementation */
 
 
@@ -195,9 +195,9 @@ static caca_canvas_t * CACA_suspend_cv = NULL;
 static TBOOLEAN CACA_windowed = FALSE; /* graphics output in different window*/
 static TBOOLEAN CACA_exportonly = FALSE; /* no output to screen but to file */
 static TBOOLEAN CACA_processing_events = FALSE; /* flag processing of events in CACA_text() */
+static TBOOLEAN CACA_nosuspend; /* no suspend for null and raw drivers */
 #ifdef _WIN32
 static unsigned CACA_codepage = 0;
-static unsigned TMP_codepage;
 #endif
 
 /* drawing */
@@ -205,6 +205,7 @@ static char CACA_pen;		/* current character used to draw point symbols */
 static int CACA_x = -1;		/* current X position */
 static int CACA_y = -1;		/* current Y position */
 static int CACA_ang = 0;	/* current text angle */
+static uint32_t CACA_next_text_attr = 0;	/* next text attribute (bold/italic support) */
 
 /* newpath/closepath support */
 static TBOOLEAN CACA_in_path = FALSE;
@@ -232,14 +233,12 @@ static const int CACA_status_height = 0;
 #endif
 
 /* boxed text */
-#ifdef EAM_BOXED_TEXT
 static struct s_boxedtext {
 	TBOOLEAN   boxed;
 	CACA_POINT margin;
 	CACA_RECT  box;
 	int        angle;
 } CACA_boxedtext;
-#endif
 
 /* hypertext */
 static CACA_HYPERTEXT * CACA_hypertext_list = NULL;
@@ -384,8 +383,12 @@ CACA_options()
 					c_token++;
 					fprintf(stderr, "caca drivers: ");
 					format_list = caca_get_display_driver_list();
-					for (i = 0; format_list[i] != NULL; i += 2)
-						fprintf(stderr, "%s ", format_list[i]);
+					for (i = 0; format_list[i] != NULL; i += 2) {
+						/* suppress null and raw drivers */
+						if ((strcmp(format_list[i], "null") != 0) &&
+							(strcmp(format_list[i], "raw") != 0))
+							fprintf(stderr, "%s ", format_list[i]);
+					}
 					fprintf(stderr, "\ncaca export formats: ");
 					format_list = caca_get_export_list();
 					for (i = 0; format_list[i] != NULL; i += 2)
@@ -437,6 +440,12 @@ CACA_options()
 						int_error(c_token, "Unknown driver or export format.");
 					}
 				}
+
+				/* raw and null drivers may not _suspend() */
+				if (strcmp(CACA_driver, "null") == 0 || strcmp(CACA_driver, "raw") == 0)
+					CACA_nosuspend = TRUE;
+				else
+					CACA_nosuspend = FALSE;
 
 				if (CACA_exportonly)
 					term->flags &= ~TERM_NO_OUTPUTFILE;
@@ -567,7 +576,7 @@ CACA_refresh(void)
 {
 	CACA_HYPERTEXT * hypertext = CACA_hypertext_list;
 
-	if ((CACA_dp == NULL) || CACA_exportonly)
+	if ((CACA_dp == NULL) || (CACA_cv == NULL) || CACA_exportonly)
 		return;
 
 	/* copy graph to screen canvas */
@@ -678,13 +687,13 @@ CACA_check_resize()
 {
 	caca_event_t ev;
 
-	if ((CACA_dp == NULL) || CACA_exportonly)
+	if ((CACA_dp == NULL) || (CACA_cv == NULL) || CACA_exportonly)
 		return;
 
 	if (caca_get_event(CACA_dp, CACA_EVENT_RESIZE, &ev, 100)) {
 		FPRINTF((stderr, "CACA: resize event detected in check_resize().\n"));
-		term->xmax = CACA_xmax = caca_get_event_resize_width(&ev) - 1;
-		term->ymax = CACA_ymax = caca_get_event_resize_height(&ev) - 1 - CACA_status_height;
+		term->xmax = CACA_xmax = GPMAX(caca_get_event_resize_width(&ev) - 1, 1);
+		term->ymax = CACA_ymax = GPMAX(caca_get_event_resize_height(&ev) - 1 - CACA_status_height, 1);
 		caca_set_canvas_size(CACA_cv, term->xmax + 1, term->ymax + 1);
 		CACA_update_options();
 		CACA_refresh();
@@ -692,8 +701,8 @@ CACA_check_resize()
 	           (caca_get_canvas_height(CACA_screen_cv) != term->ymax + 1 + CACA_status_height)) {
 		/* Did we miss a resize event? */
 		FPRINTF((stderr, "CACA: missed resize event in check_resize().\n"));
-		term->xmax = CACA_xmax = caca_get_canvas_width(CACA_screen_cv) - 1;
-		term->ymax = CACA_ymax = caca_get_canvas_height(CACA_screen_cv) - 1 - CACA_status_height;
+		term->xmax = CACA_xmax = GPMAX(caca_get_canvas_width(CACA_screen_cv) - 1, 1);
+		term->ymax = CACA_ymax = GPMAX(caca_get_canvas_height(CACA_screen_cv) - 1 - CACA_status_height, 1);
 		caca_set_canvas_size(CACA_cv, term->xmax + 1, term->ymax + 1);
 		CACA_update_options();
 		CACA_refresh();
@@ -746,14 +755,16 @@ CACA_init_display(void)
 		caca_set_display_title(CACA_dp,
 			(CACA_title != NULL) ? CACA_title : "gnuplot: caca terminal");
 		CACA_screen_cv = caca_get_canvas(CACA_dp);
-		term->xmax = CACA_xmax = caca_get_canvas_width(CACA_screen_cv) - 1;
-		term->ymax = CACA_ymax = caca_get_canvas_height(CACA_screen_cv) - 1 - CACA_status_height;
+		term->xmax = CACA_xmax = GPMAX(caca_get_canvas_width(CACA_screen_cv) - 1, 1);
+		term->ymax = CACA_ymax = GPMAX(caca_get_canvas_height(CACA_screen_cv) - 1 - CACA_status_height, 1);
+		if (CACA_xmax <= 1 || CACA_ymax <= 1)
+			int_error(NO_CARET, "caca:  canvas too small");
 		CACA_update_options();
 
 		if ((strcmp(CACA_driver, "x11") == 0) || (strcmp(CACA_driver, "ncurses") == 0)) {
 			/* NOTE: The ncurses and x11 backends change LC_ALL. We try to
 			(partially) revert this again: */
-			setlocale(LC_TIME, current_locale != NULL ? current_locale : "C");
+			setlocale(LC_TIME, time_locale != NULL ? time_locale : "C");
 			setlocale(LC_NUMERIC, numeric_locale != NULL ? numeric_locale : "C");
 		}
 		if (strcmp(CACA_driver, "slang") == 0) {
@@ -762,14 +773,24 @@ CACA_init_display(void)
 		}
 #ifdef _WIN32
 		if (strcmp(CACA_driver, "win32") == 0) {
+			/* Disable quick-edit mode to enable mouse input */
+			HANDLE h = GetStdHandle(STD_INPUT_HANDLE);
+			DWORD mode;
+			unsigned codepage;
+
+			GetConsoleMode(h, &mode);
+			SetConsoleMode(h, (mode & ~ENABLE_QUICK_EDIT_MODE) | ENABLE_EXTENDED_FLAGS);
+
 			/* On CJK Windows we change the codepage. Not sure why this
 			   solves the display problems, but apparently it works. See bug #1361. */
-			if ((TMP_codepage = GetConsoleOutputCP()) == 932
-				|| TMP_codepage == 936
-				|| TMP_codepage == 950) {
-				CACA_codepage = TMP_codepage;
+			codepage = GetConsoleOutputCP();
+			if (codepage == 932 || codepage == 936 || codepage == 950) {
+				CACA_codepage = codepage;
 				SetConsoleOutputCP(437);
 			}
+#ifndef WGP_CONSOLE
+			SetConsoleCtrlHandler(ConsoleHandler, TRUE);
+#endif
 		}
 #endif
 	} else if (CACA_exportonly) {
@@ -797,7 +818,9 @@ CACA_init_display(void)
 	FPRINTF((stderr, "CACA_driver = %s, truecolor = %i\n", CACA_driver, CACA_truecolor));
 
 	CACA_cv = caca_create_canvas(term->xmax + 1, term->ymax + 1);
-	caca_set_color_ansi(CACA_cv, !CACA_inverted ? CACA_BLACK : CACA_WHITE, CACA_background);
+	if (CACA_cv != NULL) {
+		caca_set_color_ansi(CACA_cv, !CACA_inverted ? CACA_BLACK : CACA_WHITE, CACA_background);
+	}
 }
 
 
@@ -887,20 +910,29 @@ CACA_graphics()
 TERM_PUBLIC void
 CACA_text()
 {
+	if (CACA_cv == NULL)
+		return;
+
 	if (CACA_dp != NULL)
 		CACA_refresh();
 #ifdef USE_MOUSE
-	process_event(GE_plotdone, 0, 0, 0, 0, 0);
-	if (!CACA_windowed && !CACA_processing_events && !CACA_exportonly) {
-		/* NOTE: This is a hack to force a call to _graphics() before redrawing.
-		   The vgagl terminal uses the very same trick. */
-		term_graphics = FALSE;
-		CACA_processing_events = TRUE;
-		while (CACA_process_events() == CACA_loop);
-		/* Clean up remaining console events, as e.g. KEYUP events: */
-		CACA_discard_events();
-		CACA_processing_events = FALSE;
-		term_graphics = TRUE;
+	exec_event(GE_plotdone, 0, 0, 0, 0, 0);
+	if (!CACA_windowed && !CACA_processing_events && !CACA_exportonly && !CACA_nosuspend) {
+		/* Test for input redirection */
+		if (isatty(fileno(stdin))) {
+			/* NOTE: This is a hack to force a call to _graphics() before redrawing.
+			   The vgagl terminal uses the very same trick. */
+			term_graphics = FALSE;
+			CACA_processing_events = TRUE;
+			while (CACA_process_events() == CACA_loop);
+			/* Clean up remaining console events, as e.g. KEYUP events: */
+			CACA_discard_events();
+			CACA_processing_events = FALSE;
+			term_graphics = TRUE;
+		} else {
+			(void) getchar();
+			CACA_close_display();
+		}
 	}
 #endif
 	/* Save canvas to file. */
@@ -912,8 +944,10 @@ CACA_text()
 #else
 		void * data = caca_export_memory(CACA_cv, CACA_driver, &bytes);
 #endif
-		fwrite(data, 1, bytes, gpoutfile);
-		free(data);
+		if (data != NULL) {
+			fwrite(data, 1, bytes, gpoutfile);
+			free(data);
+		}
 	}
 #if defined(_WIN32) && !defined(WGP_CONSOLE)
 	/* Raise the console (graph!) window. Beware: */
@@ -927,6 +961,11 @@ CACA_text()
 		}
 	}
 #endif
+#if defined(WGP_CONSOLE)
+	/* libcaca seems to leave stdout in wide mode */
+	fflush(stdout);
+	_setmode(fileno(stdout), _O_TEXT);
+#endif
 }
 
 
@@ -934,25 +973,34 @@ static void
 CACA_close_display(void)
 {
 	/* make a copy of the current canvas */
-	if (CACA_dp != NULL) {
-		if (!CACA_windowed) {
+	if ((CACA_dp != NULL) || (CACA_cv != NULL)) {
+		if (!CACA_windowed && !CACA_nosuspend) {
 			if (CACA_suspend_cv != NULL)
 				caca_free_canvas(CACA_suspend_cv);
 			CACA_suspend_cv = caca_create_canvas(CACA_xmax + 1, CACA_ymax + 1 + CACA_status_height);
-			caca_blit(CACA_suspend_cv, 0, 0, CACA_cv, NULL);
+			if (CACA_cv != NULL && CACA_suspend_cv != NULL)
+				caca_blit(CACA_suspend_cv, 0, 0, CACA_cv, NULL);
+
 		}
-		caca_free_canvas(CACA_cv);
-		caca_set_display_title(CACA_dp, "gnuplot");
-		caca_free_display(CACA_dp);
-		CACA_dp = NULL;
+		if (CACA_cv != NULL) {
+			caca_free_canvas(CACA_cv);
+			CACA_cv = NULL;
+		}
+		if (CACA_dp != NULL) {
+			caca_set_display_title(CACA_dp, "gnuplot");
+			caca_free_display(CACA_dp);
+			CACA_dp = NULL;
+		}
 #ifdef _WIN32
 		if (strcmp(CACA_driver, "win32") == 0) {
 #ifndef WGP_CONSOLE
 			FreeConsole(); /* close the console window */
 #endif
 			/* Revert to previous codepage if necessary */
-			if (CACA_codepage != 0)
+			if (CACA_codepage != 0) {
 				SetConsoleOutputCP(CACA_codepage);
+				CACA_codepage = 0;
+			}
 		}
 #ifndef WGP_CONSOLE
 		WinPersistTextClose();
@@ -970,7 +1018,7 @@ CACA_close_display(void)
 TERM_PUBLIC void
 CACA_suspend(void)
 {
-	if (CACA_exportonly)
+	if (CACA_exportonly || CACA_nosuspend)
 		return;
 
 	CACA_text();
@@ -982,7 +1030,7 @@ CACA_suspend(void)
 TERM_PUBLIC void
 CACA_resume(void)
 {
-	if (CACA_exportonly)
+	if (CACA_exportonly || CACA_nosuspend)
 		return;
 
 	if (CACA_dp == NULL) {
@@ -1174,6 +1222,8 @@ CACA_color(t_colorspec *colorspec)
 			}
 			break;
 		}
+		default:
+			break;
 	}
 }
 
@@ -1505,10 +1555,12 @@ CACA_put_text(unsigned int x, unsigned int y, const char *str)
 	if (CACA_skipplot && !CACA_keysample)
 		return;
 
+	if (CACA_next_text_attr != 0)
+		caca_set_attr(CACA_cv, CACA_next_text_attr);
+
 	if (CACA_ang == 0) {
 		/* Speed up the default case. */
 		int len = CACA_put_str(CACA_cv, x, CACA_ymax - y, text);
-#ifdef EAM_BOXED_TEXT
 		if (CACA_boxedtext.boxed) {
 			xpos = x; /* signed */
 			ypos = y;
@@ -1522,7 +1574,6 @@ CACA_put_text(unsigned int x, unsigned int y, const char *str)
 				CACA_boxedtext.box.bottom = ypos;
 			CACA_boxedtext.angle = 0;
 		}
-#endif
 		if (CACA_keysample) {
 			CACA_update_keybox(CACA_plotno, x, y);
 			CACA_update_keybox(CACA_plotno, x + len, y);
@@ -1582,7 +1633,6 @@ CACA_put_text(unsigned int x, unsigned int y, const char *str)
 			}
 		}
 
-#ifdef EAM_BOXED_TEXT
 		if (CACA_boxedtext.boxed) {
 			xpos = x; /* signed */
 			ypos = y;
@@ -1610,11 +1660,15 @@ CACA_put_text(unsigned int x, unsigned int y, const char *str)
 			}
 			CACA_boxedtext.angle = CACA_ang;
 		}
-#endif
 		if (CACA_keysample) {
 			CACA_update_keybox(CACA_plotno, x, y);
 			CACA_update_keybox(CACA_plotno, xmax, ymax);
 		}
+	}
+
+	if (CACA_next_text_attr != 0) {
+		caca_unset_attr(CACA_cv, CACA_next_text_attr);
+		CACA_next_text_attr = 0;
 	}
 
 	if (text != str)
@@ -1631,8 +1685,9 @@ CACA_arrow(unsigned int sx, unsigned int sy, unsigned int ex, unsigned int ey, i
 	if (CACA_skipplot && !CACA_keysample)
 		return;
 
-	CACA_draw_thin_line(CACA_cv, sx, CACA_ymax - sy, ex, CACA_ymax - ey);
-	if (head) {
+	if ((head & HEADS_ONLY) == 0)
+		CACA_draw_thin_line(CACA_cv, sx, CACA_ymax - sy, ex, CACA_ymax - ey);
+	if ((head & BOTH_HEADS) != 0) {
 		wchar_t const * heads;
 		int dx = ex - sx;
 		int dy = ey - sy;
@@ -1660,7 +1715,10 @@ CACA_arrow(unsigned int sx, unsigned int sy, unsigned int ex, unsigned int ey, i
 			}
 #endif
 		}
-		CACA_put_transparent_char(CACA_cv, ex, CACA_ymax - ey, heads[idx]);
+		if (head & END_HEAD)
+			CACA_put_transparent_char(CACA_cv, ex, CACA_ymax - ey, heads[idx]);
+		if (head & BACKHEAD)
+			CACA_put_transparent_char(CACA_cv, sx, CACA_ymax - sy, heads[(idx + 4) % 8]);
 	}
 }
 
@@ -1875,7 +1933,7 @@ CACA_process_events(void)
 						CACA_zoom_to.y = my;
 						CACA_refresh();
 					}
-					process_event(GE_motion, mx, my, 0, 0, 0);
+					exec_event(GE_motion, mx, my, 0, 0, 0);
 					/* FPRINTF((stderr, "CACA: mouse move: pos = %i, %i\n", mx, my)); */
 					break;
 				}
@@ -1895,12 +1953,12 @@ CACA_process_events(void)
 								FPRINTF((stderr, "CACA: hide plot #%i: %i\n", i, CACA_hideplot[i]));
 								/* If something changed, replot and do not pass this event on to the core. */
 								CACA_zoom_or_replot = TRUE;
-								process_event(GE_replot, 0, 0, 0, 0, 0);
+								exec_event(GE_replot, 0, 0, 0, 0, 0);
 								break;
 							}
 						}
 					}
-					if (process_event(GE_buttonpress, mx, my, button, 0, 0))
+					if (exec_event(GE_buttonpress, mx, my, button, 0, 0))
 						loop = CACA_endpause;
 					FPRINTF((stderr, "CACA: mouse press: button = %i, pos = %i, %i\n", button, mx, my));
 					break;
@@ -1911,7 +1969,7 @@ CACA_process_events(void)
 					unsigned long event_time = CACA_event_time();
 					timestamp = event_time - last_event_time;
 					last_event_time = event_time;
-					if (process_event(GE_buttonrelease, mx, my, button, timestamp, 0))
+					if (exec_event(GE_buttonrelease, mx, my, button, timestamp, 0))
 						loop = CACA_endpause;
 					FPRINTF((stderr, "CACA: mouse release: button = %i, pos = %i, %i time = %lu\n", button, mx, my, timestamp));
 					break;
@@ -1928,7 +1986,7 @@ CACA_process_events(void)
 						case ' ':
 							if (CACA_windowed) {
 #ifdef DISABLE_SPACE_RAISES_CONSOLE
-								if (process_event(GE_keypress, mx, my, key, 0, 0))
+								if (exec_event(GE_keypress, mx, my, key, 0, 0))
 									loop = CACA_endpause;
 #else
 # ifdef _WIN32
@@ -1937,7 +1995,7 @@ CACA_process_events(void)
 # else
 								/* FIXME: raising terminal window not implemented */
 								/* gp_raise_console(); */
-								if (process_event(GE_keypress, mx, my, key, 0, 0))
+								if (exec_event(GE_keypress, mx, my, key, 0, 0))
 									loop = CACA_endpause;
 # endif
 #endif
@@ -1952,7 +2010,7 @@ CACA_process_events(void)
 						case GP_BackSpace:
 						case GP_Delete:
 							if (CACA_windowed) {
-								if (process_event(GE_keypress, mx, my, key, 0, 0))
+								if (exec_event(GE_keypress, mx, my, key, 0, 0))
 									loop = CACA_endpause;
 							} else {
 								CACA_close_display();
@@ -1973,17 +2031,18 @@ CACA_process_events(void)
 							/* No equivalent special key available */
 							break;
 						default:
-							if (process_event(GE_keypress, mx, my, key, 0, 0))
+							if (exec_event(GE_keypress, mx, my, key, 0, 0))
 								loop = CACA_endpause;
 					}
 					break;
 				}
 				case CACA_EVENT_RESIZE: {
-					term->xmax = CACA_xmax = caca_get_event_resize_width(&ev) - 1;
-					term->ymax = CACA_ymax = caca_get_event_resize_height(&ev) - 1 - CACA_status_height;
+					term->xmax = CACA_xmax = GPMAX(caca_get_event_resize_width(&ev) - 1, 1);
+					term->ymax = CACA_ymax = GPMAX(caca_get_event_resize_height(&ev) - 1 - CACA_status_height, 1);
+					caca_set_canvas_size(CACA_cv, term->xmax + 1, term->ymax + 1);
 					CACA_update_options();
 					CACA_zoom_or_replot = TRUE;
-					process_event(GE_replot, 0, 0, 0, 0, 0);
+					exec_event(GE_replot, 0, 0, 0, 0, 0);
 					CACA_refresh();
 					FPRINTF((stderr, "CACA: resize event: %i x %i\n", CACA_xmax  + 1, CACA_ymax + 1 + CACA_status_height));
 					break;
@@ -2071,8 +2130,8 @@ CACA_waitforinput(int options)
 			return getchar();
 	}
 
-	/* We get here only if the window was closed, e.g. via pressing the 'q' key. */
-	if (CACA_windowed && loop == CACA_quit)
+	/* We get here only if the window was closed previously, e.g. via pressing the 'q' key. */
+	if (CACA_dp == NULL || loop == CACA_quit)
 		return getchar();
 
 	return EOF;
@@ -2427,7 +2486,6 @@ CACA_hypertext(int type, const char *text)
 }
 
 
-#ifdef EAM_BOXED_TEXT
 void
 CACA_boxed_text(unsigned int x, unsigned int y, int option)
 {
@@ -2488,7 +2546,6 @@ CACA_boxed_text(unsigned int x, unsigned int y, int option)
 		break;
 	}
 }
-#endif
 
 
 TERM_PUBLIC void
@@ -2525,8 +2582,23 @@ CACA_modify_plots(unsigned int operations, int plotno)
 	if (changed) {
 		/* Replot only if something changed. */
 		CACA_zoom_or_replot = TRUE;
-		process_event(GE_replot, 0, 0, 0, 0, 0);
+		exec_event(GE_replot, 0, 0, 0, 0, 0);
 	}
+}
+
+
+TERM_PUBLIC int
+CACA_set_font(const char *font)
+{
+	if (font == NULL || *font == NUL) {
+		CACA_next_text_attr = 0;
+	} else {
+		/* bold, italic */
+		TBOOLEAN isbold = (strstr(font, ":Bold") != NULL);
+		TBOOLEAN isitalic = (strstr(font, ":Italic") != NULL);
+		CACA_next_text_attr = (isbold ? CACA_BOLD : 0) | (isitalic ? CACA_ITALICS : 0);
+	}
+	return TRUE;
 }
 
 
@@ -2576,8 +2648,14 @@ CACA_enhanced_open(
 			CACA_enhanced_overprint = overprint;
 		/* widthflag FALSE means do not update text position after printing */
 			CACA_enhanced_widthflag = widthflag;
-		/* Many drivers will need to do something about font selection here */
-		/* but this driver cannot do anything about it. */
+		/* bold, italic */
+		if (fontname == NULL || *fontname == NUL) {
+			CACA_next_text_attr = 0;
+		} else {
+			TBOOLEAN isbold = (strstr(fontname, ":Bold") != NULL);
+			TBOOLEAN isitalic = (strstr(fontname, ":Italic") != NULL);
+			CACA_next_text_attr = (isbold ? CACA_BOLD : 0) | (isitalic ? CACA_ITALICS : 0);
+		}
 	}
 }
 
@@ -2600,8 +2678,13 @@ CACA_enhanced_flush()
 	/* print the string fragment, perhaps invisibly */
 	/* NB: base expresses offset from current y pos */
 	if (CACA_enhanced_show) {
+		if (CACA_next_text_attr != 0)
+			caca_set_attr(CACA_cv, CACA_next_text_attr);
 		CACA_put_str(CACA_cv, CACA_x, CACA_ymax - (int)(CACA_y + CACA_enhanced_base), str);
-#ifdef EAM_BOXED_TEXT
+		if (CACA_next_text_attr != 0) {
+			caca_unset_attr(CACA_cv, CACA_next_text_attr);
+			CACA_next_text_attr = 0;
+		}
 		if (CACA_boxedtext.boxed) {
 			if (CACA_boxedtext.box.left > CACA_x)
 				CACA_boxedtext.box.left = CACA_x;
@@ -2617,7 +2700,6 @@ CACA_enhanced_flush()
 			CACA_update_keybox(CACA_plotno, CACA_x, CACA_y + CACA_enhanced_base);
 			CACA_update_keybox(CACA_plotno, CACA_x + len, CACA_y + CACA_enhanced_base);
 		}
-#endif
 	}
 
 	if (!CACA_enhanced_widthflag)
@@ -2645,7 +2727,7 @@ CACA_enhanced_put_text(unsigned int x, unsigned int y, const char *str)
 
 	/* If no enhanced text processing is needed, we can use the plain  */
 	/* vanilla put_text() routine instead of this fancy recursive one. */
-	if (ignore_enhanced_text || !strpbrk(str, "{}^_@&~")) {
+	if (ignore_enhanced_text || (!strpbrk(str, "{}^_@&~") && !contains_unicode(str))) {
 		CACA_put_text(x, y, str);
 		return;
 	}
@@ -3248,38 +3330,6 @@ CACA_get_color_name(uint8_t color)
    ------------------------------------------------------------------------- */
 
 #ifdef USE_MOUSE
-/* convenience wrapper for do_event() */
-static TBOOLEAN
-process_event(char type, int mx, int my, int par1, int par2, int winid)
-{
-    struct gp_event_t ge;
-
-    ge.type = type;
-    ge.mx = mx;
-    ge.my = my;
-    ge.par1 = par1;
-    ge.par2 = par2;
-    ge.winid = winid;
-    do_event(&ge);
-
-    /* FIXME: IMHO changing paused_for_mouse in terminal code is bad design. */
-    /* end pause mouse? */
-    if ((type == GE_buttonrelease) && (paused_for_mouse & PAUSE_CLICK) &&
-	    (((par1 == 1) && (paused_for_mouse & PAUSE_BUTTON1)) ||
-	     ((par1 == 2) && (paused_for_mouse & PAUSE_BUTTON2)) ||
-	     ((par1 == 3) && (paused_for_mouse & PAUSE_BUTTON3)))) {
-	    paused_for_mouse = 0;
-	    return TRUE;
-    }
-    if ((type == GE_keypress) && (paused_for_mouse & PAUSE_KEYSTROKE) && (par1 != NUL)) {
-	    paused_for_mouse = 0;
-	    return TRUE;
-    }
-    return FALSE;
-}
-#endif
-
-
 static int
 gp_kbhit(void)
 {
@@ -3315,7 +3365,7 @@ gp_kbhit(void)
 # endif
 #endif
 }
-
+#endif
 
 #endif /* TERM_BODY */
 
@@ -3327,7 +3377,7 @@ TERM_TABLE_START(caca)
 	CACA_text, null_scale, CACA_graphics,
 	CACA_move, CACA_vector,
 	CACA_linetype, CACA_enhanced_put_text, CACA_text_angle, null_justify_text,
-	CACA_point, CACA_arrow, set_font_null, NULL /* pointsize */,
+	CACA_point, CACA_arrow, CACA_set_font, NULL /* pointsize */,
 	TERM_NO_OUTPUTFILE | TERM_CAN_MULTIPLOT | TERM_BINARY | TERM_ENHANCED_TEXT,
 	CACA_suspend, CACA_resume, CACA_fillbox, NULL /* linewidth */,
 #ifdef USE_MOUSE
@@ -3337,9 +3387,7 @@ TERM_TABLE_START(caca)
 	CACA_image,
 	CACA_enhanced_open, CACA_enhanced_flush, do_enh_writec,
 	CACA_layer, CACA_path, 0.0 /* tscale */, CACA_hypertext,
-#ifdef EAM_BOXED_TEXT
 	CACA_boxed_text,
-#endif
 	CACA_modify_plots
 TERM_TABLE_END(caca)
 
@@ -3367,7 +3415,8 @@ START_HELP(caca)
 " Syntax:",
 "       set terminal caca {{driver | format} {default | <driver> | list}}",
 "                         {color | monochrome}",
-"                         {{no}inverted} {{no}enhanced}",
+"                         {{no}inverted}",
+"                         {enhanced | noenhanced}",
 "                         {background <rgb color>}",
 "                         {title \"<plot window title>\"}",
 "                         {size <width>,<height>}",
@@ -3409,9 +3458,7 @@ START_HELP(caca)
 " `libcaca` and are thus unavailable.",
 "",
 " The default `encoding` of the `caca` terminal is utf8. It also supports",
-" the cp437 `encoding`.  The \"x11\" backend supports unicode since libcaca",
-" version 0.99.beta17.  Please note that some versions of `libcaca` contain a",
-" bug which results in an endless loop if you supply illegal 8bit sequences.",
+" the cp437 `encoding`.",
 "",
 " The number of colors supported by `libcaca` backends differs.  Most backends",
 " support 16 foreground and 16 background colors only, whereas e.g. the ",
@@ -3440,11 +3487,15 @@ START_HELP(caca)
 "?caca bugs",
 " The `caca` terminal has known bugs and limitations:",
 "",
-" Closing the terminal window by clicking the \"X\" on the title line",
-" does not work correctly. Press \"q\" to close the window.",
-"",
 " Unicode support depends on the driver and the terminal.",
+" The \"x11\" backend supports unicode since libcaca version 0.99.beta17.",
+" Due to a bug in `libcaca` <0.99.beta20, the \"slang\" driver does not",
+" support unicode.",
+" Note that `libcaca` <0.99.beta19 contains a bug which results in an",
+" endless loop if you supply illegal 8bit sequences.",
+"",
 " Bright background colors may cause blinking.",
+"",
 " Modifier keys are not supported for mousing, see `term caca`.",
 "",
 " Rotated enhanced text, and transparency are not supported.",
@@ -3455,12 +3506,10 @@ START_HELP(caca)
 "       set key width 1 height 1",
 "",
 " Alignment of enhanced text is wrong if it contains utf8 characters.",
-" gnuplot dies when running from a script when using the \"ncurses\" driver.",
-" Illegal utf8 sequences might lead to an endless loop in `libcaca` (now",
-" fixed upstream).",
-" Resizing of x11 windows does not work on some systems.",
-" Changing the input focus to the text input window when pressing <space> does",
-" not work reliably in wgnuplot."
+" Resizing of Windows console window does not work correctly due to a bug in",
+" libcaca.",
+" Closing the terminal window by clicking the \"X\" on the title line",
+" will terminate wgnuplot. Press \"q\" to close the window."
 END_HELP(caca)
 #endif /* TERM_HELP */
 

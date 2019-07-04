@@ -84,7 +84,7 @@ typedef enum en_edge_position {
 
 typedef struct edge_struct {
     struct poly_struct *poly[2]; /* Each edge belongs to up to 2 polygons */
-    struct coordinate GPHUGE *vertex[2]; /* The two extreme points of this edge. */
+    struct coordinate *vertex[2]; /* The two extreme points of this edge. */
     struct edge_struct *next;	/* To chain lists */
     TBOOLEAN is_active;		/* is edge is 'active' at certain Z level? */
     t_edge_position position;	/* position of edge in mesh */
@@ -112,82 +112,77 @@ static t_contour_kind interp_kind = CONTOUR_KIND_LINEAR;
 static double x_min, y_min, z_min;	/* Minimum values of x, y, and z */
 static double x_max, y_max, z_max;	/* Maximum values of x, y, and z */
 
-static void add_cntr_point __PROTO((double x, double y));
-static void end_crnt_cntr __PROTO((void));
-static void gen_contours __PROTO((edge_struct *p_edges, double z_level,
+static void add_cntr_point(double x, double y);
+static void end_crnt_cntr(void);
+static void gen_contours(edge_struct *p_edges, double z_level,
 				  double xx_min, double xx_max,
-				  double yy_min, double yy_max));
-static int update_all_edges __PROTO((edge_struct *p_edges,
-				     double z_level));
-static cntr_struct *gen_one_contour __PROTO((edge_struct *p_edges,
+				  double yy_min, double yy_max);
+static int update_all_edges(edge_struct *p_edges, double z_level);
+static cntr_struct *gen_one_contour(edge_struct *p_edges,
 					     double z_level,
 					     TBOOLEAN *contr_isclosed,
-					     int *num_active));
-static cntr_struct *trace_contour __PROTO((edge_struct *pe_start,
+					     int *num_active);
+static cntr_struct *trace_contour(edge_struct *pe_start,
 					   double z_level,
 					   int *num_active,
-					   TBOOLEAN contr_isclosed));
-static cntr_struct *update_cntr_pt __PROTO((edge_struct *p_edge,
-					    double z_level));
-static int fuzzy_equal __PROTO((cntr_struct *p_cntr1,
-				cntr_struct *p_cntr2));
+					   TBOOLEAN contr_isclosed);
+static cntr_struct *update_cntr_pt(edge_struct *p_edge, double z_level);
+static int fuzzy_equal(cntr_struct *p_cntr1, cntr_struct *p_cntr2);
 
 
-static void gen_triangle __PROTO((int num_isolines,
+static void gen_triangle(int num_isolines,
 				  struct iso_curve *iso_lines,
 				  poly_struct **p_polys,
-				  edge_struct **p_edges));
-static void calc_min_max __PROTO((int num_isolines,
+				  edge_struct **p_edges);
+static void calc_min_max(int num_isolines,
 				  struct iso_curve *iso_lines,
 				  double *xx_min, double *yy_min,
 				  double *zz_min,
 				  double *xx_max, double *yy_max,
-				  double *zz_max));
-static edge_struct *add_edge __PROTO((struct coordinate GPHUGE *point0,
-					     struct coordinate GPHUGE *point1,
+				  double *zz_max);
+static edge_struct *add_edge(struct coordinate *point0,
+					     struct coordinate *point1,
 					     edge_struct
 					     **p_edge,
-					     edge_struct **pe_tail));
-static poly_struct *add_poly __PROTO((edge_struct *edge0,
+					     edge_struct **pe_tail);
+static poly_struct *add_poly(edge_struct *edge0,
 					     edge_struct *edge1,
 					     edge_struct *edge2,
 					     poly_struct **p_poly,
-					     poly_struct **pp_tail));
+					     poly_struct **pp_tail);
 
-static void put_contour __PROTO((cntr_struct *p_cntr,
+static void put_contour(cntr_struct *p_cntr,
 				 double xx_min, double xx_max,
 				 double yy_min, double yy_max,
-				 TBOOLEAN contr_isclosed));
-static void put_contour_nothing __PROTO((cntr_struct *p_cntr));
-static int chk_contour_kind __PROTO((cntr_struct *p_cntr,
-				     TBOOLEAN contr_isclosed));
-static void put_contour_cubic __PROTO((cntr_struct *p_cntr,
+				 TBOOLEAN contr_isclosed);
+static void put_contour_nothing(cntr_struct *p_cntr);
+static int chk_contour_kind(cntr_struct *p_cntr, TBOOLEAN contr_isclosed);
+static void put_contour_cubic(cntr_struct *p_cntr,
 				       double xx_min, double xx_max,
 				       double yy_min, double yy_max,
-				       TBOOLEAN contr_isclosed));
-static void put_contour_bspline __PROTO((cntr_struct *p_cntr,
-					 TBOOLEAN contr_isclosed));
-static void free_contour __PROTO((cntr_struct *p_cntr));
-static int count_contour __PROTO((cntr_struct *p_cntr));
-static int gen_cubic_spline __PROTO((int num_pts, cntr_struct *p_cntr,
+				       TBOOLEAN contr_isclosed);
+static void put_contour_bspline(cntr_struct *p_cntr, TBOOLEAN contr_isclosed);
+static void free_contour(cntr_struct *p_cntr);
+static int count_contour(cntr_struct *p_cntr);
+static int gen_cubic_spline(int num_pts, cntr_struct *p_cntr,
 				     double d2x[], double d2y[],
 				     double delta_t[],
 				     TBOOLEAN contr_isclosed,
-				     double unit_x, double unit_y));
-static void intp_cubic_spline __PROTO((int n, cntr_struct *p_cntr,
+				     double unit_x, double unit_y);
+static void intp_cubic_spline(int n, cntr_struct *p_cntr,
 				       double d2x[], double d2y[],
-				       double delta_t[], int n_intpol));
-static int solve_cubic_1 __PROTO((tri_diag m[], int n));
-static void solve_cubic_2 __PROTO((tri_diag m[], double x[], int n));
-static void gen_bspline_approx __PROTO((cntr_struct *p_cntr,
+				       double delta_t[], int n_intpol);
+static int solve_cubic_1(tri_diag m[], int n);
+static void solve_cubic_2(tri_diag m[], double x[], int n);
+static void gen_bspline_approx(cntr_struct *p_cntr,
 					int num_of_points, int order,
-					TBOOLEAN contr_isclosed));
-static void eval_bspline __PROTO((double t, cntr_struct *p_cntr,
+					TBOOLEAN contr_isclosed);
+static void eval_bspline(double t, cntr_struct *p_cntr,
 				  int num_of_points, int order, int j,
 				  TBOOLEAN contr_isclosed, double *x,
-				  double *y));
-static double fetch_knot __PROTO((TBOOLEAN contr_isclosed, int num_of_points,
-				  int order, int i));
+				  double *y);
+static double fetch_knot(TBOOLEAN contr_isclosed, int num_of_points,
+				  int order, int i);
 
 static int
 reverse_sort(SORTFUNC_ARGS arg1, SORTFUNC_ARGS arg2)
@@ -253,6 +248,8 @@ contour(int num_isolines, struct iso_curve *iso_lines)
 	dz = quantize_normal_tics(dz, ((int) contour_levels + 1) * 2);
 	z0 = floor(z_min / dz) * dz;
 	num_of_z_levels = (int) floor((z_max - z0) / dz);
+	if (num_of_z_levels <= 0)
+	    return NULL;
     }
 
     /* Build a list of contour levels */
@@ -266,7 +263,10 @@ contour(int num_isolines, struct iso_curve *iso_lines)
 		z = eval_link_function((&Z_AXIS), z);
 	    break;
 	case LEVELS_INCREMENTAL:
-	    z = contour_levels_list[0] + i * contour_levels_list[1];
+	    if (Z_AXIS.log)
+		z = contour_levels_list[0] * pow(contour_levels_list[1], (double)i);
+	    else
+		z = contour_levels_list[0] + i * contour_levels_list[1];
 	    break;
 	case LEVELS_DISCRETE:
 	    z = contour_levels_list[i];
@@ -588,7 +588,7 @@ gen_triangle(
     int i, j, grid_x_max = iso_lines->p_count;
     edge_struct *p_edge1, *p_edge2, *edge0, *edge1, *edge2, *pe_tail, *pe_tail2, *pe_temp;
     poly_struct *pp_tail;
-    struct coordinate GPHUGE *p_vrtx1, GPHUGE * p_vrtx2;
+    struct coordinate *p_vrtx1, * p_vrtx2;
 
     (*p_polys) = pp_tail = NULL;	/* clear lists */
     (*p_edges) = pe_tail = NULL;
@@ -728,7 +728,7 @@ calc_min_max(
     double *xx_max, double *yy_max, double *zz_max) /* min/max values in/out */
 {
     int i, j, grid_x_max;
-    struct coordinate GPHUGE *vertex;
+    struct coordinate *vertex;
 
     grid_x_max = iso_lines->p_count;	/* number of vertices per iso_line */
 
@@ -773,8 +773,8 @@ calc_min_max(
  */
 static edge_struct *
 add_edge(
-    struct coordinate GPHUGE *point0,	/* 2 vertices input */
-    struct coordinate GPHUGE *point1,
+    struct coordinate *point0,	/* 2 vertices input */
+    struct coordinate *point1,
     edge_struct **p_edge, /* pointers to edge list in/out */
     edge_struct **pe_tail)
 {

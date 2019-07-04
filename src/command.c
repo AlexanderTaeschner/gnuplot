@@ -112,7 +112,6 @@ int thread_rl_Running = 0;  /* running status */
 int thread_rl_RetCode = -1; /* return code from readline in a thread */
 #endif /* OS2_IPC */
 
-
 #ifndef _WIN32
 # include "help.h"
 #endif
@@ -130,6 +129,15 @@ int thread_rl_RetCode = -1; /* return code from readline in a thread */
 # include "win/winmain.h"
 #endif /* _WIN32 */
 
+#ifdef __DJGPP__
+# include <pc.h>		/* getkey() */
+# define useconds_t unsigned
+#endif
+
+#ifdef __WATCOMC__
+# include <conio.h>		/* for getch() */
+#endif
+
 #ifdef VMS
 int vms_vkid;			/* Virtual keyboard id */
 int vms_ktid;			/* key table id, for translating keystrokes */
@@ -137,18 +145,18 @@ int vms_ktid;			/* key table id, for translating keystrokes */
 
 
 /* static prototypes */
-static void command __PROTO((void));
-static TBOOLEAN is_array_assignment __PROTO((void));
-static int changedir __PROTO((char *path));
-static char* fgets_ipc __PROTO((char* dest, int len));
-static char* gp_get_string __PROTO((char *, size_t, const char *));
-static int read_line __PROTO((const char *prompt, int start));
-static void do_system __PROTO((const char *));
-static void test_palette_subcommand __PROTO((void));
-static int find_clause __PROTO((int *, int *));
-static int report_error __PROTO((int ierr));
+static void command(void);
+static TBOOLEAN is_array_assignment(void);
+static int changedir(char *path);
+static char* fgets_ipc(char* dest, int len);
+static char* gp_get_string(char *, size_t, const char *);
+static int read_line(const char *prompt, int start);
+static void do_system(const char *);
+static void test_palette_subcommand(void);
+static int find_clause(int *, int *);
+static int report_error(int ierr);
 
-static int expand_1level_macros __PROTO((void));
+static int expand_1level_macros(void);
 
 struct lexical_unit *token;
 int token_table_size;
@@ -272,7 +280,7 @@ static char *input_line_SharedMem = NULL;
 
 #if defined(OS2_IPC) && defined(USE_MOUSE)
 	ULONG u;
-        if (thread_rl_Running == 0) {
+	if (thread_rl_Running == 0) {
 	    int res = _beginthread(thread_read_line,NULL,32768,NULL);
 	    if (res == -1)
 		fputs("error command.c could not begin thread\n",stderr);
@@ -290,7 +298,7 @@ static char *input_line_SharedMem = NULL;
 		return (0);
 	    }
 	    if (*input_line_SharedMem &&
-	        strstr(input_line_SharedMem,"plot") != NULL &&
+		strstr(input_line_SharedMem,"plot") != NULL &&
 		(strcmp(term->name,"pm") && strcmp(term->name,"x11"))) {
 		/* avoid plotting if terminal is not PM or X11 */
 		fprintf(stderr,"\n\tCommand(s) ignored for other than PM and X11 terminals\a\n");
@@ -351,7 +359,7 @@ do_line()
     /* Strip off trailing comment */
     FPRINTF((stderr,"doline( \"%s\" )\n", gp_input_line));
     if (strchr(inlptr, '#')) {
-        num_tokens = scanner(&gp_input_line, &gp_input_line_len);
+	num_tokens = scanner(&gp_input_line, &gp_input_line_len);
 	if (gp_input_line[token[num_tokens].start_index] == '#')
 	    gp_input_line[token[num_tokens].start_index] = NUL;
     }
@@ -434,7 +442,8 @@ do_line()
 	    } else if (equals(c_token, "}")) {
 		end_clause();
 	    } else
-		int_error(c_token, "unexpected or unrecognized token");
+		int_error(c_token, "unexpected or unrecognized token: %s",
+		    token_to_string(c_token));
 	}
     }
 
@@ -569,15 +578,16 @@ define()
     } else {
 	/* variable ! */
 	char *varname = gp_input_line + token[c_token].start_index;
-	if (!strncmp(varname, "GPVAL_", 6) || !strncmp(varname, "MOUSE_", 6))
-	    int_error(c_token, "Cannot set internal variables GPVAL_ and MOUSE_");
+	if (!strncmp(varname, "GPVAL_", 6)
+	||  !strncmp(varname, "GPFUN_", 6)
+	||  !strncmp(varname, "MOUSE_", 6))
+	    int_error(c_token, "Cannot set internal variables GPVAL_ GPFUN_ MOUSE_");
 	start_token = c_token;
 	c_token += 2;
 	udv = add_udv(start_token);
 	(void) const_express(&result);
 	/* Prevents memory leak if the variable name is re-used */
-	gpfree_array(&udv->udv_value);
-	gpfree_string(&udv->udv_value);
+	free_value(&udv->udv_value);
 	udv->udv_value = result;
     }
 }
@@ -592,8 +602,8 @@ undefine_command()
     c_token++;               /* consume the command name */
 
     while (!END_OF_COMMAND) {
-        /* copy next var name into key */
-        copy_str(key, c_token, MAX_ID_LEN);
+	/* copy next var name into key */
+	copy_str(key, c_token, MAX_ID_LEN);
 
 	/* Peek ahead - must do this, because a '*' is returned as a
 	   separate token, not as part of the 'key' */
@@ -605,7 +615,7 @@ undefine_command()
 	else if (*key == '$')
 	    copy_str(&key[1], ++c_token, MAX_ID_LEN-1);
 
-        /* ignore internal variables */
+	/* ignore internal variables */
 	if (strncmp(key, "GPVAL_", 6) && strncmp(key, "MOUSE_", 6))
 	    del_udv_by_name( key, wildcard );
 
@@ -751,8 +761,7 @@ array_command()
     if (!isletter(++c_token))
 	int_error(c_token, "illegal variable name");
     array = add_udv(c_token);
-    gpfree_array(&array->udv_value);
-    gpfree_string(&array->udv_value);
+    free_value(&array->udv_value);
     c_token++;
 
     if (equals(c_token, "[")) {
@@ -823,7 +832,7 @@ array_command()
 TBOOLEAN
 is_array_assignment()
 {
-    udvt_entry *udv = add_udv(c_token);
+    udvt_entry *udv;
     struct value newvalue;
     int index;
     TBOOLEAN looks_OK = FALSE;
@@ -853,6 +862,7 @@ is_array_assignment()
     if (!looks_OK)
 	return FALSE;
 
+    udv = add_udv(c_token);
     if (udv->udv_value.type != ARRAY)
 	int_error(c_token, "Not a known array");
 
@@ -892,7 +902,7 @@ bind_command()
     }
 
     /* get left hand side: the key or key sequence
-     * either (1) entire sequence is in quotes 
+     * either (1) entire sequence is in quotes
      * or (2) sequence goes until the first whitespace
      */
     if (END_OF_COMMAND) {
@@ -917,13 +927,13 @@ bind_command()
     if (END_OF_COMMAND) {
 	; /* Fall through */
     } else if (isstringvalue(c_token) && (rhs = try_to_get_string())) {
-        FPRINTF((stderr,"Got bind quoted rhs = \"%s\"\n",rhs));
+	FPRINTF((stderr,"Got bind quoted rhs = \"%s\"\n",rhs));
     } else {
 	int save_token = c_token;
 	while (!END_OF_COMMAND)
 	    c_token++;
 	m_capture( &rhs, save_token, c_token-1 );
-        FPRINTF((stderr,"Got bind unquoted rhs = \"%s\"\n",rhs));
+	FPRINTF((stderr,"Got bind unquoted rhs = \"%s\"\n",rhs));
     }
 
     /* bind_process() will eventually free lhs / rhs ! */
@@ -1017,10 +1027,10 @@ clear_command()
     term_start_plot();
 
     if (multiplot && term->fillbox) {
-	unsigned int xx1 = (unsigned int) (xoffset * term->xmax);
-	unsigned int yy1 = (unsigned int) (yoffset * term->ymax);
-	unsigned int width = (unsigned int) (xsize * term->xmax);
-	unsigned int height = (unsigned int) (ysize * term->ymax);
+	int xx1 = xoffset * term->xmax;
+	int yy1 = yoffset * term->ymax;
+	unsigned int width = xsize * term->xmax;
+	unsigned int height = ysize * term->ymax;
 	(*term->fillbox) (0, xx1, yy1, width, height);
     }
     term_end_plot();
@@ -1050,6 +1060,13 @@ exit_command()
     /* If the command is "exit gnuplot" then do so */
     if (equals(c_token+1,"gnuplot"))
 	gp_exit(EXIT_SUCCESS);
+
+    if (equals(c_token+1,"status")) {
+	int status;
+	c_token += 2;
+	status = int_expression();
+	gp_exit(status);
+    }
 
     /* exit error 'error message'  returns to the top command line */
     if (equals(c_token+1,"error")) {
@@ -1324,6 +1341,10 @@ do_command()
 
     c_token++;
     do_iterator = check_for_iteration();
+    if (forever_iteration(do_iterator)) {
+	cleanup_iteration(do_iterator);
+	int_error(c_token-2, "unbounded iteration not accepted here");
+    }
 
     if (!equals(c_token,"{")) {
 	cleanup_iteration(do_iterator);
@@ -1366,7 +1387,7 @@ do_command()
 }
 
 /* process commands of the form 'while (foo) {...}' */
-/* FIXME:  For consistency there should be an iterator associated 
+/* FIXME:  For consistency there should be an iterator associated
  * with this statement.
  */
 void
@@ -1544,19 +1565,25 @@ link_command()
 void
 load_command()
 {
-    FILE *fp;
-    char *save_file;
 
     c_token++;
-    save_file = try_to_get_string();
-    if (!save_file)
-	int_error(c_token, "expecting filename");
-    gp_expand_tilde(&save_file);
-
-    fp = strcmp(save_file, "-") ? loadpath_fopen(save_file, "r") : stdout;
-    load_file(fp, save_file, 1);
+    if (equals(c_token, "$") && isletter(c_token+1) && !equals(c_token+2,"[")) {
+	/* "load" a datablock rather than a file */
+	/* datablock_name will eventually be freed by lf_pop() */
+	char *datablock_name = gp_strdup(parse_datablock_name());
+	load_file(NULL, datablock_name, 6);
+    } else {
+	/* These need to be local so that recursion works. */
+	/* They will eventually be freed by lf_pop(). */
+	FILE *fp;
+	char *save_file = try_to_get_string();
+	if (!save_file)
+	    int_error(c_token, "expecting filename");
+	gp_expand_tilde(&save_file);
+	fp = strcmp(save_file, "-") ? loadpath_fopen(save_file, "r") : stdout;
+	load_file(fp, save_file, 1);
+    }
 }
-
 
 
 /* null command */
@@ -1698,9 +1725,9 @@ pause_command()
 	    }
 
 	    if (end_condition)
-	        paused_for_mouse = end_condition;
+		paused_for_mouse = end_condition;
 	    else
-	        paused_for_mouse = PAUSE_CLICK;
+		paused_for_mouse = PAUSE_CLICK;
 
 	    /* Set the pause mouse return codes to -1 */
 	    current = add_udv_by_name("MOUSE_KEY");
@@ -1763,8 +1790,8 @@ pause_command()
 	    if (!Pause(buf)) /* returns false if Ctrl-C or Cancel was pressed */
 		bail_to_command_line();
 	}
-#elif defined(OS2)
-	if (strcmp(term->name, "pm") == 0 && sleep_time < 0) {
+#elif defined(OS2) && defined(USE_MOUSE)
+	if (strcmp(term->name, "pm") == 0) {
 	    int rc;
 	    if ((rc = PM_pause(buf)) == 0) {
 		/* if (!CallFromRexx)
@@ -1777,15 +1804,37 @@ pause_command()
 		text = 1;
 		EAT_INPUT_WITH(fgetc(stdin));
 	    }
+	} else {
+	    EAT_INPUT_WITH(fgetc(stdin));
 	}
 #else /* !(_WIN32 || OS2) */
-#ifdef USE_MOUSE
+# ifdef USE_MOUSE
 	if (term && term->waitforinput) {
 	    /* It does _not_ work to do EAT_INPUT_WITH(term->waitforinput()) */
 	    term->waitforinput(0);
 	} else
-#endif /* USE_MOUSE */
+# endif /* USE_MOUSE */
+# ifdef MSDOS
+	{
+	    int junk;
+	    /* cannot use EAT_INPUT_WITH here */
+	    do {
+#  ifdef __DJGPP__
+		/* We use getkey() since with DJGPP 2.05 and gcc 7.2,
+		   getchar() requires two keystrokes. */
+		junk = getkey();
+#  else
+		junk = getch();
+#  endif
+		/* Check if Ctrl-C was pressed */
+		if (junk == 0x03)
+		    bail_to_command_line();
+	    } while (junk != EOF && junk != '\n' && junk != '\r');
+	    fputc('\n', stderr);
+	}
+# else
 	    EAT_INPUT_WITH(fgetc(stdin));
+# endif
 
 #endif /* !(_WIN32 || OS2) */
     }
@@ -1883,7 +1932,7 @@ print_set_output(char *name, TBOOLEAN datablock, TBOOLEAN append_p)
 	    if (!append_p)
 		gpfree_datablock(&print_out_var->udv_value);
 	    if (print_out_var->udv_value.type != DATABLOCK)
-	        print_out_var->udv_value.v.data_array = NULL;
+		print_out_var->udv_value.v.data_array = NULL;
 	} else {
 	    print_out_var->udv_value.v.data_array = NULL;
 	}
@@ -1978,16 +2027,12 @@ print_command()
 	    else
 		disp_value(print_out, &a, FALSE);
 	    need_space = TRUE;
-#ifdef ARRAY_COPY_ON_REFERENCE
-	    /* Prevents memory leakage for ARRAY variables */
-	    gpfree_string(&a);
-#endif
 	}
 
     } while (!END_OF_COMMAND && equals(c_token, ","));
 
     if (dataline != NULL) {
-	append_to_datablock(&print_out_var->udv_value, dataline);
+	append_multiline_to_datablock(&print_out_var->udv_value, dataline);
     } else {
 	(void) putc('\n', print_out);
 	fflush(print_out);
@@ -2026,10 +2071,10 @@ refresh_command()
 void
 refresh_request()
 {
-    FPRINTF((stderr,"refresh_request\n"));
+    AXIS_INDEX axis;
 
     if (   ((first_plot == NULL) && (refresh_ok == E_REFRESH_OK_2D))
-        || ((first_3dplot == NULL) && (refresh_ok == E_REFRESH_OK_3D))
+	|| ((first_3dplot == NULL) && (refresh_ok == E_REFRESH_OK_3D))
 	|| (!*replot_line && (refresh_ok == E_REFRESH_NOT_OK))
        )
 	int_error(NO_CARET, "no active plot; cannot refresh");
@@ -2040,30 +2085,24 @@ refresh_request()
 	return;
     }
 
-    /* If the state has been reset to autoscale since the last plot,
-     * initialize the axis limits.
+    /* Restore the axis range/scaling state from original plot
+     * Dima Kogan April 2018
      */
-    AXIS_INIT2D_REFRESH(FIRST_X_AXIS,TRUE);
-    AXIS_INIT2D_REFRESH(FIRST_Y_AXIS,TRUE);
-    AXIS_INIT2D_REFRESH(SECOND_X_AXIS,TRUE);
-    AXIS_INIT2D_REFRESH(SECOND_Y_AXIS,TRUE);
+    for (axis = 0; axis < NUMBER_OF_MAIN_VISIBLE_AXES; axis++) {
+	AXIS *this_axis = &axis_array[axis];
+	if (this_axis->set_autoscale & AUTOSCALE_MIN)
+	    this_axis->set_min = this_axis->writeback_min;
+	else
+	    this_axis->min = this_axis->set_min;
+	if (this_axis->set_autoscale & AUTOSCALE_MAX)
+	    this_axis->set_max = this_axis->writeback_max;
+	else
+	    this_axis->max = this_axis->set_max;
 
-    AXIS_UPDATE2D_REFRESH(T_AXIS);  /* Untested: T and R want INIT2D or UPDATE2D?? */
-    AXIS_UPDATE2D_REFRESH(POLAR_AXIS);
-
-    AXIS_UPDATE2D_REFRESH(FIRST_Z_AXIS);
-    AXIS_UPDATE2D_REFRESH(COLOR_AXIS);
-
-    /* Nonlinear mapping of x or y via linkage to a hidden primary axis */
-    if (nonlinear(&axis_array[FIRST_X_AXIS])) {
-	AXIS *primary = axis_array[FIRST_X_AXIS].linked_to_primary;
-	primary->min = primary->set_min;
-	primary->max = primary->set_max;
-    }
-    if (nonlinear(&axis_array[FIRST_Y_AXIS])) {
-	AXIS *primary = axis_array[FIRST_Y_AXIS].linked_to_primary;
-	primary->min = primary->set_min;
-	primary->max = primary->set_max;
+	if (this_axis->linked_to_secondary)
+	    clone_linked_axes(this_axis, this_axis->linked_to_secondary);
+	else if (this_axis->linked_to_primary)
+	    clone_linked_axes(this_axis, this_axis->linked_to_primary);
     }
 
     if (refresh_ok == E_REFRESH_OK_2D) {
@@ -2542,7 +2581,7 @@ changedir(char *path)
     if (isalpha((unsigned char)path[0]) && (path[1] == ':')) {
 	int driveno = toupper((unsigned char)path[0]) - 'A';	/* 0=A, 1=B, ... */
 
-# if defined(__EMX__)
+# if defined(__EMX__) || defined(__WATCOMC__)
 	(void) _chdrive(driveno + 1);
 # elif defined(__DJGPP__)
 	(void) setdisk(driveno);
@@ -2625,67 +2664,6 @@ replotrequest()
 	plot3drequest();
     else
 	plotrequest();
-}
-
-
-/* Is 'set view map' currently working inside 'splot' or not? Calculation of
- * mouse coordinates and the corresponding routines must know it, because
- * 'splot' can be either true 3D plot or a 2D map.
- * This flag is set when entering splot command and 'set view map', i.e. by
- * splot_map_activate(), and reset when calling splot_map_deactivate().
- */
-static int splot_map_active = 0;
-/* Store values reset by 'set view map' during splot, used by those two
- * routines below.
- */
-static float splot_map_surface_rot_x;
-static float splot_map_surface_rot_z;
-static float splot_map_surface_scale;
-
-/* This routine is called at the beginning of 'splot'. It sets up some splot
- * parameters needed to present the 'set view map'.
- */
-void
-splot_map_activate()
-{
-    double temp;
-    if (splot_map_active)
-	return;
-    splot_map_active = 1;
-    /* save current values */
-    splot_map_surface_rot_x = surface_rot_x;
-    splot_map_surface_rot_z = surface_rot_z ;
-    splot_map_surface_scale = surface_scale;
-    /* set new values */
-    surface_rot_x = 180;
-    surface_rot_z = 0;
-    /* version 4 had constant value surface_scale = 1.3 */
-    surface_scale = 1.425 * mapview_scale;
-    /* The Y axis runs backwards from a normal 2D plot */
-    temp = axis_array[FIRST_Y_AXIS].min;
-    axis_array[FIRST_Y_AXIS].min = axis_array[FIRST_Y_AXIS].max;
-    axis_array[FIRST_Y_AXIS].max = temp;
-}
-
-
-/* This routine is called at the end of 3D plot evaluation to undo the
- * changes needed for 'set view map'.
- */
-void
-splot_map_deactivate()
-{
-    double temp;
-    if (!splot_map_active)
-	return;
-    splot_map_active = 0;
-    /* restore the original values */
-    surface_rot_x = splot_map_surface_rot_x;
-    surface_rot_z = splot_map_surface_rot_z;
-    surface_scale = splot_map_surface_scale;
-    /* The Y axis runs backwards from a normal 2D plot */
-    temp = axis_array[FIRST_Y_AXIS].min;
-    axis_array[FIRST_Y_AXIS].min = axis_array[FIRST_Y_AXIS].max;
-    axis_array[FIRST_Y_AXIS].max = temp;
 }
 
 
@@ -2935,32 +2913,11 @@ help_command()
     if ((help_ptr = getenv("GNUHELP")) == (char *) NULL)
 # ifndef SHELFIND
 	/* if can't find environment variable then just use HELPFILE */
-
-/* patch by David J. Liu for getting GNUHELP from home directory */
-#  ifdef __DJGPP__
+#  if defined(MSDOS) || defined(OS2)
 	help_ptr = HelpFile;
 #  else
 	help_ptr = HELPFILE;
 #  endif
-#ifdef OS2
-  {
-  /* look in the path where the executable lives */
-  static char buf[MAXPATHLEN];
-  char *ptr;
-
-  _execname(buf, sizeof(buf));
-  _fnslashify(buf);
-  ptr=strrchr(buf, '/');
-  if (ptr) {
-     *(ptr+1)='\0';
-     strcat(buf, HELPFILE);
-     help_ptr=&buf[0];
-  }
-  else
-     help_ptr = HELPFILE;
-  }
-#endif
-/* end of patch  - DJL */
 
 # else				/* !SHELFIND */
     /* try whether we can find the helpfile via shell_find. If not, just
@@ -3090,7 +3047,7 @@ do_system(const char *cmd)
     /* Open a console so we can see the command's output */
     WinOpenConsole();
 #endif
-#if defined(_WIN32) && !defined(__WATCOMC__)
+#if defined(_WIN32) && !defined(HAVE_BROKEN_WSYSTEM)
     {
 	LPWSTR wcmd = UnicodeText(cmd, encoding);
 	ierr = _wsystem(wcmd);
@@ -3142,7 +3099,7 @@ is_history_command(const char *line)
 
 # ifdef USE_READLINE
 /* keep some compilers happy */
-static char *rlgets __PROTO((char *s, size_t n, const char *prompt));
+static char *rlgets(char *s, size_t n, const char *prompt);
 
 static char *
 rlgets(char *s, size_t n, const char *prompt)
@@ -3224,11 +3181,11 @@ do_shell()
     if (user_shell) {
 #  if defined(_WIN32)
 	if (WinExec(user_shell, SW_SHOWNORMAL) <= 32)
-#  elif defined(DJGPP)
+#  elif defined(__DJGPP__)
 	if (system(user_shell) == -1)
 #  else
 	if (spawnl(P_WAIT, user_shell, NULL) == -1)
-#  endif /* !(_WIN32 || DJGPP) */
+#  endif /* !(_WIN32 || __DJGPP__) */
 	    os_error(NO_CARET, "unable to spawn shell");
     }
 }
@@ -3274,7 +3231,7 @@ do_shell()
 /* read from stdin, everything except VMS */
 
 # ifndef USE_READLINE
-#  if defined(MSDOS) && !defined(__EMX__) && !defined(DJGPP)
+#  if defined(MSDOS) && !defined(__EMX__) && !defined(__DJGPP__)
 
 /* if interactive use console IO so CED will work */
 
@@ -3388,7 +3345,7 @@ read_line(const char *prompt, int start)
     do {
 	/* grab some input */
 	if (gp_get_string(gp_input_line + start, gp_input_line_len - start,
-                         ((more) ? ">" : prompt))
+		         ((more) ? ">" : prompt))
 	    == (char *) NULL)
 	{
 	    /* end-of-file */
@@ -3408,9 +3365,8 @@ read_line(const char *prompt, int start)
 	    if (last >= 0) {
 		if (gp_input_line[last] == '\n') {	/* remove any newline */
 		    gp_input_line[last] = NUL;
-		    if (last > 0 && gp_input_line[last-1] == '\r') {
-		        gp_input_line[--last] = NUL;
-		    }
+		    if (last > 0 && gp_input_line[last-1] == '\r')
+			gp_input_line[--last] = NUL;
 		    /* Watch out that we don't backup beyond 0 (1-1-1) */
 		    if (last > 0)
 			--last;
@@ -3452,8 +3408,9 @@ string_expand_macros()
 	    int_error(NO_CARET, "Macros nested too deeply");
 }
 
-#define COPY_CHAR gp_input_line[o++] = *c; \
-                  after_backslash = FALSE;
+#define COPY_CHAR do {gp_input_line[o++] = *c; \
+		  after_backslash = FALSE; } while (0)
+
 int
 expand_1level_macros()
 {
@@ -3507,21 +3464,21 @@ expand_1level_macros()
 		break;
 
 	case '"':
-                if (!after_backslash)
+		if (!after_backslash)
 		    in_dquote = !in_dquote;
 		COPY_CHAR; break;
 	case '\'':
 		in_squote = !in_squote;
 		COPY_CHAR; break;
-        case '\\':
-                if (in_dquote)
-                    after_backslash = !after_backslash;
-                gp_input_line[o++] = *c; break;
+	case '\\':
+		if (in_dquote)
+		    after_backslash = !after_backslash;
+		gp_input_line[o++] = *c; break;
 	case '#':
 		if (!in_squote && !in_dquote)
 		    in_comment = TRUE;
 	default :
-	        COPY_CHAR; break;
+		COPY_CHAR; break;
 	}
     }
     gp_input_line[o] = '\0';
@@ -3628,7 +3585,7 @@ report_error(int ierr)
     else
 	reported_error = WEXITSTATUS(ierr);
 
-    fill_gpval_integer("GPVAL_SYSTEM_ERRNO", reported_error); 
+    fill_gpval_integer("GPVAL_SYSTEM_ERRNO", reported_error);
     if (reported_error == 127)
 	fill_gpval_string("GPVAL_SYSTEM_ERRMSG", "command not found or shell failed");
     else

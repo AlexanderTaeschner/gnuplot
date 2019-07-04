@@ -118,6 +118,11 @@ typedef struct plot_struct {
 	/* either GP_CAIRO_SCALE or 1, depending on rendering */
 	int oversampling_scale;
 
+	/* The caiolatex performs upsampling of the canvas to achieve
+	 * higher pixel density.  We have to account for that when
+	 * applying OPERATOR_SATURATE. */
+	double upsampling_rate;
+
 	/* handle vertical/horizontal lines properly */
 	double current_x, current_y;
 	double orig_current_x, orig_current_y;
@@ -218,7 +223,7 @@ void gp_cairo_set_linestyle(plot_struct *plot, int linestyle);
 void gp_cairo_set_linetype(plot_struct *plot, int linetype);
 void gp_cairo_set_pointsize(plot_struct *plot, double pointsize);
 void gp_cairo_set_justify(plot_struct *plot, JUSTIFY mode);
-void gp_cairo_set_font(plot_struct *plot, const char *name, int fontsize);
+void gp_cairo_set_font(plot_struct *plot, const char *name, float fontsize);
 void gp_cairo_set_linewidth(plot_struct *plot, double linewidth);
 void gp_cairo_set_textangle(plot_struct *plot, double angle);
 
@@ -237,10 +242,8 @@ const char* gp_cairo_get_encoding(plot_struct *plot);
 /* determine default font to use */
 const char * gp_cairo_default_font(void);
 
-#ifdef EAM_BOXED_TEXT
 /* Text boxes */
 void gp_cairo_boxed_text(plot_struct *plot, int x, int y, int option);
-#endif
 
 void gp_cairo_set_dashtype(plot_struct *plot, int type, t_dashtype *custom_dash_pattern);
 

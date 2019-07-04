@@ -347,6 +347,7 @@ history_search_prefix(const char *string, int direction)
 }
 #endif
 
+#ifdef GNUPLOT_HISTORY
 
 /* routine to read history entries from a file,
  * this complements write_history and is necessary for
@@ -386,6 +387,7 @@ gp_read_history(const char *filename)
 	return errno;
     }
 }
+#endif
 
 
 #ifdef USE_READLINE
@@ -501,7 +503,6 @@ history_find(char *cmd)
 #endif
 
     /* Anchored backward search for prefix */
-    /* FIXME: the built-in readline version used to ignore leading spaces */
     if (history_search_prefix(cmd, -1) == 0)
 	return current_history()->line;
     return NULL;

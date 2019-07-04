@@ -38,18 +38,8 @@
 
 int curly_brace_count;
 
-static int get_num __PROTO((char str[]));
-static void substitute __PROTO((char **strp, size_t *str_lenp, int current));
-
-#ifdef VMS
-#include <descrip.h>
-#define MAILBOX "PLOT$MAILBOX"
-#ifdef __DECC
-#include <lib$routines.h>	/* avoid some IMPLICITFNC warnings */
-#include <starlet.h>
-#endif /* __DECC */
-#endif /* VMS */
-
+static int get_num(char str[]);
+static void substitute(char **strp, size_t *str_lenp, int current);
 
 #define isident(c) (isalnum((unsigned char)(c)) || (c) == '_' || ALLOWED_8BITVAR(c))
 
@@ -191,22 +181,22 @@ scanner(char **expressionp, size_t *expressionlenp)
 		    expression[current + 1] = NUL;
 		    break;
 		} else if (quote == '\"'
-                           && expression[current] == '\\'
-			   && expression[current + 1]) {
+			&& expression[current] == '\\'
+			&& expression[current + 1]) {
 		    current++;
 		    token[t_num].length += 2;
 		} else if (quote == '\"' && expression[current] == '`') {
 		    substitute(expressionp, expressionlenp, current);
 		    expression = *expressionp;	/* it might have moved */
 		    current--;
-                } else if (quote == '\'' 
-                           && expression[current+1] == '\''
-                           && expression[current+2] == '\'') {
-                    /* look ahead: two subsequent single quotes 
-                     * -> take them in
-                     */
-                    current += 2;
-                    token[t_num].length += 3;
+		} else if (quote == '\'' 
+			&& expression[current+1] == '\''
+			&& expression[current+2] == '\'') {
+		    /* look ahead: two subsequent single quotes 
+		     * -> take them in
+		     */
+		    current += 2;
+		    token[t_num].length += 3;
 		} else
 		    token[t_num].length++;
 	    }

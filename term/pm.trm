@@ -51,44 +51,45 @@ register_term(pm)
 #endif
 
 #ifdef TERM_PROTO
-TERM_PUBLIC void PM_init __PROTO((void));
-TERM_PUBLIC void PM_options __PROTO((void));
-TERM_PUBLIC void PM_reset __PROTO((void));
-TERM_PUBLIC void PM_text __PROTO((void));
-TERM_PUBLIC void PM_graphics __PROTO((void));
-TERM_PUBLIC void PM_linetype __PROTO((int lt));
-TERM_PUBLIC void PM_move __PROTO((unsigned int x, unsigned int y));
-TERM_PUBLIC void PM_vector __PROTO((unsigned int x, unsigned int y));
-TERM_PUBLIC int PM_text_angle __PROTO((int ang));
-TERM_PUBLIC void PM_put_text __PROTO((unsigned int x, unsigned int y, const char *str));
-TERM_PUBLIC int PM_justify_text __PROTO((enum JUSTIFY mode));
-TERM_PUBLIC void PM_point __PROTO((unsigned int x, unsigned int y, int number));
-TERM_PUBLIC void PM_suspend __PROTO((void));
-TERM_PUBLIC void PM_resume __PROTO((void));
-TERM_PUBLIC void PM_fillbox __PROTO((int style, unsigned int x, unsigned int y, unsigned int w, unsigned int h));
-TERM_PUBLIC void PM_linewidth __PROTO((double linewidth));
+TERM_PUBLIC void PM_init(void);
+TERM_PUBLIC void PM_options(void);
+TERM_PUBLIC void PM_reset(void);
+TERM_PUBLIC void PM_suspend(void);
+TERM_PUBLIC void PM_resume(void);
+TERM_PUBLIC void PM_text(void);
+TERM_PUBLIC void PM_graphics(void);
+TERM_PUBLIC void PM_move(unsigned int x, unsigned int y);
+TERM_PUBLIC void PM_vector(unsigned int x, unsigned int y);
+TERM_PUBLIC void PM_linetype(int lt);
+TERM_PUBLIC void PM_dashtype(int dt, t_dashtype *custom_dash_pattern);
+TERM_PUBLIC int PM_text_angle(int ang);
+TERM_PUBLIC void PM_put_text(unsigned int x, unsigned int y, const char *str);
+TERM_PUBLIC int PM_justify_text(enum JUSTIFY mode);
+TERM_PUBLIC int PM_set_font(const char *font);
+TERM_PUBLIC void PM_point(unsigned int x, unsigned int y, int number);
+TERM_PUBLIC void PM_fillbox(int style, unsigned int x, unsigned int y, unsigned int w, unsigned int h);
+TERM_PUBLIC void PM_linewidth(double linewidth);
 #ifdef USE_MOUSE
-TERM_PUBLIC void PM_set_ruler __PROTO((int, int));
-TERM_PUBLIC void PM_set_cursor __PROTO((int, int, int));
-TERM_PUBLIC void PM_put_tmptext __PROTO((int, const char str[]));
-TERM_PUBLIC void PM_set_clipboard __PROTO((const char[]));
+TERM_PUBLIC void PM_set_ruler(int, int);
+TERM_PUBLIC void PM_set_cursor(int, int, int);
+TERM_PUBLIC void PM_put_tmptext(int, const char str[]);
+TERM_PUBLIC void PM_set_clipboard(const char[]);
 #endif
 TERM_PUBLIC int PM_make_palette (t_sm_palette *);
 TERM_PUBLIC void PM_set_color (t_colorspec *);
 TERM_PUBLIC void PM_filled_polygon (int, gpiPoint *);
-TERM_PUBLIC void PM_image __PROTO((unsigned int, unsigned int, coordval *, gpiPoint *, t_imagecolor));
+TERM_PUBLIC void PM_image(unsigned int, unsigned int, coordval *, gpiPoint *, t_imagecolor);
 
 #ifndef PM_OLD_ENHANCED_TEXT
 /* To support "set term pm enhanced" */
-TERM_PUBLIC void PM_enhanced_put_text __PROTO((unsigned int x, unsigned int y, const char *str));
-TERM_PUBLIC void PM_enhanced_open __PROTO((char * fontname, double fontsize,
+TERM_PUBLIC void PM_enhanced_put_text(unsigned int x, unsigned int y, const char *str);
+TERM_PUBLIC void PM_enhanced_open(char * fontname, double fontsize,
 	    		double base, TBOOLEAN widthflag, TBOOLEAN showflag,
-			int overprint));
-TERM_PUBLIC void PM_enhanced_flush __PROTO((void));
+			int overprint);
+TERM_PUBLIC void PM_enhanced_flush(void);
 #endif
 
 /* define PM world coordinate limits */
-
 #define PM_XMAX 19500
 #define PM_YMAX 12500
 
@@ -111,22 +112,26 @@ TERM_PUBLIC void PM_enhanced_flush __PROTO((void));
 #define INCL_DOSMODULEMGR
 #include <os2.h>
 #include "os2/pm_msgs.h"
-	
-#define PM_nopts 1
+
 
 /* path for pm program */
-static char PM_path[256] = "";
+static char PM_path[PATH_MAX] = "";
 /* track mode to avoid redraw after hitting break */
 static int PM_mode = 0;
 static HEV hev;
 static int PM_termmode = 0;
-static int PM_must_reset_opts = FALSE;
-static int PM_must_abort = 0;
+static TBOOLEAN PM_must_reset_opts = FALSE;
+static TBOOLEAN PM_must_abort = FALSE;
 
-static char PM_opts[256] = "";
-static int PM_optargs = 0;
+static TBOOLEAN PM_widelines = FALSE;
+static TBOOLEAN PM_persist = FALSE;
+static TBOOLEAN PM_enhanced = TRUE;
 static int PM_plot_number = 0;
 static char PM_term_title[128] = "";
+static char PM_def_font[128] = "";
+
+static char PM_opts[256] = "";
+static TBOOLEAN PM_optargs = FALSE;
 
 static int mouseGnupmdrv = 0; /* PM set to 1 if we are connected to a mouseable gnupmdrv */
 
@@ -138,7 +143,7 @@ static FILE *PM_savepipe = NULL;
 
 /* track current state of pm terminal */
 /* this is only needed for enhanced text */
-static char * PM_font = NULL; 
+static char * PM_font = NULL;
 static double PM_fontsize = 12.0;
 static unsigned int PM_x = 0;
 static unsigned int PM_y = 0;
@@ -168,12 +173,12 @@ PM_init()
     static char buffer[1024];
     int pid;
     int rc;
-    int spawnmode;
     PPIB pib;
     PTIB tib;
     char semname[32];
     char pipename[32];
     char tempname[32];
+    char * s;
 
     term_force_init = TRUE;
     if (PM_savepipe != NULL && PM_termmode == 0) {
@@ -184,7 +189,6 @@ PM_init()
 	PM_make_servername(tempname);
 	strcpy(pipename, "\\pipe\\");
 	strcat(pipename, tempname);
-/*        sprintf( pipename, "\\pipe\\gpServ%d", PM_plot_number ) ; */
 	DosGetInfoBlocks(&tib, &pib);
 	PM_pipe = fopen(pipename, "r+b");
 	if (PM_pipe != NULL) {
@@ -200,7 +204,6 @@ PM_init()
     if (PM_pipe == NULL) {
 	if (PM_termmode & 2) {
 	    PM_make_servername(tempname);
-/*            sprintf( tempname, "gpServ%d", PM_plot_number ) ; */
 	} else {
 	    static int gpid = 0;
 	    gpid++;
@@ -210,46 +213,51 @@ PM_init()
 	strcpy(pipename, "\\pipe\\");
 	strcat(semname, tempname);
 	strcat(pipename, tempname);
-	strcat(PM_path, "\\gnupmdrv.exe");
-	rc = access(PM_path, 0);
-	/* find exe file */
-	if (rc != 0)
-	    rc = DosSearchPath(0x0002,	/* search GNUPLOT environment */
+	/* try to find pm outboard driver; first  */
+	if (1)          /* try GNUPLOT_DRIVER_DIR */
+	    rc = DosSearchPath(SEARCH_ENVIRONMENT,
+			       "GNUPLOT_DRIVER_DIR",
+			       "gnupmdrv.exe",
+			       PM_path,
+			       sizeof(PM_path));
+	if (rc != 0)    /* then try GNUPLOT */
+	    rc = DosSearchPath(SEARCH_ENVIRONMENT,
 			       "GNUPLOT",
 			       "gnupmdrv.exe",
 			       PM_path,
-			       256);
-
-	if (rc != 0)
-	    rc = DosSearchPath(0x0003,	/* then try current directory & path */
+			       sizeof(PM_path));
+	if (rc != 0) {  /* try gnuplot's directory */
+	    _execname(PM_path, sizeof(PM_path));
+	    s = strrchr(PM_path, '\\');
+	    if (s != NULL) *(s + 1) = NUL;
+	    strcat(PM_path, "gnupmdrv.exe");
+	    rc = access(PM_path, 0);
+	}
+	if (rc != 0) 	/* then try current directory & path */
+	    rc = DosSearchPath(SEARCH_ENVIRONMENT | SEARCH_CUR_DIRECTORY,
 			       "PATH",
 			       "gnupmdrv.exe",
 			       PM_path,
-			       256);
-	if (rc != 0) {
-	    fputs("Cannot find gnupmdrv.exe !\n", stderr);
-	    exit(3);
-	}
+			       sizeof(PM_path));
+	if (rc != 0)
+	    int_error(NO_CARET, "Cannot find gnupmdrv.exe !\n");
 	rc = DosCreateEventSem(semname, &hev, 1, 0);
-	if (rc != 0) {
-	    fputs("Cannot create semaphore !\n", stderr);
-	    exit(3);
-	}
-	spawnmode = P_SESSION | P_DEFAULT;
-	if (PM_optargs != 0)
-	    spawnmode |= P_UNRELATED;
-	pid = spawnl(spawnmode, PM_path, PM_path, tempname, PM_opts, NULL);
-	if (pid == -1) {
-	    fputs("Cannot spawn gnupmdrv.exe !\n", stderr);
-	    exit(3);
+	if (rc != 0)
+	    int_error(NO_CARET, "Cannot create semaphore !\n");
+	{
+	    int spawnmode = P_SESSION | P_DEFAULT;
+	    if (PM_optargs)
+		spawnmode |= P_UNRELATED;
+	    pid = _spawnl(spawnmode, PM_path, PM_path, tempname, PM_opts, NULL);
+	    if (pid == -1)
+		int_error(NO_CARET, "Cannot spawn gnupmdrv.exe !\n");
 	}
 	DosGetInfoBlocks(&tib, &pib);
 	DosWaitEventSem(hev, 10000);
 	DosCloseEventSem(hev);
 	PM_pipe = fopen(pipename, "r+b");
 	if (PM_pipe == NULL) {
-	    fputs("Cannot open pipe to gnupmdrv.exe !\n", stderr);
-	    exit(3);
+	    int_error(NO_CARET, "Cannot open pipe to gnupmdrv.exe !\n");
 	} else if (PM_termmode == 0)
 	    PM_savepipe = PM_pipe;
 	setvbuf(PM_pipe, buffer, _IOFBF, 1024);
@@ -282,72 +290,174 @@ PM_make_servername(char *str)
 	}
 	hash %= (256 * 256 * 256 - 1);
 	sprintf(str, "gp%x", hash);
-    } else
+    } else {
 	sprintf(str, "gpServ%d", PM_plot_number);
+    }
 }
+
+
+enum PM_id { PM_DEFAULT,
+	     PM_TITLE, PM_FONT,
+	     PM_SERVER, PM_NOSERVER,
+	     PM_PERSIST, PM_NOPERSIST,
+	     PM_WIDELINES, PM_NOWIDELINES,
+	     PM_ENHANCED, PM_NOENHANCED,
+	     PM_OTHER };
+
+static struct gen_table PM_opt_table[] =
+{
+    { "d$efault", PM_DEFAULT },
+    { "pe$rsist", PM_PERSIST },
+    { "nope$rsist", PM_NOPERSIST },
+    { "s$erver", PM_SERVER },
+    { "w$idelines", PM_WIDELINES },
+    { "now$idelines", PM_NOWIDELINES },
+    { "nos$erver", PM_NOSERVER },
+    { "e$nhanced", PM_ENHANCED },
+    { "noe$nhanced", PM_NOENHANCED },
+    { "ti$tle", PM_TITLE },
+    { "font", PM_FONT },
+    { NULL, PM_OTHER }
+};
 
 
 TERM_PUBLIC void
 PM_options()
 {
-    int old_termmode = PM_termmode;
-    PM_termmode = 0;
-    term_options[0] = NUL;
-    PM_term_title[0] = NUL;
-    PM_opts[0] = NUL;
-    PM_optargs = 0;
+    static TBOOLEAN first_init = TRUE;
+    int old_termmode;
+    char * title;
+    TBOOLEAN need_title = FALSE;
+
+    // honor command line persist option
+    if (first_init) {
+	PM_persist = persist_cl || PM_persist;
+	first_init = FALSE;
+    }
+
     while (!END_OF_COMMAND) {
-	if (almost_equals(c_token, "pe$rsist")) {
-	    strcat(PM_opts, "-p ");
-	    strcat(term_options, "persist ");
-	    PM_termmode |= 1;
-	    PM_optargs = 1;
-	    if (!(old_termmode & 1))
-		PM_pipe = NULL;
-	} else if (almost_equals(c_token, "s$erver")) {
-	    strcat(PM_opts, "-s ");
-	    strcat(term_options, "server ");
-	    PM_termmode |= 2;
-	    PM_optargs = 1;
-	    if (!(old_termmode & 2))
-		PM_pipe = NULL;
-	    if (isanumber(c_token + 1)) {
-		struct value t;
-		char *p = PM_opts + strlen(PM_opts);
-		c_token++;
-		PM_plot_number = (int) real(const_express(&t));
-		sprintf(p, "%d", PM_plot_number);
-		sprintf(term_options + strlen(term_options), "%d", PM_plot_number);
+	switch (lookup_table(&PM_opt_table[0], c_token)) {
+	case PM_PERSIST:
+	    c_token++;
+	    PM_persist = TRUE;
+	    break;
+	case PM_NOPERSIST:
+	    c_token++;
+	    PM_persist = FALSE;
+	    break;
+	case PM_SERVER:
+	    c_token++;
+	    PM_plot_number = int_expression();
+	    if (PM_plot_number <= 0) {
+		PM_plot_number = 0;
 	    }
-	} else if (almost_equals(c_token, "w$idelines")) {
-	    strcat(PM_opts, "-w ");
-	    strcat(term_options, "widelines ");
-	    PM_optargs = 1;
-	} else if (almost_equals(c_token, "e$nhanced")) {
-	    strcat(term_options, "enhanced ");
+	    break;
+	case PM_NOSERVER:
+	    c_token++;
+	    PM_plot_number = 0;
+	    break;
+	case PM_WIDELINES:
+	    c_token++;
+	    PM_widelines = TRUE;
+	    break;
+	case PM_NOWIDELINES:
+	    c_token++;
+	    PM_widelines = FALSE;
+	    break;
+	case PM_ENHANCED:
+	    c_token++;
+	    PM_enhanced = TRUE;
 #ifdef PM_OLD_ENHANCED_TEXT
-	    PM_optargs = 1;
-	    strcat(PM_opts, "-e ");
 	    term->put_text = PM_put_text;
 #else
 	    term->put_text = PM_enhanced_put_text;
 #endif
 	    term->flags |= TERM_ENHANCED_TEXT;
-	} else if (almost_equals(c_token, "noe$nhanced")) {
-	    strcat(term_options, "noenhanced ");
+	    break;
+	case PM_NOENHANCED:
+	    c_token++;
+	    PM_enhanced = FALSE;
 	    term->put_text = PM_put_text;
 	    term->flags &= ~TERM_ENHANCED_TEXT;
-	} else if (isstring(c_token)) {
-	    copy_str(PM_term_title, c_token, 127);
+	    break;
+	case PM_FONT: {
+	    char * s;
+
+	    c_token++;
+	    s = try_to_get_string();
+	    if (s != NULL) {
+		safe_strncpy(PM_def_font, s, sizeof(PM_def_font));
+		free(s);
+	    } else {
+		PM_def_font[0] = NUL;
+	    }
+	    break;
 	}
-	c_token++;
+	case PM_TITLE:
+	    c_token++;
+	    need_title = TRUE;
+	    // fall through
+	default:
+	    title = try_to_get_string();
+	    if (title == NULL && need_title)
+		int_error(c_token, "expecting string argument");
+	    if (strcmp(title, "") == 0)
+		title = NULL;
+	    if (title == NULL)
+		PM_term_title[0] = NUL;
+	    else
+		strlcpy(PM_term_title, title, sizeof(PM_term_title));
+	    break;
+	}
+    }
+
+    // re-init terminal parameters etc.
+    PM_optargs = FALSE;
+    old_termmode = PM_termmode;
+    PM_termmode = 0;
+    PM_opts[0] = NUL;
+    if (PM_persist) {
+	strcat(PM_opts, "-p ");
+	PM_optargs = TRUE;
+	PM_termmode |= 1;
+	if (!(old_termmode & 1))
+	    PM_pipe = NULL;
+    }
+    if (PM_plot_number > 0) {
+	PM_termmode |= 2;
+	if (!(old_termmode & 2))
+	    PM_pipe = NULL;
+	sprintf(PM_opts + strlen(PM_opts), "-s %d ", PM_plot_number);
+	PM_optargs = TRUE;
+    }
+    if (PM_widelines) {
+	strcat(PM_opts, "-w ");
+	PM_optargs = TRUE;
+    }
+    if (PM_enhanced) {
+#ifdef PM_OLD_ENHANCED_TEXT
+	strcat(PM_opts, "-e ");
+	PM_optargs = TRUE;
+#endif
     }
     if (PM_term_title[0]) {
-	strcat(PM_opts, " ");
-	strcat(term_options, " ");
-	strcat(PM_opts, PM_term_title);
-	strcat(term_options, PM_term_title);
+	sprintf(PM_opts + strlen(PM_opts), " \"%s\"", PM_term_title);
     }
+
+    // recreate option string
+    term_options[0] = NUL;
+    sprintf(term_options,
+	"%swidelines %spersist %senhanced",
+	PM_widelines? "" : "no",
+	PM_persist  ? "" : "no",
+	PM_enhanced ? "" : "no");
+    if (PM_plot_number > 0)
+	sprintf(term_options + strlen(term_options), " server %d", PM_plot_number);
+    if (PM_def_font[0] != NUL)
+	sprintf(term_options + strlen(term_options), " font  %s", PM_def_font);
+    if (PM_term_title[0])
+	sprintf(term_options + strlen(term_options), " title \"%s\"", PM_term_title);
+
     PM_must_reset_opts = TRUE;
 }
 
@@ -378,11 +488,12 @@ PM_query()
     fflush(PM_pipe);
     rc = DosRead(fileno(PM_pipe), &term->h_char, sizeof(int), &cbR);
     if (term->h_char == 0xABCD) {
-      /* PM we have got greetings from mouseable gnupmdrv */
-      mouseGnupmdrv = 1; /*  thus set mouseGnupmdrv on and reread h_char */
-      rc = DosRead( fileno(PM_pipe), &term->h_char, sizeof(int), &cbR ) ;
-      }
+	/* PM we received greetings from a mouseable gnupmdrv */
+	mouseGnupmdrv = 1; /*  thus set mouseGnupmdrv on and reread h_char */
+	rc = DosRead(fileno(PM_pipe), &term->h_char, sizeof(int), &cbR) ;
+    }
     rc = DosRead(fileno(PM_pipe), &term->v_char, sizeof(int), &cbR);
+    (void) rc;
 }
 
 
@@ -467,19 +578,49 @@ PM_graphics()
 #endif
     if (encoding != last_encoding) {
 	int cp;
+	/* A complete list of codepages can be found at
+	 *   http://www.altsan.org/os2/toolkits/uls/codepages.html
+	 */
 	switch (encoding) {
-	    case S_ENC_ISO8859_2: cp = 912; break;
-	    case S_ENC_CP437: cp = 437; break;
-	    case S_ENC_CP850: cp = 850; break;
-	    default: /*  S_ENC_DEFAULT, S_ENC_ISO8859_1 */
-		     cp = 0; break;
+	    case S_ENC_ISO8859_1: cp =  819; break;
+	    case S_ENC_ISO8859_2: cp =  912; break;
+	    case S_ENC_ISO8859_9: cp =  920; break;
+	    case S_ENC_ISO8859_15:cp =  923; break;
+	    case S_ENC_CP437:     cp =  437; break;
+	    case S_ENC_CP850:     cp =  850; break;
+	    case S_ENC_CP852:     cp =  852; break;
+	    case S_ENC_CP950:     cp =  950; break;
+	    case S_ENC_CP1250:    cp = 1250; break;
+	    case S_ENC_CP1251:    cp = 1251; break;
+	    case S_ENC_CP1252:    cp = 1252; break;
+	    case S_ENC_CP1254:    cp = 1254; break;
+	    case S_ENC_KOI8_R:    cp =  878; break;
+	    case S_ENC_SJIS:      cp =  932; break;
+	    case S_ENC_UTF8:      cp = 1208; break;
+	    default: /*  S_ENC_DEFAULT, ... */
+	                          cp = 0; break;
 	};
 	putc(SET_SPECIAL, PM_pipe);
-	putc('c', PM_pipe); /*  set codepage */
+	putc(SET_SPECIAL_CODEPAGE, PM_pipe); /*  set codepage */
 	fwrite(&cp, sizeof(int), 1, PM_pipe);
 	fflush(PM_pipe);
 	last_encoding = encoding;
     }
+    if (PM_def_font[0] != NUL) {
+	int len;
+
+	fprintf(stderr, "Setting default font: %s\n", PM_def_font);
+	putc(SET_SPECIAL, PM_pipe);
+	putc(SET_SPECIAL_FONT, PM_pipe); /*  set default font */
+	len = strlen(PM_def_font) + 1;
+	fwrite(&len, sizeof(int), 1, PM_pipe);
+	fwrite(PM_def_font, 1, len, PM_pipe);
+	for (len = sizeof(int) - len % sizeof(int); len > 0; len--) {
+	    /* pad rest of int with zeros */
+	    putc(NUL, PM_pipe);
+	}
+    }
+    PM_query();
     PM_mode = SET_GRAPHICS;
 }
 
@@ -496,7 +637,7 @@ PM_move(unsigned int x, unsigned int y)
 
 #ifndef PM_OLD_ENHANCED_TEXT
     /* save current position, only needed for enhanced text */
-    PM_x = x; 
+    PM_x = x;
     PM_y = y;
 #endif
 }
@@ -521,6 +662,16 @@ PM_linetype(int lt)
 }
 
 
+TERM_PUBLIC void
+PM_dashtype(int dt, t_dashtype *custom_dash_pattern)
+{
+    if (dt != DASHTYPE_CUSTOM) {  // cannot handle custom dash patterns
+	putc(SET_DASH, PM_pipe);
+	fwrite(&dt, sizeof(int), 1, PM_pipe);
+    }
+}
+
+
 TERM_PUBLIC int
 PM_text_angle(int ang)
 {
@@ -528,7 +679,7 @@ PM_text_angle(int ang)
     fwrite(&ang, sizeof(int), 1, PM_pipe);
 #ifndef PM_OLD_ENHANCED_TEXT
     /* store text angle, only needed for enhanced text */
-    PM_angle = (double)ang * M_PI / 180.;
+    PM_angle = ang * DEG2RAD;
 #endif
     return TRUE;
 }
@@ -545,7 +696,7 @@ PM_put_text(unsigned int x, unsigned int y, const char *str)
 #ifdef PM_OLD_ENHANCED_TEXT
     if (ignore_enhanced_text) {
 	putc(SET_SPECIAL, PM_pipe);
-	putc('e', PM_pipe); /* switch the enhanced mode off */
+	putc(SET_SPECIAL_ENHANCED, PM_pipe); /* switch the enhanced mode off */
 	putc('0', PM_pipe);
     }
 #endif
@@ -564,7 +715,7 @@ PM_put_text(unsigned int x, unsigned int y, const char *str)
 #ifdef PM_OLD_ENHANCED_TEXT
     if (ignore_enhanced_text) {
 	putc(SET_SPECIAL, PM_pipe);
-	putc('e', PM_pipe); /* restore the enhanced mode */
+	putc(SET_SPECIAL_ENHANCED, PM_pipe); /* restore the enhanced mode */
 	putc('2', PM_pipe);
     }
 #endif
@@ -577,11 +728,11 @@ PM_justify_text(enum JUSTIFY mode)
 #ifdef PM_OLD_ENHANCED_TEXT
     if (ignore_enhanced_text) {
 	putc(SET_SPECIAL, PM_pipe);
-	putc('e', PM_pipe); /* switch the enhanced mode off */
+	putc(SET_SPECIAL_ENHANCED, PM_pipe); /* switch the enhanced mode off */
 	putc('0', PM_pipe);
     }
 #endif
-	
+
     putc(SET_JUSTIFY, PM_pipe);
     fwrite(&mode, sizeof(int), 1, PM_pipe);
 
@@ -591,7 +742,7 @@ PM_justify_text(enum JUSTIFY mode)
 #else
     if (ignore_enhanced_text) {
 	putc(SET_SPECIAL, PM_pipe);
-	putc('e', PM_pipe); /* restore the enhanced mode */
+	putc(SET_SPECIAL_ENHANCED, PM_pipe); /* restore the enhanced mode */
 	putc('2', PM_pipe);
     }
 #endif
@@ -600,28 +751,26 @@ PM_justify_text(enum JUSTIFY mode)
 
 
 TERM_PUBLIC int
-PM_set_font(const char *font)
+PM_set_font(const char *ifont)
 {
+    char * font = (char *) ifont;
     unsigned int len;
 
     putc(SET_FONT, PM_pipe);
-    if (font == NULL)
-        len = 0;
-    else
-        len = strlen(font);
-
-    if (len==0) {
-        fwrite(&len, sizeof(int), 1, PM_pipe);
+    if ((font == NULL) && (PM_def_font[0] != NUL))
+	font = PM_def_font;
+    len = (font == NULL) ? 0 : strlen(font);
+    if (len == 0) {
+	fwrite(&len, sizeof(int), 1, PM_pipe);
     } else {
-        len += 1;
-        fwrite(&len, sizeof(int), 1, PM_pipe);
-        fwrite(font, 1, len, PM_pipe);
-        for (len = sizeof(int) - len % sizeof(int); len > 0; len--) {
+	len += 1;
+	fwrite(&len, sizeof(int), 1, PM_pipe);
+	fwrite(font, 1, len, PM_pipe);
+	for (len = sizeof(int) - len % sizeof(int); len > 0; len--) {
 	    /* pad rest of int with zeros */
 	    putc(NUL, PM_pipe);
-        }
+	}
     }
-
     return TRUE;
 }
 
@@ -632,25 +781,28 @@ PM_set_font(const char *font)
 	get current font name and size from gnupmdrv and
 	save them to PM_font and PM_fontsize
 */
-static void PM_query_font(void)
+static void
+PM_query_font(void)
 {
     unsigned int len, fontsize;
     char *newfont;
     ULONG cbR, rc;
 
     putc(GR_QUERY_FONT, PM_pipe);
-    fflush(PM_pipe);  
+    fflush(PM_pipe);
 
     free( PM_font );
     rc = DosRead(fileno(PM_pipe), &len, sizeof(int), &cbR);
-    newfont = (char *)malloc( len + 1 ); 
+    newfont = (char *)malloc( len + 1 );
     rc = DosRead(fileno(PM_pipe), newfont, len*sizeof(char), &cbR);
-    newfont[len] = '\0';
-    
-    PM_font = (char *)malloc( len + 1 ); 
+    newfont[len] = NUL;
+
+    PM_font = (char *)malloc( len + 1 );
     sscanf( newfont, "%i.%s", &fontsize, PM_font );
     PM_fontsize = (double)fontsize;
     free(newfont);
+
+    (void) rc;
 }
 
 #endif
@@ -677,7 +829,7 @@ PM_point(unsigned int x, unsigned int y, int number)
 void
 PM_abortplot(void)
 {
-    PM_must_abort = 0;
+    PM_must_abort = FALSE;
     term_reset();
     (void) putc('\n', stderr);
     bail_to_command_line();
@@ -689,7 +841,7 @@ PM_intc_cleanup(void)
 {
     if (PM_pipe == NULL || PM_mode == SET_TEXT)
 	PM_abortplot();
-    PM_must_abort = 1;
+    PM_must_abort = TRUE;
 }
 
 
@@ -701,12 +853,10 @@ PM_pause(char *str)
 {
     int len, rc;
     ULONG cbR;
-    char buf[256];
-    char *bp;
 
     if (PM_pipe == NULL)
 	return 2;
-    bp = buf;
+
     putc(GR_PAUSE, PM_pipe);
     len = strlen(str) + 1;
     fwrite(&len, sizeof(int), 1, PM_pipe);
@@ -717,6 +867,7 @@ PM_pause(char *str)
     }
     fflush(PM_pipe);
     rc = DosRead(fileno(PM_pipe), &len, sizeof(int), &cbR);
+    (void) rc;
     return len;
 }
 
@@ -755,6 +906,7 @@ PM_make_palette(t_sm_palette * palette)
 	putc(0, PM_pipe);
 	fflush(PM_pipe);
 	rc = DosRead(fileno(PM_pipe), &PM_nColors, sizeof(int), &cbR);
+	(void) rc;
 	return PM_nColors;
     }
 
@@ -809,21 +961,27 @@ PM_set_color(t_colorspec *colorspec)
 	}
 	break;
     case TC_LT:
-	PM_linetype(colorspec->lt);
+	putc(GR_LTCOLOR, PM_pipe);
+	fwrite(&(colorspec->lt), sizeof(int), 1, PM_pipe);
 	break;
     case TC_RGB:
 	putc(GR_SET_RGBCOLOR, PM_pipe);
 	fwrite(&(colorspec->lt), sizeof(int), 1, PM_pipe);
-	/* fflush(PM_pipe); */ /* FIXME: why should that be necessary? */
+	break;
+    default:
 	break;
     }
 }
 
 
-TERM_PUBLIC void PM_filled_polygon ( int points, gpiPoint *corners )
+TERM_PUBLIC void
+PM_filled_polygon(int points, gpiPoint *corners)
 {
     int i;
+    int style = corners->style;
     putc(GR_FILLED_POLYGON, PM_pipe);
+    // FIXME: this is not backwards-compatible: should we use another code?
+    fwrite(&style, sizeof(style), 1, PM_pipe);
     fwrite(&points, sizeof(int), 1, PM_pipe); /*  tell him number of corners */
     for (i = 0; i < points; i++) {
 	fwrite(&corners[i].x, sizeof(int), 1, PM_pipe);
@@ -897,7 +1055,7 @@ PM_image(unsigned int M, unsigned int N, coordval *image, gpiPoint *corner, t_im
 
     /* IC_PALETTE and IC_RGB images are converted to a 24bit RGB format
        suitable for OS/2's presentation manager:
-        - sequence of lines is reversed 
+        - sequence of lines is reversed
         - each line starts at a 4 byte boundary
     */
 
@@ -969,7 +1127,7 @@ PM_enhanced_open(
     TBOOLEAN widthflag, TBOOLEAN showflag,
     int overprint)
 {
-    static const int pm_scale = 35; /* scaling of base offset */  
+    static const int pm_scale = 35; /* scaling of base offset */
     static unsigned int ENHpm_xsave, ENHpm_ysave;
     char *fontstring;
 
@@ -1003,23 +1161,25 @@ PM_enhanced_open(
 	ENHpm_widthflag = widthflag;
 
 	/* Select font */
-	/* FIXME: It would be nice to have fractional font sizes 
+	/* FIXME: It would be nice to have fractional font sizes
 	          for super- and subscripts. */
 	/* FIXME: sometimes fontname has zero length */
 	if ((fontname != NULL) && strlen(fontname) > 0) {
-	    fontstring = malloc( strlen(fontname) + 16 );
-	    sprintf( fontstring, "%s,%i", fontname, (int)fontsize );
-	}
-	else {
-	    fontstring = malloc( strlen(PM_font) + 16 );
+	    fontstring = malloc(strlen(fontname) + 16);
+	    sprintf(fontstring, "%s,%i", fontname, (int)fontsize);
+	} else if (PM_font != NULL) {
+	    fontstring = malloc(strlen(PM_font) + 16);
 	    sprintf( fontstring, "%s,%i", PM_font, (int)fontsize );
+	} else {
+	    fontstring = malloc(16);
+	    sprintf(fontstring, ",%i", (int)fontsize);
 	}
-	PM_set_font( fontstring );
-	free( fontstring );
+	PM_set_font(fontstring);
+	free(fontstring);
 	PM_query_font();
 
 	/* Scale fractional font height to vertical units of display */
-	/* FIXME:	
+	/* FIXME:
 		Font scaling is not done properly (yet) and will lead to
 		non-optimal results for most font and size selections.
 		The old gnupmdrv code used FONTINFO information for super-
@@ -1041,8 +1201,8 @@ PM_enhanced_flush()
 	unsigned int x, y, len;
 	ULONG rc, cbR;
 
-	*enhanced_cur_text = '\0';
-	
+	*enhanced_cur_text = NUL;
+
 	if (PM_must_abort)
 	    PM_abortplot();
 
@@ -1058,7 +1218,7 @@ PM_enhanced_flush()
 	fwrite(&x, sizeof(int), 1, PM_pipe);
 	fwrite(&y, sizeof(int), 1, PM_pipe);
 	/* write 'mode indicator' (currently show switch only) */
-	fwrite(&mode, sizeof(int), 1, PM_pipe); 
+	fwrite(&mode, sizeof(int), 1, PM_pipe);
 	fwrite(&len, sizeof(int), 1, PM_pipe);
 	fwrite(enhanced_text, 1, len, PM_pipe);
 	for (len = sizeof(int) - len % sizeof(int); len > 0; len--) {
@@ -1070,10 +1230,11 @@ PM_enhanced_flush()
 	fflush(PM_pipe);
 	rc = DosRead(fileno(PM_pipe), &width, sizeof(int), &cbR);
 	rc = DosRead(fileno(PM_pipe), &height, sizeof(int), &cbR);
+	(void) rc;
 
 	/* update drawing position according to len */
 	if (!ENHpm_widthflag) {
-	    width = 0; 
+	    width = 0;
 	    height = 0;
 	}
 	if (ENHpm_sizeonly) {
@@ -1134,7 +1295,7 @@ PM_enhanced_put_text(unsigned int x, unsigned int y, const char *str)
 
     /* Tell the terminal to move the drawing position */
     /* we store the current position to PM_x and PM_y */
-    PM_x = x; 
+    PM_x = x;
     PM_y = y;
 
     /* Text justification requires two passes. During the first pass we */
@@ -1145,15 +1306,15 @@ PM_enhanced_put_text(unsigned int x, unsigned int y, const char *str)
     }
     else {
 	num_passes = 2;
-	ENHpm_sizeonly = TRUE; 
+	ENHpm_sizeonly = TRUE;
     }
 
-    for( pass=1; pass <= num_passes; pass++ ) {
+    for (pass=1; pass <= num_passes; pass++) {
 
-	/* This will restore the default font 
+	/* This will restore the default font
 	   and update PM_font and PM_fontsize */
-	PM_set_font(NULL); 
-	PM_query_font(); 
+	PM_set_font(NULL);
+	PM_query_font();
 
 	/* Set the recursion going. We say to keep going until a
 	* closing brace, but we don't really expect to find one.
@@ -1163,7 +1324,7 @@ PM_enhanced_put_text(unsigned int x, unsigned int y, const char *str)
 	* we get stuck in an infinite loop) and try again.
 	*/
 	while (*(str = enhanced_recursion((char *)str, TRUE,
-			NULL, PM_fontsize,
+			"", PM_fontsize,
 			0.0, TRUE, TRUE, 0))) {
 	    (term->enhanced_flush)();
 
@@ -1187,7 +1348,7 @@ PM_enhanced_put_text(unsigned int x, unsigned int y, const char *str)
     }
 
     /* restore default font */
-    PM_set_font(NULL); 
+    PM_set_font(NULL);
 }
 
 #endif /* PM_OLD_ENHANCED_TEXT */
@@ -1198,7 +1359,7 @@ void
 pm_raise_terminal_window()
 {
     putc(SET_SPECIAL, PM_pipe);
-    putc('^', PM_pipe); /* raise window */
+    putc(SET_SPECIAL_RAISE, PM_pipe); /* raise window */
     fflush(PM_pipe);
 }
 
@@ -1206,7 +1367,7 @@ void
 pm_lower_terminal_window()
 {
     putc(SET_SPECIAL, PM_pipe);
-    putc('_', PM_pipe); /* lower window */
+    putc(SET_SPECIAL_LOWER, PM_pipe); /* lower window */
     fflush(PM_pipe);
 }
 
@@ -1219,23 +1380,39 @@ TERM_TABLE_START(PM_driver)
     PM_XMAX, PM_YMAX, PM_VCHAR, PM_HCHAR,
     PM_VTIC, PM_HTIC, PM_options, PM_init, PM_reset,
     PM_text, null_scale, PM_graphics, PM_move, PM_vector,
-    PM_linetype, PM_put_text, PM_text_angle,
-    PM_justify_text, PM_point, do_arrow, PM_set_font,
-    0 /*pointsize */ , TERM_CAN_MULTIPLOT|TERM_NO_OUTPUTFILE, 
-    PM_suspend, PM_resume,
-    PM_fillbox, PM_linewidth
-#ifdef USE_MOUSE
-    , 0 /* PM_waitforinput */,
-    PM_put_tmptext, PM_set_ruler, PM_set_cursor, PM_set_clipboard
+    PM_linetype,
+#ifdef PM_OLD_ENHANCED_TEXT
+    PM_put_text,
+#else
+    PM_enhanced_put_text,
 #endif
-    , PM_make_palette,
+    PM_text_angle,
+    PM_justify_text, PM_point, do_arrow, PM_set_font,
+    0 /*pointsize */ ,
+    TERM_CAN_MULTIPLOT | TERM_NO_OUTPUTFILE | TERM_ENHANCED_TEXT,
+    PM_suspend, PM_resume,
+    PM_fillbox, PM_linewidth,
+#ifdef USE_MOUSE
+    0 /* PM_waitforinput */,
+    PM_put_tmptext, PM_set_ruler, PM_set_cursor, PM_set_clipboard,
+#endif
+    PM_make_palette,
     0, /* PM_previous_palette */
     PM_set_color,
-    PM_filled_polygon
-    , PM_image
+    PM_filled_polygon,
+    PM_image,
 #ifndef PM_OLD_ENHANCED_TEXT
-    , PM_enhanced_open, PM_enhanced_flush, do_enh_writec
+    PM_enhanced_open, PM_enhanced_flush, do_enh_writec,
+#else
+    NULL, NULL, NULL,
 #endif
+    NULL, /* layer */
+    NULL, /* path */
+    0.0, /* scale (unused) */
+    NULL, /* hypertext */
+    NULL, /* boxed text */
+    NULL, /* modify plots */
+    PM_dashtype
 TERM_TABLE_END(PM_driver)
 
 #undef LAST_TERM
@@ -1255,11 +1432,15 @@ START_HELP(pm)
 " The `pm` terminal driver provides an OS/2 Presentation Manager window in",
 " which the graph is plotted.  The window is opened when the first graph is",
 " plotted.  This window has its own online help as well as facilities for",
-" printing, copying to the clipboard and some line type and color adjustments.",
-" The `multiplot` option is supported.",
+" printing and copying to the clipboard.",
 "",
 " Syntax:",
-"       set terminal pm {server {n}} {persist} {widelines} {enhanced} {\"title\"}",
+"       set terminal pm      {{server} {n} | noserver}",
+"                            {nopersist | persist}",
+"                            {enhanced | noenhanced}",
+"                            {font <fontspec>}",
+"                            {nowidelines | widelines}",
+"                            {{title} \"title\"}",
 "",
 " If `persist` is specified, each graph appears in its own window and all",
 " windows remain open after `gnuplot` exits.  If `server` is specified, all",
@@ -1278,6 +1459,9 @@ START_HELP(pm)
 " It will also be used as the name of the server instance, and will override",
 " the optional numerical argument.",
 "",
-" Linewidths may be changed with `set linestyle`."
+" The gnuplot outboard driver, gnupmdrv.exe, is searched in the same directory",
+" as gnuplot itself.  You can override that by defining one of the environment",
+" variables GNUPLOT_DRIVER_DIR or GNUPLOT.  As a last resort the current",
+" directory and the PATH are tried to locate gnupmdrv.exe."
 END_HELP(pm)
 #endif /* TERM_HELP */

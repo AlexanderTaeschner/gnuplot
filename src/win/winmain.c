@@ -68,6 +68,7 @@
 #include "setshow.h"
 #include "version.h"
 #include "command.h"
+#include "encoding.h"
 #include "winmain.h"
 #include "wtext.h"
 #include "wcommon.h"
@@ -119,8 +120,7 @@ char *authors[]={
 
 void WinExit(void);
 static void WinCloseHelp(void);
-int CALLBACK ShutDown();
-static BOOL WINAPI ConsoleHandler(DWORD dwType);
+int CALLBACK ShutDown(void);
 #ifdef WGP_CONSOLE
 static int ConsolePutS(const char *str);
 static int ConsolePutCh(int ch);
@@ -150,7 +150,7 @@ Pause(LPSTR str)
 
 
 void
-kill_pending_Pause_dialog()
+kill_pending_Pause_dialog(void)
 {
     if (!pausewin.bPause) /* no Pause dialog displayed */
 	return;
@@ -202,7 +202,7 @@ WinExit(void)
 
 /* call back function from Text Window WM_CLOSE */
 int CALLBACK
-ShutDown()
+ShutDown(void)
 {
     /* First chance for wgnuplot to close help system. */
     WinCloseHelp();
@@ -250,7 +250,7 @@ GetDllVersion(LPCTSTR lpszDllName)
 }
 
 
-BOOL 
+BOOL
 IsWindowsXPorLater(void)
 {
     OSVERSIONINFO versionInfo;
@@ -335,7 +335,7 @@ WinCloseHelp(void)
 
 
 static LPTSTR
-GetLanguageCode()
+GetLanguageCode(void)
 {
     static TCHAR lang[6] = TEXT("");
 
@@ -605,10 +605,10 @@ main(int argc, char **argv)
 	GetConsoleMode(handle, &mode);
 	SetConsoleMode(handle, mode | ENABLE_VIRTUAL_TERMINAL_PROCESSING);
     }
-#endif
 
     // set console mode handler to catch "abort" signals
     SetConsoleCtrlHandler(ConsoleHandler, TRUE);
+#endif
 
     gp_atexit(WinExit);
 
@@ -758,19 +758,19 @@ MyPutCh(int ch)
 
 #ifndef WGP_CONSOLE
 int
-MyKBHit()
+MyKBHit(void)
 {
     return TextKBHit(&textwin);
 }
 
 int
-MyGetCh()
+MyGetCh(void)
 {
     return TextGetCh(&textwin);
 }
 
 int
-MyGetChE()
+MyGetChE(void)
 {
     return TextGetChE(&textwin);
 }
@@ -992,7 +992,7 @@ fake_popen(const char * command, const char * type)
 	LPWSTR wcmd;
 	pipe_type = *type;
 	/* Execute command with redirection of stdout to temporary file. */
-#ifndef __WATCOMC__
+#ifndef HAVE_BROKEN_WSYSTEM
 	cmd = (char *) malloc(strlen(command) + strlen(pipe_filename) + 5);
 	sprintf(cmd, "%s > %s", command, pipe_filename);
 	wcmd = UnicodeText(cmd, encoding);
@@ -1001,7 +1001,7 @@ fake_popen(const char * command, const char * type)
 #else
 	cmd = (char *) malloc(strlen(command) + strlen(pipe_filename) + 15);
 	sprintf(cmd, "cmd /c %s > %s", command, pipe_filename);
-	system(cmd);
+	rc = system(cmd);
 #endif
 	free(cmd);
 	/* Now open temporary file. */
@@ -1043,7 +1043,7 @@ fake_pclose(FILE *stream)
 	char * cmd;
 	LPWSTR wcmd;
 
-#ifndef __WATCOMC__
+#ifndef HAVE_BROKEN_WSYSTEM
 	cmd = (char *) gp_alloc(strlen(pipe_command) + strlen(pipe_filename) + 10, "fake_pclose");
 	/* FIXME: this won't work for binary data. We need a proper `cat` replacement. */
 	sprintf(cmd, "type %s | %s", pipe_filename, pipe_command);
@@ -1053,7 +1053,7 @@ fake_pclose(FILE *stream)
 #else
 	cmd = (char *) gp_alloc(strlen(pipe_command) + strlen(pipe_filename) + 20, "fake_pclose");
 	sprintf(cmd, "cmd/c type %s | %s", pipe_filename, pipe_command);
-	system(cmd);
+	rc = system(cmd);
 #endif
 	free(cmd);
     }
@@ -1101,7 +1101,7 @@ stdin_pipe_reader(LPVOID param)
 
 
 int
-ConsoleGetch()
+ConsoleGetch(void)
 {
     int fd = _fileno(stdin);
     HANDLE h;
@@ -1140,7 +1140,7 @@ ConsoleGetch()
 
 
 int
-ConsoleReadCh()
+ConsoleReadCh(void)
 {
     const int max_input = 8;
     static char console_input[8];
@@ -1238,7 +1238,7 @@ ConsolePutCh(int ch)
 #endif
 
 
-/* This is called by the system to signal various events. 
+/* This is called by the system to signal various events.
    Note that it is executed in a separate thread.  */
 BOOL WINAPI
 ConsoleHandler(DWORD dwType)
@@ -1289,7 +1289,7 @@ ConsoleHandler(DWORD dwType)
 static char win_prntmp[MAX_PRT_LEN+1];
 
 FILE *
-open_printer()
+open_printer(void)
 {
     char *temp;
 
@@ -1342,7 +1342,7 @@ close_printer(FILE *outfile)
 
 
 void
-screen_dump()
+screen_dump(void)
 {
     if (term == NULL) {
 	int_error(c_token, "");
@@ -1481,6 +1481,7 @@ WinOpenConsole(void)
 	    AllocConsole();
 	}
     }
+    SetConsoleCtrlHandler(ConsoleHandler, TRUE);
 }
 #endif
 
@@ -1540,39 +1541,6 @@ WinGetCodepage(enum set_encoding_id encoding)
 	}
     }
     return codepage;
-}
-
-
-enum set_encoding_id
-WinGetEncoding(UINT cp)
-{
-    enum set_encoding_id encoding;
-
-    /* The code below is the inverse to the code found in UnicodeText().
-       For a list of code page identifiers see
-       http://msdn.microsoft.com/en-us/library/dd317756%28v=vs.85%29.aspx
-    */
-    switch (cp) {
-    case 437:   encoding = S_ENC_CP437; break;
-    case 850:   encoding = S_ENC_CP850; break;
-    case 852:   encoding = S_ENC_CP852; break;
-    case 932:   encoding = S_ENC_SJIS; break;
-    case 950:   encoding = S_ENC_CP950; break;
-    case 1250:  encoding = S_ENC_CP1250; break;
-    case 1251:  encoding = S_ENC_CP1251; break;
-    case 1252:  encoding = S_ENC_CP1252; break;
-    case 1254:  encoding = S_ENC_CP1254; break;
-    case 20866: encoding = S_ENC_KOI8_R; break;
-    case 21866: encoding = S_ENC_KOI8_U; break;
-    case 28591: encoding = S_ENC_ISO8859_1; break;
-    case 28592: encoding = S_ENC_ISO8859_2; break;
-    case 28599: encoding = S_ENC_ISO8859_9; break;
-    case 28605: encoding = S_ENC_ISO8859_15; break;
-    case 65001: encoding = S_ENC_UTF8; break;
-    default:
-	encoding = S_ENC_DEFAULT;
-    }
-    return encoding;
 }
 
 
@@ -1645,7 +1613,7 @@ win_popen(const char *filename, const char *mode)
 
 
 UINT
-GetDPI()
+GetDPI(void)
 {
     HDC hdc_screen = GetDC(NULL);
     if (hdc_screen) {

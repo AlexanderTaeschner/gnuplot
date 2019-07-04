@@ -89,6 +89,8 @@
 #include "version.h"
 #include "misc.h"
 #include "multiplot.h"
+#include "readline.h"
+#include "encoding.h"
 
 #ifdef USE_MOUSE
 #include "mouse.h"
@@ -97,20 +99,15 @@
 /* even if the interactive gnuplot session itself cannot.      */
 long mouse_mode = 0;
 char* mouse_alt_string = NULL;
+#define MOUSE_COORDINATES_FUNCTION 8	/* Normally an enum in mouse.h */
 #endif
 
 #ifdef _WIN32
 # include "win/winmain.h"
 # include "win/wcommon.h"
-# ifdef __MSC__
-#  include <malloc.h>
-#  include <io.h>
-# else
-#  include <alloc.h>
-# endif                         /* MSC */
-#endif /* _WIN32 */
+#endif
 
-static int termcomp __PROTO((const generic * a, const generic * b));
+static int termcomp(const generic * a, const generic * b);
 
 /* Externally visible variables */
 /* the central instance: the current terminal's interface structure */
@@ -128,6 +125,7 @@ FILE *gpoutfile;
 */
 FILE *gppsfile = 0;
 char *PS_psdir = NULL;
+char *PS_fontpath = NULL;
 
 /* true if terminal has been initialized */
 TBOOLEAN term_initialised;
@@ -176,10 +174,6 @@ const char *arrow_head_names[4] =
     {"nohead", "head", "backhead", "heads"};
 
 enum { IPC_BACK_UNUSABLE = -2, IPC_BACK_CLOSED = -1 };
-#ifdef PIPE_IPC
-/* HBB 20020225: currently not used anywhere outside term.c */
-static SELECT_TYPE_ARG1 ipc_back_fd = IPC_BACK_CLOSED;
-#endif
 
 /* resolution in dpi for converting pixels to size units */
 int gp_resolution = 72;
@@ -217,32 +211,32 @@ static double term_pointsize=1;
 
 /* Internal prototypes: */
 
-static void term_suspend __PROTO((void));
-static void term_close_output __PROTO((void));
+static void term_suspend(void);
+static void term_close_output(void);
 
-static void null_linewidth __PROTO((double));
-static void do_point __PROTO((unsigned int x, unsigned int y, int number));
-static void do_pointsize __PROTO((double size));
-static void line_and_point __PROTO((unsigned int x, unsigned int y, int number));
-static void do_arrow __PROTO((unsigned int sx, unsigned int sy, unsigned int ex, unsigned int ey, int headstyle));
-static void null_dashtype __PROTO((int type, t_dashtype *custom_dash_pattern));
+static void null_linewidth(double);
+static void do_point(unsigned int x, unsigned int y, int number);
+static void do_pointsize(double size);
+static void line_and_point(unsigned int x, unsigned int y, int number);
+static void do_arrow(unsigned int sx, unsigned int sy, unsigned int ex, unsigned int ey, int headstyle);
+static void null_dashtype(int type, t_dashtype *custom_dash_pattern);
 
-static int null_text_angle __PROTO((int ang));
-static int null_justify_text __PROTO((enum JUSTIFY just));
-static int null_scale __PROTO((double x, double y));
-static void null_layer __PROTO((t_termlayer layer));
-static int null_set_font __PROTO((const char *font));
-static void null_set_color __PROTO((struct t_colorspec *colorspec));
-static void options_null __PROTO((void));
-static void graphics_null __PROTO((void));
-static void UNKNOWN_null __PROTO((void));
-static void MOVE_null __PROTO((unsigned int, unsigned int));
-static void LINETYPE_null __PROTO((int));
-static void PUTTEXT_null __PROTO((unsigned int, unsigned int, const char *));
+static int null_text_angle(int ang);
+static int null_justify_text(enum JUSTIFY just);
+static int null_scale(double x, double y);
+static void null_layer(t_termlayer layer);
+static int null_set_font(const char *font);
+static void null_set_color(struct t_colorspec *colorspec);
+static void options_null(void);
+static void graphics_null(void);
+static void UNKNOWN_null(void);
+static void MOVE_null(unsigned int, unsigned int);
+static void LINETYPE_null(int);
+static void PUTTEXT_null(unsigned int, unsigned int, const char *);
 
-static int strlen_tex __PROTO((const char *));
+static int strlen_tex(const char *);
 
-static char *stylefont __PROTO((const char *fontname, TBOOLEAN isbold, TBOOLEAN isitalic));
+static char *stylefont(const char *fontname, TBOOLEAN isbold, TBOOLEAN isitalic);
 
 /* Used by terminals and by shared routine parse_term_size() */
 typedef enum {
@@ -250,20 +244,14 @@ typedef enum {
     INCHES,
     CM
 } size_units;
-static size_units parse_term_size __PROTO((float *xsize, float *ysize, size_units def_units));
+static size_units parse_term_size(float *xsize, float *ysize, size_units def_units);
 
 
 #ifdef VMS
-char *vms_init();
-void vms_reset();
-void term_mode_tek();
-void term_mode_native();
-void term_pasthru();
-void term_nopasthru();
-void fflush_binary();
-# define FOPEN_BINARY(file) fopen(file, "wb", "rfm=fix", "bls=512", "mrs=512")
-#else /* !VMS */
+# include "vms.h"
+#else
 # define FOPEN_BINARY(file) fopen(file, "wb")
+# define fflush_binary()
 #endif /* !VMS */
 
 #if defined(MSDOS) || defined(_WIN32)
@@ -365,7 +353,7 @@ term_set_output(char *dest)
 #if defined(PIPES)
 	if (*dest == '|') {
 	    restrict_popen();
-#ifdef _WIN32
+#if defined(_WIN32 ) || defined(MSDOS)
 	    if (term && (term->flags & TERM_BINARY))
 		f = popen(dest + 1, "wb");
 	    else
@@ -494,6 +482,14 @@ term_initialise()
 	FPRINTF((stderr, "- calling term->init()\n"));
 	(*term->init) ();
 	term_initialised = TRUE;
+#ifdef HAVE_LOCALE_H
+	/* This is here only from an abundance of caution (a.k.a. paranoia).
+	 * Some terminals (wxt qt caca) are known to change the locale when
+	 * initialized.  Others have been implicated (gd).  Rather than trying
+	 * to catch all such offenders one by one, cover for all of them here.
+	 */
+	setlocale(LC_NUMERIC, "C");
+#endif
     }
 }
 
@@ -552,17 +548,19 @@ term_end_plot()
     } else {
 	multiplot_next();
     }
+
 #ifdef VMS
     if (opened_binary)
 	fflush_binary();
     else
 #endif /* VMS */
-
 	(void) fflush(gpoutfile);
 
 #ifdef USE_MOUSE
-    recalc_statusline();
-    update_ruler();
+    if (term->set_ruler) {
+	recalc_statusline();
+	update_ruler();
+    }
 #endif
 }
 
@@ -653,7 +651,7 @@ term_apply_lp_properties(struct lp_style_type *lp)
     /* linetype < 0 (e.g. LT_BACKGROUND, LT_NODRAW) means some special */
     /* category that will be handled directly by term->linetype().     */
     /* linetype > 0 is now redundant. It used to encode both a color   */
-    /* and a dash pattern.  Now we have separate mechanisms for those. */ 
+    /* and a dash pattern.  Now we have separate mechanisms for those. */
     if (LT_COLORFROMCOLUMN < lt && lt < 0)
 	(*term->linetype) (lt);
     else if (term->set_color == null_set_color) {
@@ -661,6 +659,12 @@ term_apply_lp_properties(struct lp_style_type *lp)
 	return;
     } else /* All normal lines will be solid unless a dashtype is given */
 	(*term->linetype) (LT_SOLID);
+
+    /* Version 5.3
+     * If the line is not wanted at all, setting dashtype and color can only hurt
+     */
+    if (lt == LT_NODRAW)
+	return;
 
     /* Apply dashtype or user-specified dash pattern, which may override  */
     /* the terminal-specific dot/dash pattern belonging to this linetype. */
@@ -752,7 +756,7 @@ term_check_multiplot_okay(TBOOLEAN f_interactive)
 
 void
 write_multiline(
-    unsigned int x, unsigned int y,
+    int x, int y,
     char *text,
     JUSTIFY hor,                /* horizontal ... */
     VERT_JUSTIFY vert,          /* ... and vertical just - text in hor direction despite angle */
@@ -973,7 +977,7 @@ do_arrow(
     int ey = (int)uey;
 
     struct termentry *t = term;
-    float len_tic = ((double) (t->h_tic + t->v_tic)) / 2.0;
+    double len_tic = ((double) (t->h_tic + t->v_tic)) / 2.0;
     /* average of tic sizes */
     /* (dx,dy) : vector from end to start */
     double dx = sx - ex;
@@ -983,7 +987,7 @@ do_arrow(
     int xm = 0, ym = 0;
     BoundingBox *clip_save;
 
-    /* The arrow shaft was clipped already in do_clip_arrow() but we still */
+    /* The arrow shaft was clipped already in draw_clip_arrow() but we still */
     /* need to clip the head here. */
     clip_save = clip_area;
     if (term->flags & TERM_CAN_CLIP)
@@ -1118,7 +1122,6 @@ do_arrow(
     clip_area = clip_save;
 }
 
-#ifdef EAM_OBJECTS
 /* Generic routine for drawing circles or circular arcs.          */
 /* If this feature proves useful, we can add a new terminal entry */
 /* point term->arc() to the API and let terminals either provide  */
@@ -1126,7 +1129,7 @@ do_arrow(
 
 void
 do_arc(
-    unsigned int cx, unsigned int cy, /* Center */
+    int cx, int cy, /* Center */
     double radius, /* Radius */
     double arc_start, double arc_end, /* Limits of arc in degress */
     int style, TBOOLEAN wedge)
@@ -1188,8 +1191,6 @@ do_arc(
 	draw_clip_polygon(segments+1, vertex);
     }
 }
-#endif /* EAM_OBJECTS */
-
 
 
 #define TERM_PROTO
@@ -1228,7 +1229,7 @@ null_justify_text(enum JUSTIFY just)
 }
 
 
-/* 
+/*
  * Deprecated terminal function (pre-version 3)
  */
 static int
@@ -1468,6 +1469,13 @@ change_term(const char *origname, int length)
 	length = 8;
     }
 #endif
+#ifdef HAVE_LIBGD
+    /* To allow "set term sixel" as short for "set term sixelgd" */
+    if (!strncmp(origname,"sixel",5)) {
+	name = "sixelgd";
+	length = 7;
+    }
+#endif
 
     for (i = 0; i < TERMCOUNT; i++) {
 	if (!strncmp(name, term_tbl[i].name, length)) {
@@ -1538,7 +1546,7 @@ void
 init_terminal()
 {
     char *term_name = DEFAULTTERM;
-#if (defined(MSDOS) && !defined(_WIN32)) || defined(SUN) || defined(X11)
+#if defined(__BEOS__) || defined(X11)
     char *env_term = NULL;      /* from TERM environment var */
 #endif
 #ifdef X11
@@ -1738,24 +1746,24 @@ test_term()
      * Textbox fill shows true size, surrounding box shows the generic estimate
      * used to reserve space during plot layout.
      */
-#ifdef EAM_BOXED_TEXT
     if (TRUE) {
 	struct text_label sample = EMPTY_LABELSTRUCT;
-	struct textbox_style save_opts = textbox_opts;
+	struct textbox_style save_opts = textbox_opts[0];
+	textbox_style *textbox = &textbox_opts[0];
 	sample.text = "12345678901234567890";
 	sample.pos = CENTRE;
-	sample.boxed = 1;
-	textbox_opts.opaque = TRUE;
-	textbox_opts.noborder = TRUE;
-	textbox_opts.fillcolor.type = TC_RGB;
-	textbox_opts.fillcolor.lt = 0xccccee;
+	sample.boxed = -1;
+	textbox->opaque = TRUE;
+	textbox->noborder = TRUE;
+	textbox->fillcolor.type = TC_RGB;
+	textbox->fillcolor.lt = 0xccccee;
 	/* disable extra space around text */
-	textbox_opts.xmargin = 0;
-	textbox_opts.ymargin = 0;
+	textbox->xmargin = 0;
+	textbox->ymargin = 0;
 
 	(*t->linetype) (LT_SOLID);
 	write_label(xmax_t/2, ymax_t/2, &sample);
-	textbox_opts = save_opts;
+	textbox_opts[0] = save_opts;
 
 	sample.boxed = 0;
 	sample.text = "true vs. estimated text dimensions";
@@ -1769,13 +1777,12 @@ test_term()
 	(*t->vector) (x0 + xmax_t / 2 - t->h_char * 10, y0 + ymax_t / 2 + t->v_char / 2);
 	closepath();
     }
-#endif
 
     /* Test for enhanced text */
     (*t->linetype) (LT_BLACK);
     if (t->flags & TERM_ENHANCED_TEXT) {
 	char *tmptext1 =   "Enhanced text:   {x@_{0}^{n+1}}";
-	char *tmptext2 = "&{Enhanced text:  }{/:Bold Bold}{/:Italic  Italic}";  
+	char *tmptext2 = "&{Enhanced text:  }{/:Bold Bold}{/:Italic  Italic}";
 	(*t->put_text) (x0 + xmax_t * 0.5, y0 + ymax_t * 0.40, tmptext1);
 	(*t->put_text) (x0 + xmax_t * 0.5, y0 + ymax_t * 0.35, tmptext2);
 	(*t->set_font)("");
@@ -1888,7 +1895,7 @@ test_term()
     y = y0 + yl;
 
     for (i=1; i<7; i++) {
-	(*t->linewidth) ((float)(i)); (*t->linetype)(LT_BLACK);
+	(*t->linewidth) ((double)(i)); (*t->linetype)(LT_BLACK);
 	(*t->move) (x, y); (*t->vector) (x+xl, y);
 	sprintf(label,"  lw %1d", i);
 	(*t->put_text) (x+xl, y, label);
@@ -1902,11 +1909,11 @@ test_term()
     yl = ymax_t / 25;
     x = x0 + xmax_t * .3;
     y = y0 + yl;
-    
+
     for (i=0; i<5; i++) {
  	(*t->linewidth) (1.0);
 	(*t->linetype) (LT_SOLID);
-	(*t->dashtype) (i, NULL); 
+	(*t->dashtype) (i, NULL);
 	(*t->set_color)(&black);
 	(*t->move) (x, y); (*t->vector) (x+xl, y);
 	sprintf(label,"  dt %1d", i+1);
@@ -1920,7 +1927,7 @@ test_term()
     y = y0;
     xl = xmax_t / 40;
     yl = ymax_t / 8;
-    (*t->linewidth) ((float)(1));
+    (*t->linewidth) (1.0);
     (*t->linetype)(LT_BLACK);
     (*t->justify_text) (CENTRE);
     (*t->put_text)(x+xl*7, y + yl+t->v_char*1.5, "pattern fill");
@@ -1981,183 +1988,6 @@ test_term()
 
     term_end_plot();
 }
-
-
-#ifdef VMS
-/* these are needed to modify terminal characteristics */
-# ifndef VWS_XMAX
-   /* avoid duplicate warning; VWS includes these */
-#  include <descrip.h>
-#  include <ssdef.h>
-# endif                         /* !VWS_MAX */
-# include <iodef.h>
-# include <ttdef.h>
-# include <tt2def.h>
-# include <dcdef.h>
-# include <stat.h>
-# include <fab.h>
-/* If you use WATCOM C or a very strict ANSI compiler, you may have to
- * delete or comment out the following 3 lines: */
-# ifndef TT2$M_DECCRT3          /* VT300 not defined as of VAXC v2.4 */
-#  define TT2$M_DECCRT3 0X80000000
-# endif
-static unsigned short chan;
-static int old_char_buf[3], cur_char_buf[3];
-$DESCRIPTOR(sysoutput_desc, "SYS$OUTPUT");
-
-/* Look first for decw$display (decterms do regis).  Determine if we
- * have a regis terminal and save terminal characteristics */
-char *
-vms_init()
-{
-    /* Save terminal characteristics in old_char_buf and
-       initialise cur_char_buf to current settings. */
-    int i;
-#ifdef X11
-    if (getenv("DECW$DISPLAY"))
-	return ("x11");
-#endif
-    atexit(vms_reset);
-    sys$assign(&sysoutput_desc, &chan, 0, 0);
-    sys$qiow(0, chan, IO$_SENSEMODE, 0, 0, 0, old_char_buf, 12, 0, 0, 0, 0);
-    for (i = 0; i < 3; ++i)
-	cur_char_buf[i] = old_char_buf[i];
-    sys$dassgn(chan);
-
-    /* Test if terminal is regis */
-    if ((cur_char_buf[2] & TT2$M_REGIS) == TT2$M_REGIS)
-	return ("regis");
-    return (NULL);
-}
-
-/* set terminal to original state */
-void
-vms_reset()
-{
-    int i;
-
-    sys$assign(&sysoutput_desc, &chan, 0, 0);
-    sys$qiow(0, chan, IO$_SETMODE, 0, 0, 0, old_char_buf, 12, 0, 0, 0, 0);
-    for (i = 0; i < 3; ++i)
-	cur_char_buf[i] = old_char_buf[i];
-    sys$dassgn(chan);
-}
-
-/* set terminal mode to tektronix */
-void
-term_mode_tek()
-{
-    long status;
-
-    if (gpoutfile != stdout)
-	return;                 /* don't modify if not stdout */
-    sys$assign(&sysoutput_desc, &chan, 0, 0);
-    cur_char_buf[0] = 0x004A0000 | DC$_TERM | (TT$_TEK401X << 8);
-    cur_char_buf[1] = (cur_char_buf[1] & 0x00FFFFFF) | 0x18000000;
-
-    cur_char_buf[1] &= ~TT$M_CRFILL;
-    cur_char_buf[1] &= ~TT$M_ESCAPE;
-    cur_char_buf[1] &= ~TT$M_HALFDUP;
-    cur_char_buf[1] &= ~TT$M_LFFILL;
-    cur_char_buf[1] &= ~TT$M_MECHFORM;
-    cur_char_buf[1] &= ~TT$M_NOBRDCST;
-    cur_char_buf[1] &= ~TT$M_NOECHO;
-    cur_char_buf[1] &= ~TT$M_READSYNC;
-    cur_char_buf[1] &= ~TT$M_REMOTE;
-    cur_char_buf[1] |= TT$M_LOWER;
-    cur_char_buf[1] |= TT$M_TTSYNC;
-    cur_char_buf[1] |= TT$M_WRAP;
-    cur_char_buf[1] &= ~TT$M_EIGHTBIT;
-    cur_char_buf[1] &= ~TT$M_MECHTAB;
-    cur_char_buf[1] &= ~TT$M_SCOPE;
-    cur_char_buf[1] |= TT$M_HOSTSYNC;
-
-    cur_char_buf[2] &= ~TT2$M_APP_KEYPAD;
-    cur_char_buf[2] &= ~TT2$M_BLOCK;
-    cur_char_buf[2] &= ~TT2$M_DECCRT3;
-    cur_char_buf[2] &= ~TT2$M_LOCALECHO;
-    cur_char_buf[2] &= ~TT2$M_PASTHRU;
-    cur_char_buf[2] &= ~TT2$M_REGIS;
-    cur_char_buf[2] &= ~TT2$M_SIXEL;
-    cur_char_buf[2] |= TT2$M_BRDCSTMBX;
-    cur_char_buf[2] |= TT2$M_EDITING;
-    cur_char_buf[2] |= TT2$M_INSERT;
-    cur_char_buf[2] |= TT2$M_PRINTER;
-    cur_char_buf[2] &= ~TT2$M_ANSICRT;
-    cur_char_buf[2] &= ~TT2$M_AVO;
-    cur_char_buf[2] &= ~TT2$M_DECCRT;
-    cur_char_buf[2] &= ~TT2$M_DECCRT2;
-    cur_char_buf[2] &= ~TT2$M_DRCS;
-    cur_char_buf[2] &= ~TT2$M_EDIT;
-    cur_char_buf[2] |= TT2$M_FALLBACK;
-
-    status = sys$qiow(0, chan, IO$_SETMODE, 0, 0, 0, cur_char_buf, 12, 0, 0, 0, 0);
-    if (status == SS$_BADPARAM) {
-	/* terminal fallback utility not installed on system */
-	cur_char_buf[2] &= ~TT2$M_FALLBACK;
-	sys$qiow(0, chan, IO$_SETMODE, 0, 0, 0, cur_char_buf, 12, 0, 0, 0, 0);
-    } else {
-	if (status != SS$_NORMAL)
-	    lib$signal(status, 0, 0);
-    }
-    sys$dassgn(chan);
-}
-
-/* set terminal mode back to native */
-void
-term_mode_native()
-{
-    int i;
-
-    if (gpoutfile != stdout)
-	return;                 /* don't modify if not stdout */
-    sys$assign(&sysoutput_desc, &chan, 0, 0);
-    sys$qiow(0, chan, IO$_SETMODE, 0, 0, 0, old_char_buf, 12, 0, 0, 0, 0);
-    for (i = 0; i < 3; ++i)
-	cur_char_buf[i] = old_char_buf[i];
-    sys$dassgn(chan);
-}
-
-/* set terminal mode pasthru */
-void
-term_pasthru()
-{
-    if (gpoutfile != stdout)
-	return;                 /* don't modify if not stdout */
-    sys$assign(&sysoutput_desc, &chan, 0, 0);
-    cur_char_buf[2] |= TT2$M_PASTHRU;
-    sys$qiow(0, chan, IO$_SETMODE, 0, 0, 0, cur_char_buf, 12, 0, 0, 0, 0);
-    sys$dassgn(chan);
-}
-
-/* set terminal mode nopasthru */
-void
-term_nopasthru()
-{
-    if (gpoutfile != stdout)
-	return;                 /* don't modify if not stdout */
-    sys$assign(&sysoutput_desc, &chan, 0, 0);
-    cur_char_buf[2] &= ~TT2$M_PASTHRU;
-    sys$qiow(0, chan, IO$_SETMODE, 0, 0, 0, cur_char_buf, 12, 0, 0, 0, 0);
-    sys$dassgn(chan);
-}
-
-void
-fflush_binary()
-{
-    typedef short int INT16;    /* signed 16-bit integers */
-    INT16 k;            /* loop index */
-
-    if (gpoutfile != stdout) {
-	/* Stupid VMS fflush() raises error and loses last data block
-	   unless it is full for a fixed-length record binary file.
-	   Pad it here with NULL characters. */
-	for (k = (INT16) ((*gpoutfile)->_cnt); k > 0; --k)
-	    putc('\0', gpoutfile);
-	fflush(gpoutfile);
-    }
-}
-#endif /* VMS */
 
 /*
  * This is an abstraction of the enhanced text mode originally written
@@ -2252,7 +2082,7 @@ enhanced_recursion(
     }
 
     while (*p) {
-	float shift;
+	double shift;
 
 	/*
 	 * EAM Jun 2009 - treating bytes one at a time does not work for multibyte
@@ -2308,7 +2138,7 @@ enhanced_recursion(
 		const char *end_of_fontname = NULL;
 		char *localfontname = NULL;
 		char ch;
-		float f = fontsize, ovp;
+		double f = fontsize, ovp;
 
 		/* Mar 2014 - this will hold "fontfamily{:Italic}{:Bold}" */
 		char *styledfontname = NULL;
@@ -2323,14 +2153,14 @@ enhanced_recursion(
 		/* get vertical offset (if present) for overprinted text */
 		if (overprint == 2) {
 		    char *end;
-		    ovp = (float)strtod(p,&end);
+		    ovp = strtod(p,&end);
 		    p = end;
 		    if (term->flags & TERM_IS_POSTSCRIPT)
 			base = ovp*f;
 		    else
 			base += ovp*f;
 		}
-		--p;            /* HBB 20001021: bug fix: 10^{2} broken */
+		--p;
 
 		if (*++p == '/') {
 		    /* then parse a fontname, optional fontsize */
@@ -2341,16 +2171,36 @@ enhanced_recursion(
 			    ;   /* do nothing */
 		    }
 		    start_of_fontname = p;
-		    while ((ch = *p) > ' ' && ch != '=' && ch != '*' && ch != '}' && ch != ':')
+
+		    /* Allow font name to be in quotes.
+		     * This makes it possible to handle font names containing spaces.
+		     */
+		    if (*p == '\'' || *p == '"') {
 			++p;
-		    end_of_fontname = p;
+			while (*p != '\0' && *p != '}' && *p != *start_of_fontname)
+			    ++p;
+			if (*p != *start_of_fontname) {
+			    int_warn(NO_CARET, "cannot interpret font name %s", start_of_fontname);
+			    p = start_of_fontname;
+			}
+			start_of_fontname++;
+			end_of_fontname = p++;
+			ch = *p;
+		    } else {
+
+		    /* Normal unquoted font name */
+			while ((ch = *p) > ' ' && ch != '=' && ch != '*' && ch != '}' && ch != ':')
+			    ++p;
+			end_of_fontname = p;
+		    }
+
 		    do {
 			if (ch == '=') {
 			    /* get optional font size */
 			    char *end;
 			    p++;
 			    ENH_DEBUG(("Calling strtod(\"%s\") ...", p));
-			    f = (float)strtod(p, &end);
+			    f = strtod(p, &end);
 			    p = end;
 			    ENH_DEBUG(("Returned %.1f and \"%s\"\n", f, p));
 
@@ -2365,7 +2215,7 @@ enhanced_recursion(
 			    char *end;
 			    p++;
 			    ENH_DEBUG(("Calling strtod(\"%s\") ...", p));
-			    f = (float)strtod(p, &end);
+			    f = strtod(p, &end);
 			    p = end;
 			    ENH_DEBUG(("Returned %.1f and \"%s\"\n", f, p));
 
@@ -2480,14 +2330,46 @@ enhanced_recursion(
 	    /*}}}*/
 
 	case '\\'  :
-	    /*{{{  Enhanced mode always uses \xyz as an octal character representation
-		   but each terminal type must give us the actual output format wanted.
-		   pdf.trm wants the raw character code, which is why we use strtol();
-		   most other terminal types want some variant of "\\%o". */
+	    /*{{{  various types of escape sequences, some context-dependent */
+	    (term->enhanced_open)(fontname, fontsize, base, widthflag, showflag, overprint);
+
+	    /*     Unicode represented as \U+hhhhh where hhhhh is hexadecimal code point.
+	     *     For UTF-8 encoding we translate hhhhh to a UTF-8 byte sequence and
+	     *     output the bytes one by one.
+	     */
+	    if (p[1] == 'U' && p[2] == '+') {
+		if (encoding == S_ENC_UTF8) {
+		    uint32_t codepoint;
+		    unsigned char utf8char[8];
+		    int i, length;
+
+		    sscanf(&(p[3]), "%5x", &codepoint);
+		    length = ucs4toutf8(codepoint, utf8char);
+		    p += (codepoint > 0xFFFF) ? 7 : 6;
+		    for (i=0; i<length; i++)
+			(term->enhanced_writec)(utf8char[i]);
+		    break;
+		}
+
+	    /*     FIXME: non-utf8 environments not yet supported.
+	     *     Note that some terminals may have an alternative way to handle unicode
+	     *     escape sequences that is not dependent on encoding.
+	     *     E.g. svg and html output could convert to xml sequences &#xhhhh;
+	     *     For these cases we must retain the leading backslash so that the
+	     *     unicode escape sequence can be recognized by the terminal driver.
+	     */
+		(term->enhanced_writec)(p[0]);
+		break;
+	    }
+
+	    /* Enhanced mode always uses \xyz as an octal character representation
+	     * but each terminal type must give us the actual output format wanted.
+	     * pdf.trm wants the raw character code, which is why we use strtol();
+	     * most other terminal types want some variant of "\\%o".
+	     */
 	    if (p[1] >= '0' && p[1] <= '7') {
 		char *e, escape[16], octal[4] = {'\0','\0','\0','\0'};
 
-		(term->enhanced_open)(fontname, fontsize, base, widthflag, showflag, overprint);
 		octal[0] = *(++p);
 		if (p[1] >= '0' && p[1] <= '7') {
 		    octal[1] = *(++p);
@@ -2499,24 +2381,25 @@ enhanced_recursion(
 		    (term->enhanced_writec)(*e);
 		}
 		break;
-	    /* This was the original (prior to version 4) enhanced text code specific */
-	    /* to the reserved characters of PostScript.  Some of it was mis-applied  */
-	    /* to other terminal types until fixed in Mar 2012.                       */
-	    } else if (term->flags & TERM_IS_POSTSCRIPT) {
+	    }
+
+	    /* This was the original (prior to version 4) enhanced text code specific
+	     * to the reserved characters of PostScript.
+	     */
+	    if (term->flags & TERM_IS_POSTSCRIPT) {
 		if (p[1]=='\\' || p[1]=='(' || p[1]==')') {
-		    (term->enhanced_open)(fontname, fontsize, base, widthflag, showflag, overprint);
 		    (term->enhanced_writec)('\\');
 		} else if (strchr("^_@&~{}",p[1]) == NULL) {
-		    (term->enhanced_open)(fontname, fontsize, base, widthflag, showflag, overprint);
 		    (term->enhanced_writec)('\\');
 		    (term->enhanced_writec)('\\');
 		    break;
 		}
 	    }
+
+	    /* Step past the backslash character in the input stream */
 	    ++p;
 
-	    /* HBB 20030122: Avoid broken output if there's a \
-	     * exactly at the end of the line */
+	    /* HBB: Avoid broken output if there's a \ exactly at the end of the line */
 	    if (*p == '\0') {
 		int_warn(NO_CARET, "enhanced text parser -- spurious backslash");
 		break;
@@ -2525,13 +2408,15 @@ enhanced_recursion(
 	    /* SVG requires an escaped '&' to be passed as something else */
 	    /* FIXME: terminal-dependent code does not belong here */
 	    if (*p == '&' && encoding == S_ENC_DEFAULT && !strcmp(term->name, "svg")) {
-		(term->enhanced_open)(fontname, fontsize, base, widthflag, showflag, overprint);
 		(term->enhanced_writec)('\376');
 		break;
 	    }
 
-	    /* just go and print it (fall into the 'default' case) */
+	    /* print the character following the backslash */
+	    (term->enhanced_writec)(*p);
+	    break;
 	    /*}}}*/
+
 	default:
 	    /*{{{  print it */
 	    (term->enhanced_open)(fontname, fontsize, base, widthflag, showflag, overprint);
@@ -2597,9 +2482,10 @@ enh_err_check(const char *str)
  * developed later they can be slotted into this one call site.
  */
 int
-estimate_strlen(char *text)
+estimate_strlen(const char *text)
 {
-int len;
+    int len;
+    char *s;
 
     if ((term->flags & TERM_IS_LATEX))
 	len = strlen_tex(text);
@@ -2611,9 +2497,17 @@ int len;
 	term = &ENHest;
 	term->put_text(0,0,text);
 	len = term->xmax;
-	FPRINTF((stderr,"Estimating length %d height %g for enhanced text string \"%s\"\n",
-		len, (double)(term->ymax)/10., text));
 	term = tsave;
+	/* Assume that unicode escape sequences  \U+xxxx will generate a single character */
+	/* ENHest_plaintext is filled in by the put_text() call to estimate.trm           */
+	s = ENHest_plaintext;
+	while ((s = contains_unicode(s)) != NULL) {
+	    len -= 6;
+	    s += 6;
+	}
+	FPRINTF((stderr,"Estimating length %d height %g for enhanced text \"%s\"",
+		len, (double)(term->ymax)/10., text));
+	FPRINTF((stderr,"  plain text \"%s\"\n", ENHest_plaintext));
     } else if (encoding == S_ENC_UTF8)
 	len = strwidth_utf8(text);
     else
@@ -2623,7 +2517,7 @@ int len;
     return len;
 }
 
-/* 
+/*
  * Use estimate.trm to mock up a non-enhanced approximation of the
  * original string.
  */
@@ -2639,11 +2533,6 @@ estimate_plaintext(char *enhancedtext)
 void
 ignore_enhanced(TBOOLEAN flag)
 {
-    /* Force a return to the default font */
-    if (flag && !ignore_enhanced_text) {
-	ignore_enhanced_text = TRUE;
-	term->set_font("");
-    }
     ignore_enhanced_text = flag;
 }
 
@@ -2940,7 +2829,7 @@ strlen_tex(const char *str)
 	switch (*s) {
 	case '[':
 		while (*s && *s != ']') s++;
-		s++;
+		if (*s) s++;
 		break;
 	case '\\':
 		s++;
@@ -2967,7 +2856,7 @@ strlen_tex(const char *str)
 
 /* The check for asynchronous events such as hotkeys and mouse clicks is
  * normally done in term->waitforinput() while waiting for the next input
- * from the command line.  If input is currently coming from a file or 
+ * from the command line.  If input is currently coming from a file or
  * pipe instead, as with a "load" command, then this path would not be
  * triggered automatically and these events would back up until input
  * returned to the command line.  These code paths can explicitly call
@@ -2994,4 +2883,29 @@ check_for_mouse_events()
 	bail_to_command_line();	/* return to prompt */
     }
 #endif
+}
+
+char *
+escape_reserved_chars(const char *str, const char *reserved)
+{
+    int i;
+    char *escaped_str;
+    int newsize = strlen(str);
+
+	/* Count number of reserved characters */
+	for (i = 0; str[i] != '\0'; i++) {
+	    if (strchr(reserved, str[i]))
+		newsize++;
+	}
+	escaped_str = gp_alloc(newsize + 1, NULL);
+
+	/* Prefix each reserved character with a backslash */
+	for (i = 0, newsize = 0; str[i] != '\0'; i++) {
+	    if (strchr(reserved, str[i]))
+		escaped_str[newsize++] = '\\';
+	    escaped_str[newsize++] = str[i];
+	}
+	escaped_str[newsize] = '\0';
+
+    return escaped_str;
 }

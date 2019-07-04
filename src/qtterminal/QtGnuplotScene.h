@@ -44,8 +44,6 @@
 #ifndef QTGNUPLOTSCENE_H
 #define QTGNUPLOTSCENE_H
 
-#define EAM_BOXED_TEXT 1
-
 #include "QtGnuplotEvent.h"
 #include "QtGnuplotItems.h"
 
@@ -70,6 +68,7 @@ public:
 	virtual void mouseReleaseEvent(QGraphicsSceneMouseEvent* event);
 	virtual void wheelEvent(QGraphicsSceneWheelEvent* event);
 	virtual void keyPressEvent(QKeyEvent* event);
+	virtual void keyReleaseEvent(QKeyEvent* event);
 	void processEvent(QtGnuplotEventType type, QDataStream& in);
 
 private:
@@ -130,8 +129,10 @@ private:
 	QtGnuplotEnhanced* m_enhanced;  // Current enhanced text block
 	QList<QtGnuplotKeybox> m_key_boxes;
 	QString m_currentHypertext;
+	QString m_selectedHypertext;
 	QList<QGraphicsItem*> m_hypertextList;
 	QGraphicsPixmapItem* m_hyperimage;
+	QFont m_hypertextFont;
 
 	// Axis scales
 	bool   m_axisValid[5];	// x, y, x2, y2, z (indicates 3D plot)

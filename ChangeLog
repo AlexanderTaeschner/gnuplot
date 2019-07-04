@@ -1,3 +1,367 @@
+2018-08-21  Ethan A Merritt  <merritt@u.washington.edu>
+
+	* src/plot3d.c:  Allow dgrid3d re-gridding to include palette color
+	information from a separate input data column, so long as the dgrid3d
+	option is not "splines".
+
+2018-08-11  Ethan A Merritt  <merritt@u.washington.edu>
+
+	* term/linux.trm term/vgagl.trm term/linux-vgagl.trm:
+	Remove linux and vgagl terminals and configuration option 
+	--with-linux-vga.   Add a place holder linux-vgagl.trm that provides a
+	documentation section recommending yaft + sixel graphics as an 
+	alternative way to run gnuplot from the linux console.
+
+2018-07-13  Ethan A Merritt  <merritt@u.washington.edu>
+
+	* src/gp_types.h src/plot3d.c src/pm3d.c:  Allow per-plot fillcolor
+	pm3d surfaces "splot ... with pm3d fillcolor <rgbvalue>".
+
+2018-07-12  Ethan A Merritt  <merritt@u.washington.edu>
+
+	* src/pm3d.c src/color.c:  Remove undocumented EXPERIMENTAL option
+	PM3D_CONTOURS.  There are serious problems with the approach such
+	that it is probably no useful as a starting point for coding
+	solid-fill contours.
+
+2018-07-12  Ethan A Merritt  <merritt@u.washington.edu>
+
+	* configure.ac src/color.c src/color.h src/pm3d.c:
+
+	Remove support for compile option EXTENDED_COLOR_SPECS.
+	This was used only by vgagl.trm but required maintaining a separate
+	code path for coloring pm3d quadrangles for all terminals.  This
+	alternative code path did not know about new pm3d color options and
+	may no longer work at all.  Removing the conditional code breaks
+	vgagl.trm, which can be fixed later.
+
+2018-06-09  Ethan A Merritt  <merritt@u.washington.edu>
+
+	* src/gadgets.c (draw_clip_arrow) term/lua.trm term/lua/gnuplot-tikz.lua
+
+	Some terminals that provide a private term->arrow function were
+	adversely affected by addition of flag HEADS_ONLY in commit ad80fe530.
+	
+	This commit does two things.
+	1) It teaches the tikz terminal about HEADS_ONLY so that the short
+	   vector variant works correctly.
+	2) The core routine draw_clip_arrow only uses the 2-step drawing process
+	   for vectors that are short (for a rather ad hoc definition of "short").
+
+2018-05-16  Miroslav Sulc <msulc@users.sourceforge.net>
+
+	* src/misc.c: Support ARGC/ARGV parameter convention for "call".
+	I.e. string variables ARG1 ARG2 ... are also accessible as
+	ARGV[1] ARGV[2] ... ARGV[ARGC].
+
+2018-04-28  Ethan A Merritt  <merritt@u.washington.edu>
+
+	* configure.ac src/term.h:  ./configure --without-tektronix
+	to disable support for various 1970s/80s era terminal emulators.
+	Terminal types included (or not):
+	  tek410x tek40 vttek xterm kc_tek40 km_tek40 selanar sixeltek bitgraph
+	Notes:
+	To actually include some of these it is also necessary to enable
+	the generic bitmap code:
+	  ./configure --with-tektronix --with-bitmap-terminals
+	Unless for some reason you really need to communicate using tektronix
+	terminal graphics protocol, the prefered option is to use a terminal
+	emulator that supports the vt100 series sixel graphics protocol and
+	select the sixelgd terminal in gnuplot.  You do not need the tektronix
+	terminal code for this.
+
+2018-04-16  Miroslav Sulc <msulc@users.sourceforge.net>
+
+	* src/internal.c (f_div cmplx_divide):  Avoid overflow during complex
+	division (actually all floating point division).
+	Use formula 5.4.5 from Numerical Recipes 2nd Edition to prevent
+	avoidable overflow, underflow, and/or loss of precision.
+	E.g. the result of 1.e200/1.e200 is 1.0 rather than NaN, and
+	1/1.e200 is 1.e-200 rather than 0.
+
+2018-04-15  Miroslav Sulc <msulc@users.sourceforge.net>
+
+	* src/eval.c src/specfun.c src/specfun.h:
+
+	Add function besin(n,x), modified Bessel function of order n for
+	integer n.  The code is based on that for iv(v, x) as implemented in
+	scipy (from numpy). Accuracy was tested by comparing output from
+	scipy and gnuplot.  The underlying function iv(v,x) accepts fractional v
+	but does not converge well for non-integer values.  Thus besin(n,x)
+	limits the domain to integer n.
+
+2018-04-06  Miroslav Sulc <msulc@users.sourceforge.net>
+
+	* src/eval.c src/standard.c src/standard.h:
+
+	Add functions besi0(x) besi1(x), modified Bessel functions of order
+	0 and 1.  The code is adapted from the cephes library
+	 http://www.netlib.org/cephes/index.html
+	claimed accuracy is 6e-16 for besi0()  2e-15 for besi1() using
+	IEEE double precision floating point.
+
+2018-02-11  Marko Karjalainen  <markokarjalainen@kolumbus.fi>
+
+	* term/js/gnuplot_svg.js:  Revise javascript support for mouse and
+	keyboard interaction with svg output
+
+	Mouse:
+	   left click toggle mouse tracking, drag plot
+	   right click reset mouse zoom and pan
+	   wheel zoom/unzoom
+	Keyboard:
+	   arrows (event may be stolen by browser)
+	   +/- zoom/unzoom
+	   Home reset mouse zoom and pan
+	   # toggle grid
+
+	Keyboard events are not passed to elements included by <embed src=foo>.
+	Keyboard events must be forwarded separately to elements included by
+	<object data=foo>.
+
+2018-02-08  Ethan A Merritt  <merritt@u.washington.edu>
+
+	* term/svg.trm:
+	The combination "set term svg mousing background 'black'" set the
+	background to white instead.
+
+2018-02-08  Bastian Maerkisch  <bmaerkisch@web.de>
+
+	* src/win/winmain.c|h (main, WinOpenConsole)
+	term/caca.trm (CACA_init_display):  Only try to set a console event
+	handler if a console is open.  Otherwise the call would not succeed on
+	some Windows versions.
+
+	* term/caca.trm:  Re-evaluate the console's codepage on every plot.
+
+	* term/caca.trm (CACA_text):  libcaca seems to leave the Windows
+	console in wide character mode.  This results in an extra space
+	printed with every character.  We now explicitly reset text mode.
+
+2018-02-08  Bastian Maerkisch  <bmaerkisch@web.de>
+
+	* src/command.c src/datablock.c|h:  This patch splits lines containing
+	newline characters into multiple lines when the target of a print
+	command is a datablock.  That way we can e.g. get a datablock with
+	names of files on Windows:
+		set print $d; print system("dir /a-d /b *"); unset print;
+		print |$d|
+	Patch #754
+
+2018-01-30  Ethan A Merritt  <merritt@u.washington.edu>
+
+	* term/canvas.trm:  Always apply term->set_color(), including optional
+	alpha channel, to both strokeStyle and fillStyle.  This allows the
+	canvas terminal to honor RGBA colors for points and lines as well as
+	for area fill. Other terminals got this fix way back in version 4.6.
+	This change does not affect the javascript support routines so there
+	should be no backward-compatability issues.
+	Bug #2013
+
+2018-01-26  Ethan A Merritt  <merritt@u.washington.edu>
+
+	* src/eval.* src/internal.c src/plot.c src/set.c src/show.c
+	src/standard.c src/tables.* src/unset.c demo/overflow.dem:
+
+	Overflow handling for 64-bit integer arithmetic
+
+	Syntax:
+	      set overflow {float | NaN | undefined}
+	      unset overflow
+
+	Gnuplot now supports 64-bit integer arithmetic.
+	This means that for values from 2^53 to 2^63 (roughly 10^16 to 10^19)
+	integer evaluation preserves more precision than evaluation using
+	IEEE 754 floating point arithmetic.  However unlike the IEEE floating
+	point representation, which sacrifices precision to span a total range
+	of roughly [-10^307 : 10^307], integer operations that result in values
+	outside the range [-2^63 : 2^63] overflow.  The 'set overflow' command
+	lets you control what happens in case of overflow.
+
+	`set overflow` is the same as `set overflow float`. It causes the
+	result to be returned as a real number rather than as an integer.
+	This is the default.
+
+	The command `unset overflow` causes integer arithmetic overflow to be
+	ignored. No error is shown.  You may want this if your platform allows
+	only 32-bit integer arithmetic and you want to approximate the behaviour
+	of gnuplot versions prior to 5.3.
+
+	The `reset` command does not affect the state of overflow handling.
+
+	Earlier gnuplot versions were limited to 32-bit arithmetic and ignored
+	integer overflow.  Note, however, that some built-in operators did not
+	use integer arithemetic at all, even when given integer arguments. This
+	included the exponentiation operator N**M and the summation operator
+	(see `summation`).  These operations now return an integer value when
+	given integer arguments, making them potentially susceptible to overflow
+	and thus affected by the state of `set overflow`.
+
+	set overflow float
+	------------------
+	If an integer arithmetic expression overflows the limiting range,
+	[-2^63 : 2^63] for 64-bit integers, the result is returned as a
+	floating point value instead.  This is not treated as an error.
+	Example:
+	      gnuplot> set overflow float
+	      gnuplot> A = 2**62 - 1;  print A, A+A, A+A+A
+	      4611686018427387903 9223372036854775806 1.38350580552822e+19
+
+	set overflow NaN
+	----------------
+	If an integer arithmetic expression overflows the limiting range,
+	[-2^63 : 2^63] for 64-bit integers, the result is returned as NaN
+	(Not a Number).  This is not treated as an error.
+	Example:
+	      gnuplot> set overflow NaN
+	      gnuplot> print 10**18, 10**19
+	      1000000000000000000 NaN
+
+	set overflow undefined
+	----------------------
+	If an integer arithmetic expression overflows the limiting range,
+	[-2^63 : 2^63] for 64-bit integers, the result is undefined.
+	This is treated as an error.
+
+2018-01-26  Ethan A Merritt  <merritt@u.washington.edu>
+
+	* configure.ac src/datafile.c src/eval.* src/fit.c src/gp_types.h 
+	src/internal.c src/misc.c src/parse.* src/save.c src/set.c src/show.c 
+	src/standard.c src/stdfn.h src/syscfg.h src/util.c term/canvas.trm 
+	term/svg.trm demo/int64.dem docs/gnuplot.doc:
+
+	Add support for 64-bit integer arithmetic
+
+	Add 64-bit integer support throughout gnuplot's internal expression
+	evaluation routines.  All arithmetic and logical operations now use
+	64-bit arithmetic if the platform supports it.  INTGR variables are now
+	typedef intgr_t, which is either int64_t (if the platform supports it)
+	or int.
+
+	Arithmetic operations on integers return INTGR if possible
+	(this is a CHANGE).  E.g.  The factorial operator returns an integer
+	when N! is sufficiently small (N <= 20 for 64-bit integers).
+	It returns a floating point approximation for larger values of N.
+
+2018-01-11  Ulrich Müller  <udalricus@users.sf.net>
+
+	* configure.ac src/term.h:  Configuration option  --with-regis
+	to include support for ReGIS terminal driver
+
+2018-01-10  Ethan A Merritt  <merritt@u.washington.edu>
+
+	* src/time.c (xstrftime) internal.c (f_strftime):  Protect against
+	buffer overflow from user-supplied time format string.  E.g.
+	    print time(0,"%100tH%D")
+	Bug #2009
+
+2018-01-05  Ethan A Merritt  <merritt@u.washington.edu>
+
+	* src/history.c:  If ./configure --disable-history-file or
+	--without-readline then do not try to build the routine that reads a
+	history file.  Whether --without-readline should really disable
+	history is another question, but that is a configuration issue not a
+	compile issue.
+	Bug #2008
+
+2017-12-29  Ethan A Merritt  <merritt@u.washington.edu>
+
+	* src/gadgets.* src/graphics.c src/save.c src/set.c src/show.c
+	src/unset.c:   New command "set clip radial" for polar plot with lines
+
+	Radial clipping to the bounding circle of a polar plot still depends on
+	the existing criteria "set clip {one|two}".
+	   set polar; set rrange [0:RMAX]
+	   set clip two; set clip radial
+	   plot $FOO with lines
+	If two successive points in $FOO are outside the bounding circle
+	(R > RMAX) a clipped portion of the line between them will be drawn.
+	If 'unset clip two' no portion of this line will be drawn.
+	
+	New routine draw_polar_clip_line() used for "plot ... with lines"
+	in polar mode. Other possible uses are polar plots with vectors,
+	impulses, polygons.
+
+2017-12-28  Rin Okuyama <rokuyama@rk.phys.keio.ac.jp>
+
+	* configure.ac src/readline.* src/term.c src/qtterminal/qt_term.cpp
+	src/wxterminal/wxt_gui.* term/x11.trm:
+	Gnuplot does not suspend immediately by Control-z when it is configured
+	--with-readline=gnu; suspension is triggered by a subsequent input
+	character.
+
+	When SIGTSTP is received, the signal handler of readline sets a flag
+	and just returns. Routines of readline check this flag to invoke the
+	real handler to suspend. Since we replace rl_getc_function by our own
+	routine to catch input from mouse, we should also check this flag to
+	invoke the real handler. Othewise, we cannot suspend until next time
+	routines of readline are used.
+
+	Unfortunately, there is no portable ways to invoke the real handler of
+	readline at the moment. We need to use its internal routine. libreadline
+	will implement a public function for this purpose in a future release.
+
+	EAM: Original patch included the wrapper code directly in x11.trm;
+	I moved it into a separate routine wrap_readline_signal_handler()
+	so that it can be shared by other gnuplot terminals.
+	Bug #2002
+
+2017-12-26  Bastian Maerkisch  <bmaerkisch@web.de>
+
+	* src/Makefile.am config/mingw/Makefile config/msvc/Makefile:
+	Generation of the timestamp relied on the latest date in the ChangeLog.
+	This may no longer be correct.  Instead, we now query git for the last
+	commit date.  Only works for development builds from a git checkout, but
+	for release builds the date is hard-coded in src/version.c.
+
+2017-12-03  Bastian Maerkisch  <bmaerkisch@web.de>
+
+	* .gitattributes:  ChangeLogs are prone to merge errors.  The GNU tool
+	 git-merge-changelog has been developed to avoid that and is likely
+	 available in most distributions.  Caveat is that git committers now
+	 need it to be installed and configured, see e.g.,
+	 https://gnu.wildebeest.org/blog/mjw/2012/03/16/automagically-merging-changelog-files-with-mercurial-or-git/
+
+2017-12-04  Bastian Maerkisch  <bmaerkisch@web.de>
+
+	* term/caca.trm (CACA_text):  Test for input redirection.  Resolves
+	hang with slang/ncurses drivers in 
+	    gnuplot -e "load 'simple.dem'" < /bin/true
+
+2017-12-03  Bastian Maerkisch  <bmaerkisch@web.de>
+
+	* term/caca.trm:  Add an emacs type modeline.
+
+2017-11-25  Bastian Maerkisch  <bmaerkisch@web.de>
+
+	* .gitattributes src/os2/4allterm.cmd:  Enforce EOL style or treatment
+	as binary for certain file types.
+
+2017-11-24  Bastian Maerkisch  <bmaerkisch@web.de>
+
+	* term/caca.trm:  The raw and null libcaca drivers don't do anything
+	useful for us.  So don't include them in the list of available drivers
+	shown to the user.
+
+	* term/caca.trm:  Various range and null pointer checks to avoid
+	segfaults when using the raw and null drivers.  Still these won't
+	produce any useful output.
+
+	* term/caca.trm (CACA_init_display):  On Windows, disable the
+	console's quick edit mode to directly enable mouse interaction.
+
+	* term/caca.trm (CACA_process_events):  Failed to change internal
+	canvas size on window resize.  Bugfix.
+
+	* term/caca.trm (CACA_waitforinput):  Correct the check if the caca
+	driver window was closed.  This bug would cause gnuplot to exit on
+	the first keypress after closing the window.
+	Bugfix.
+
+	* term/caca.trm:  Simple bold / italic font support. libcaca supports
+	theses attributes currently only for ncurses, html, html3, bbfr, and
+	troff.
+
 2017-11-15  Ethan A Merritt  <merritt@u.washington.edu>
 
 	* src/gadgets.h src/graphics.c src/graphics.h src/set.c demo/3DBox.dem:
@@ -845,7 +1209,7 @@
 
 2017-07-16  Ethan A Merritt  <merritt@u.washington.edu>
 
- 	* config/config.cyg config/config.mgw config/config.nt config/config.os2
+	* config/config.cyg config/config.mgw config/config.nt config/config.os2
 	config/config.oww configure.ac src/internal.c term/post.trm:
 	snprintf() is now required.  Remove vestigial tests for HAVE_SNPRINTF.
 

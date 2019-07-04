@@ -54,9 +54,6 @@
  * SECOND_X_AXIS = FIRST_X_AXIS + SECOND_AXES
  * FIRST_X_AXIS & SECOND_AXES == 0
  */
-#ifndef MAX_PARALLEL_AXES
-# define MAX_PARALLEL_AXES MAXDATACOLS-1
-#endif
 
 typedef enum AXIS_INDEX {
     NO_AXIS = -2,
@@ -76,7 +73,7 @@ typedef enum AXIS_INDEX {
     T_AXIS,
     U_AXIS,
     V_AXIS,		/* Last index into axis_array[] */
-    PARALLEL_AXES,	/* Parallel axis data is allocated dynamically */
+    PARALLEL_AXES,	/* Parallel axis structures are allocated dynamically */
     THETA_index = 1234,	/* Used to identify THETA_AXIS */
 
     AXIS_ARRAY_SIZE = PARALLEL_AXES
@@ -254,6 +251,7 @@ typedef struct axis {
     text_label label;		/* label string and position offsets */
     TBOOLEAN manual_justify;	/* override automatic justification */
     lp_style_type *zeroaxis;	/* usually points to default_axis_zeroaxis */
+    double paxis_x;		/* x coordinate of parallel axis */
 } AXIS;
 
 #define DEFAULT_AXIS_TICDEF {TIC_COMPUTED, NULL, {TC_DEFAULT, 0, 0.0}, {NULL, {0.,0.,0.}, FALSE},  { character, character, character, 0., 0., 0. }, FALSE, TRUE, FALSE }
@@ -308,8 +306,8 @@ extern AXIS *shadow_axis_array;
 extern const AXIS_DEFAULTS axis_defaults[AXIS_ARRAY_SIZE];
 extern const AXIS default_axis_state;
 
-/* EAM DEBUG - Dynamic allocation of parallel axes. */
-extern AXIS *parallel_axis;
+/* Dynamic allocation of parallel axis structures */
+extern AXIS *parallel_axis_array;
 extern int num_parallel_axes;
 
 /* A parsing table for mapping axis names into axis indices. For use
@@ -341,6 +339,9 @@ extern int grid_layer;
 
 /* Whether to draw the axis tic labels and tic marks in front of everything else */
 extern TBOOLEAN grid_tics_in_front;
+
+/* Whether to draw vertical grid lines in 3D */
+extern TBOOLEAN grid_vertical_lines;
 
 /* Whether or not to draw a separate polar axis in polar mode */
 extern TBOOLEAN raxis;
@@ -395,38 +396,6 @@ extern struct axis THETA_AXIS;
 #define axis_mapback(axis, pos) \
     (((double)(pos) - (axis)->term_lower)/(axis)->term_scale + (axis)->min)
 
-
-/* April 2015:  I'm not 100% sure, but I believe there is no longer
- * any need to treat 2D and 3D axis initialization differently
- */
-#define AXIS_INIT3D(axis, islog_override, infinite) \
-        axis_init((&axis_array[axis]), infinite)
-
-#define AXIS_INIT2D(axis, infinite) \
-        axis_init((&axis_array[axis]), infinite)
-
-/* AXIS_INIT2D_REFRESH and AXIS_UPDATE2D_REFRESH(axis) are for volatile data */
-#define AXIS_INIT2D_REFRESH(axis, infinite)				\
-do {									\
-    AXIS *this = axis_array + axis;					\
-									\
-    this->autoscale = this->set_autoscale;				\
-    this->min = (infinite && (this->set_autoscale & AUTOSCALE_MIN))	\
-	? VERYLARGE : this->set_min;		\
-    this->max = (infinite && (this->set_autoscale & AUTOSCALE_MAX))	\
-	? -VERYLARGE : this->set_max;		\
-    this->log_base = this->log ? log(this->base) : 0;			\
-} while(0)
-
-#define AXIS_UPDATE2D_REFRESH(axis)					\
-do {									\
-    AXIS *this_axis = axis_array + axis;				\
-    if ((this_axis->set_autoscale & AUTOSCALE_MIN) == 0)		\
-	this_axis->min = this_axis->set_min;	\
-    if ((this_axis->set_autoscale & AUTOSCALE_MAX) == 0)		\
-	this_axis->max = this_axis->set_max;	\
-} while (0)
-
 /* Simplest form of autoscaling (no check on autoscale constraints).
  * Used by refresh_bounds() and refresh_3dbounds().
  */
@@ -450,88 +419,28 @@ do {									\
     (store) = get_num_or_time(this_axis);				\
 } while(0)
 
-/* store VALUE in STORE, set TYPE to INRANGE/OUTRANGE/UNDEFINED
- * VALUE must not be same as STORE
- * Version 5: OK to store infinities or NaN
- * Do UNDEF_ACTION as appropriate
- * adjust range provided type is INRANGE (ie dont adjust y if x is outrange
- * NOAUTOSCALE is per-plot property, whereas AUTOSCALE_XXX is per-axis.
- * Note: see the particular implementation for COLOR AXIS below.
+
+/*
+ * Gradually replacing extremely complex macro ACTUAL_STORE_AND_UPDATE_RANGE
+ * (called 50+ times) with a subroutine. The original logic was that in-line
+ * code was faster than calls to a subroutine, but on current hardware it is
+ * better to have one cached copy than to have 50 separate uncached copies.
+ *
+ * The difference between STORE_AND_UPDATE_RANGE and store_and_update_range
+ * is that the former takes an axis index and the latter an axis pointer.
  */
-
-#define ACTUAL_STORE_AND_UPDATE_RANGE(STORE, VALUE, TYPE, AXIS,           \
-					NOAUTOSCALE, UNDEF_ACTION)        \
-do {									  \
-    struct axis *axis = AXIS;						  \
-    double curval = (VALUE);						  \
-    STORE = curval;							  \
-    if (! (curval > -VERYLARGE && curval < VERYLARGE)) {		  \
-	TYPE = UNDEFINED;						  \
-	UNDEF_ACTION;							  \
-	break;								  \
-    }									  \
-    if (axis->log) {							  \
-	if (curval < 0.0) {						  \
-	    TYPE = UNDEFINED;						  \
-	    UNDEF_ACTION;						  \
-	    break;							  \
-	} else if (curval == 0.0) {					  \
-	    TYPE = OUTRANGE;						  \
-	    break;							  \
-	}								  \
-    }									  \
-    if (NOAUTOSCALE)							  \
-	break;  /* this plot is not being used for autoscaling */	  \
-    if (TYPE != INRANGE)						  \
-	break;  /* don't set y range if x is outrange, for example */	  \
-    if (   (curval < axis->min)						  \
-        && ((curval <= axis->max) || (axis->max == -VERYLARGE))		  \
-       ) {								  \
-	if (axis->autoscale & AUTOSCALE_MIN)	{			  \
-	    axis->min = curval;						  \
-	    if (axis->min_constraint & CONSTRAINT_LOWER) {		  \
-		if (axis->min_lb > curval) {				  \
-		    axis->min = axis->min_lb;				  \
-		    TYPE = OUTRANGE;					  \
-		    break;						  \
-		}							  \
-	    }								  \
-	} else if (curval != axis->max) {				  \
-	    TYPE = OUTRANGE;						  \
-	    break;							  \
-	}								  \
-    }									  \
-    if ( curval > axis->max						  \
-    &&  (curval >= axis->min || axis->min == VERYLARGE)) {		  \
-	if (axis->autoscale & AUTOSCALE_MAX)	{			  \
-	    axis->max = curval;						  \
-	    if (axis->max_constraint & CONSTRAINT_UPPER) {		  \
-		if (axis->max_ub < curval) {		 		  \
-		    axis->max = axis->max_ub;				  \
-		    TYPE =OUTRANGE;					  \
-		    break;						  \
-		}							  \
-	    }								  \
-	} else if (curval != axis->min) {				  \
-	    TYPE = OUTRANGE;						  \
-	}								  \
-    }									  \
-    /* Only update data min/max if the point is INRANGE Jun 2016 */	  \
-    if (TYPE == INRANGE) { 						  \
-	if (axis->data_min > curval)					  \
-	    axis->data_min = curval;					  \
-	if (axis->data_max < curval)					  \
-	    axis->data_max = curval;					  \
-    }									  \
-} while(0)
-
-/* normal calls go though this macro */
 #define STORE_AND_UPDATE_RANGE(STORE, VALUE, TYPE, AXIS, NOAUTOSCALE, UNDEF_ACTION)	 \
- if (AXIS != NO_AXIS) \
- ACTUAL_STORE_AND_UPDATE_RANGE(STORE, VALUE, TYPE, (&axis_array[AXIS]), NOAUTOSCALE, UNDEF_ACTION)
+ if (AXIS != NO_AXIS) do { \
+    if (store_and_update_range( &(STORE), VALUE, &(TYPE), (&axis_array[AXIS]), NOAUTOSCALE) \
+        == UNDEFINED) { \
+	UNDEF_ACTION; \
+    } \
+} while(0)
 
 /* Use NOOP for UNDEF_ACTION if no action is wanted */
 #define NOOP ((void)0)
+
+
 
 /* HBB 20000506: new macro to automatically build initializer lists
  * for arrays of AXIS_ARRAY_SIZE=11 equal elements */
@@ -546,73 +455,78 @@ do {									  \
 #define CheckZero(x,tic) (fabs(x) < ((tic) * SIGNIF) ? 0.0 : (x))
 
 /* Function pointer type for callback functions to generate ticmarks */
-typedef void (*tic_callback) __PROTO((struct axis *, double, char *, int, 
-				struct lp_style_type, struct ticmark *));
+typedef void (*tic_callback) (struct axis *, double, char *, int, 
+			struct lp_style_type, struct ticmark *);
 
 /* ------------ functions exported by axis.c */
-t_autoscale load_range __PROTO((struct axis *, double *, double *, t_autoscale));
-void check_log_limits __PROTO((struct axis *, double, double));
-void axis_invert_if_requested __PROTO((struct axis *));
-void axis_check_range __PROTO((AXIS_INDEX));
-void axis_init __PROTO((AXIS *this_axis, TBOOLEAN infinite));
-void set_explicit_range __PROTO((struct axis *axis, double newmin, double newmax));
-double axis_log_value_checked __PROTO((AXIS_INDEX, double, const char *));
-void axis_checked_extend_empty_range __PROTO((AXIS_INDEX, const char *mesg));
-void axis_check_empty_nonlinear __PROTO((struct axis *this_axis));
-char * copy_or_invent_formatstring __PROTO((struct axis *));
-double quantize_normal_tics __PROTO((double, int));
-void setup_tics __PROTO((struct axis *, int));
-void gen_tics __PROTO((struct axis *, tic_callback));
-void axis_output_tics __PROTO((AXIS_INDEX, int *, AXIS_INDEX, tic_callback));
-void axis_set_scale_and_range __PROTO((struct axis *axis, int lower, int upper));
-void axis_draw_2d_zeroaxis __PROTO((AXIS_INDEX, AXIS_INDEX));
-TBOOLEAN some_grid_selected __PROTO((void));
-void add_tic_user __PROTO((struct axis *, char *, double, int));
-double get_num_or_time __PROTO((struct axis *));
-TBOOLEAN bad_axis_range __PROTO((struct axis *axis));
+coord_type store_and_update_range(double *store, double curval, coord_type *type,
+				struct axis *axis, TBOOLEAN noautoscale);
+t_autoscale load_range(struct axis *, double *, double *, t_autoscale);
+void check_log_limits(struct axis *, double, double);
+void axis_invert_if_requested(struct axis *);
+void axis_check_range(AXIS_INDEX);
+void axis_init(AXIS *this_axis, TBOOLEAN infinite);
+void set_explicit_range(struct axis *axis, double newmin, double newmax);
+double axis_log_value_checked(AXIS_INDEX, double, const char *);
+void axis_checked_extend_empty_range(AXIS_INDEX, const char *mesg);
+void axis_check_empty_nonlinear(struct axis *this_axis);
+char * copy_or_invent_formatstring(struct axis *);
+double quantize_normal_tics(double, int);
+void setup_tics(struct axis *, int);
+void gen_tics(struct axis *, tic_callback);
+void axis_output_tics(AXIS_INDEX, int *, AXIS_INDEX, tic_callback);
+void axis_set_scale_and_range(struct axis *axis, int lower, int upper);
+void axis_draw_2d_zeroaxis(AXIS_INDEX, AXIS_INDEX);
+TBOOLEAN some_grid_selected(void);
+void add_tic_user(struct axis *, char *, double, int);
+double get_num_or_time(struct axis *);
+TBOOLEAN bad_axis_range(struct axis *axis);
 
-void save_writeback_all_axes __PROTO((void));
-int  parse_range __PROTO((AXIS_INDEX axis));
-void parse_skip_range __PROTO((void));
-void check_axis_reversed __PROTO((AXIS_INDEX axis));
+void save_writeback_all_axes(void);
+int  parse_range(AXIS_INDEX axis);
+void parse_skip_range(void);
+void check_axis_reversed(AXIS_INDEX axis);
 
 /* set widest_tic_label: length of the longest tics label */
-void widest_tic_callback __PROTO((struct axis *, double place, char *text, int ticlevel,
-			struct lp_style_type grid, struct ticmark *));
+void widest_tic_callback(struct axis *, double place, char *text, int ticlevel,
+			struct lp_style_type grid, struct ticmark *);
 
-void get_position __PROTO((struct position *pos));
-void get_position_default __PROTO((struct position *pos, enum position_type default_type, int ndim));
+void get_position(struct position *pos);
+void get_position_default(struct position *pos, enum position_type default_type, int ndim);
 
-void gstrdms __PROTO((char *label, char *format, double value));
+void gstrdms(char *label, char *format, double value);
 
-void clone_linked_axes __PROTO((AXIS *axis1, AXIS *axis2));
-AXIS *get_shadow_axis __PROTO((AXIS *axis));
-void extend_primary_ticrange __PROTO((AXIS *axis));
-void update_primary_axis_range __PROTO((struct axis *secondary));
-void update_secondary_axis_range __PROTO((struct axis *primary));
-void reconcile_linked_axes __PROTO((AXIS *primary, AXIS *secondary));
+void clone_linked_axes(AXIS *axis1, AXIS *axis2);
+AXIS *get_shadow_axis(AXIS *axis);
+void extend_primary_ticrange(AXIS *axis);
+void update_primary_axis_range(struct axis *secondary);
+void update_secondary_axis_range(struct axis *primary);
+void reconcile_linked_axes(AXIS *primary, AXIS *secondary);
 
-int map_x __PROTO((double value));
-int map_y __PROTO((double value));
+int map_x(double value);
+int map_y(double value);
 
-double map_x_double __PROTO((double value));
-double map_y_double __PROTO((double value));
+double map_x_double(double value);
+double map_y_double(double value);
 
-coord_type polar_to_xy __PROTO(( double theta, double r, double *x, double *y, TBOOLEAN update));
-double polar_radius __PROTO((double r));
+coord_type polar_to_xy( double theta, double r, double *x, double *y, TBOOLEAN update);
+double polar_radius(double r);
 
-void set_cbminmax __PROTO((void));
+void set_cbminmax(void);
 
-void save_autoscaled_ranges __PROTO((AXIS *, AXIS *));
-void restore_autoscaled_ranges __PROTO((AXIS *, AXIS *));
+void save_autoscaled_ranges(AXIS *, AXIS *);
+void restore_autoscaled_ranges(AXIS *, AXIS *);
 
-char * axis_name __PROTO((AXIS_INDEX));
-void init_sample_range __PROTO((AXIS *axis));
-void init_parallel_axis __PROTO((AXIS *, AXIS_INDEX));
-AXIS * extend_parallel_axis __PROTO((int ));
+char * axis_name(AXIS_INDEX);
+void init_sample_range(AXIS *axis, enum PLOT_TYPE plot_type);
+void init_parallel_axis(AXIS *, AXIS_INDEX);
+void extend_parallel_axis(int);
 
 /* Evaluate the function linking a secondary axis to its primary axis */
-double eval_link_function __PROTO((AXIS *, double));
+double eval_link_function(AXIS *, double);
+
+/* For debugging */
+void dump_axis_range(AXIS *axis);
 
 /* macro for tic scale, used in all tic_callback functions */
 #define tic_scale(ticlevel, axis) \

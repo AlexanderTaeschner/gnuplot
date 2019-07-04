@@ -46,6 +46,13 @@ static double carlson_elliptic_rj(double x,double y,double z,double p);
 #define THREE_PI_ON_FOUR 2.35619449019234492884698253745962716
 #define TWO_ON_PI        0.63661977236758134307553505349005744
 
+/* April 2018
+ * libm does not provide Bessel approximations for i0 and i1
+ * so we do not include these in the conditional HAVE_LIBM
+ */
+static double ri0(double x);
+static double ri1(double x);
+
 #ifndef HAVE_LIBM
 
 /* June 2017
@@ -53,18 +60,18 @@ static double carlson_elliptic_rj(double x,double y,double z,double p);
  * can't use the functions in libm
  */
 
-static double jzero __PROTO((double x));
-static double pzero __PROTO((double x));
-static double qzero __PROTO((double x));
-static double yzero __PROTO((double x));
-static double rj0 __PROTO((double x));
-static double ry0 __PROTO((double x));
-static double jone __PROTO((double x));
-static double pone __PROTO((double x));
-static double qone __PROTO((double x));
-static double yone __PROTO((double x));
-static double rj1 __PROTO((double x));
-static double ry1 __PROTO((double x));
+static double jzero(double x);
+static double pzero(double x);
+static double qzero(double x);
+static double yzero(double x);
+static double rj0(double x);
+static double ry0(double x);
+static double jone(double x);
+static double pone(double x);
+static double qone(double x);
+static double yone(double x);
+static double rj1(double x);
+static double ry1(double x);
 
 /* The bessel function approximations here are from
  * "Computer Approximations"
@@ -85,7 +92,7 @@ static double dzero = 0.0;
 /* jzero for x in [0,8]
  * Index 5849, 19.22 digits precision
  */
-static double GPFAR pjzero[] = {
+static double pjzero[] = {
 	 0.4933787251794133561816813446e+21,
 	-0.11791576291076105360384408e+21,
 	 0.6382059341072356562289432465e+19,
@@ -97,7 +104,7 @@ static double GPFAR pjzero[] = {
 	 0.2685786856980014981415848441e+5
 };
 
-static double GPFAR qjzero[] = {
+static double qjzero[] = {
 	0.4933787251794133562113278438e+21,
 	0.5428918384092285160200195092e+19,
 	0.3024635616709462698627330784e+17,
@@ -112,7 +119,7 @@ static double GPFAR qjzero[] = {
 /* pzero for x in [8,inf]
  * Index 6548, 18.16 digits precision
  */
-static double GPFAR ppzero[] = {
+static double ppzero[] = {
 	0.2277909019730468430227002627e+5,
 	0.4134538663958076579678016384e+5,
 	0.2117052338086494432193395727e+5,
@@ -121,7 +128,7 @@ static double GPFAR ppzero[] = {
 	0.889615484242104552360748e+0
 };
 
-static double GPFAR qpzero[] = {
+static double qpzero[] = {
 	0.2277909019730468431768423768e+5,
 	0.4137041249551041663989198384e+5,
 	0.2121535056188011573042256764e+5,
@@ -133,7 +140,7 @@ static double GPFAR qpzero[] = {
 /* qzero for x in [8,inf]
  * Index 6948, 18.33 digits precision
  */
-static double GPFAR pqzero[] = {
+static double pqzero[] = {
 	-0.8922660020080009409846916e+2,
 	-0.18591953644342993800252169e+3,
 	-0.11183429920482737611262123e+3,
@@ -142,7 +149,7 @@ static double GPFAR pqzero[] = {
 	-0.8803330304868075181663e-2,
 };
 
-static double GPFAR qqzero[] = {
+static double qqzero[] = {
 	0.571050241285120619052476459e+4,
 	0.1195113154343461364695265329e+5,
 	0.726427801692110188369134506e+4,
@@ -155,7 +162,7 @@ static double GPFAR qqzero[] = {
 /* yzero for x in [0,8]
  * Index 6245, 18.78 digits precision
  */
-static double GPFAR pyzero[] = {
+static double pyzero[] = {
 	-0.2750286678629109583701933175e+20,
 	 0.6587473275719554925999402049e+20,
 	-0.5247065581112764941297350814e+19,
@@ -167,7 +174,7 @@ static double GPFAR pyzero[] = {
 	-0.4137035497933148554125235152e+5
 };
 
-static double GPFAR qyzero[] = {
+static double qyzero[] = {
 	0.3726458838986165881989980739e+21,
 	0.4192417043410839973904769661e+19,
 	0.2392883043499781857439356652e+17,
@@ -183,7 +190,7 @@ static double GPFAR qyzero[] = {
 /* jone for x in [0,8]
  * Index 6050, 20.98 digits precision
  */
-static double GPFAR pjone[] = {
+static double pjone[] = {
 	 0.581199354001606143928050809e+21,
 	-0.6672106568924916298020941484e+20,
 	 0.2316433580634002297931815435e+19,
@@ -195,7 +202,7 @@ static double GPFAR pjone[] = {
 	 0.270112271089232341485679099e+4
 };
 
-static double GPFAR qjone[] = {
+static double qjone[] = {
 	0.11623987080032122878585294e+22,
 	0.1185770712190320999837113348e+20,
 	0.6092061398917521746105196863e+17,
@@ -211,7 +218,7 @@ static double GPFAR qjone[] = {
 /* pone for x in [8,inf]
  * Index 6749, 18.11 digits precision
  */
-static double GPFAR ppone[] = {
+static double ppone[] = {
 	0.352246649133679798341724373e+5,
 	0.62758845247161281269005675e+5,
 	0.313539631109159574238669888e+5,
@@ -220,7 +227,7 @@ static double GPFAR ppone[] = {
 	0.12571716929145341558495e+1
 };
 
-static double GPFAR qpone[] = {
+static double qpone[] = {
 	0.352246649133679798068390431e+5,
 	0.626943469593560511888833731e+5,
 	0.312404063819041039923015703e+5,
@@ -232,7 +239,7 @@ static double GPFAR qpone[] = {
 /* qone for x in [8,inf]
  * Index 7149, 18.28 digits precision
  */
-static double GPFAR pqone[] = {
+static double pqone[] = {
 	0.3511751914303552822533318e+3,
 	0.7210391804904475039280863e+3,
 	0.4259873011654442389886993e+3,
@@ -241,7 +248,7 @@ static double GPFAR pqone[] = {
 	0.3532840052740123642735e-1
 };
 
-static double GPFAR qqone[] = {
+static double qqone[] = {
 	0.74917374171809127714519505e+4,
 	0.154141773392650970499848051e+5,
 	0.91522317015169922705904727e+4,
@@ -254,7 +261,7 @@ static double GPFAR qqone[] = {
 /* yone for x in [0,8]
  * Index 6444, 18.24 digits precision
  */
-static double GPFAR pyone[] = {
+static double pyone[] = {
 	-0.2923821961532962543101048748e+20,
 	 0.7748520682186839645088094202e+19,
 	-0.3441048063084114446185461344e+18,
@@ -265,7 +272,7 @@ static double GPFAR pyone[] = {
 	 0.3556924009830526056691325215e+6
 };
 
-static double GPFAR qyone[] = {
+static double qyone[] = {
 	0.1491311511302920350174081355e+21,
 	0.1818662841706134986885065935e+19,
 	0.113163938269888452690508283e+17,
@@ -278,6 +285,151 @@ static double GPFAR qyone[] = {
 };
 
 #endif	/* hard-coded Bessel approximations if not HAVE_LIBM */
+
+/* Chebyshev coefficients for exp(-x) I0(x)
+ * in the interval [0,8].
+ *
+ * lim(x->0){ exp(-x) I0(x) } = 1.
+ */
+static double cheb_i0_A[] =
+{
+-4.41534164647933937950E-18,
+ 3.33079451882223809783E-17,
+-2.43127984654795469359E-16,
+ 1.71539128555513303061E-15,
+-1.16853328779934516808E-14,
+ 7.67618549860493561688E-14,
+-4.85644678311192946090E-13,
+ 2.95505266312963983461E-12,
+-1.72682629144155570723E-11,
+ 9.67580903537323691224E-11,
+-5.18979560163526290666E-10,
+ 2.65982372468238665035E-9,
+-1.30002500998624804212E-8,
+ 6.04699502254191894932E-8,
+-2.67079385394061173391E-7,
+ 1.11738753912010371815E-6,
+-4.41673835845875056359E-6,
+ 1.64484480707288970893E-5,
+-5.75419501008210370398E-5,
+ 1.88502885095841655729E-4,
+-5.76375574538582365885E-4,
+ 1.63947561694133579842E-3,
+-4.32430999505057594430E-3,
+ 1.05464603945949983183E-2,
+-2.37374148058994688156E-2,
+ 4.93052842396707084878E-2,
+-9.49010970480476444210E-2,
+ 1.71620901522208775349E-1,
+-3.04682672343198398683E-1,
+ 6.76795274409476084995E-1
+};
+
+/* Chebyshev coefficients for exp(-x) I1(x) / x
+ * in the interval [0,8].
+ *
+ * lim(x->0){ exp(-x) I1(x) / x } = 1/2.
+ */
+static double cheb_i1_A[] =
+{
+ 2.77791411276104639959E-18,
+-2.11142121435816608115E-17,
+ 1.55363195773620046921E-16,
+-1.10559694773538630805E-15,
+ 7.60068429473540693410E-15,
+-5.04218550472791168711E-14,
+ 3.22379336594557470981E-13,
+-1.98397439776494371520E-12,
+ 1.17361862988909016308E-11,
+-6.66348972350202774223E-11,
+ 3.62559028155211703701E-10,
+-1.88724975172282928790E-9,
+ 9.38153738649577178388E-9,
+-4.44505912879632808065E-8,
+ 2.00329475355213526229E-7,
+-8.56872026469545474066E-7,
+ 3.47025130813767847674E-6,
+-1.32731636560394358279E-5,
+ 4.78156510755005422638E-5,
+-1.61760815825896745588E-4,
+ 5.12285956168575772895E-4,
+-1.51357245063125314899E-3,
+ 4.15642294431288815669E-3,
+-1.05640848946261981558E-2,
+ 2.47264490306265168283E-2,
+-5.29459812080949914269E-2,
+ 1.02643658689847095384E-1,
+-1.76416518357834055153E-1,
+ 2.52587186443633654823E-1
+};
+
+/* Chebyshev coefficients for exp(-x) sqrt(x) I0(x)
+ * in the inverted interval [8,infinity].
+ *
+ * lim(x->inf){ exp(-x) sqrt(x) I0(x) } = 1/sqrt(2pi).
+ */
+static double cheb_i0_B[] =
+{
+-7.23318048787475395456E-18,
+-4.83050448594418207126E-18,
+ 4.46562142029675999901E-17,
+ 3.46122286769746109310E-17,
+-2.82762398051658348494E-16,
+-3.42548561967721913462E-16,
+ 1.77256013305652638360E-15,
+ 3.81168066935262242075E-15,
+-9.55484669882830764870E-15,
+-4.15056934728722208663E-14,
+ 1.54008621752140982691E-14,
+ 3.85277838274214270114E-13,
+ 7.18012445138366623367E-13,
+-1.79417853150680611778E-12,
+-1.32158118404477131188E-11,
+-3.14991652796324136454E-11,
+ 1.18891471078464383424E-11,
+ 4.94060238822496958910E-10,
+ 3.39623202570838634515E-9,
+ 2.26666899049817806459E-8,
+ 2.04891858946906374183E-7,
+ 2.89137052083475648297E-6,
+ 6.88975834691682398426E-5,
+ 3.36911647825569408990E-3,
+ 8.04490411014108831608E-1
+};
+
+/* Chebyshev coefficients for exp(-x) sqrt(x) I1(x)
+ * in the inverted interval [8,infinity].
+ *
+ * lim(x->inf){ exp(-x) sqrt(x) I1(x) } = 1/sqrt(2pi).
+ */
+static double cheb_i1_B[] =
+{
+ 7.51729631084210481353E-18,
+ 4.41434832307170791151E-18,
+-4.65030536848935832153E-17,
+-3.20952592199342395980E-17,
+ 2.96262899764595013876E-16,
+ 3.30820231092092828324E-16,
+-1.88035477551078244854E-15,
+-3.81440307243700780478E-15,
+ 1.04202769841288027642E-14,
+ 4.27244001671195135429E-14,
+-2.10154184277266431302E-14,
+-4.08355111109219731823E-13,
+-7.19855177624590851209E-13,
+ 2.03562854414708950722E-12,
+ 1.41258074366137813316E-11,
+ 3.25260358301548823856E-11,
+-1.89749581235054123450E-11,
+-5.58974346219658380687E-10,
+-3.83538038596423702205E-9,
+-2.63146884688951950684E-8,
+-2.51223623787020892529E-7,
+-3.88256480887769039346E-6,
+-1.10588938762623716291E-4,
+-9.76109749136146840777E-3,
+ 7.78576235018280120474E-1
+};
 
 /*
  * Make all the following internal routines perform autoconversion
@@ -703,8 +855,12 @@ f_int(union argument *arg)
     if (a.type == NOTDEFINED || isnan(foo)) {
 	push(Gcomplex(&a, not_a_number(), 0.0));
 	undefined = TRUE;
+    } else if (fabs(foo) > LARGEST_GUARANTEED_NONOVERFLOW) {
+	if (overflow_handling == INT64_OVERFLOW_UNDEFINED)
+	    undefined = TRUE;
+	push(Gcomplex(&a, not_a_number(), 0.0));
     } else
-	push(Ginteger(&a, (int)foo));
+	push(Ginteger(&a, (intgr_t)foo));
 }
 
 #define BAD_DEFAULT default: int_error(NO_CARET, "internal error : argument neither INT or CMPLX")
@@ -818,15 +974,25 @@ void
 f_floor(union argument *arg)
 {
     struct value a;
+    double foo;
 
     (void) arg;			/* avoid -Wunused warning */
     (void) pop(&a);
+
     switch (a.type) {
     case INTGR:
 	push(&a);
 	break;
     case CMPLX:
-	push(Ginteger(&a, (int) floor(a.v.cmplx_val.real)));
+	foo = a.v.cmplx_val.real;
+	/* Note: this test catches NaN also */
+	if (!(fabs(foo) < LARGEST_GUARANTEED_NONOVERFLOW)) {
+	    if (overflow_handling == INT64_OVERFLOW_UNDEFINED)
+		undefined = TRUE;
+	    push(Gcomplex(&a, not_a_number(), 0.0));
+	} else {
+	    push(Ginteger(&a, (intgr_t) floor(foo)));
+	}
 	break;
     BAD_DEFAULT;
     }
@@ -837,15 +1003,25 @@ void
 f_ceil(union argument *arg)
 {
     struct value a;
+    double foo;
 
     (void) arg;			/* avoid -Wunused warning */
     (void) pop(&a);
+
     switch (a.type) {
     case INTGR:
 	push(&a);
 	break;
     case CMPLX:
-	push(Ginteger(&a, (int) ceil(a.v.cmplx_val.real)));
+	foo = a.v.cmplx_val.real;
+	/* Note: this test catches NaN also */
+	if (!(fabs(foo) < LARGEST_GUARANTEED_NONOVERFLOW)) {
+	    if (overflow_handling == INT64_OVERFLOW_UNDEFINED)
+		undefined = TRUE;
+	    push(Gcomplex(&a, not_a_number(), 0.0));
+	} else {
+	    push(Ginteger(&a, (intgr_t) ceil(foo)));
+	}
 	break;
     BAD_DEFAULT;
     }
@@ -1090,11 +1266,89 @@ ry1(double x)
 
 #endif	/* hard-coded Bessel approximations if not HAVE_LIBM */
 
+/*
+ * Evaluates the series (with n coefficients stored in array[])
+ * of Chebyshev polynomials Ti at argument x/2.
+ */
+static double
+chbevl(double x, double array[], int n) {
+  double b0, b1, b2, *p;
+  int i;
+
+  p = array;
+  b0 = *p++;
+  b1 = 0;
+  i = n - 1;
+
+  do {
+    b2 = b1;
+    b1 = b0;
+    b0 = x * b1  -  b2  + *p++;
+  } while( --i );
+
+  return( 0.5*(b0 - b2) );
+}
+
+static double
+ri0(double x)
+{
+  double ax = fabs(x);
+  double y;
+
+  if ( ax <= 8.0 ) {
+    y = (ax/2.0) - 2.0;
+    return( exp(ax) * chbevl( y, cheb_i0_A, 30 ) );
+  }
+  return( exp(ax) * chbevl( 32.0/ax - 2.0, cheb_i0_B, 25 ) / sqrt(ax) );
+}
+
+static double
+ri1(double x)
+{
+  double y, z;
+
+  z = fabs(x);
+  if ( z <= 8.0 ) {
+    y = (z/2.0) - 2.0;
+    z = chbevl( y, cheb_i1_A, 29 ) * z * exp(z);
+
+  } else {
+    z = exp(z) * chbevl( 32.0/z - 2.0, cheb_i1_B, 25 ) / sqrt(z);
+  }
+
+  if( x < 0.0 ) z = -z;
+  return z;
+}
+
 
 /* FIXME HBB 20010726: should bessel functions really call int_error,
  * right in the middle of evaluating some mathematical expression?
  * Couldn't they just flag 'undefined', or ignore the real part of the
  * complex number? */
+
+void
+f_besi0(union argument *arg)
+{
+    struct value a;
+
+    (void) arg;			/* avoid -Wunused warning */
+    (void) pop(&a);
+    if (fabs(imag(&a)) > zero)
+	int_error(NO_CARET, "can only do bessel functions of reals");
+    push(Gcomplex(&a, ri0(real(&a)), 0.0));
+}
+
+void
+f_besi1(union argument *arg)
+{
+    struct value a;
+
+    (void) arg;			/* avoid -Wunused warning */
+    (void) pop(&a);
+    if (fabs(imag(&a)) > zero)
+	int_error(NO_CARET, "can only do bessel functions of reals");
+    push(Gcomplex(&a, ri1(real(&a)), 0.0));
+}
 
 void
 f_besj0(union argument *arg)

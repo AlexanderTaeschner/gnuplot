@@ -52,12 +52,12 @@
 #define AXIS_ACTUAL_MAX(axis) GPMAX(axis_array[axis].max, axis_array[axis].min)
 
 /* Prototypes for local functions */
-static void mat_unit __PROTO((transform_matrix mat));
-static GP_INLINE void draw3d_point_unconditional __PROTO((p_vertex, struct lp_style_type *));
+static void mat_unit(transform_matrix mat);
+static GP_INLINE void draw3d_point_unconditional(p_vertex, struct lp_style_type *);
 
-static double map_x3d __PROTO((double));
-static double map_y3d __PROTO((double));
-static double map_z3d __PROTO((double));
+static double map_x3d(double);
+static double map_y3d(double);
+static double map_z3d(double);
 
 static void
 mat_unit(transform_matrix mat)
@@ -902,7 +902,7 @@ map3d_xy_double(
 static GP_INLINE void
 draw3d_point_unconditional(p_vertex v, struct lp_style_type *lp)
 {
-    unsigned int x, y;
+    int x, y;
 
     TERMCOORD(v, x, y);
     /* Jul 2010 EAM - is it safe to overwrite like this? Make a copy instead? */
@@ -952,6 +952,8 @@ draw3d_line_unconditional(
 	draw_clip_arrow(x1,y1,x2,y2,END_HEAD);
     else if (lp->p_type == PT_BACKARROW)
 	draw_clip_arrow(x1,y1,x2,y2,BACKHEAD);
+    else if (lp->p_type == PT_BOTHHEADS)
+	draw_clip_arrow(x1,y1,x2,y2,BOTH_HEADS);
     else
 
 	draw_clip_line(x1,y1,x2,y2);
@@ -994,7 +996,7 @@ static vertex polyline3d_previous_vertex;
 void
 polyline3d_start(p_vertex v1)
 {
-    unsigned int x1, y1;
+    int x1, y1;
 
     polyline3d_previous_vertex = *v1;
     if (hidden3d && draw_surface)

@@ -42,8 +42,8 @@
 #define _HAVE_MOUSE_H
 
 #include "mousecmn.h"
-
 #include "syscfg.h"
+#include "eval.h"
 
 /* Zoom queue
 */
@@ -88,6 +88,7 @@ typedef struct mouse_setting_t {
 extern mouse_setting_t default_mouse_setting;
 extern mouse_setting_t mouse_setting;
 extern char mouse_fmt_default[];
+extern udft_entry mouse_readout_function;
 
 /* enum of GP_ -keycodes has moved to mousecmn.h so that it can be
  * accessed by standalone terminals too */
@@ -165,6 +166,8 @@ static char* special_keys[] = {
     "F12",
     "Close",
     "Button1",
+    "Button2",
+    "Button3",
     "GP_LAST_KEY",
     (char*) 0 /* must be the last line */
 };
@@ -174,15 +177,12 @@ enum {
     MOUSE_COORDINATES_REAL = 0,
     MOUSE_COORDINATES_REAL1, /* w/o brackets */
     MOUSE_COORDINATES_FRACTIONAL,
-#if 0
-    MOUSE_COORDINATES_PIXELS,
-    MOUSE_COORDINATES_SCREEN,
-#endif
     MOUSE_COORDINATES_TIMEFMT,
     MOUSE_COORDINATES_XDATE,
     MOUSE_COORDINATES_XTIME,
     MOUSE_COORDINATES_XDATETIME,
-    MOUSE_COORDINATES_ALT    /* alternative format as specified by the user */
+    MOUSE_COORDINATES_ALT,    /* alternative format as specified by the user */
+    MOUSE_COORDINATES_FUNCTION = 8 /* value needed in term.c even if no USE_MOUSE */
 };
 
 /* FIXME HBB 20010207: Codestyle violation: these should be in mouse.c! */
@@ -195,18 +195,19 @@ enum {
 #endif
 
 
-void event_plotdone __PROTO((void));
-void recalc_statusline __PROTO((void));
-void update_ruler __PROTO((void));
-void set_ruler __PROTO((TBOOLEAN on, int mx, int my));
-void UpdateStatusline __PROTO((void));
-void do_event __PROTO((struct gp_event_t *ge));
-int plot_mode __PROTO((int mode));
-void event_reset __PROTO((struct gp_event_t *ge));
+void event_plotdone(void);
+void recalc_statusline(void);
+void update_ruler(void);
+void set_ruler(TBOOLEAN on, int mx, int my);
+void UpdateStatusline(void);
+void do_event(struct gp_event_t *ge);
+TBOOLEAN exec_event(char type, int mx, int my, int par1, int par2, int winid); /* wrapper for do_event() */
+int plot_mode(int mode);
+void event_reset(struct gp_event_t *ge);
 
 /* bind prototype(s) */
 
-void bind_process __PROTO((char* lhs, char* rhs, TBOOLEAN allwindows));
-void bind_remove_all __PROTO((void));
+void bind_process(char* lhs, char* rhs, TBOOLEAN allwindows);
+void bind_remove_all(void);
 
 #endif /* !_HAVE_MOUSE_H */

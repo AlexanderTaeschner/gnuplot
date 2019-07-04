@@ -58,10 +58,10 @@
 #define MAX_COL 6
 
 /* From xref.c */
-extern void *xmalloc __PROTO((size_t));
+extern void *xmalloc(size_t);
 
-void convert __PROTO((FILE *, FILE *));
-void process_line __PROTO((char *, FILE *));
+void convert(FILE *, FILE *);
+void process_line(char *, FILE *);
 
 /* malloc's are not being checked ! */
 
@@ -82,7 +82,7 @@ static TBOOLEAN debug = FALSE;
 
 
 int
-main (int argc, char **argv)
+main(int argc, char **argv)
 {
     FILE *infile;
     FILE *outfile;
@@ -134,12 +134,13 @@ void
 process_line(char *line, FILE *b)
 {
     static int line_count = 0;
+    static int prev_line = 0;
     static char line2[MAX_LINE_LEN+1];
     char hyplink1[64];
     char *pt, *tablerow;
     int i;
     int j;
-    static int startpage = 1;
+    static int startpage = 2;
     char str[MAX_LINE_LEN+1];
     char topic[MAX_LINE_LEN+1];
     int k, l;
@@ -314,7 +315,7 @@ process_line(char *line, FILE *b)
 		introffheader = FALSE; /* position is no longer in a troff header */
 		intablebut = FALSE;
 		tableins = &table;
-		fprintf(b, ":table frame=none rules=vert cols=\'");
+		fprintf(b, ":table frame=rules rules=none cols=\'");
 		for (j = 0; j < MAX_COL; j++)
 		    if (tablewidth[j] > 0)
 			fprintf(b, " %d", tablewidth[j]);
@@ -332,8 +333,8 @@ process_line(char *line, FILE *b)
 			else
 			    fprintf(b, ":c.%s\n", tableins->col[j]);
 		    tableins = tableins->next;
- 		    /* skip troff 'horizontal rule' command */		    
- 		    if (tableins)
+		    /* skip troff 'horizontal rule' command */
+		    if (tableins)
 			if (tableins->col[0][1] == '_')
 			    tableins = tableins->next;
 		    header = 0;
@@ -355,10 +356,34 @@ process_line(char *line, FILE *b)
 	    fprintf(b, ":i1.%s", line+1);
 	    break;
 	}
-    case 'F':{			/* latex embedded figure */
-	    break;		/* ignore */
+    case 'F':{			/* embedded figure */
+	    if (1) {
+		fprintf(b, ":artwork align=left name='%s.bmp'.\n", line2+1);
+	    }
+	    break;
 	}
     case '#':{			/* latex table entry */
+	    if (!intable) {
+		/* Itemized list outside of table */
+		switch (line[1]) {
+		case 's':
+		    (void) fputs(":ul.\n", b);
+		    break;
+		case 'e':
+		    (void) fputs(":eul.\n", b);
+		    break;
+		case 'b':
+		    /* Bullet */
+		    fprintf(b, ":li.%s\n", line2+2);
+		    break;
+		case '#':
+		    /* Continuation of bulleted line */
+		    fprintf(b, "%s\n", line2+2);
+		    break;
+		default:
+		    break;
+		}
+	    }
 	    break;		/* ignore */
 	}
     case '%':{			/* troff table entry */
@@ -400,11 +425,11 @@ process_line(char *line, FILE *b)
 			    fprintf(stderr,"j >= MAX_COL\n");
 			    exit(EXIT_FAILURE);
 			}
-			while (*pt==' ') pt++; /* strip spaces */		
+			while (*pt==' ') pt++; /* strip spaces */
 			strcpy(tableins->col[j], " ");
 			strcat(tableins->col[j], pt);
 			k = strlen(pt);
-			while (pt[k-1]==' ') k--; /* strip spaces */
+			while (k>0 && pt[k-1]==' ') k--; /* strip spaces */
 			/* length calculation is not correct if we have ipf tag replacements! */
 			if (debug) {
 			    if (((strchr(pt, ':')!=NULL) && (strchr(pt, '.')!=NULL)) ||
@@ -412,7 +437,7 @@ process_line(char *line, FILE *b)
 				fprintf(stderr, "Warning: likely overestimating table width (%s)\n", pt);
 			}
 			/* crudely filter out ipf tags:
-			     "&tag." and ":tag." are recognized, 
+			     "&tag." and ":tag." are recognized,
 			     (works since all '&' and ':' characters have already been replaced)
 			*/
 			for (tagend = tagstart = pt; tagstart; ) {
@@ -425,10 +450,12 @@ process_line(char *line, FILE *b)
 				    k -= tagend - tagstart;
 			    }
 			}
-			k += 2; /* add some space */
-			if (k > tablewidth[j])
-			    tablewidth[j] = k;
-			++j;
+			if (k > 0) {  /* ignore empty slots */
+			    k += 2; /* add some space */
+			    if (k > tablewidth[j])
+				tablewidth[j] = k;
+			    ++j;
+			}
 			tablerow = NULL;
 			if (j > tablecols)
 			    tablecols = j;
@@ -493,7 +520,7 @@ process_line(char *line, FILE *b)
 #ifdef IPF_MENU_SECTIONS
 	    TBOOLEAN leaf;
 #endif
-	    
+
 	    if (isdigit((int)line[0])) {	/* start of section */
 		if (intable) {
 		    intablebut = TRUE;
@@ -514,14 +541,11 @@ process_line(char *line, FILE *b)
 		klist = lookup(&line2[2]);
 		if (klist != NULL)
 		    k = klist->line;
-		    
+
 		/* end all sections in an empty paragraph to prevent empty sections */
 		/* we therefore do no longer have to start sections with an empty paragraph */
 		if (!startpage)
 		    fprintf(bo, ":p.\n");
-		
-		/*if( k<0 ) fprintf(bo,":h%c.", line[0]=='1'?line[0]:line[0]-1);
-		   else */
 
 #ifdef IPF_MENU_SECTIONS
 		/* To make navigation with the old IBM online help viewer (View)
@@ -531,11 +555,11 @@ process_line(char *line, FILE *b)
 		*/
 
 		/* is this section a leaf ? */
-		leaf = TRUE:	
+		leaf = TRUE:
 		if (klist)
 		    if (klist->next)
 			leaf = (klist->next->level <= klist->level);
-		
+
 		/* if not create a reference panel */
 		if (!leaf) {
 		    fprintf(bo, ":h%c res=%d x=left y=top width=20%% height=100%% group=1.%s\n",
@@ -543,24 +567,35 @@ process_line(char *line, FILE *b)
 		    fprintf(bo, ":link auto reftype=hd res=%d.\n", line_count+20000);
 		    fprintf(bo, ":hp2.%s:ehp2.\n.br\n", line2+1);
 		    refs(line_count, bo, NULL, NULL, ":link reftype=hd res=%d.%s:elink.\n.br\n");
-		    fprintf(bo, ":h%c res=%d x=right y=top width=80%% height=100%% group=2 hide.", 
+		    fprintf(bo, ":h%c res=%d x=right y=top width=80%% height=100%% group=2 hide.",
 		            line[0]+1, line_count+20000);
 		}
 		else {
 		    fprintf(bo, ":h%c res=%d x=right y=top width=80%% height=100%% group=2.", line[0], line_count);
 		}
-#else		
+#else
+		if (!startpage)	{ 
+		    /* add list of subtopics */
+		    refs(prev_line, bo, ":hp2.Subtopics:ehp2.\n.br\n:ul compact.\n", ":eul.\n", ":li.:link reftype=hd res=%d.%s:elink.\n");
+		} else {
+		    /* startpage was set to 2 initially, so we ignore this twice! */
+		    startpage--;
+		}
+
 		fprintf(bo, ":h%c res=%d.", line[0], line_count);
-#endif		
+#endif
 		fprintf(bo, "%s\n", line2+1);	/* title */
-		
+
 		/* add title page */
 		if (startpage)
 		    fprintf(bo, ".im titlepag.ipf\n");
-		    
+
 		para = 0;	/* not in a paragraph */
 		tabl = 0;	/* not in a table     */
+#ifdef IPF_MENU_SECTIONS
 		startpage = 0;
+#endif
+		prev_line = line_count;
 	    } else
 		fprintf(stderr, "unknown control code '%c' in column 1, line %d\n",
 			line[0], line_count);

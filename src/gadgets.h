@@ -83,7 +83,7 @@ typedef struct text_label {
     enum JUSTIFY pos;		/* left/center/right horizontal justification */
     int rotate;
     int layer;
-    int boxed;			/* EAM_BOXED_TEXT */
+    int boxed;			/* 0 no box;  -1 default box props;  >0 boxstyle */
     char *text;
     char *font;			/* Entry font added by DJL */
     struct t_colorspec textcolor;
@@ -124,7 +124,6 @@ typedef struct arrow_def {
     struct arrow_style_type arrow_properties;
 } arrow_def;
 
-#ifdef EAM_OBJECTS
 /* The object types supported so far are OBJ_RECTANGLE, OBJ_CIRCLE, and OBJ_ELLIPSE */
 typedef struct rectangle {
     int type;			/* 0 = corners;  1 = center + size */
@@ -181,7 +180,6 @@ typedef struct object {
 #define OBJ_CIRCLE (2)
 #define OBJ_ELLIPSE (3)
 #define OBJ_POLYGON (4)
-#endif
 
 /* Datastructure implementing 'set dashtype' */
 struct custom_dashtype_def {
@@ -289,14 +287,14 @@ typedef struct boxplot_style {
     TBOOLEAN outliers;
     int pointtype;
     int plotstyle;	/* CANDLESTICKS or FINANCEBARS */
+    double median_linewidth;
     double separation;	/* of boxplots if there are more than one factors */
     t_boxplot_factor_labels labels;	/* Which axis to put the tic labels if there are factors */
     TBOOLEAN sort_factors;	/* Sort factors in alphabetical order? */
 } boxplot_style;
 extern boxplot_style boxplot_opts;
-#define DEFAULT_BOXPLOT_STYLE { 0, 1.5, TRUE, 6, CANDLESTICKS, 1.0, BOXPLOT_FACTOR_LABELS_AUTO, FALSE }
+#define DEFAULT_BOXPLOT_STYLE { 0, 1.5, TRUE, 6, CANDLESTICKS, -1.0, 1.0, BOXPLOT_FACTOR_LABELS_AUTO, FALSE }
 
-#ifdef EAM_BOXED_TEXT
 typedef struct textbox_style {
     TBOOLEAN opaque;	/* True if the box is background-filled before writing into it */
     TBOOLEAN noborder;	/* True if you want fill only, no lines */
@@ -307,7 +305,6 @@ typedef struct textbox_style {
     t_colorspec fillcolor;	/* only used if opaque is TRUE */
 } textbox_style;
 #define DEFAULT_TEXTBOX_STYLE { FALSE, FALSE, 1.0, 1.0, 1.0, BLACK_COLORSPEC, BACKGROUND_COLORSPEC }
-#endif
 
 /***********************************************************/
 /* Variables defined by gadgets.c needed by other modules. */
@@ -427,6 +424,9 @@ extern float yoffset;		/* y origin setting */
 extern float aspect_ratio;	/* 1.0 for square */
 extern int aspect_ratio_3D;	/* 2 for equal scaling of x and y; 3 for z also */
 
+extern double boxwidth;
+extern TBOOLEAN boxwidth_is_absolute;
+
 /* plot border autosizing overrides, in characters (-1: autosize) */
 extern t_position lmargin, bmargin, rmargin, tmargin;
 #define DEFAULT_MARGIN_POSITION {character, character, character, -1, -1, -1}
@@ -445,10 +445,8 @@ extern struct arrowstyle_def *first_arrowstyle;
 
 extern struct pa_style parallel_axis_style;
 
-#ifdef EAM_OBJECTS
 extern struct object *first_object;
 extern struct object grid_wall[];
-#endif
 
 extern text_label title;
 
@@ -488,6 +486,7 @@ extern const struct lp_style_type default_border_lp;
 extern TBOOLEAN	clip_lines1;
 extern TBOOLEAN	clip_lines2;
 extern TBOOLEAN	clip_points;
+extern TBOOLEAN	clip_radial;
 
 #define SAMPLES 100		/* default number of samples for a plot */
 extern int samples_1;
@@ -536,35 +535,37 @@ extern int current_x11_windowid;
 #define LAYER_FRONT       1
 #define LAYER_FOREGROUND  2	/* not currently used */
 #define LAYER_FRONTBACK   4	/* used only by grid walls */
+#define LAYER_DEPTHORDER  8	/* for objects to be included in pm3d depth sorting */
+#define LAYER_PLOT	 16	/* currently used only by fig.trm */
 #define LAYER_PLOTLABELS 99
 
 /* Functions exported by gadgets.c */
 
 /* initialization (called once on program entry */
-void init_gadgets __PROTO((void));
+void init_gadgets(void);
 
 /* moved here from util3d: */
-void draw_clip_line __PROTO((int, int, int, int));
-void draw_clip_polygon __PROTO((int , gpiPoint *));
-void draw_clip_arrow __PROTO((double, double, double, double, t_arrow_head));
-void clip_polygon __PROTO((gpiPoint *, gpiPoint *, int , int *));
-int clip_point __PROTO((unsigned int, unsigned int));
-void clip_put_text __PROTO((unsigned int, unsigned int, char *));
+int draw_clip_line(int, int, int, int);
+void draw_clip_polygon(int , gpiPoint *);
+void draw_clip_arrow(double, double, double, double, t_arrow_head);
+void clip_polygon(gpiPoint *, gpiPoint *, int , int *);
+int clip_point(int, int);
 
 /* moved here from graph3d: */
-void clip_move __PROTO((unsigned int x, unsigned int y));
-void clip_vector __PROTO((unsigned int x, unsigned int y));
+void clip_move(int x, int y);
+void clip_vector(int x, int y);
+
+void draw_polar_clip_line(double, double, double, double);
 
 /* Common routines for setting line or text color from t_colorspec */
-void apply_pm3dcolor __PROTO((struct t_colorspec *tc));
-void reset_textcolor __PROTO((const struct t_colorspec *tc));
+void apply_pm3dcolor(struct t_colorspec *tc);
+void reset_textcolor(const struct t_colorspec *tc);
 
 /* Timestamp code shared by 2D and 3D */
-void do_timelabel __PROTO((unsigned int x, unsigned int y));
+void do_timelabel(int x, int y);
 
 extern fill_style_type default_fillstyle;
 
-#ifdef EAM_OBJECTS
 /*       Warning: C89 does not like the union initializers     */
 extern struct object default_rectangle;
 #define DEFAULT_RECTANGLE_STYLE { NULL, -1, 0, OBJ_RECTANGLE, OBJ_CLIP,	\
@@ -633,32 +634,30 @@ extern struct object default_ellipse;
 	{FS_TRANSPARENT_SOLID, 50, 0, BLACK_COLORSPEC}, \
 	DEFAULT_LP_STYLE_TYPE, \
 	{.polygon = {5, NULL} } }
-#endif
 
 /* filledcurves style options set by 'set style [data|func] filledcurves opts' */
 extern filledcurves_opts filledcurves_opts_data;
 extern filledcurves_opts filledcurves_opts_func;
 
 /* Prefer line styles over plain line types */
-#if TRUE || defined(BACKWARDS_COMPATIBLE)
+/* Mostly for backwards compatibility */
 extern TBOOLEAN prefer_line_styles;
-#else
-#define prefer_line_styles FALSE
-#endif
 
 extern histogram_style histogram_opts;
 
-#ifdef EAM_BOXED_TEXT
-extern textbox_style textbox_opts;
-#endif
+/* TODO: linked list rather than fixed size array */
+#define NUM_TEXTBOX_STYLES 4
+extern textbox_style textbox_opts[NUM_TEXTBOX_STYLES];
 
-void default_arrow_style __PROTO((struct arrow_style_type *arrow));
-void apply_head_properties __PROTO((struct arrow_style_type *arrow_properties));
+void default_arrow_style(struct arrow_style_type *arrow);
+void apply_head_properties(struct arrow_style_type *arrow_properties);
 
-void free_labels __PROTO((struct text_label *tl));
+void free_labels(struct text_label *tl);
 
-void get_offsets __PROTO((struct text_label *this_label, int *htic, int *vtic));
-void write_label __PROTO((unsigned int x, unsigned int y, struct text_label *label));
-int label_width __PROTO((const char *, int *));
+void get_offsets(struct text_label *this_label, int *htic, int *vtic);
+void write_label(int x, int y, struct text_label *label);
+int label_width(const char *, int *);
+
+TBOOLEAN pm3d_objects(void);
 
 #endif /* GNUPLOT_GADGETS_H */

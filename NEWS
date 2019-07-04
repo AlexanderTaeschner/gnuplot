@@ -1,16 +1,72 @@
 Changes not in 5.2
 ==================
-* NEW set table separator {tab|comma|"char"}
+* NEW support for 64-bit integer arithmetic
+* NEW support for voxel grids
 * NEW plot ... with table if <expression>
+* NEW "set walls" command to show xy xz and yz planes in 3D plots
+* NEW "set clip radial" for line segments in polar mode plots
+* NEW "splot ... with isosurface"
+* NEW "splot ... with circles"
+* NEW "splot ... with boxes"
+* NEW "plot ... with arrows"
+* NEW "set view projection {xz|yz}"
+* NEW "set datafile columnheaders"
+* NEW per-plot fillcolor and fillstyle for pm3d surfaces
+* NEW allow separate color column with dgrid3d surfaces (but not color splines)
+* NEW string function trim(" padded string ") removes leading and trailing whitespace
+* NEW unicode escape sequences \U+hhhh
+* NEW order N Bessel functions of 1st and 2nd kind (besjn besyn)
+* NEW modified Bessel functions I0 (besi0) and I1 (besi1)
+* NEW modified Bessel function of order n (besin)
+* NEW "set object polygon depthsort" as an alternative to front/back/behind
+* NEW overflow avoidance extends range of arguments handled by complex division
+* NEW largely extended pcl5 terminal supports PCL5e/PCL5c printers
+* NEW revised pstricks and texdraw LaTeX terminals
+* NEW extended dospc terminal (DOS32/OpenWatcom)
+* NEW extended svga terminal using the (M)GRX library (DOS32/DJGPP)
+* NEW heavily revised fig terminal
+* NEW LaTeX terminal pict2e uses the LaTeX2e pict2e environment
+* NEW Left-click on hypertext label will copy text to clipboard (wxt qt)
+* NEW smooth option "zsort" controls order that points are plotting in
+* NEW multiple textbox styles
+* EXPERIMENTAL "set mouse mouseformat function <stringval_from_xy(x,y)>"
+* EXPERIMENTAL load $DATABLOCK
+* CHANGE revised syntax for plot style "with parallelaxes"
 * CHANGE remove deprecated command "update"
 * CHANGE remove deprecated option "thru"
 * CHANGE special case optimization of nonlinear code to speed up logscale
 * CHANGE windows terminal can print using Direct2D
 * CHANGE windows terminal supports color fonts (Direct2D)
+* CHANGE arrow head size can be decoupled from arrow size
+* CHANGE apply trange to sampling on pseudofile '+'
+* CHANGE move tgif terminal to "legacy" status; build only if configured
+* CHANGE imaginary values from the using spec of a 2D plot are treated as NaN
+* CHANGE remove compile option EXTENDED_COLOR_SPECS used only by vgagl.trm
+* CHANGE remove linux and vgagl terminals
+* CHANGE remove undocumented EXPERIMENTAL option for pm3d filled contours
+* CHANGE print to datablock expands embedded \n into a separate block entry
+* CHANGE boxplot outliers affect autoscaling only if they are enabled
+* CHANGE remove latex, emtex, eepic, and tpic terminals from default build
 * FIX allow mixed use of in-key plot titles and manually placed titles
+* FIX open/close path for polygons
+* FIX several stability issues of the caca terminal
 
-New features, changes and fixes in gnuplot version 5.2
-======================================================
+New features introduced to 5.2 in patchlevel releases
+=====================================================
+* NEW "set grid {no}vertical" adds grid lines in the xz and xz planes
+* NEW "set cntrparam {firstlinetype N} {{un}sorted}"
+* NEW set table separator {tab|comma|"char"} allows creation of csv files
+* NEW hotkey for changing azimuth in 3D plots with mousing
+* NEW splot ... with lines title at {beg|end}
+* NEW Rework gstrptime() to handle relative time formats tH tM tS
+* NEW command "set rgbmax <value>" controls interpretation of input RGB values
+* NEW allow array size to be determined automatically from initializer
+* NEW "set pm3d noclipcb" will skip drawing quadrangles whose color is < cbmin
+* NEW imaginary component of array values is available to "using" in column 3
+* NEW "exit status <val>" exits program with user-provided status
+
+New features, changes and fixes in gnuplot version 5.2 (initial release)
+========================================================================
 * NEW plot styles
 * NEW    splot ... using <x>:<y>:<z>:<zlow>:<zhigh> with zerrorfill
 * NEW    "set jitter" allows creation of bee swarm plots

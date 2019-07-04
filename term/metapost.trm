@@ -59,32 +59,32 @@ register_term(mp)
 #endif
 
 #ifdef TERM_PROTO
-TERM_PUBLIC void MP_options __PROTO((void));
-TERM_PUBLIC void MP_init __PROTO((void));
-TERM_PUBLIC void MP_graphics __PROTO((void));
-TERM_PUBLIC void MP_text __PROTO((void));
-TERM_PUBLIC void MP_linetype __PROTO((int linetype));
-TERM_PUBLIC void MP_move __PROTO((unsigned int x, unsigned int y));
-TERM_PUBLIC void MP_point __PROTO((unsigned int x, unsigned int y, int number));
-TERM_PUBLIC void MP_pointsize __PROTO((double size));
-TERM_PUBLIC void MP_linewidth __PROTO((double width));
-TERM_PUBLIC void MP_vector __PROTO((unsigned int ux, unsigned int uy));
-TERM_PUBLIC void MP_arrow __PROTO((unsigned int sx, unsigned int sy,
-				   unsigned int ex, unsigned int ey,
-				   int head));
-TERM_PUBLIC void MP_put_text __PROTO((unsigned int x, unsigned int y, const char str[]));
-TERM_PUBLIC int MP_justify_text __PROTO((enum JUSTIFY mode));
-TERM_PUBLIC int MP_text_angle __PROTO((int ang));
-TERM_PUBLIC void MP_reset __PROTO((void));
-TERM_PUBLIC int MP_set_font __PROTO((const char *font));
-TERM_PUBLIC void MP_boxfill __PROTO((int style, unsigned int x1,
-				     unsigned int y1, unsigned int width,
-				     unsigned int height));
-TERM_PUBLIC int MP_make_palette __PROTO((t_sm_palette *));
-TERM_PUBLIC void MP_previous_palette __PROTO((void));
-TERM_PUBLIC void MP_set_color __PROTO((t_colorspec *));
-TERM_PUBLIC void MP_filled_polygon __PROTO((int, gpiPoint *));
-TERM_PUBLIC void MP_dashtype __PROTO((int type, t_dashtype *custom_dash_type));
+TERM_PUBLIC void MP_options(void);
+TERM_PUBLIC void MP_init(void);
+TERM_PUBLIC void MP_graphics(void);
+TERM_PUBLIC void MP_text(void);
+TERM_PUBLIC void MP_linetype(int linetype);
+TERM_PUBLIC void MP_move(unsigned int x, unsigned int y);
+TERM_PUBLIC void MP_point(unsigned int x, unsigned int y, int number);
+TERM_PUBLIC void MP_pointsize(double size);
+TERM_PUBLIC void MP_linewidth(double width);
+TERM_PUBLIC void MP_vector(unsigned int ux, unsigned int uy);
+TERM_PUBLIC void MP_arrow(unsigned int sx, unsigned int sy,
+			   unsigned int ex, unsigned int ey,
+			   int head);
+TERM_PUBLIC void MP_put_text(unsigned int x, unsigned int y, const char str[]);
+TERM_PUBLIC int MP_justify_text(enum JUSTIFY mode);
+TERM_PUBLIC int MP_text_angle(int ang);
+TERM_PUBLIC void MP_reset(void);
+TERM_PUBLIC int MP_set_font(const char *font);
+TERM_PUBLIC void MP_boxfill(int style, unsigned int x1,
+			     unsigned int y1, unsigned int width,
+			     unsigned int height);
+TERM_PUBLIC int MP_make_palette(t_sm_palette *);
+TERM_PUBLIC void MP_previous_palette(void);
+TERM_PUBLIC void MP_set_color(t_colorspec *);
+TERM_PUBLIC void MP_filled_polygon(int, gpiPoint *);
+TERM_PUBLIC void MP_dashtype(int type, t_dashtype *custom_dash_type);
 
 /* 5 inches wide by 3 inches high (default) */
 #define MP_XSIZE 5.0
@@ -172,7 +172,7 @@ static double MP_oldptsize = 1.0;
 static double MP_oldpen = 1.0;
 
 /* terminate any path in progress */
-static void MP_endline __PROTO((void));
+static void MP_endline(void);
 
 /* max number of path nodes before a newline */
 #define MP_LINEMAX 5
@@ -318,7 +318,7 @@ MP_options()
 	    char *s;
 	    if ((s = try_to_get_string())) {
 		int sep = strcspn(s,",");
-		if (sep > 0) {
+		if (0 < sep && sep < sizeof(MP_fontname)) {
 		    strncpy(MP_fontname, s, sizeof(MP_fontname));
 		    MP_fontname[sep] = '\0';
 		}
@@ -516,7 +516,9 @@ ptpath4 = ptpath8:= fullcircle;\n\
 ptpath5 = ptpath9 := (0,1/2)--(-1/2,-1/2)--(1/2,-1/2)--cycle;\n\
 \n\
 def linetype expr n =\n\
-  currentcolor:= if colorlines : col[n] else: black fi;\n\
+  if n > -3 :\n\
+      currentcolor:= if colorlines : col[n] else: black fi;\n\
+  fi\n\
   currentdash:= if dashedlines : lt[n] else: dashpattern(on 1) fi;\n\
   if n = -1 :\n\
       drawoptions(withcolor currentcolor withpen (currentpen scaled .5));\n\
@@ -527,6 +529,7 @@ enddef;\n\
 \n\
 % dash patterns\n\
 picture lt[];\n\
+lt[-3]:=dashpattern(off 1 on 0);\n\
 lt[-2]:=lt[-1]:=lt0:=dashpattern(on 1);\n\
 lt1=dashpattern(on 2 off 2); % dashes\n\
 lt2=dashpattern(on 2 off 2 on 0.2 off 2); %dash-dot\n\
@@ -699,17 +702,30 @@ TERM_PUBLIC void
 MP_arrow(unsigned int sx, unsigned int sy, unsigned int ex, unsigned int ey, int head)
 {
     MP_move(sx, sy);
-    if (head) {
+
+    if ((head & HEADS_ONLY))
+	fprintf(gpoutfile, "currentdash:=lt[%d];\n", LT_NODRAW);
+    if ((head & BOTH_HEADS) == BOTH_HEADS) {
 	fprintf(gpoutfile, "%s (%.1fa,%.1fb)--(%.1fa,%.1fb);\n",
-		head == 1 ? "drawarrow" : "drawdblarrow",
+		"drawdblarrow",
 		sx / 10.0, sy / 10.0, ex / 10.0, ey / 10.0);
-    } else if ((sx != ex) || (sy != ey)) {
+    } else if ((head & END_HEAD)) {
+	fprintf(gpoutfile, "%s (%.1fa,%.1fb)--(%.1fa,%.1fb);\n",
+		"drawarrow",
+		sx / 10.0, sy / 10.0, ex / 10.0, ey / 10.0);
+    } else if ((head & BACKHEAD)) {
+	fprintf(gpoutfile, "%s (%.1fa,%.1fb)--(%.1fa,%.1fb);\n",
+		"drawarrow",
+		ex / 10.0, ey / 10.0, sx / 10.0, sy / 10.0);
+    } else if (!(head & HEADS_ONLY) && ((sx != ex) || (sy != ey))) {
 	fprintf(gpoutfile, "draw (%.1fa,%.1fb)--(%.1fa,%.1fb);\n",
 		sx / 10.0, sy / 10.0, ex / 10.0, ey / 10.0);
-    }	/* else: arrow with no length and no head = sound of one hand clapping? */
+    }
+    if ((head & HEADS_ONLY))
+	fprintf(gpoutfile, "currentdash:=lt[%d];\n", MP_oldline);
+
     MP_posx = ex;
     MP_posy = ey;
-
 }
 
 TERM_PUBLIC void
@@ -886,7 +902,8 @@ MP_set_color(t_colorspec *colorspec)
     double gray = colorspec->value;
     rgb_color color;
 
-    /* remeber that we changed the color, needed to reset color in MP_linetype()*/
+    /* remember that we changed the color, needed to reset color in MP_linetype()*/
+    /* FIXME: only set this if the color really did change (compare to previous color) */
     MP_color_changed = 1;
 
     if (MP_inline)

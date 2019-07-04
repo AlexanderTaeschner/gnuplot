@@ -106,7 +106,9 @@ typedef struct {
   char flush;   	/* left, right, center */
   char ftriangles;   	/* 0/1 (don't) draw flushing triangles */
   char clip;		/* 1in, 4in */
+  TBOOLEAN no_clipcb;	/* FALSE: cb<0 treated as 0  TRUE: cb<0 treated as NaN */
   pm3d_scandir direction;
+  TBOOLEAN base_sort;	/* default: depth sort by mean Z;  true: use Z at base */
   PM3D_IMPL_MODE implicit;
 			/* 1: [default] draw ALL surfaces with pm3d
 			   0: only surfaces specified with 'with pm3d' */
@@ -127,6 +129,7 @@ typedef struct lighting_model {
   int rot_z;		/* illumination angle */
   int rot_x;		/* illumination angle */
   TBOOLEAN fixed;	/* TRUE means the light does not rotate */
+  double spec2;		/* 2nd specular contribution from red spotlight on opposite side */
 } lighting_model;
 
 extern lighting_model pm3d_shade;
@@ -134,7 +137,7 @@ extern lighting_model pm3d_shade;
 /* Used to initialize `set pm3d border` */
 extern struct lp_style_type default_pm3d_border;
 
-/* Used by routine filled_quadrangle() in color.c */
+/* Used by routine filled_quadrangle() */
 extern struct lp_style_type pm3d_border_lp;
 extern TBOOLEAN track_pm3d_quadrangles;
 
@@ -146,23 +149,23 @@ extern TBOOLEAN track_pm3d_quadrangles;
   Declaration of routines
 ****/
 
-int get_pm3d_at_option __PROTO((char *pm3d_where));
-void pm3d_depth_queue_clear __PROTO((void));
-void pm3d_depth_queue_flush __PROTO((void));
-void pm3d_reset __PROTO((void));
-void pm3d_draw_one __PROTO((struct surface_points* plots));
-void pm3d_add_quadrangle __PROTO((struct surface_points* plot, gpdPoint *corners));
-double z2cb_with_logs __PROTO((double z));
-double cb2gray __PROTO((double cb));
-void
-pm3d_rearrange_scan_array __PROTO((struct surface_points* this_plot,
+int get_pm3d_at_option(char *pm3d_where);
+void pm3d_depth_queue_clear(void);
+void pm3d_depth_queue_flush(void);
+void pm3d_reset(void);
+void pm3d_draw_one(struct surface_points* plots);
+void pm3d_add_quadrangle(struct surface_points* plot, gpdPoint *corners);
+void pm3d_init_lighting_model(void);
+double z2cb_with_logs(double z);
+double cb2gray(double cb);
+void pm3d_rearrange_scan_array(struct surface_points* this_plot,
     struct iso_curve*** first_ptr, int* first_n, int* first_invert,
-    struct iso_curve*** second_ptr, int* second_n, int* second_invert));
+    struct iso_curve*** second_ptr, int* second_n, int* second_invert);
 
-void set_plot_with_palette __PROTO((int plot_num, int plot_mode));
+void set_plot_with_palette(int plot_num, int plot_mode);
 
-TBOOLEAN is_plot_with_palette __PROTO((void));
-TBOOLEAN is_plot_with_colorbox __PROTO((void));
+TBOOLEAN is_plot_with_palette(void);
+TBOOLEAN is_plot_with_colorbox(void);
 
 #endif /* PM3D_H */
 

@@ -61,8 +61,8 @@ TBOOLEAN table_mode = FALSE;
 char *table_sep = NULL;
 struct at_type *table_filter_at = NULL;
 
-static char *expand_newline __PROTO((const char *in));
-static TBOOLEAN imploded __PROTO((curve_points *this_plot));
+static char *expand_newline(const char *in);
+static TBOOLEAN imploded(curve_points *this_plot);
 
 static FILE *outfile;
 
@@ -485,7 +485,7 @@ print_3dtable(int pcount)
 		int count = c->num_pts;
 		struct coordinate *point = c->coords;
 
-		if (c->isNewLevel)
+		if (c->isNewLevel) {
 		    /* don't display count - contour split across chunks */
 		    /* put # in case user wants to use it for a plot */
 		    /* double blank line to allow plot ... index ... */
@@ -493,6 +493,7 @@ print_3dtable(int pcount)
 		    snprintf(line, size, "# Contour %d, label: %s",
 			    number++, c->label);
 		    print_line(line);
+		}
 
 		for (; --count >= 0; ++point) {
 		    line[0] = NUL;
@@ -521,7 +522,7 @@ print_3dtable(int pcount)
 static char *
 expand_newline(const char *in)
 {
-    char *tmpstr = (char *) gp_alloc(2 * strlen(in), "enl");
+    char *tmpstr = (char *) gp_alloc(2 * strlen(in) + 1, "enl");
     const char *s = in;
     char *t = tmpstr;
     do {
@@ -581,9 +582,11 @@ tabulate_one_line(double v[MAXDATACOLS], struct value str[MAXDATACOLS], int ncol
 	char sep = (table_sep && *table_sep) ? *table_sep : '\t';
 	for (col = 0; col < ncols; col++) {
 	    if (str[col].type == STRING)
-		fprintf(outfile, " %s%c", str[col].v.string_val, sep);
+		fprintf(outfile, " %s", str[col].v.string_val);
 	    else
-		fprintf(outfile, " %g%c", v[col], sep);
+		fprintf(outfile, " %g", v[col]);
+	    if (col < ncols-1)
+		fprintf(outfile, "%c", sep);
 	}
 	fprintf(outfile, "\n");
     } else {
@@ -595,11 +598,16 @@ tabulate_one_line(double v[MAXDATACOLS], struct value str[MAXDATACOLS], int ncol
 
 	line[0] = NUL;
 	for (col = 0; col < ncols; col++) {
-	    if (str[col].type == STRING)
-		snprintf(buf, sizeof(buf), " %s%c", str[col].v.string_val, sep);
-	    else
-		snprintf(buf, sizeof(buf), " %g%c", v[col], sep);
-	    len = strappend(&line, &size, len, buf);
+	    if (str[col].type == STRING) {
+		len = strappend(&line, &size, 0, str[col].v.string_val);
+	    } else {
+		snprintf(buf, sizeof(buf), " %g", v[col]);
+		len = strappend(&line, &size, len, buf);
+	    }
+	    if (col < ncols-1) {
+		snprintf(buf, sizeof(buf), " %c", sep);
+		len = strappend(&line, &size, len, buf);
+	    }
 	}
 	append_to_datablock(&table_var->udv_value, line);
     }

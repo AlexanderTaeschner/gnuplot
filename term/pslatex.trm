@@ -38,7 +38,7 @@
  * This file supplies the terminal drivers:
  *     pslatex  -- LaTeX with embedded postscript
  *     pstex    -- plain TeX with embedded postscript
- *     epslatex -- LaTeX using \includegraphics, postscript part in an 
+ *     epslatex -- LaTeX using \includegraphics, postscript part in an
  *                 external file
  * Some routines are also used by terminal drivers
  *     cairolatex
@@ -61,7 +61,7 @@
  *              terminals.
  *      27 May 2004:
  *              - epslatex patch updated for gnuplot 4.0
- *      
+ *
  *  Harald Harders (h.harders@tu-bs.de), 2005-02-08:
  *  - Merged functionality of postscript, pslatex, pstex, and
  *    epslatex terminals. Therefore deleted epslatex.trm.
@@ -83,25 +83,23 @@ register_term(epslatex)
 #ifdef TERM_PROTO
 /* Common functions for epslatex and ps(la)tex */
 /* All these routines begin with PSLATEX_ */
-TERM_PUBLIC void PSLATEX_reset __PROTO((void));
+TERM_PUBLIC void PSLATEX_reset(void);
 
 /* Functions for ps(la)tex */
 /* All these routines begin with PSTEX_ */
-TERM_PUBLIC void PSTEX_reopen_output __PROTO((void));
-TERM_PUBLIC void PSTEX_common_init __PROTO((void));
-TERM_PUBLIC void PSTEX_put_text __PROTO((unsigned int x, unsigned int y, const char *str));
-TERM_PUBLIC void PSTEX_text __PROTO((void));
+TERM_PUBLIC void PSTEX_reopen_output(void);
+TERM_PUBLIC void PSTEX_common_init(void);
+TERM_PUBLIC void PSTEX_put_text(unsigned int x, unsigned int y, const char *str);
+TERM_PUBLIC void PSTEX_text(void);
 
 /* Functions for epslatex */
 /* All these routines begin with EPSLATEX_ */
-TERM_PUBLIC void EPSLATEX_reopen_output __PROTO((char *));
-TERM_PUBLIC void EPSLATEX_common_init __PROTO((void));
-TERM_PUBLIC void EPSLATEX_put_text __PROTO((unsigned int x, unsigned int y, const char *str));
-TERM_PUBLIC void EPSLATEX_linetype __PROTO((int linetype));
-TERM_PUBLIC void EPSLATEX_layer __PROTO((t_termlayer syncpoint));
-#ifdef EAM_BOXED_TEXT
-TERM_PUBLIC void EPSLATEX_boxed_text __PROTO((unsigned int, unsigned int, int));
-#endif
+TERM_PUBLIC void EPSLATEX_reopen_output(char *);
+TERM_PUBLIC void EPSLATEX_common_init(void);
+TERM_PUBLIC void EPSLATEX_put_text(unsigned int x, unsigned int y, const char *str);
+TERM_PUBLIC void EPSLATEX_linetype(int linetype);
+TERM_PUBLIC void EPSLATEX_layer(t_termlayer syncpoint);
+TERM_PUBLIC void EPSLATEX_boxed_text(unsigned int, unsigned int, int);
 
 /* additional LaTeX header information for epslatex terminal */
 TERM_PUBLIC char *epslatex_header = NULL;
@@ -133,7 +131,8 @@ static TBOOLEAN tex_color_synced = FALSE;
 /* support for cairolatex */
 #ifdef HAVE_CAIROPDF
 #define ISCAIROTERMINAL ((strcmp(term->name, "cairolatex") == 0))
-TERM_PUBLIC void cairotrm_set_color __PROTO ((t_colorspec *colorspec));
+TERM_PUBLIC void cairotrm_set_color(t_colorspec *colorspec);
+TERM_PUBLIC void cairotrm_linetype(int lt);
 #else
 #define ISCAIROTERMINAL (FALSE)
 #endif
@@ -158,10 +157,12 @@ PSLATEX_reset()
         if (gpoutfile) {
 	    fprintf(gpoutfile, "\
     \\gplbacktext\n\
-    \\put(0,0){\\includegraphics{%s}}%%\n\
+    \\put(0,0){\\includegraphics[width={%.2fbp},height={%.2fbp}]{%s}}%%\n\
     \\gplfronttext\n\
   \\end{picture}%%\n\
-\\endgroup\n", pslatex_auxname);
+\\endgroup\n", 1 + term->xmax * xsize / (2.0*PS_SC),
+               1 + term->ymax * ysize / (2.0*PS_SC),
+               pslatex_auxname);
             if (ps_params->epslatex_standalone)
                 fputs("\\end{document}\n", gpoutfile);
         }
@@ -428,60 +429,9 @@ EPSLATEX_common_init()
         os_error(c_token,
                  "epslatex terminal cannot write to standard output");
     if (gpoutfile) {
-        char *inputenc = NULL;
+        const char * inputenc = latex_input_encoding(encoding);
 
         fprintf(gpoutfile, "%% GNUPLOT: LaTeX picture with Postscript\n");
-
-        switch(encoding) {
-        case S_ENC_DEFAULT:
-            break;
-        case S_ENC_ISO8859_1:
-            inputenc = "latin1";
-            break;
-        case S_ENC_ISO8859_2:
-            inputenc = "latin2";
-            break;
-        case S_ENC_ISO8859_9:	/* ISO8859-9 is Latin5 */
-            inputenc = "latin5";
-            break;
-        case S_ENC_ISO8859_15:	/* ISO8859-15 is Latin9 */
-            inputenc = "latin9";
-            break;
-        case S_ENC_CP437:
-            inputenc = "cp437de";
-            break;
-        case S_ENC_CP850:
-            inputenc = "cp850";
-            break;
-        case S_ENC_CP852:
-            inputenc = "cp852";
-            break;
-        case S_ENC_CP1250:
-            inputenc = "cp1250";
-            break;
-        case S_ENC_CP1251:
-            inputenc = "cp1251";
-            break;
-        case S_ENC_CP1252:
-            inputenc = "cp1252";
-            break;
-        case S_ENC_KOI8_R:
-            inputenc = "koi8-r";
-            break;
-        case S_ENC_KOI8_U:
-            inputenc = "koi8-u";
-            break;
-	case S_ENC_UTF8:
-	    /* utf8x (not utf8) is needed to pick up degree and micro signs */
-	    inputenc = "utf8x";
-	    break;
-        case S_ENC_INVALID:
-            int_error(NO_CARET, "invalid input encoding used");
-            break;
-        default:
-            /* do nothing */
-            break;
-        }
 
 	/* Clear previous state */
 	tex_previous_colorspec.type = -1;
@@ -511,7 +461,7 @@ EPSLATEX_common_init()
                 }
             }
         }
-            
+
         if (ps_params->epslatex_standalone) {
             fprintf(gpoutfile, "\
 \\documentclass{minimal}\n\
@@ -603,7 +553,7 @@ EPSLATEX_common_init()
         }
 
         fputs("\\begingroup\n", gpoutfile);
-        
+
         if (inputenc && encoding != S_ENC_UTF8)
             fprintf(gpoutfile, "\
   %% Encoding inside the plot.  In the header of your document, this encoding\n\
@@ -663,7 +613,7 @@ EPSLATEX_common_init()
                 (ps_params->color?"true":"false"),
                 (ps_params->blacktext?"true":"false") );
 
-        /* use \expandafter\def\csname LT0\endcsname{...} 
+        /* use \expandafter\def\csname LT0\endcsname{...}
          * instead of \def\LT0{...} because digits may not be part of
          * \... sequences */
         fputs("\
@@ -723,7 +673,6 @@ EPSLATEX_common_init()
         fprintf(gpoutfile,"\
     \\setlength{\\unitlength}{%.4fbp}%%\n",
 		1.0 / (2*PS_SC));
-#ifdef EAM_BOXED_TEXT
         fprintf(gpoutfile,"\
     \\ifx\\gptboxheight\\undefined%%\n\
       \\newlength{\\gptboxheight}%%\n\
@@ -732,7 +681,6 @@ EPSLATEX_common_init()
     \\fi%%\n\
     \\setlength{\\fboxrule}{0.5pt}%%\n\
     \\setlength{\\fboxsep}{1pt}%%\n");
-#endif
         fprintf(gpoutfile,"\\begin{picture}(%.2f,%.2f)%%\n",
                 term->xmax * xsize, term->ymax * ysize);
     }
@@ -769,7 +717,7 @@ EPSLATEX_put_text(unsigned int x, unsigned int y, const char *str)
 	    fprintf(gpoutfile, "\t\\advance\\gptboxwidth by %d\\fboxsep\n",
 		(int)(2. * PSLATEX_xmargin + 0.5));
 	    fprintf(gpoutfile,
-		"      \\savebox{\\gptboxtext}{\\parbox[c][\\totalheight+%d\\fboxsep]{\\gptboxwidth}{\\centering{%s}}}\n", 
+		"      \\savebox{\\gptboxtext}{\\parbox[c][\\totalheight+%d\\fboxsep]{\\gptboxwidth}{\\centering{%s}}}\n",
 		(int)(2. * PSLATEX_ymargin + 0.5), str);
 	    PSLATEX_xbox = x;
 	    PSLATEX_ybox = y;
@@ -841,7 +789,8 @@ EPSLATEX_reopen_output(char * ext)
                 sprintf(suffix, "-inc.%s", ext);
             else
                 sprintf(suffix, ".%s", ext);
-            strncpy(&psoutstr[outstrlen - 4], suffix, strlen(suffix) + 1);
+	    psoutstr[outstrlen-4] = '\0';
+	    strcat(psoutstr,suffix);
             /* BM: Need binary output for PDF files. Does this have negative side effects for EPS? */
             gppsfile = fopen(psoutstr, "wb");
         }
@@ -850,9 +799,7 @@ EPSLATEX_reopen_output(char * ext)
                       psoutstr);
 
         /* set the name for the \includegraphics command */
-        pslatex_auxname = gp_alloc(strlen(psoutstr)-3,
-                                   "epslatex TeX filename");
-        strncpy( pslatex_auxname, psoutstr, strlen(psoutstr)-4 );
+	pslatex_auxname = gp_strdup(psoutstr);
         pslatex_auxname[strlen(psoutstr)-4] = '\0';
 
         free(psoutstr);
@@ -869,7 +816,7 @@ EPSLATEX_set_color(t_colorspec *colorspec)
     /* Fancy footwork to deal with mono/grayscale plots */
     if (ISCAIROTERMINAL) {
         cairotrm_set_color(colorspec);
-    } else 
+    } else
 #endif
     {
 	/* Filter out duplicate requests */
@@ -934,7 +881,13 @@ EPSLATEX_linetype(int linetype)
 {
     t_colorspec tempcol = {TC_LT, 0, 0.0};
     tempcol.lt = linetype;
-    PS_linetype(linetype);
+
+#ifdef HAVE_CAIROPDF
+    if (ISCAIROTERMINAL)
+	cairotrm_linetype(linetype);
+    else
+#endif
+	PS_linetype(linetype);
 
     /* This leads to redundant *.eps output */
     EPSLATEX_set_color(&tempcol);
@@ -955,7 +908,7 @@ EPSLATEX_layer(t_termlayer syncpoint)
 	if (!ISCAIROTERMINAL)
 	    fprintf(gppsfile, "%% Begin plot #%d\n", ++plotno);
 	break;
-    
+
     case TERM_LAYER_AFTER_PLOT:
 	PS_linetype(LT_UNDEFINED);	/* Forces a stroke and resets linetype */
 	if (!ISCAIROTERMINAL)
@@ -998,7 +951,7 @@ EPSLATEX_layer(t_termlayer syncpoint)
 	if (gppsfile && (gppsfile != gpoutfile))
 	    fprintf(gppsfile, "%%pm3d_map_begin\n");
 	break;
-    
+
     case TERM_LAYER_END_PM3D_MAP:
 	if (!ISCAIROTERMINAL)
 	if (gppsfile && (gppsfile != gpoutfile))
@@ -1010,8 +963,7 @@ EPSLATEX_layer(t_termlayer syncpoint)
     }
 }
 
-#ifdef EAM_BOXED_TEXT
-TERM_PUBLIC void 
+TERM_PUBLIC void
 EPSLATEX_boxed_text(unsigned int x, unsigned int y, int option)
 {
     if (!gpoutfile)
@@ -1027,20 +979,21 @@ EPSLATEX_boxed_text(unsigned int x, unsigned int y, int option)
 	PSLATEX_inbox = FALSE;
 	break;
     case TEXTBOX_OUTLINE:
-	fprintf(gpoutfile, "\t\\settowidth{\\gptboxwidth}{\\usebox{\\gptboxtext}}\n");
-	fprintf(gpoutfile, "\t\\advance\\gptboxwidth by 2\\fboxsep\n");
+	fputs("\t\\settowidth{\\gptboxwidth}{\\usebox{\\gptboxtext}}\n", gpoutfile);
+	fputs("\t\\advance\\gptboxwidth by 2\\fboxsep\n", gpoutfile);
 	fprintf(gpoutfile, "\t\\put(%d,%d)", PSLATEX_xbox, PSLATEX_ybox);
 	switch (ps_justify) {
 	case LEFT:
-	    fprintf(gpoutfile, "{\\framebox[\\gptboxwidth][c]{\\usebox{\\gptboxtext}}}\n");
+	    fputs("{\\makebox(0,0)[l]", gpoutfile);
+	    fputs("{\\framebox[\\gptboxwidth]{\\usebox{\\gptboxtext}}}}\n", gpoutfile);
 	    break;
 	case CENTRE:
-	    fprintf(gpoutfile, "{\\makebox[0.5\\width][r]");
-	    fprintf(gpoutfile, "{\\framebox[\\gptboxwidth][c]{\\usebox{\\gptboxtext}}}}\n");
+	    fputs("{\\makebox(0,0)", gpoutfile);
+	    fputs("{\\framebox[\\gptboxwidth][c]{\\usebox{\\gptboxtext}}}}\n", gpoutfile);
 	    break;
 	case RIGHT:
-	    fprintf(gpoutfile, "{\\makebox[-\\width][c]");
-	    fprintf(gpoutfile, "{\\framebox[\\gptboxwidth][c]{\\usebox{\\gptboxtext}}}}\n");
+	    fputs("{\\makebox(0,0)[r]", gpoutfile);
+	    fputs("{\\framebox[\\gptboxwidth][r]{\\usebox{\\gptboxtext}}}}\n", gpoutfile);
 	    break;
 	}
 	PSLATEX_inbox = FALSE;
@@ -1051,21 +1004,20 @@ EPSLATEX_boxed_text(unsigned int x, unsigned int y, int option)
 	    fprintf(gpoutfile, "        %s\n", tex_rgb_colordef);
 	    tex_color_synced = TRUE;
 	}
-	/* FIXME: I have zero idea why CENTER requires r while RIGHT requires c */
 	fprintf(gpoutfile, "\t\\put(%d,%d)", PSLATEX_xbox, PSLATEX_ybox);
 	switch (ps_justify) {
 	case LEFT:
-	    fputs("{{", gpoutfile);
+	    fputs("{\\makebox(0,0)[l]{", gpoutfile);
 	    break;
 	case CENTRE:
-	    fputs("{\\makebox[0.5\\width][r]{", gpoutfile);
+	    fputs("{\\makebox(0,0){", gpoutfile);
 	    break;
 	case RIGHT:
-	    fputs("{\\makebox[-\\width][c]{", gpoutfile);
+	    fputs("{\\makebox(0,0)[r]{", gpoutfile);
 	    break;
 	}
 	if (PSLATEX_opacity < 1.0)
-	    fprintf(gpoutfile,"\\transparent{%.2f}",PSLATEX_opacity);
+	    fprintf(gpoutfile, "\\transparent{%.2f}", PSLATEX_opacity);
 	fputs("\\colorbox{tbcol}{\\usebox{\\gptboxtext}}}}\n", gpoutfile);
 	break;
     case TEXTBOX_MARGINS:
@@ -1076,7 +1028,6 @@ EPSLATEX_boxed_text(unsigned int x, unsigned int y, int option)
 	break;
     }
 }
-#endif
 
 #endif /* TERM_BODY */
 
@@ -1109,9 +1060,7 @@ TERM_TABLE_START(epslatex_driver)
     PS_path,
     0.0,	/* scale */
     0,		/* hypertext */
-#ifdef EAM_BOXED_TEXT
     EPSLATEX_boxed_text,
-#endif
     NULL,
     PS_dashtype
 TERM_TABLE_END(epslatex_driver)

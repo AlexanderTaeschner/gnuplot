@@ -44,13 +44,12 @@
 typedef struct vertex {
     coordval x, y, z;		/* vertex coordinates */
     lp_style_type *lp_style;	/* where to find point symbol type (if any) */
-    coordval real_z;
+    coordval real_z;		/* mostly used to track variable color */
     struct text_label *label;
-#ifdef HIDDEN3D_VAR_PTSIZE	/* Needed for variable pointsize, but takes space */
-    struct coordinate *original;
-#endif
+    struct coordinate *original;/* original coordinates of this point */
+				/* used for variable pointsize, pointtype */
 } vertex;
-typedef vertex GPHUGE * p_vertex;
+typedef vertex * p_vertex;
 
 
 /* Utility macros for vertices: */
@@ -75,22 +74,22 @@ typedef vertex GPHUGE * p_vertex;
 
 /* Prototypes of functions exported by "util3d.c" */
 
-void edge3d_intersect __PROTO((coordinate *, coordinate *, double *, double *, double *));
-TBOOLEAN two_edge3d_intersect __PROTO((coordinate *, coordinate *, double *, double *, double *));
-void mat_scale __PROTO((double sx, double sy, double sz, double mat[4][4]));
-void mat_rot_x __PROTO((double teta, double mat[4][4]));
-void mat_rot_z __PROTO((double teta, double mat[4][4]));
-void mat_mult __PROTO((double mat_res[4][4], double mat1[4][4], double mat2[4][4]));
-void map3d_xyz __PROTO((double x, double y, double z, p_vertex out));
-void map3d_xy __PROTO((double x, double y, double z, int *xt, int *yt));
-void map3d_xy_double __PROTO((double x, double y, double z, double *xt, double *yt));
-void draw3d_line __PROTO((p_vertex, p_vertex, struct lp_style_type *));
-void draw3d_line_unconditional __PROTO((p_vertex, p_vertex, struct lp_style_type *, t_colorspec));
-void draw3d_point __PROTO((p_vertex v, struct lp_style_type *lp));
+void edge3d_intersect(coordinate *, coordinate *, double *, double *, double *);
+TBOOLEAN two_edge3d_intersect(coordinate *, coordinate *, double *, double *, double *);
+void mat_scale(double sx, double sy, double sz, double mat[4][4]);
+void mat_rot_x(double teta, double mat[4][4]);
+void mat_rot_z(double teta, double mat[4][4]);
+void mat_mult(double mat_res[4][4], double mat1[4][4], double mat2[4][4]);
+void map3d_xyz(double x, double y, double z, p_vertex out);
+void map3d_xy(double x, double y, double z, int *xt, int *yt);
+void map3d_xy_double(double x, double y, double z, double *xt, double *yt);
+void draw3d_line(p_vertex, p_vertex, struct lp_style_type *);
+void draw3d_line_unconditional(p_vertex, p_vertex, struct lp_style_type *, t_colorspec);
+void draw3d_point(p_vertex v, struct lp_style_type *lp);
 
 
 /* HBB NEW 20031218: 3D polyline support */
-void polyline3d_start __PROTO((p_vertex v1));
-void polyline3d_next __PROTO((p_vertex v2, struct lp_style_type *lp));
+void polyline3d_start(p_vertex v1);
+void polyline3d_next(p_vertex v2, struct lp_style_type *lp);
 
 #endif /* GNUPLOT_UTIL3D_H */

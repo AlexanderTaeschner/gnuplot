@@ -118,7 +118,6 @@ static int avg_vchar = 150;
 static void gp_cairo_fill(plot_struct *plot, int fillstyle, int fillpar);
 static void gp_cairo_fill_pattern(plot_struct *plot, int fillstyle, int fillpar);
 
-#ifdef EAM_BOXED_TEXT
 /* Boxed text support */
 static int bounding_box[4];
 static double bounding_xmargin = 1.0;
@@ -127,7 +126,6 @@ static double box_rotation = 0.0;
 static double box_origin_x;
 static double box_origin_y;
 static TBOOLEAN in_textbox = FALSE;
-#endif
 
 /* array of colors
  * FIXME could be shared with all gnuplot terminals */
@@ -181,7 +179,7 @@ void gp_cairo_initialize_plot(plot_struct *plot)
 
 	plot->current_x = -1; plot->current_y = -1;
 
-	strncpy(plot->fontname, "", sizeof(plot->fontname));
+	safe_strncpy(plot->fontname, "", sizeof(plot->fontname));
 	plot->fontsize = 1.0;
 	plot->encoding = S_ENC_DEFAULT;
 
@@ -191,6 +189,8 @@ void gp_cairo_initialize_plot(plot_struct *plot)
 
 	plot->oversampling = TRUE;
 	plot->oversampling_scale = GP_CAIRO_SCALE;
+
+	plot->upsampling_rate = 1.0;
 
 	plot->linecap = BUTT;
 
@@ -204,9 +204,7 @@ void gp_cairo_initialize_plot(plot_struct *plot)
 
 	plot->interrupt = FALSE;
 
-#ifdef EAM_BOXED_TEXT
 	in_textbox = FALSE;
-#endif
 }
 
 /* set the transformation matrix of the context, and other details */
@@ -305,12 +303,12 @@ void gp_cairo_set_justify(plot_struct *plot, JUSTIFY mode)
 }
 
 
-void gp_cairo_set_font(plot_struct *plot, const char *name, int fontsize)
+void gp_cairo_set_font(plot_struct *plot, const char *name, float fontsize)
 {
     char *c;
     char *fname;
 
-	FPRINTF((stderr,"set_font \"%s\" %d\n", name,fontsize));
+	FPRINTF((stderr,"set_font \"%s\" %f\n", name,fontsize));
 
 	/* Split out Bold and Italic attributes from font name */
 	fname = strdup(name);
@@ -334,7 +332,7 @@ void gp_cairo_set_font(plot_struct *plot, const char *name, int fontsize)
 	} else
 	    plot->fontstyle = PANGO_STYLE_NORMAL;
 
-	strncpy( plot->fontname, fname, sizeof(plot->fontname) );
+	safe_strncpy( plot->fontname, fname, sizeof(plot->fontname) );
 	plot->fontsize = fontsize;
 	free(fname);
 }
@@ -481,8 +479,8 @@ void gp_cairo_end_polygon(plot_struct *plot)
 	context_sav = plot->cr;
 	surface = cairo_surface_create_similar(cairo_get_target(plot->cr),
                                              CAIRO_CONTENT_COLOR_ALPHA,
-                                             plot->device_xmax*SCALE,
-                                             plot->device_ymax*SCALE);
+                                             plot->device_xmax*plot->upsampling_rate*SCALE,
+                                             plot->device_ymax*plot->upsampling_rate*SCALE);
 	context = cairo_create(surface);
 	cairo_set_operator(context,CAIRO_OPERATOR_SATURATE);
 	if (plot->antialiasing)
@@ -609,7 +607,8 @@ void gp_cairo_stroke(plot_struct *plot)
 	cairo_save(plot->cr);
 
 	if (plot->linetype == LT_NODRAW) {
-		cairo_set_operator(plot->cr, CAIRO_OPERATOR_XOR);
+		cairo_set_operator(plot->cr, CAIRO_OPERATOR_DEST);
+		lw = 0.0;
 
 	} else if (lt == LT_AXIS || plot->linestyle == GP_CAIRO_DOTS) {
 		/* Grid lines (lt 0) */
@@ -838,7 +837,7 @@ void gp_cairo_draw_text(plot_struct *plot, int x1, int y1, const char* string,
 	if (!strcmp(plot->fontname,"Symbol")) {
 		FPRINTF((stderr,"Parsing a Symbol string\n"));
 		string_utf8 = gp_cairo_convert_symbol_to_unicode(plot, string);
-		strncpy(plot->fontname, gp_cairo_default_font(), sizeof(plot->fontname));
+		safe_strncpy(plot->fontname, gp_cairo_default_font(), sizeof(plot->fontname));
 		symbol_font_parsed = TRUE;
 	} else
 #endif /*MAP_SYMBOL*/
@@ -857,7 +856,7 @@ void gp_cairo_draw_text(plot_struct *plot, int x1, int y1, const char* string,
 #ifdef MAP_SYMBOL
 	/* restore the Symbol font setting */
 	if (symbol_font_parsed)
-		strncpy(plot->fontname, "Symbol", sizeof(plot->fontname));
+		safe_strncpy(plot->fontname, "Symbol", sizeof(plot->fontname));
 #endif /*MAP_SYMBOL*/
 	pango_font_description_set_size (desc, (int) (plot->fontsize*PANGO_SCALE*plot->oversampling_scale) );
 
@@ -924,7 +923,6 @@ void gp_cairo_draw_text(plot_struct *plot, int x1, int y1, const char* string,
 	 * Do it by ourselves, or we can get spurious lines on future calls. */
 	cairo_new_path(plot->cr);
 
-#ifdef EAM_BOXED_TEXT
 	if (in_textbox) {
 		box_rotation = -arg;
 		box_origin_x = x1;
@@ -960,7 +958,6 @@ void gp_cairo_draw_text(plot_struct *plot, int x1, int y1, const char* string,
 		if (bounding_box[3] < box_y + ink_rect.y + ink_rect.height)
 		    bounding_box[3] = box_y + ink_rect.y + ink_rect.height;
 	}
-#endif
 
 	/* free the layout object */
 	g_clear_object (&layout);
@@ -1303,11 +1300,11 @@ void gp_cairo_enhanced_flush(plot_struct *plot)
 		enhanced_text_utf8 = gp_cairo_convert_symbol_to_unicode(plot, gp_cairo_enhanced_string);
 
 		if (!strcmp(plot->fontname,"Symbol")) {
-			strncpy(gp_cairo_enhanced_font,
+			safe_strncpy(gp_cairo_enhanced_font,
 				plot->fontname,
 				sizeof(gp_cairo_enhanced_font));
 		} else {
-			strncpy(gp_cairo_enhanced_font,
+			safe_strncpy(gp_cairo_enhanced_font,
 				gp_cairo_default_font(), sizeof(gp_cairo_enhanced_font));
 		}
 		symbol_font_parsed = TRUE;
@@ -1344,7 +1341,7 @@ void gp_cairo_enhanced_flush(plot_struct *plot)
 		/* adding a blank character with the corresponding shape */
 		gp_cairo_add_shape(save_logical_rect,start);
 
-		strncpy(gp_cairo_save_utf8, "", sizeof(gp_cairo_save_utf8));
+		safe_strncpy(gp_cairo_save_utf8, "", sizeof(gp_cairo_save_utf8));
 		gp_cairo_enhanced_restore_now = FALSE;
 		start++;
 	}
@@ -1389,7 +1386,7 @@ void gp_cairo_enhanced_flush(plot_struct *plot)
 		/* adding a blank character with the corresponding shape */
 		gp_cairo_add_shape(underprinted_logical_rect, start);
 
-		strncpy(gp_cairo_underprinted_utf8, "", sizeof(gp_cairo_underprinted_utf8));
+		safe_strncpy(gp_cairo_underprinted_utf8, "", sizeof(gp_cairo_underprinted_utf8));
 		/* increment the position as we added a character */
 		start++;
 	}
@@ -1499,7 +1496,7 @@ void gp_cairo_enhanced_flush(plot_struct *plot)
 
 #ifdef MAP_SYMBOL
 	if (symbol_font_parsed)
-		strncpy(gp_cairo_enhanced_font, "Symbol", sizeof(gp_cairo_enhanced_font));
+		safe_strncpy(gp_cairo_enhanced_font, "Symbol", sizeof(gp_cairo_enhanced_font));
 #endif /* MAP_SYMBOL */
 
 	g_free(enhanced_text_utf8);
@@ -1540,7 +1537,7 @@ void gp_cairo_enhanced_open(plot_struct *plot, char* fontname, double fontsize, 
 		 */
 		char *save_plot_font = strdup(plot->fontname);
 		gp_cairo_set_font(plot, fontname, plot->fontsize);
-		strncpy(gp_cairo_enhanced_font, plot->fontname, sizeof(gp_cairo_enhanced_font));
+		safe_strncpy(gp_cairo_enhanced_font, plot->fontname, sizeof(gp_cairo_enhanced_font));
 		strcpy(plot->fontname, save_plot_font);
 		free(save_plot_font);
 
@@ -1573,7 +1570,7 @@ void gp_cairo_enhanced_init(plot_struct *plot, int len)
 	gp_cairo_enhanced_overprint = FALSE;
 	gp_cairo_enhanced_showflag = TRUE;
 	gp_cairo_enhanced_fontsize = plot->fontsize*plot->oversampling_scale;
-	strncpy(gp_cairo_enhanced_font, plot->fontname, sizeof(gp_cairo_enhanced_font));
+	safe_strncpy(gp_cairo_enhanced_font, plot->fontname, sizeof(gp_cairo_enhanced_font));
 	gp_cairo_enhanced_AttrList = pango_attr_list_new();
 }
 
@@ -1634,7 +1631,6 @@ void gp_cairo_enhanced_finish(plot_struct *plot, int x, int y)
 	 * Do it by ourselves, or we can get spurious lines on future calls. */
 	cairo_new_path(plot->cr);
 	
-#ifdef EAM_BOXED_TEXT
 	if (in_textbox) {
 		box_rotation = -arg;
 		box_origin_x = x;
@@ -1670,14 +1666,13 @@ void gp_cairo_enhanced_finish(plot_struct *plot, int x, int y)
 		if (bounding_box[3] < box_y + ink_rect.y + ink_rect.height)
 		    bounding_box[3] = box_y + ink_rect.y + ink_rect.height;
 	}
-#endif
 
 	/* free the layout object */
 	pango_attr_list_unref( gp_cairo_enhanced_AttrList );
 	gp_cairo_enhanced_AttrList = NULL;
 	g_clear_object (&layout);
 	cairo_restore(plot->cr);
-	strncpy(gp_cairo_utf8, "", sizeof(gp_cairo_utf8));
+	safe_strncpy(gp_cairo_utf8, "", sizeof(gp_cairo_utf8));
 	free(gp_cairo_enhanced_string);
 }
 
@@ -1735,7 +1730,6 @@ void gp_cairo_fill(plot_struct *plot, int fillstyle, int fillpar)
 	}
 }
 
-#ifdef EAM_BOXED_TEXT
 void gp_cairo_boxed_text(plot_struct *plot, int x, int y, int option)
 {
 	int dx, dy;
@@ -1807,7 +1801,6 @@ void gp_cairo_boxed_text(plot_struct *plot, int x, int y, int option)
 		break;
 	}
 }
-#endif
 
 #define PATTERN_SIZE 8
 

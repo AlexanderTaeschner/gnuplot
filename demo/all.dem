@@ -76,6 +76,10 @@ print "******************** file poldat.dem ********************"
 load "poldat.dem"
 reset
 
+print "******************** file polar_quadrants.dem ********************"
+load "polar_quadrants.dem"
+reset
+
 print "******************** file solar_path.dem ****************"
 load "solar_path.dem"
 reset
@@ -96,6 +100,11 @@ print "******************** file violinplot.dem ********************"
 load "violinplot.dem"
 reset
 
+print "******************** file sampling.dem ********************"
+load "sampling.dem"
+load "sampling2.dem"
+reset
+
 print "******************** file multiplt.dem ********************"
 load "multiplt.dem"
 load "layout.dem"
@@ -111,6 +120,10 @@ reset
 
 print "******************** file hidden.dem ********************"
 load "hidden.dem"
+reset
+
+print "******************** file hidden_compare.dem ********************"
+load "hidden_compare.dem"
 reset
 
 print "******************** file dgrid3d.dem ********************"
@@ -174,8 +187,13 @@ print "******************** file azimuth.dem ********************"
 load "azimuth.dem"
 reset
 
+print "******************** file projection.dem ******************"
+load "projection.dem"
+reset
+
 print "******************** file contours.dem ********************"
 load "contours.dem"
+load "custom_contours.dem"
 reset
 
 print "******************** file multimsh.dem ********************"
@@ -321,6 +339,9 @@ load "histograms2.dem"
 load "label_stacked_histograms.dem"
 reset
 
+print "********************** file boxclusters.dem *********************"
+load "boxclusters.dem"
+
 print "********************** file array.dem *********************"
 load "array.dem"
 reset
@@ -349,6 +370,10 @@ print "********************** file circles.dem *********************"
 load "circles.dem"
 reset
 
+print "********************** file armillary.dem *********************"
+load "armillary.dem"
+reset
+
 print "********************** file ellipses_style.dem *********************"
 load "ellipses_style.dem"
 reset
@@ -360,10 +385,15 @@ reset
 print "********************** file custom_key.dem *********************"
 load "custom_key.dem"
 load "nokey.dem"
+load "keyentry.dem"
 reset
 
 print "********************** file walls.dem *********************"
 load "walls.dem"
+reset
+
+print "********************** file boxes3d.dem *********************"
+load "boxes3d.dem"
 reset
 
 print "********************** file borders.dem *********************"
@@ -399,6 +429,10 @@ load "nonlinear5.dem"
 load "nonlinear6.dem"
 reset
 
+print "********************** file map_projection.dem *********************"
+load "map_projection.dem"
+reset
+
 print "********************** file transparent.dem *********************"
 load "transparent.dem"
 reset
@@ -408,5 +442,15 @@ load "transparent_solids.dem"
 
 print "********************** file pm3d_lighting.dem *********************"
 load "pm3d_lighting.dem"
-pause 5
-reset
+
+print "********************** file vplot.dem *********************"
+load "vplot.dem"
+
+print "********************** file isosurface.dem *********************"
+load "isosurface.dem"
+
+print "********************** file voxel.dem *********************"
+load "voxel.dem"
+
+pause 3
+reset session

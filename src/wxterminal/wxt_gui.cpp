@@ -153,6 +153,10 @@ int wxt_max_anchors = 0;
 TBOOLEAN pending_href = FALSE;
 const char *wxt_display_hypertext = NULL;
 wxtAnchorPoint wxt_display_anchor = {0,0,0};
+char * wxt_hypertext_fontname = NULL;
+double wxt_hypertext_fontsize = 10;
+int    wxt_hypertext_fontstyle = 10;
+int    wxt_hypertext_fontweight = 10;
 
 #else
 #define wxt_update_key_box(x,y)
@@ -160,7 +164,8 @@ wxtAnchorPoint wxt_display_anchor = {0,0,0};
 #endif
 
 #if defined(WXT_MONOTHREADED) && !defined(_WIN32)
-static int wxt_yield = 0;	/* used in wxt_waitforinput() */
+static int wxt_yield = 0;		/* used in wxt_waitforinput() */
+static TBOOLEAN wxt_interlock = FALSE;	/* used to prevent recursive OnCreateWindow */
 #endif
 
 char *wxt_enhanced_fontname = NULL;
@@ -275,6 +280,7 @@ bool wxtApp::OnInit()
 	GetCurrentProcess(&PSN);
 	TransformProcessType(&PSN, kProcessTransformToForegroundApplication);
 #endif
+	static TBOOLEAN image_handlers_loaded = FALSE;
 
 	/* Usually wxWidgets apps create their main window here.
 	 * However, in the context of multiple plot windows, the same code is written in wxt_init().
@@ -288,7 +294,11 @@ bool wxtApp::OnInit()
 	icon.AddIcon(wxIcon(icon64x64_xpm));
 
 	/* we load the image handlers, needed to copy the plot to clipboard, and to load icons */
-	::wxInitAllImageHandlers();
+	/* Only load once (else wxt 3.0 complains noisily) */
+	if (!image_handlers_loaded) {
+	    ::wxInitAllImageHandlers();
+	    image_handlers_loaded = TRUE;
+	}
 
 #ifdef __WXMSW__
 	/* allow the toolbar to display properly png icons with an alpha channel */
@@ -380,8 +390,17 @@ void wxtApp::OnCreateWindow( wxCommandEvent& event )
 	wxt_window_t *window = (wxt_window_t*) event.GetClientData();
 
 	FPRINTF((stderr,"wxtApp::OnCreateWindow\n"));
+#if defined(WXT_MONOTHREADED) && !defined(_WIN32)
+	wxt_interlock = TRUE;
+#endif
 	window->frame = new wxtFrame( window->title, window->id );
 	window->frame->Show(true);
+#ifdef __WXMSW__
+	// If gnuplot is invoked "hidden", the very first Show() is ignored.
+	if (!window->frame->IsShown())
+		window->frame->Show(true);
+#endif
+
 	FPRINTF((stderr,"new plot window opened\n"));
 	/* make the panel able to receive keyboard input */
 	window->frame->panel->SetFocus();
@@ -395,6 +414,9 @@ void wxtApp::OnCreateWindow( wxCommandEvent& event )
 	/* tell the other thread we have finished */
 	wxMutexLocker lock(*(window->mutex));
 	window->condition->Broadcast();
+#if defined(WXT_MONOTHREADED) && !defined(_WIN32)
+	wxt_interlock = FALSE;
+#endif
 }
 
 /* wrapper for AddPendingEvent or ProcessEvent */
@@ -618,7 +640,7 @@ void wxtFrame::OnExport( wxCommandEvent& WXUNUSED( event ) )
 		rect.bottom = MulDiv(panel->plot.device_ymax, dpi, 10);
 		HDC hmf = CreateEnhMetaFileW(NULL, fullpathFilename.wc_str(), &rect, NULL);
 		// The win32_printing surface makes an effort to use the GDI API wherever possible,
-		// which should reduce the file size in many cases. 
+		// which should reduce the file size in many cases.
 		surface = cairo_win32_printing_surface_create(hmf);
 		if (cairo_surface_status(surface) != CAIRO_STATUS_SUCCESS) {
 			fprintf(stderr, "Cairo error: could not create surface for metafile.\n");
@@ -785,8 +807,11 @@ void wxtFrame::OnConfig( wxCommandEvent& WXUNUSED( event ) )
 /* toolbar event : Help */
 void wxtFrame::OnHelp( wxCommandEvent& WXUNUSED( event ) )
 {
-	wxMessageBox( wxString(wxT("You are using an interactive terminal ")
-		wxT("based on wxWidgets for the interface, Cairo ")
+	wxMessageBox( wxString(wxT("You are using an interactive terminal based on ")
+#ifdef WXT_MULTITHREADED
+		wxT("multithreaded ")
+#endif
+		wxT("wxWidgets for the interface, Cairo ")
 		wxT("for the drawing facilities, and Pango for the text layouts.\n")
 		wxT("Please note that toolbar icons in the terminal ")
 		wxT("don't reflect the whole range of mousing ")
@@ -969,6 +994,8 @@ void wxtPanel::ClearCommandlist()
 		if ( iter->command == command_put_text ||
 			iter->command == command_hypertext ||
 			iter->command == command_set_font)
+			delete[] iter->string;
+		if (iter->command == command_enhanced_open)
 			delete[] iter->string;
 		if (iter->command == command_filled_polygon)
 			delete[] iter->corners;
@@ -1216,6 +1243,10 @@ void wxtPanel::OnLeftUp( wxMouseEvent& event )
 				(int) left_button_sw.Time(), this->GetId()) ) {
 		/* start a watch to send the time elapsed between up and down */
 		left_button_sw.Start();
+
+		/* EXPERIMENTAL: send associated hypertext to clipboard */
+		if (wxt_display_hypertext)
+			wxt_set_clipboard(wxt_display_hypertext);
 	}
 }
 
@@ -1340,6 +1371,25 @@ void wxtPanel::OnKeyDownChar( wxKeyEvent &event )
 #define WXK_GPKEYCODE(wxkey,kcode) case wxkey : gp_keycode=kcode; break;
 
 	if (keycode<256) {
+		// event.GetKeyCode() already applied <control> and <shift>
+		// we need to undo that for normal alphabetic characters
+		// before sending the character to event_keypress()
+		if (event.ControlDown() && (1 <= keycode && keycode <= 26))
+
+#ifdef wxHAS_RAW_KEY_CODES
+		    // <ctrl><tab> is distinguishable from <ctrl>i only via
+		    // the raw key code.  There are other weird ones as well,
+		    // but TAB is the one most likely to cause problems.
+		    if (!(keycode == WXK_TAB && ((0xff00 & event.GetRawKeyCode()) != 0)))
+#endif
+		{
+			if (event.ShiftDown())
+				keycode += 'A' - 1;
+			else
+				keycode += 'a' - 1;
+		}
+
+
 		switch (keycode) {
 
 #ifndef DISABLE_SPACE_RAISES_CONSOLE
@@ -1356,7 +1406,6 @@ void wxtPanel::OnKeyDownChar( wxKeyEvent &event )
 
 		case 'q' :
 		/* ctrl+q does not send 113 but 17 */
-		/* WARNING : may be the same for other combinations */
 		case 17 :
 			if ((wxt_ctrl==yes && event.ControlDown())
 				|| wxt_ctrl!=yes) {
@@ -1552,8 +1601,8 @@ static void wxt_check_for_anchors(unsigned int x, unsigned int y)
 	int i;
 	TBOOLEAN refresh = FALSE;
 	for (i=0; i<wxt_n_anchors; i++) {
-		if ((abs((int)x - (int)wxt_anchors[i].x) < wxt_anchors[i].size)
-		&&  (abs((int)y - (int)wxt_anchors[i].y) < wxt_anchors[i].size)) {
+		if ((abs((int)x - (int)wxt_anchors[i].x) < (int)wxt_anchors[i].size)
+		&&  (abs((int)y - (int)wxt_anchors[i].y) < (int)wxt_anchors[i].size)) {
 			refresh = TRUE;
 		}
 	}
@@ -1895,7 +1944,7 @@ void wxt_init()
 		/* the following is done in wxEntry() with wxMSW only */
 		WXDLLIMPEXP_BASE void wxSetInstance(HINSTANCE hInst);
 		wxSetInstance(GetModuleHandle(NULL));
-		wxApp::m_nCmdShow = SW_SHOW;
+		wxApp::m_nCmdShow = SW_SHOWNORMAL;
 #endif
 
 		if (!wxInitialize()) {
@@ -1948,8 +1997,12 @@ void wxt_init()
 
 	/* open a new plot window if it does not exist */
 	if ( wxt_current_window == NULL ) {
-		FPRINTF((stderr,"opening a new plot window\n"));
 
+		FPRINTF((stderr,"opening a new plot window\n"));
+#if defined(WXT_MONOTHREADED) && !defined(_WIN32)
+		if (wxt_interlock)
+		    return;
+#endif
 		/* create a new plot window and show it */
 		wxt_window_t window;
 		window.id = wxt_window_number;
@@ -1970,6 +2023,10 @@ void wxt_init()
 #ifdef WXT_MULTITHREADED
 		window.mutex->Lock();
 #endif /* WXT_MULTITHREADED */
+#if defined(WXT_MONOTHREADED) && !defined(_WIN32)
+		wxt_status = STATUS_UNINITIALIZED;
+#endif
+
 		wxt_MutexGuiEnter();
 		dynamic_cast<wxtApp*>(wxTheApp)->SendEvent( event );
 		wxt_MutexGuiLeave();
@@ -2062,11 +2119,8 @@ void wxt_init()
 #ifdef HAVE_LOCALE_H
 	/* when wxGTK was initialised above, GTK+ also set the locale of the
 	 * program itself;  we must revert it */
-	if (wxt_status == STATUS_UNINITIALIZED) {
-		extern char *current_locale;
-		setlocale(LC_NUMERIC, "C");
-		setlocale(LC_TIME, current_locale);
-	}
+	setlocale(LC_NUMERIC, "C");
+	setlocale(LC_TIME, time_locale);
 #endif
 
 	/* accept the following commands from gnuplot */
@@ -2114,12 +2168,16 @@ void wxt_graphics()
 
 	/* set or refresh terminal size according to the window size */
 	/* oversampling_scale is updated in gp_cairo_initialize_context */
-	term->xmax = (unsigned int) wxt_current_plot->device_xmax*wxt_current_plot->oversampling_scale;
-	term->ymax = (unsigned int) wxt_current_plot->device_ymax*wxt_current_plot->oversampling_scale;
-	wxt_current_plot->xmax = term->xmax;
-	wxt_current_plot->ymax = term->ymax;
+	wxt_current_plot->xmax = wxt_current_plot->device_xmax*wxt_current_plot->oversampling_scale;
+	wxt_current_plot->ymax = wxt_current_plot->device_ymax*wxt_current_plot->oversampling_scale;
 	/* initialize encoding */
 	wxt_current_plot->encoding = encoding;
+
+	/* Adjust for the mismatch of floating point coordinate range 0->max	*/
+	/* and integer terminal pixel coordinates [0:max-1].			*/
+	term->xmax = (wxt_current_plot->device_xmax - 1) * wxt_current_plot->oversampling_scale;
+	term->ymax = (wxt_current_plot->device_ymax - 1) * wxt_current_plot->oversampling_scale;
+	term->tscale = wxt_current_plot->oversampling_scale;
 
 	wxt_MutexGuiLeave();
 
@@ -2861,7 +2919,6 @@ void wxt_set_clipboard(const char s[])
 }
 #endif /*USE_MOUSE*/
 
-#ifdef EAM_BOXED_TEXT
 /* Pass through the boxed text options to cairo */
 void wxt_boxed_text(unsigned int x, unsigned int y, int option)
 {
@@ -2874,7 +2931,6 @@ void wxt_boxed_text(unsigned int x, unsigned int y, int option)
 	temp_command.integer_value = option;
 	wxt_command_push(temp_command);
 }
-#endif
 
 void wxt_modify_plots(unsigned int ops, int plotno)
 {
@@ -2897,7 +2953,7 @@ void wxt_modify_plots(unsigned int ops, int plotno)
 	}
 	wxt_MutexGuiEnter();
 	wxt_current_panel->wxt_cairo_refresh();
-	// Empirically, without this Update() the plots are toggled correctly but the 
+	// Empirically, without this Update() the plots are toggled correctly but the
 	// change may not show on the screen until a mouse or other event next arrives
 	wxt_current_panel->Update();
 	wxt_MutexGuiLeave();
@@ -2927,7 +2983,7 @@ void wxtPanel::wxt_cairo_refresh()
 	  Call stack:
 	  [00] wxOnAssert(char const*, int, char const*, char const*, wchar_t const*)
 	  [01] wxClientDCImpl::DoGetSize(int*, int*) const
-	  [02] wxBufferedDC::UnMask()                  
+	  [02] wxBufferedDC::UnMask()
 	  wxwidgets documentation to the contrary, panel->IsShownOnScreen() is unreliable
 	 */
 	if (!wxt_current_window) {
@@ -2949,6 +3005,8 @@ void wxtPanel::wxt_cairo_refresh()
 	wxt_display_hypertext = NULL;
 	wxt_display_anchor.x = 0;
 	wxt_display_anchor.y = 0;
+	free(wxt_hypertext_fontname);
+	wxt_hypertext_fontname = NULL;
 
 	command_list_mutex.Lock();
 	command_list_t::iterator wxt_iter; /*declare the iterator*/
@@ -3045,6 +3103,11 @@ void wxtPanel::wxt_cairo_exec_command(gp_command command)
 		return;
 	case command_hypertext :
 		current_href = command.string;
+		free(wxt_hypertext_fontname);
+		wxt_hypertext_fontname = strdup(plot.fontname);
+		wxt_hypertext_fontsize = plot.fontsize;
+		wxt_hypertext_fontstyle = plot.fontstyle;
+		wxt_hypertext_fontweight = plot.fontweight;
 		return;
 	case command_point :
 		if (wxt_in_key_sample) {
@@ -3129,11 +3192,9 @@ void wxtPanel::wxt_cairo_exec_command(gp_command command)
 				command.x4, command.y4,
 				command.integer_value, command.integer_value2);
 		return;
-#ifdef EAM_BOXED_TEXT
 	case command_boxed_text :
 		gp_cairo_boxed_text(&plot, command.x1, command.y1, command.integer_value);
 		return;
-#endif /*EAM_BOXED_TEXT */
 	case command_layer :
 		switch (command.integer_value)
 		{
@@ -3165,8 +3226,12 @@ void wxtPanel::wxt_cairo_exec_command(gp_command command)
 
 void wxtPanel::wxt_cairo_draw_hypertext()
 {
-	/* FIXME: Properly, we should save and restore the plot properties, */
+	/* FIXME: Properly, we should save and restore all plot properties, */
 	/* but since this box is the very last thing in the plot....        */
+	double save_fontsize = plot.fontsize;
+	int save_fontstyle = plot.fontstyle;
+	int save_fontweight = plot.fontweight;
+
 	rgb_color grey = {.9, .9, .9};
 	int width = 0;
 	int height = 0;
@@ -3179,6 +3244,12 @@ void wxtPanel::wxt_cairo_draw_hypertext()
 		    wxt_cairo_draw_hyperimage();
 		    display_text = imagefile+1;
 		}
+	}
+
+	if (wxt_hypertext_fontname) {
+	    gp_cairo_set_font(&plot, wxt_hypertext_fontname, wxt_hypertext_fontsize);
+	    plot.fontstyle = wxt_hypertext_fontstyle;
+	    plot.fontweight = wxt_hypertext_fontweight;
 	}
 
 	plot.justify_mode = LEFT;
@@ -3198,6 +3269,11 @@ void wxtPanel::wxt_cairo_draw_hypertext()
 		wxt_display_anchor.x + term->h_char,
 		wxt_display_anchor.y + term->v_char / 2,
 		display_text, NULL, NULL);
+
+	/* FIXME: Incomplete restoration of previous state */
+	plot.fontsize = save_fontsize;
+	plot.fontstyle = save_fontstyle;
+	plot.fontweight = save_fontweight;
 }
 
 void wxtPanel::wxt_cairo_draw_hyperimage()
@@ -3294,8 +3370,13 @@ void wxt_raise_window(wxt_window_t* window, bool force)
 		gdk_window_raise(gtk_widget_get_window(window->frame->GetHandle()));
 #else
 #ifdef __WXMSW__
+		// If gnuplot is invoked "hidden", the very first Show() is ignored.
+		// FIXME: Revert to the Windows API, since I could not manage to get
+		// it right using wxWidget class methods only.
+		if (!IsWindowVisible(window->frame->GetHandle()))
+			ShowWindow(window->frame->GetHandle(), SW_SHOWNORMAL);
 		// Only restore the window if it is iconized.  In particular
-		// leave it alone if it is maximized.
+		// leave it alone if it is maximized or "snapped".
 		if (window->frame->IsIconized())
 #endif
 		window->frame->Restore();
@@ -3669,7 +3750,7 @@ int wxtPanel::wxt_cairo_create_platform_context()
 	/* GetHDC is a wxMSW specific wxDC method that returns
 	 * the HDC on which painting should be done */
 	surface = cairo_win32_surface_create_with_ddb(
-		(HDC) dc.GetHDC(), CAIRO_FORMAT_RGB24, 
+		(HDC) dc.GetHDC(), CAIRO_FORMAT_RGB24,
 		plot.device_xmax, plot.device_ymax);
 	plot.cr = cairo_create(surface);
 	cairo_surface_destroy(surface);
@@ -3783,9 +3864,7 @@ void wxtPanel::wxt_cairo_free_platform_context()
 /* process one event, returns true if it ends the pause */
 bool wxt_process_one_event(struct gp_event_t *event)
 {
-	FPRINTF2((stderr,"Processing event\n"));
 	do_event( event );
-	FPRINTF2((stderr,"Event processed\n"));
 	if (event->type == GE_buttonrelease && (paused_for_mouse & PAUSE_CLICK)) {
 		int button = event->par1;
 		if (button == 1 && (paused_for_mouse & PAUSE_BUTTON1))
@@ -3847,7 +3926,7 @@ bool wxt_exec_event(int type, int mx, int my, int par1, int par2, wxWindowID id)
 	return true;
 #elif defined(WXT_MONOTHREADED)
 	if (wxt_process_one_event(&event))
-	    ungetc('\n',stdin);
+	    if (debug == 44) ungetc('\n',stdin);
 	return true;
 #else
 	if (!wxt_handling_persist)
@@ -3920,6 +3999,10 @@ int wxt_waitforinput(int options)
 					      NULL /* not watching for write-ready */,
 					      NULL /* not watching for exceptions */,
 					      timeout );
+		if (n_changed_fds < 0 && errno == EINTR) {
+			wrap_readline_signal_handler();
+			continue;
+		}
 
 		if (n_changed_fds < 0) {
 			if (paused_for_mouse)
@@ -3997,21 +4080,33 @@ int wxt_waitforinput(int options)
 	}
 
 	while (wxTheApp) {
-	  // Loop with timeout of 10ms until stdin is ready to read,
-	  // while also handling window events.
-	  wxt_yield = 1;
-	  wxTheApp->Yield();
-	  wxt_yield = 0;
+		// Loop with timeout of 10ms until stdin is ready to read,
+		// while also handling window events.
+		int retval;
+		int was_paused_for_mouse = paused_for_mouse;
 
-	  struct timeval tv;
-	  fd_set read_fd;
-	  tv.tv_sec = 0;
-	  tv.tv_usec = 10000;
-	  FD_ZERO(&read_fd);
-	  FD_SET(0, &read_fd);
-	  if (select(1, &read_fd, NULL, NULL, &tv) != -1 && FD_ISSET(0, &read_fd))
-	    if (!paused_for_mouse)
-		break;
+		wxt_yield = 1;
+		wxTheApp->Yield();
+		wxt_yield = 0;
+
+		struct timeval tv;
+		fd_set read_fd;
+		tv.tv_sec = 0;
+		tv.tv_usec = 10000;
+		FD_ZERO(&read_fd);
+		FD_SET(0, &read_fd);
+		retval = select(1, &read_fd, NULL, NULL, &tv);
+		if (retval == -1)
+			int_error(NO_CARET, "input select error");
+		else if (was_paused_for_mouse && !paused_for_mouse)
+			/* The wxTheApp event loop caught a signal */
+			return '\0';
+		else if (paused_for_mouse && !isatty(0))
+			/* We are still paused for mouse but input is from a pipe */
+			usleep(50000);
+		else if (retval)
+			/* select indicated something to read on stdin */
+			return getchar();
 	}
 	return getchar();
 #endif

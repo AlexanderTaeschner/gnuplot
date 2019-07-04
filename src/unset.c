@@ -41,6 +41,7 @@
 #include "hidden3d.h"
 #include "jitter.h"
 #include "misc.h"
+#include "multiplot.h"
 #include "parse.h"
 #include "plot.h"
 #include "plot2d.h"
@@ -51,98 +52,100 @@
 #include "util.h"
 #include "variable.h"
 #include "pm3d.h"
-
-static void unset_all_tics __PROTO((void));
-static void unset_angles __PROTO((void));
-static void unset_arrow __PROTO((void));
-static void unset_arrowstyles __PROTO((void));
-static void free_arrowstyle __PROTO((struct arrowstyle_def *));
-static void delete_arrow __PROTO((struct arrow_def *, struct arrow_def *));
-static void unset_autoscale __PROTO((void));
-static void unset_bars __PROTO((void));
-static void unset_border __PROTO((void));
-static void unset_boxplot __PROTO((void));
-static void unset_boxwidth __PROTO((void));
-static void unset_fillstyle __PROTO((void));
-static void unset_clip __PROTO((void));
-static void unset_cntrparam __PROTO((void));
-static void unset_cntrlabel __PROTO((void));
-static void unset_contour __PROTO((void));
-static void unset_dashtype __PROTO((void));
-static void unset_dgrid3d __PROTO((void));
-static void unset_dummy __PROTO((void));
-static void unset_encoding __PROTO((void));
-static void unset_decimalsign __PROTO((void));
-static void unset_fit __PROTO((void));
-static void unset_grid __PROTO((void));
-static void unset_hidden3d __PROTO((void));
-static void unset_histogram __PROTO((void));
-#ifdef EAM_BOXED_TEXT
-static void unset_textbox_style __PROTO((void));
-#endif
-static void unset_historysize __PROTO((void));
-static void unset_isosamples __PROTO((void));
-static void unset_key __PROTO((void));
-static void unset_label __PROTO((void));
-static void delete_label __PROTO((struct text_label * prev, struct text_label * this));
-static void unset_linestyle __PROTO((struct linestyle_def **head));
-static void unset_linetype __PROTO((void));
-#ifdef EAM_OBJECTS
-static void unset_object __PROTO((void));
-static void delete_object __PROTO((struct object * prev, struct object * this));
-static void unset_style_rectangle __PROTO(());
-static void unset_style_circle __PROTO(());
-static void unset_style_ellipse __PROTO(());
-static void unset_wall __PROTO((int which));
-#endif
-static void unset_loadpath __PROTO((void));
-static void unset_locale __PROTO((void));
-static void reset_logscale __PROTO((struct axis *));
-static void unset_logscale __PROTO((void));
-static void unset_mapping __PROTO((void));
-static void unset_margin __PROTO((t_position *));
-static void unset_missing __PROTO((void));
-static void unset_micro __PROTO((void));
-static void unset_minus_sign __PROTO((void));
 #ifdef USE_MOUSE
-static void unset_mouse __PROTO((void));
+#include "mouse.h"
 #endif
+#include "voxelgrid.h"
 
-static void unset_month_day_tics __PROTO((AXIS_INDEX));
-static void unset_minitics __PROTO((struct axis *));
+static void unset_all_tics(void);
+static void unset_angles(void);
+static void unset_arrow(void);
+static void unset_arrowstyles(void);
+static void free_arrowstyle(struct arrowstyle_def *);
+static void delete_arrow(struct arrow_def *, struct arrow_def *);
+static void unset_autoscale(void);
+static void unset_bars(void);
+static void unset_border(void);
+static void unset_boxplot(void);
+static void unset_boxdepth(void);
+static void unset_boxwidth(void);
+static void unset_fillstyle(void);
+static void unset_clip(void);
+static void unset_cntrparam(void);
+static void unset_cntrlabel(void);
+static void unset_contour(void);
+static void unset_dashtype(void);
+static void unset_dgrid3d(void);
+static void unset_dummy(void);
+static void unset_encoding(void);
+static void unset_decimalsign(void);
+static void unset_fit(void);
+static void unset_grid(void);
+static void unset_hidden3d(void);
+static void unset_histogram(void);
+static void unset_textbox_style(void);
+static void unset_historysize(void);
+static void unset_isosamples(void);
+static void unset_key(void);
+static void unset_label(void);
+static void delete_label(struct text_label * prev, struct text_label * this);
+static void unset_linestyle(struct linestyle_def **head);
+static void unset_linetype(void);
+static void unset_object(void);
+static void delete_object(struct object * prev, struct object * this);
+static void unset_style_rectangle(void);
+static void unset_style_circle(void);
+static void unset_style_ellipse(void);
+static void unset_style_parallel(void);
+static void unset_wall(int which);
+static void unset_loadpath(void);
+static void unset_locale(void);
+static void reset_logscale(struct axis *);
+static void unset_logscale(void);
+static void unset_mapping(void);
+static void unset_margin(t_position *);
+static void unset_missing(void);
+static void unset_micro(void);
+static void unset_minus_sign(void);
+static void unset_mouse(void);
 
-static void unset_offsets __PROTO((void));
-static void unset_origin __PROTO((void));
-static void unset_output __PROTO((void));
-static void unset_parametric __PROTO((void));
-static void unset_pm3d __PROTO((void));
-static void unset_palette __PROTO((void));
-static void reset_colorbox __PROTO((void));
-static void unset_colorbox __PROTO((void));
-static void unset_pointsize __PROTO((void));
-static void unset_pointintervalbox __PROTO((void));
-static void unset_polar __PROTO((void));
-static void unset_print __PROTO((void));
-static void unset_psdir __PROTO((void));
-static void unset_samples __PROTO((void));
-static void unset_size __PROTO((void));
-static void unset_style __PROTO((void));
-static void unset_surface __PROTO((void));
-static void unset_table __PROTO((void));
-static void unset_terminal __PROTO((void));
-static void unset_tics __PROTO((struct axis *));
-static void unset_ticslevel __PROTO((void));
-static void unset_timefmt __PROTO((void));
-static void unset_timestamp __PROTO((void));
-static void unset_view __PROTO((void));
-static void unset_zero __PROTO((void));
-static void unset_timedata __PROTO((AXIS_INDEX));
-static void unset_range __PROTO((AXIS_INDEX));
-static void unset_zeroaxis __PROTO((AXIS_INDEX));
-static void unset_all_zeroaxes __PROTO((void));
+static void unset_month_day_tics(AXIS_INDEX);
+static void unset_minitics(struct axis *);
 
-static void unset_axislabel_or_title __PROTO((text_label *));
-static void unset_axislabel __PROTO((AXIS_INDEX));
+static void unset_offsets(void);
+static void unset_origin(void);
+static void unset_output(void);
+static void unset_parametric(void);
+static void unset_pm3d(void);
+static void unset_palette(void);
+static void reset_colorbox(void);
+static void unset_colorbox(void);
+static void unset_pointsize(void);
+static void unset_pointintervalbox(void);
+static void unset_polar(void);
+static void unset_print(void);
+static void unset_psdir(void);
+static void unset_samples(void);
+static void unset_size(void);
+static void unset_style(void);
+static void unset_surface(void);
+static void unset_table(void);
+static void unset_terminal(void);
+static void unset_tics(struct axis *);
+static void unset_ticslevel(void);
+static void unset_timefmt(void);
+static void unset_timestamp(void);
+static void unset_view(void);
+static void unset_zero(void);
+static void unset_timedata(AXIS_INDEX);
+static void unset_range(AXIS_INDEX);
+static void unset_zeroaxis(AXIS_INDEX);
+static void unset_all_zeroaxes(void);
+
+static void unset_axislabel_or_title(text_label *);
+static void unset_axislabel(AXIS_INDEX);
+
+static void reset_mouse(void);
 
 /******** The 'unset' command ********/
 void
@@ -164,7 +167,7 @@ unset_command()
     }
     if (forever_iteration(set_iterator)) {
 	set_iterator = cleanup_iteration(set_iterator);
-	int_error(save_token, "unbounded iteration");
+	int_error(save_token, "unbounded iteration not accepted here");
     }
 
     found_token = lookup_table(&set_tbl[0],c_token);
@@ -191,6 +194,9 @@ unset_command()
 	break;
     case S_BORDER:
 	unset_border();
+	break;
+    case S_BOXDEPTH:
+	unset_boxdepth();
 	break;
     case S_BOXWIDTH:
 	unset_boxwidth();
@@ -327,6 +333,9 @@ unset_command()
 	    df_nofpe_trap = FALSE;
 	    c_token++;
 	    break;
+	} else if (almost_equals(c_token,"columnhead$ers")) {
+	    df_columnheaders = FALSE;
+	    c_token++;
 	}
 	df_fortran_constants = FALSE;
 	unset_missing();
@@ -335,6 +344,7 @@ unset_command()
 	free(df_commentschars);
 	df_commentschars = gp_strdup(DEFAULT_COMMENTS_CHARS);
 	df_unset_datafile_binary();
+	df_columnheaders = FALSE;
 	break;
     case S_MICRO:
 	unset_micro();
@@ -345,11 +355,9 @@ unset_command()
     case S_MONOCHROME:
 	unset_monochrome();
 	break;
-#ifdef USE_MOUSE
     case S_MOUSE:
 	unset_mouse();
 	break;
-#endif
     case S_MULTIPLOT:
 	term_end_multiplot();
 	break;
@@ -361,6 +369,9 @@ unset_command()
 	break;
     case SET_OUTPUT:
 	unset_output();
+	break;
+    case S_OVERFLOW:
+	overflow_handling = INT64_OVERFLOW_IGNORE;
 	break;
     case S_PARAMETRIC:
 	unset_parametric();
@@ -389,7 +400,6 @@ unset_command()
     case S_PSDIR:
 	unset_psdir();
 	break;
-#ifdef EAM_OBJECTS
     case S_OBJECT:
 	unset_object();
 	break;
@@ -397,7 +407,6 @@ unset_command()
 	for (i=0; i<5; i++)
 	    unset_wall(i);
 	break;
-#endif
     case S_RTICS:
 	unset_tics(&axis_array[POLAR_AXIS]);
 	break;
@@ -408,7 +417,7 @@ unset_command()
 	i = int_expression();
 	if (almost_equals(c_token, "tic$s")) {
 	    if (i > 0 && i <= num_parallel_axes)
-		unset_tics(&parallel_axis[i-1]);
+		unset_tics(&parallel_axis_array[i-1]);
 	    c_token++;
 	}
 	break;
@@ -454,6 +463,9 @@ unset_command()
 	break;
     case S_VIEW:
 	unset_view();
+	break;
+    case S_VGRID:
+	unset_vgrid();
 	break;
     case S_ZERO:
 	unset_zero();
@@ -714,7 +726,7 @@ unset_autoscale()
 	for (axis=0; axis<AXIS_ARRAY_SIZE; axis++)
 	    axis_array[axis].set_autoscale = FALSE;
 	for (axis=0; axis<num_parallel_axes; axis++)
-	    parallel_axis[axis].set_autoscale = FALSE;
+	    parallel_axis_array[axis].set_autoscale = FALSE;
     } else if (equals(c_token, "xy") || equals(c_token, "tyx")) {
 	axis_array[FIRST_X_AXIS].set_autoscale
 	    = axis_array[FIRST_Y_AXIS].set_autoscale = AUTOSCALE_NONE;
@@ -770,6 +782,14 @@ unset_boxplot()
 }
 
 
+/* process 'unset boxdepth' command */
+static void
+unset_boxdepth()
+{
+    boxdepth = 0.0;
+}
+
+
 /* process 'unset boxwidth' command */
 static void
 unset_boxwidth()
@@ -799,14 +819,17 @@ unset_clip()
 	clip_points = FALSE;
 	clip_lines1 = FALSE;
 	clip_lines2 = FALSE;
-    } else if (almost_equals(c_token, "p$oints"))
+	clip_radial = FALSE;
+    } else if (almost_equals(c_token, "r$adial") || equals(c_token, "polar"))
+	clip_radial = FALSE;
+    else if (almost_equals(c_token, "p$oints"))
 	clip_points = FALSE;
     else if (almost_equals(c_token, "o$ne"))
 	clip_lines1 = FALSE;
     else if (almost_equals(c_token, "t$wo"))
 	clip_lines2 = FALSE;
     else
-	int_error(c_token, "expecting 'points', 'one', or 'two'");
+	int_error(c_token, "expecting 'points', 'one', 'two', or 'radial'");
     c_token++;
 }
 
@@ -951,6 +974,7 @@ unset_grid()
 	axis_array[i].gridminor = FALSE;
     }
     polar_grid_angle = 0;
+    grid_vertical_lines = FALSE;
 }
 
 
@@ -970,14 +994,18 @@ unset_histogram()
     histogram_opts = foo;
 }
 
-#ifdef EAM_BOXED_TEXT
 static void
 unset_textbox_style()
 {
     textbox_style foo = DEFAULT_TEXTBOX_STYLE;
-    textbox_opts = foo;
+    int i;
+
+    for (i=0; i<NUM_TEXTBOX_STYLES; i++) {
+	textbox_opts[i] = foo;
+	if (i>0)
+	    textbox_opts[i].linewidth = 0.;
+    }
 }
-#endif
 
 /* process 'unset historysize' command DEPRECATED */
 static void
@@ -1095,7 +1123,6 @@ unset_linetype()
 	unset_linestyle(&first_perm_linestyle);
 }
 
-#ifdef EAM_OBJECTS
 static void
 unset_object()
 {
@@ -1144,7 +1171,6 @@ delete_object(struct object *prev, struct object *this)
 	free (this);
     }
 }
-#endif
 
 
 /* process 'unset loadpath' command */
@@ -1206,9 +1232,11 @@ unset_logscale()
 	    static char command[64];
 	    if (!isalpha(axis_name(axis)[0]))
 		continue;
-	    sprintf(command, "unset nonlinear %s", axis_name(axis));
-	    do_string(command); 
-	    axis_array[axis].log = FALSE;
+	    if (axis_array[axis].log) {
+		sprintf(command, "unset nonlinear %s", axis_name(axis));
+		do_string(command); 
+		axis_array[axis].log = FALSE;
+	    }
 	    axis_array[axis].ticdef.logscaling = FALSE;
 	}
     }
@@ -1252,18 +1280,18 @@ unset_missing()
     missing_val = NULL;
 }
 
-#ifdef USE_MOUSE
 /* process 'unset mouse' command */
 static void
 unset_mouse()
 {
+#ifdef USE_MOUSE
     mouse_setting.on = 0;
 #ifdef OS2
     PM_update_menu_items();
 #endif
     UpdateStatusline(); /* wipe status line */
-}
 #endif
+}
 
 /* process 'unset mxtics' command */
 static void
@@ -1429,7 +1457,6 @@ unset_pm3d()
     /* reset styles, required to 'plot something' after e.g. 'set pm3d map' */
     if (data_style == PM3DSURFACE) data_style = POINTSTYLE;
     if (func_style == PM3DSURFACE) func_style = LINES;
-    pm3d.border.l_type = LT_NODRAW;
 }
 
 
@@ -1522,16 +1549,12 @@ unset_style()
 	while (first_linestyle != NULL)
 	    delete_linestyle(&first_linestyle, NULL, first_linestyle);
 	unset_fillstyle();
-#ifdef EAM_OBJECTS
 	unset_style_rectangle();
 	unset_style_circle();
 	unset_style_ellipse();
-#endif
 	unset_histogram();
 	unset_boxplot();
-#ifdef EAM_BOXED_TEXT
 	unset_textbox_style();
-#endif
 	c_token++;
 	return;
     }
@@ -1566,7 +1589,6 @@ unset_style()
 	unset_arrowstyles();
 	c_token++;
 	break;
-#ifdef EAM_OBJECTS
     case SHOW_STYLE_RECTANGLE:
 	unset_style_rectangle();
 	c_token++;
@@ -1579,15 +1601,16 @@ unset_style()
 	unset_style_ellipse();
 	c_token++;
 	break;
-#endif
-#ifdef EAM_BOXED_TEXT
     case SHOW_STYLE_TEXTBOX:
 	unset_textbox_style();
 	c_token++;
 	break;
-#endif
     case SHOW_STYLE_BOXPLOT:
 	unset_boxplot();
+	c_token++;
+	break;
+    case SHOW_STYLE_PARALLEL:
+	unset_style_parallel();
 	c_token++;
 	break;
     default:
@@ -1674,6 +1697,8 @@ static void
 unset_view()
 {
     splot_map = FALSE;
+    xz_projection = FALSE;
+    yz_projection = FALSE;
     aspect_ratio_3D = 0;
     surface_rot_z = 30.0;
     surface_rot_x = 60.0;
@@ -1682,7 +1707,6 @@ unset_view()
     surface_zscale = 1.0;
     azimuth = 0.0;
 }
-
 
 /* process 'unset zero' command */
 static void
@@ -1735,23 +1759,17 @@ unset_all_zeroaxes()
 }
 
 
-/* process 'unset [xyz]{2}label command */
 static void
 unset_axislabel_or_title(text_label *label)
 {
-    struct position default_offset = { character, character, character,
-				       0., 0., 0. };
     if (label) {
 	free(label->text);
-	label->text = NULL;
 	free(label->font);
-	label->font = NULL;
-	label->offset = default_offset;
-	label->textcolor.type = TC_DEFAULT;
-	label->boxed = 0;
+	*label = default_axis_label;
     }
 }
 
+/* process 'unset [xyz]{2}label command */
 static void
 unset_axislabel(AXIS_INDEX axis)
 {
@@ -1764,13 +1782,15 @@ unset_axislabel(AXIS_INDEX axis)
 /*
  * Free dynamic fields in an axis structure so that it can be safely deleted
  * or reinitialized.  Doesn't free the axis structure itself.
+ * SAMPLE_AXIS is an exception because its link pointers are only copies of
+ * those in the real axis being sampled.
  */
 static void
 free_axis_struct(struct axis *this_axis)
 {
 	free(this_axis->formatstring);
 	free(this_axis->ticfmt);
-	if (this_axis->link_udf) {
+	if (this_axis->link_udf && this_axis->index != SAMPLE_AXIS) {
 	    free(this_axis->link_udf->at);
 	    free(this_axis->link_udf->definition);
 	    free(this_axis->link_udf);
@@ -1805,6 +1825,7 @@ reset_command()
 	clear_udf_list();
 	init_constants();
 	init_session();
+	reset_mouse();
 	return;
     }
 
@@ -1825,10 +1846,27 @@ reset_command()
 #endif
 
     if (!(END_OF_COMMAND)) {
-	int_warn(c_token, "invalid option, expecting 'bind' or 'errorstate'");
+	int_warn(c_token, "invalid option, expecting 'session', 'bind' or 'errorstate'");
 	while (!(END_OF_COMMAND))
 	    c_token++;
     }
+
+#if (0)
+    /* DEBUG - enable this code for testing
+     * The *.dem unit tests all end with a "reset" command.
+     * In order to test save/load from a wide variety of states we can intercept
+     * this command and insert save/load before execution.
+     */
+    extern TBOOLEAN successful_initialization;
+    if (successful_initialization) {
+	FILE *fp = fopen("/tmp/gnuplot_debug.sav", "w+");
+	replot_line[0] = '\0';
+	save_all(fp);
+	rewind(fp);
+	load_file(fp, gp_strdup("/tmp/gnuplot_debug.sav"), 1);
+	/* load_file closes fp */
+    }
+#endif
 
     /* Kludge alert, HBB 20000506: set to noninteractive mode, to
      * suppress some of the commentary output by the individual
@@ -1850,14 +1888,12 @@ reset_command()
     /* delete linestyles */
     while (first_linestyle != NULL)
 	delete_linestyle(&first_linestyle, NULL, first_linestyle);
-#ifdef EAM_OBJECTS
     /* delete objects */
     while (first_object != NULL)
 	delete_object((struct object *) NULL, first_object);
     unset_style_rectangle();
     unset_style_circle();
     unset_style_ellipse();
-#endif
 
     /* 'polar', 'parametric' and 'dummy' are interdependent, so be
      * sure to keep the order intact */
@@ -1898,12 +1934,13 @@ reset_command()
 
     /* Free all previously allocated parallel axis structures */
     for (axis=0; axis<num_parallel_axes; axis++) {
-	struct axis *this_axis = &parallel_axis[axis];
+	struct axis *this_axis = &parallel_axis_array[axis];
 	free_axis_struct(this_axis);
     }
-    free(parallel_axis);
-    parallel_axis = NULL;
+    free(parallel_axis_array);
+    parallel_axis_array = NULL;
     num_parallel_axes = 0;
+    unset_style_parallel();
 
     if (shadow_axis_array) {
 	for (i=0; i<NUMBER_OF_MAIN_VISIBLE_AXES; i++)
@@ -1918,11 +1955,13 @@ reset_command()
     unset_timefmt();
 
     unset_boxplot();
+    unset_boxdepth();
     unset_boxwidth();
 
     clip_points = FALSE;
     clip_lines1 = TRUE;
     clip_lines2 = FALSE;
+    clip_radial = FALSE;
 
     border_lp = default_border_lp;
     border_layer = LAYER_FRONT;
@@ -1981,16 +2020,16 @@ reset_command()
     df_unset_datafile_binary();
     unset_fillstyle();
     unset_histogram();
-#ifdef EAM_BOXED_TEXT
     unset_textbox_style();
-#endif
-#ifdef BACKWARDS_COMPATIBLE
     prefer_line_styles = FALSE;
-#endif
 
 #ifdef USE_MOUSE
     mouse_setting = default_mouse_setting;
 #endif
+
+    /* restore previous multiplot offset and margins */
+    if (multiplot)
+	multiplot_reset();
 
     unset_missing();
     free(df_separators);
@@ -2013,7 +2052,6 @@ reset_command()
     interactive = save_interactive;
 }
 
-#ifdef EAM_OBJECTS
 static void
 unset_style_rectangle()
 {
@@ -2036,8 +2074,28 @@ unset_style_ellipse()
     return;
 }
 static void
+unset_style_parallel()
+{
+    struct pa_style parallel_axis_default = DEFAULT_PARALLEL_AXIS_STYLE;
+    parallel_axis_style = parallel_axis_default;
+}
+static void
 unset_wall(int which)
 {
     grid_wall[which].layer = LAYER_BEHIND;
 }
+
+/* Invoked by "reset session".  There is no command line "reset mouse" */
+static void
+reset_mouse()
+{
+#ifdef USE_MOUSE
+    free_at(mouse_readout_function.at);  /* sets to NULL */
+    free(mouse_readout_function.definition);
+    mouse_readout_function.definition = NULL;
+    free(mouse_alt_string);
+    mouse_alt_string = NULL;
+    mouse_mode = MOUSE_COORDINATES_REAL;
+    mouse_setting = default_mouse_setting;
 #endif
+}

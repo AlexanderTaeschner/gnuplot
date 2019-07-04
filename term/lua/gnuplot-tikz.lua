@@ -74,8 +74,8 @@ pgf.DEFAULT_FONT_V_CHAR = 308
 
 pgf.STYLE_FILE_BASENAME = "gnuplot-lua-tikz"  -- \usepackage{gnuplot-lua-tikz}
 
-pgf.REVISION = string.sub("$Rev: 103 $",7,-3)
-pgf.REVISION_DATE = "Date: 2016/07/22 21:03:49"
+pgf.REVISION = "110"
+pgf.REVISION_DATE = "2019/06/10 03:12:00"
 
 pgf.styles = {}
 
@@ -424,6 +424,10 @@ end
 pgf.draw_fill = function(t, pattern, color, saturation, opacity)
   local fill_path = ''
   local fill_style = color
+
+  if #t < 2 then
+    return
+  end
   
   if saturation < 100 then
     fill_style = fill_style .. ",color=.!"..saturation;
@@ -489,7 +493,8 @@ pgf.draw_raw_rgb_image = function(t, m, n, ll, ur, xfile)
   local ys = sf("%.3f", pgf.transform_ycoord(ur[2]) - pgf.transform_ycoord(ll[2]))
   gw("\\def\\gprawrgbimagedata{%\n  ")
   for cnt = 1,#t do
-    gw(sf("%02x%02x%02x", 255*t[cnt][1]+0.5, 255*t[cnt][2]+0.5, 255*t[cnt][3]+0.5))
+    gw(sf("%02x%02x%02x", math.floor(255*t[cnt][1]+0.5),
+          math.floor(255*t[cnt][2]+0.5), math.floor(255*t[cnt][3]+0.5)))
     if (cnt % 16) == 0 then
       gw("%\n  ")
     end
@@ -596,7 +601,7 @@ f_context:write([[
 %%
 \usemodule[tikz]
 
-\usetikzlibrary[arrows,patterns,plotmarks,backgrounds]
+\usetikzlibrary[arrows,patterns,plotmarks,backgrounds,fit]
 
 \edef\tikzatcode{\the\catcode`\@}
 \edef\tikzbarcode{\the\catcode`\|}
@@ -626,13 +631,13 @@ f_tex:write([[
 %%  plain TeX wrapper for gnuplot-tikz style file
 %%
 \input tikz.tex
-\usetikzlibrary{arrows,patterns,plotmarks,backgrounds}
+\usetikzlibrary{arrows,patterns,plotmarks,backgrounds,fit}
 
 \edef\tikzatcode{\the\catcode`\@}
 \catcode`\@=11
 
 ]])
-f_tex:write("\\input "..name_common.."\n\n")
+f_tex:write("\\input "..name_common.."\n")
 f_tex:write([[
 
 \catcode`\@=\tikzatcode
@@ -660,40 +665,30 @@ f:write([[
 \fi}
 \expandafter\gpchecktikzversion\pgfversion\relax
 
-% FIXME: is there a more elegant way to determine the output format?
+\def\gnuplot@output@ps{ps} % required for comparison in \gprawimage
 
-\def\pgfsysdriver@a{pgfsys-dvi.def}       % ps
-\def\pgfsysdriver@b{pgfsys-dvipdfm.def}   % pdf
-\def\pgfsysdriver@c{pgfsys-dvipdfmx.def}  % pdf
-\def\pgfsysdriver@d{pgfsys-dvips.def}     % ps
-\def\pgfsysdriver@e{pgfsys-pdftex.def}    % pdf
-\def\pgfsysdriver@f{pgfsys-tex4ht.def}    % html
-\def\pgfsysdriver@g{pgfsys-textures.def}  % ps
-\def\pgfsysdriver@h{pgfsys-vtex.def}      % ps
-\def\pgfsysdriver@i{pgfsys-xetex.def}     % pdf
+\expandafter\def\csname gnuplot@select@driver@pgfsys-dvi.def\endcsname     {ps}
+\expandafter\def\csname gnuplot@select@driver@pgfsys-dvipdfm.def\endcsname {pdf}
+\expandafter\def\csname gnuplot@select@driver@pgfsys-dvipdfmx.def\endcsname{pdf}
+\expandafter\def\csname gnuplot@select@driver@pgfsys-dvips.def\endcsname   {ps}
+\expandafter\def\csname gnuplot@select@driver@pgfsys-pdftex.def\endcsname  {pdf}
+\expandafter\def\csname gnuplot@select@driver@pgfsys-luatex.def\endcsname  {pdf}
+\expandafter\def\csname gnuplot@select@driver@pgfsys-tex4ht.def\endcsname  {html}
+\expandafter\def\csname gnuplot@select@driver@pgfsys-textures.def\endcsname{ps}
+\expandafter\def\csname gnuplot@select@driver@pgfsys-vtex.def\endcsname    {ps}
+\expandafter\def\csname gnuplot@select@driver@pgfsys-xetex.def\endcsname   {pdf}
 
-\newif\ifgppdfout\gppdfoutfalse
-\newif\ifgppsout\gppsoutfalse
+\ifcsname gnuplot@select@driver@\pgfsysdriver\endcsname
+  \edef\gnuplot@output@mode{\csname gnuplot@select@driver@\pgfsysdriver\endcsname}
+\else
+  \errmessage{The driver \pgfsysdriver\space is not supported by gnuplot-lua-tikz}%
+\fi
 
-\ifx\pgfsysdriver\pgfsysdriver@a
-  \gppsouttrue
-\else\ifx\pgfsysdriver\pgfsysdriver@b
-  \gppdfouttrue
-\else\ifx\pgfsysdriver\pgfsysdriver@c
-  \gppdfouttrue
-\else\ifx\pgfsysdriver\pgfsysdriver@d
-  \gppsouttrue
-\else\ifx\pgfsysdriver\pgfsysdriver@e
-  \gppdfouttrue
-\else\ifx\pgfsysdriver\pgfsysdriver@f
-  % tex4ht
-\else\ifx\pgfsysdriver\pgfsysdriver@g
-  \gppsouttrue
-\else\ifx\pgfsysdriver\pgfsysdriver@h
-  \gppsouttrue
-\else\ifx\pgfsysdriver\pgfsysdriver@i
-  \gppdfouttrue
-\fi\fi\fi\fi\fi\fi\fi\fi\fi
+\ifcsname PackageWarning\endcsname
+  \let\gnuplot@packagewarning\PackageWarning
+\else
+  \def\gnuplot@packagewarning#1#2{\immediate\write-1{Package #1 Warning: #2}}
+\fi
 
 % uncomment the following lines to make font values "appendable"
 % and if you are really sure about that ;-)
@@ -734,19 +729,13 @@ f:write([[
   \pgfsysprotocol@literal{#6 >}%
 }
 \def\gp@rawimage@html#1#2#3#4#5#6{%
-% FIXME: print a warning message here
+  \gnuplot@packagewarning{gnuplot-lua-tikz}{%
+    \noexpand\gp@rawimage is not implemented for \gnuplot@output@mode\space output.%
+  }%
 }
 
-\ifgppdfout
-  \def\gp@rawimage{\gp@rawimage@pdf}
-\else
-  \ifgppsout
-    \def\gp@rawimage{\gp@rawimage@ps}
-  \else
-    \def\gp@rawimage{\gp@rawimage@html}
-  \fi
-\fi
-
+% Select \gp@rawimage depending on the output mode
+\expandafter\let\expandafter\gp@rawimage\csname gp@rawimage@\gnuplot@output@mode\endcsname
 
 \def\gploadimage#1#2#3#4#5{%
   \pgftext[left,bottom,x=#1cm,y=#2cm] {\pgfimage[interpolate=false,width=#3cm,height=#4cm]{#5}};%
@@ -756,10 +745,10 @@ f:write([[
   \def\gp@image@size{#1}%
 }
 
-\def\gp@rawimage@#1#2#3#4#5#6#7#8{
+\def\gp@rawimage@#1#2#3#4#5#6#7#8{%
   \tikz@scan@one@point\gp@set@size(#6,#7)\relax%
   \tikz@scan@one@point\pgftransformshift(#2,#3)\relax%
-  \pgftext {%
+  \pgftext{%
     \pgfsys@beginpurepicture%
     \gp@image@size% fill \pgf@x and \pgf@y
     \gp@rawimage{#1}{#4}{#5}{\pgf@x}{\pgf@y}{#8}%
@@ -771,12 +760,12 @@ f:write([[
 %% color model is 'cmyk' or 'rgb' (default)
 \def\gprawimage#1#2#3#4#5#6#7#8#9{%
   \ifx&#9&%
-    \gp@rawimage@{#1}{#2}{#3}{#4}{#5}{#6}{#7}{#8}
+    \gp@rawimage@{#1}{#2}{#3}{#4}{#5}{#6}{#7}{#8}%
   \else
-    \ifgppsout
-      \gp@rawimage@{#1}{#2}{#3}{#4}{#5}{#6}{#7}{#8}
+    \ifx\gnuplot@output@mode\gnuplot@output@ps
+      \gp@rawimage@{#1}{#2}{#3}{#4}{#5}{#6}{#7}{#8}%
     \else
-      \gploadimage{#2}{#3}{#6}{#7}{#9}
+      \gploadimage{#2}{#3}{#6}{#7}{#9}%
     \fi
   \fi
 }
@@ -883,11 +872,11 @@ f:write([[
 %  #3 coordinate of "north east"
 %
 \def\gpdefrectangularnode#1#2#3{%
-  \expandafter\gdef\csname pgf@sh@ns@#1\endcsname{rectangle}
+  \expandafter\gdef\csname pgf@sh@ns@#1\endcsname{rectangle}%
   \expandafter\gdef\csname pgf@sh@np@#1\endcsname{%
     \def\southwest{#2}%
     \def\northeast{#3}%
-  }
+  }%
   \pgfgettransform\pgf@temp%
   % once it is defined, no more transformations will be applied, I hope
   \expandafter\xdef\csname pgf@sh@nt@#1\endcsname{\pgf@temp}%
@@ -1151,13 +1140,13 @@ pgf.print_help = function(fwrite)
  for every linetype. The default plotstyle is 'smooth' for every
  linetype >= 1.
 
- By using the 'tikzarrows' option the gnuplot arrow styles defined by
- the user will be mapped to TikZ arrow styles. This is done by 'misusing'
- the angle value of the arrow definition. E.g. an arrow style with the
- angle '7' will be mapped to the TikZ style 'gp arrow 7' ignoring all the
- other given values. By default the TikZ terminal uses the stealth' arrow
- tips for all arrows. To obtain the default gnuplot behaviour please use
- the 'gparrows' option.
+ By default the tikz terminal produces simple LaTeX arrows.
+ To produce arrows in accord with gnuplot's 'arrowstyle' settings,
+ use the 'gparrows' option.  The 'tikzarrows' option is a third alternative
+ that bypasses both of these. Instead the arrowstyle 'angle' parameter is
+ used to index a set of 12 pre-defined TikZ arrow styles.
+ E.g. an arrow style with the angle '7' will be mapped to the TikZ style
+ 'gp arrow 7' ignoring all other arrowstyle settings.
 
  With 'cmykimages' the CMYK color model will be used for inline image data
  instead of the RGB model. All other colors (like line colors etc.) are
@@ -1378,8 +1367,13 @@ gfx.TEXT_ANCHOR = {
   ["right"]  = "gp node right"
 }
 
-gfx.HEAD_STR = {"", "->", "<-", "<->"}
-
+-- expand bit patterns to integers
+gfx.HEAD_STR = {"", "->", "<-", "<->", 
+                ",draw opacity=0", "->,draw opacity=0", "<-,draw opacity=0", "<->,draw opacity=0",
+		""}
+gfx.HEAD90_STR = {"", "-|", "|-", "|-|",
+                ",draw opacity=0", "-|,draw opacity=0", "|-,draw opacity=0", "|-|,draw opacity=0",
+		""}
 
 -- conversion factors in `cm'
 gfx.units = {
@@ -1549,7 +1543,7 @@ gfx.check_dashtype = function()
     if type(gfx.dashtype_idx) == type(1) then
       if gfx.dashtype_idx == -1 or gfx.dashtype_idx == -2 then
         pgf.set_dashtype(pgf.styles.dashtypes_axes[math.abs(gfx.dashtype_idx)][1])
-      elseif gfx.dashtype_idx > 0 then
+      elseif gfx.dashtype_idx >= 0 then
         pgf.set_dashtype(pgf.styles.dashtypes[(gfx.dashtype_idx % #pgf.styles.dashtypes) + 1][1])
       end
     else
@@ -1623,7 +1617,7 @@ gfx.format_color = function(ctype, val)
   elseif ctype == 'RGBA' then
     c = string.format("rgb color={%.3f,%.3f,%.3f}", val[1], val[2], val[3])
   elseif ctype == 'GRAY' then
-    c = string.format("color=black!%i", 100*val[1]+0.5)
+    c = string.format("color=black!%i", math.floor(100*val[1]+0.5))
   end
   return c
 end
@@ -2248,7 +2242,11 @@ term.arrow = function(sx, sy, ex, ey, head, length, angle, backangle, filled)
     gfx.check_linetype()
     gfx.check_dashtype()
     gfx.check_linewidth()
-    pgf.draw_arrow({{sx,sy},{ex,ey}}, gfx.HEAD_STR[head+1], headstyle)
+    if angle == 90 then
+      pgf.draw_arrow({{sx,sy},{ex,ey}}, gfx.HEAD90_STR[head+1], headstyle)
+    else
+      pgf.draw_arrow({{sx,sy},{ex,ey}}, gfx.HEAD_STR[head+1], headstyle)
+    end
     return 1
   end
 end

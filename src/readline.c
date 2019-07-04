@@ -53,6 +53,7 @@
 #include "gp_hist.h"
 #include "plot.h"
 #include "util.h"
+#include "encoding.h"
 #include "term_api.h"
 #ifdef HAVE_WCHAR_H
 #include <wchar.h>
@@ -61,6 +62,10 @@
 #include "win/winmain.h"
 #endif
 
+/*
+ * adaptor routine for gnu libreadline
+ * to allow multiplexing terminal and mouse input
+ */
 #if defined(HAVE_LIBREADLINE) || defined(HAVE_LIBEDITLINE)
 int
 getc_wrapper(FILE* fp)
@@ -89,6 +94,35 @@ getc_wrapper(FILE* fp)
     }
 }
 #endif /* HAVE_LIBREADLINE || HAVE_LIBEDITLINE */
+
+#if defined(HAVE_LIBREADLINE) && defined(HAVE_READLINE_SIGNAL_HANDLER)
+/*
+ * The signal handler of libreadline sets a flag when SIGTSTP is received
+ * but does not suspend until this flag is checked by other library
+ * routines.  Since gnuplot's term->waitforinput() + getc_wrapper()
+ * replace these other routines, we must do the test and suspend ourselves.
+ */
+void
+wrap_readline_signal_handler()
+{
+    int sig;
+
+    /* FIXME:	At the moment, there is no portable way to invoke the
+	    signal handler. */
+    extern void _rl_signal_handler(int);
+
+# ifdef HAVE_READLINE_PENDING_SIGNAL
+    sig = rl_pending_signal();
+# else
+    /* XXX: We assume all versions of readline have this... */
+    extern int volatile _rl_caught_signal;
+    sig = _rl_caught_signal;
+# endif
+
+    if (sig) _rl_signal_handler(sig);
+}
+
+#endif /* defined(HAVE_LIBREADLINE) && defined(HAVE_READLINE_SIGNAL_HANDLER) */
 
 
 #ifdef READLINE
@@ -223,7 +257,7 @@ static char term_chars[NCCS];
 static int term_set = 0;	/* =1 if rl_termio set */
 
 #define special_getc() ansi_getc()
-static int ansi_getc __PROTO((void));
+static int ansi_getc(void);
 #define DEL_ERASES_CURRENT_CHAR
 
 #else /* MSDOS or _WIN32 */
@@ -239,7 +273,7 @@ static int ansi_getc __PROTO((void));
 static int win_getch(void);
 #  else
     /* The wgnuplot text window will suppress intermediate
-       screen updates in 'suspend' mode and only redraw the 
+       screen updates in 'suspend' mode and only redraw the
        input line after 'resume'. */
 #   define SUSPENDOUTPUT TextSuspend(&textwin)
 #   define RESUMEOUTPUT TextResume(&textwin)
@@ -299,23 +333,23 @@ static const char search_prompt2[] = "': ";
 static struct hist * search_result = NULL;
 static int search_result_width = 0;	/* on-screen width of the search result */
 
-static void fix_line __PROTO((void));
-static void redraw_line __PROTO((const char *prompt));
-static void clear_line __PROTO((const char *prompt));
-static void clear_eoline __PROTO((const char *prompt));
-static void delete_previous_word __PROTO((void));
-static void copy_line __PROTO((char *line));
-static void set_termio __PROTO((void));
-static void reset_termio __PROTO((void));
-static int user_putc __PROTO((int ch));
-static int user_puts __PROTO((char *str));
-static int backspace __PROTO((void));
-static void extend_cur_line __PROTO((void));
-static void step_forward __PROTO((void));
-static void delete_forward __PROTO((void));
-static void delete_backward __PROTO((void));
-static int char_seqlen __PROTO((void));
-#if defined(HAVE_DIRENT_H) || defined(_WIN32)
+static void fix_line(void);
+static void redraw_line(const char *prompt);
+static void clear_line(const char *prompt);
+static void clear_eoline(const char *prompt);
+static void delete_previous_word(void);
+static void copy_line(char *line);
+static void set_termio(void);
+static void reset_termio(void);
+static int user_putc(int ch);
+static int user_puts(char *str);
+static int backspace(void);
+static void extend_cur_line(void);
+static void step_forward(void);
+static void delete_forward(void);
+static void delete_backward(void);
+static int char_seqlen(void);
+#if defined(HAVE_DIRENT)
 static char *fn_completion(size_t anchor_pos, int direction);
 static void tab_completion(TBOOLEAN forward);
 #endif
@@ -596,7 +630,7 @@ extend_cur_line()
 }
 
 
-#if defined(HAVE_DIRENT_H) || defined(_WIN32)
+#if defined(HAVE_DIRENT)
 static char *
 fn_completion(size_t anchor_pos, int direction)
 {
@@ -784,7 +818,7 @@ tab_completion(TBOOLEAN forward)
     last_completion_len = completion_len;
 }
 
-#endif /* HAVE_DIRENT_H || _WIN32 */
+#endif /* HAVE_DIRENT */
 
 
 char *
@@ -984,7 +1018,7 @@ readline(const char *prompt)
 		    step_forward();
 		}
 		break;
-#if defined(HAVE_DIRENT_H) || defined(_WIN32)
+#if defined(HAVE_DIRENT)
 	    case 011:		/* ^I / TAB */
 		tab_completion(TRUE); /* next tab completion */
 		break;
@@ -1080,14 +1114,14 @@ readline(const char *prompt)
 	    default:
 		break;
 	    }
-	} 
+	}
 
 	} else {  /* search-mode */
 #ifdef VERASE
 	    if (cur_char == term_chars[VERASE]) {	/* ^H */
 		delete_backward();
 		do_search(-1);
-	    } else 
+	    } else
 #endif /* VERASE */
 	    {
 	    switch (cur_char) {
@@ -1199,7 +1233,7 @@ switch_prompt(const char * old_prompt, const char * new_prompt)
     putc('\r', stderr);
     fputs(new_prompt, stderr);
     cur_pos = 0;
-    
+
     /* erase remainder of previous prompt */
     len = GPMAX((int)strlen(old_prompt) - (int)strlen(new_prompt), 0);
     for (i = 0; i < len; i++)
@@ -1435,6 +1469,7 @@ msdos_getch()
     int c;
 
 #ifdef DJGPP
+    /* no need to handle mouse input here: it's done in term->text() */
     int ch = getkey();
     c = (ch & 0xff00) ? 0 : ch & 0xff;
 #elif defined (OS2)
@@ -1485,6 +1520,9 @@ msdos_getch()
 	    break;
 	case 83:		/* Delete */
 	    c = 0177;
+	    break;
+	case 15:		/* BackTab / Shift-Tab */
+	    c = 034;	/* FS: remap to non-standard code for tab-completion */
 	    break;
 	default:
 	    c = 0;

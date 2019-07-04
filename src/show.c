@@ -60,9 +60,11 @@
 #include "term_api.h"
 #include "variable.h"
 #include "version.h"
+#include "voxelgrid.h"
 #ifdef USE_MOUSE
 # include "mouse.h"
 #endif
+
 #include "color.h"
 #include "pm3d.h"
 #include "getcolor.h"
@@ -76,106 +78,101 @@
 
 /******** Local functions ********/
 
-static void show_at __PROTO((void));
-static void disp_at __PROTO((struct at_type *, int));
-static void show_all __PROTO((void));
-static void show_autoscale __PROTO((void));
-static void show_border __PROTO((void));
-static void show_boxwidth __PROTO((void));
-static void show_boxplot __PROTO((void));
-static void show_fillstyle __PROTO((void));
-static void show_clip __PROTO((void));
-static void show_contour __PROTO((void));
-static void show_dashtype __PROTO((int));
-static void show_dgrid3d __PROTO((void));
-static void show_mapping __PROTO((void));
-static void show_dummy __PROTO((void));
-static void show_format __PROTO((void));
-static void show_styles __PROTO((const char *name, enum PLOT_STYLE style));
-static void show_style __PROTO((void));
-#ifdef EAM_OBJECTS
-static void show_style_rectangle __PROTO((void));
-static void show_style_circle __PROTO((void));
-static void show_style_ellipse __PROTO((void));
-#endif
-static void show_grid __PROTO((void));
-static void show_raxis __PROTO((void));
-static void show_paxis __PROTO((void));
-static void show_zeroaxis __PROTO((AXIS_INDEX));
-static void show_label __PROTO((int tag));
-static void show_keytitle __PROTO((void));
-static void show_key __PROTO((void));
-static void show_logscale __PROTO((void));
-static void show_offsets __PROTO((void));
-static void show_margin __PROTO((void));
-static void show_output __PROTO((void));
-static void show_parametric __PROTO((void));
-static void show_pm3d __PROTO((void));
-static void show_palette __PROTO((void));
-static void show_palette_rgbformulae __PROTO((void));
-static void show_palette_fit2rgbformulae __PROTO((void));
-static void show_palette_palette __PROTO((void));
-static void show_palette_gradient __PROTO((void));
-static void show_palette_colornames __PROTO((void));
-static void show_colorbox __PROTO((void));
-static void show_pointsize __PROTO((void));
-static void show_pointintervalbox __PROTO((void));
-static void show_rgbmax __PROTO((void));
-static void show_encoding __PROTO((void));
-static void show_decimalsign __PROTO((void));
-static void show_fit __PROTO((void));
-static void show_polar __PROTO((void));
-static void show_print __PROTO((void));
-static void show_psdir __PROTO((void));
-static void show_angles __PROTO((void));
-static void show_samples __PROTO((void));
-static void show_isosamples __PROTO((void));
-static void show_view __PROTO((void));
-static void show_surface __PROTO((void));
-static void show_hidden3d __PROTO((void));
-static void show_increment __PROTO((void));
-static void show_histogram __PROTO((void));
-static void show_history __PROTO((void));
-#ifdef EAM_BOXED_TEXT
-static void show_textbox __PROTO((void));
-#endif
-static void show_size __PROTO((void));
-static void show_origin __PROTO((void));
-static void show_term __PROTO((void));
-static void show_tics __PROTO((TBOOLEAN showx, TBOOLEAN showy, TBOOLEAN showz, TBOOLEAN showx2, TBOOLEAN showy2, TBOOLEAN showcb));
-static void show_mtics __PROTO((struct axis *));
-static void show_timestamp __PROTO((void));
-static void show_range __PROTO((AXIS_INDEX axis));
-static void show_link __PROTO((void));
-static void show_nonlinear __PROTO((void));
-static void show_xyzlabel __PROTO((const char *name, const char *suffix, text_label * label));
-static void show_title __PROTO((void));
-static void show_axislabel __PROTO((AXIS_INDEX));
-static void show_data_is_timedate __PROTO((AXIS_INDEX));
-static void show_timefmt __PROTO((void));
-static void show_locale __PROTO((void));
-static void show_loadpath __PROTO((void));
-static void show_fontpath __PROTO((void));
-static void show_zero __PROTO((void));
-static void show_datafile __PROTO((void));
-static void show_table __PROTO((void));
-static void show_micro __PROTO((void));
-static void show_minus_sign __PROTO((void));
-#ifdef USE_MOUSE
-static void show_mouse __PROTO((void));
-#endif
-static void show_plot __PROTO((void));
-static void show_variables __PROTO((void));
+static void show_at(void);
+static void disp_at(struct at_type *, int);
+static void show_all(void);
+static void show_autoscale(void);
+static void show_border(void);
+static void show_boxwidth(void);
+static void show_boxplot(void);
+static void show_fillstyle(void);
+static void show_clip(void);
+static void show_contour(void);
+static void show_dashtype(int);
+static void show_dgrid3d(void);
+static void show_mapping(void);
+static void show_dummy(void);
+static void show_format(void);
+static void show_styles(const char *name, enum PLOT_STYLE style);
+static void show_style(void);
+static void show_style_rectangle(void);
+static void show_style_circle(void);
+static void show_style_ellipse(void);
+static void show_grid(void);
+static void show_raxis(void);
+static void show_paxis(void);
+static void show_zeroaxis(AXIS_INDEX);
+static void show_label(int tag);
+static void show_keytitle(void);
+static void show_key(void);
+static void show_logscale(void);
+static void show_offsets(void);
+static void show_margin(void);
+static void show_output(void);
+static void show_overflow(void);
+static void show_parametric(void);
+static void show_pm3d(void);
+static void show_palette(void);
+static void show_palette_rgbformulae(void);
+static void show_palette_fit2rgbformulae(void);
+static void show_palette_palette(void);
+static void show_palette_gradient(void);
+static void show_palette_colornames(void);
+static void show_colorbox(void);
+static void show_pointsize(void);
+static void show_pointintervalbox(void);
+static void show_rgbmax(void);
+static void show_encoding(void);
+static void show_decimalsign(void);
+static void show_fit(void);
+static void show_polar(void);
+static void show_print(void);
+static void show_psdir(void);
+static void show_angles(void);
+static void show_samples(void);
+static void show_isosamples(void);
+static void show_view(void);
+static void show_surface(void);
+static void show_hidden3d(void);
+static void show_increment(void);
+static void show_histogram(void);
+static void show_history(void);
+static void show_textbox(void);
+static void show_size(void);
+static void show_origin(void);
+static void show_term(void);
+static void show_tics(TBOOLEAN showx, TBOOLEAN showy, TBOOLEAN showz, TBOOLEAN showx2, TBOOLEAN showy2, TBOOLEAN showcb);
+static void show_mtics(struct axis *);
+static void show_timestamp(void);
+static void show_range(AXIS_INDEX axis);
+static void show_link(void);
+static void show_nonlinear(void);
+static void show_xyzlabel(const char *name, const char *suffix, text_label * label);
+static void show_title(void);
+static void show_axislabel(AXIS_INDEX);
+static void show_data_is_timedate(AXIS_INDEX);
+static void show_timefmt(void);
+static void show_locale(void);
+static void show_loadpath(void);
+static void show_fontpath(void);
+static void show_zero(void);
+static void show_datafile(void);
+static void show_table(void);
+static void show_micro(void);
+static void show_minus_sign(void);
+static void show_mouse(void);
+static void show_plot(void);
+static void show_variables(void);
 
-static void show_linestyle __PROTO((int tag));
-static void show_linetype __PROTO((struct linestyle_def *listhead, int tag));
-static void show_arrowstyle __PROTO((int tag));
-static void show_arrow __PROTO((int tag));
+static void show_linestyle(int tag);
+static void show_linetype(struct linestyle_def *listhead, int tag);
+static void show_arrowstyle(int tag);
+static void show_arrow(int tag);
 
-static void show_ticdef __PROTO((AXIS_INDEX));
-static void show_ticdefp __PROTO((struct axis *));
-       void show_position __PROTO((struct position * pos, int ndim));
-static void show_functions __PROTO((void));
+static void show_ticdef(AXIS_INDEX);
+static void show_ticdefp(struct axis *);
+       void show_position(struct position * pos, int ndim);
+static void show_functions(void);
 
 static int var_show_all = 0;
 
@@ -225,6 +222,7 @@ show_command()
 	show_border();
 	break;
     case S_BOXWIDTH:
+    case S_BOXDEPTH:
 	show_boxwidth();
 	break;
     case S_CLIP:
@@ -361,6 +359,9 @@ show_command()
     case SET_OUTPUT:
 	show_output();
 	break;
+    case S_OVERFLOW:
+	show_overflow();
+	break;
     case S_PARAMETRIC:
 	show_parametric();
 	break;
@@ -409,12 +410,10 @@ show_command()
 	show_psdir();
 	break;
     case S_OBJECT:
-#ifdef EAM_OBJECTS
 	if (almost_equals(c_token,"rect$angle"))
 	    c_token++;
 	CHECK_TAG_GT_ZERO;
 	save_object(stderr,tag);
-#endif
 	break;
     case S_WALL:
 	save_walls(stderr);
@@ -427,6 +426,9 @@ show_command()
 	break;
     case S_ISOSAMPLES:
 	show_isosamples();
+	break;
+    case S_ISOSURFACE:
+	show_isosurface();
 	break;
     case S_JITTER:
 	show_jitter();
@@ -578,6 +580,9 @@ show_command()
     case S_LOADPATH:
 	show_loadpath();
 	break;
+    case S_VGRID:
+	show_vgrid();
+	break;
     case S_ZERO:
 	show_zero();
 	break;
@@ -587,11 +592,9 @@ show_command()
     case S_TABLE:
 	show_table();
 	break;
-#ifdef USE_MOUSE
     case S_MOUSE:
 	show_mouse();
 	break;
-#endif
     case S_PLOT:
 	show_plot();
 #if defined(USE_READLINE)
@@ -760,7 +763,7 @@ disp_at(struct at_type *curr_at, int level)
 	    fprintf(stderr, " +%d\n", arg->j_arg);
 	    break;
 	case DOLLARS:
-	    fprintf(stderr, " %d\n", arg->v_arg.v.int_val);
+	    fprintf(stderr, " %d\n", (int)(arg->v_arg.v.int_val));
 	    break;
 	default:
 	    (void) putc('\n', stderr);
@@ -814,9 +817,7 @@ show_all()
     show_fit();
     show_polar();
     show_angles();
-#ifdef EAM_OBJECTS
     save_object(stderr,0);
-#endif
     show_samples();
     show_isosamples();
     show_view();
@@ -965,14 +966,6 @@ show_version(FILE *fp)
 #endif
 		"";
 
-	    const char *compatibility =
-#ifdef BACKWARDS_COMPATIBLE
-		"+BACKWARDS_COMPATIBILITY  "
-#else
-		"-BACKWARDS_COMPATIBILITY  "
-#endif
-		"";
-
 	    const char *nocwdrc =
 #ifdef USE_CWDRC
 		"+"
@@ -997,19 +990,11 @@ show_version(FILE *fp)
 		"";
 
 	    const char *hiddenline =
-#ifdef HIDDEN3D_QUADTREE
 		"+HIDDEN3D_QUADTREE  "
-#else
-# ifdef HIDDEN3D_GRIDBOX
-		"+HIDDEN3D_GRIDBOX  "
-# endif
-#endif
 		"";
 
 	    const char *plotoptions=
-#ifdef EAM_OBJECTS
 		"+OBJECTS  "
-#endif
 #ifdef USE_STATS
 		"+STATS "
 #else
@@ -1027,8 +1012,8 @@ show_version(FILE *fp)
 		"";
 #endif
 
-	    sprintf(compile_options, "    %s%s\n    %s%s%s\n    %s%s%s\n    %s%s%s%s\n",
-		    rdline, gnu_rdline, compatibility, unicodebuild, plotoptions,
+	    sprintf(compile_options, "    %s%s\n    %s%s\n    %s%s%s\n    %s%s%s%s\n",
+		    rdline, gnu_rdline, unicodebuild, plotoptions,
 		    libcerf, libgd, linuxvga,
 		    nocwdrc, x11, use_mouse, hiddenline
 		    );
@@ -1094,7 +1079,7 @@ show_version(FILE *fp)
 
 	c_token++;
 	fprintf(stderr, "\nCompile options:\n%s", compile_options);
-	fprintf(stderr, "    MAX_PARALLEL_AXES=%d\n\n", MAX_PARALLEL_AXES);
+	fprintf(stderr, "    %d-bit integer arithmetic\n\n",(int)sizeof(intgr_t)*8);
 
 #ifdef X11
 	{
@@ -1120,11 +1105,14 @@ show_version(FILE *fp)
 	{
 #ifndef _WIN32
 	    char *helpfile = NULL;
-
 	    if ((helpfile = getenv("GNUHELP")) == NULL)
+# if defined(MSDOS) || defined(OS2)
+		helpfile = HelpFile;
+# else
 		helpfile = HELPFILE;
-	    fprintf(stderr, "HELPFILE           = \"%s\"\n", helpfile);
-#else
+# endif
+	fprintf(stderr, "HELPFILE           = \"%s\"\n", helpfile);
+#else /* _WIN32 */
 	    fprintf(stderr, "HELPFILE           = \"" TCHARFMT "\"\n", winhelpname);
 #endif
 	}
@@ -1193,7 +1181,7 @@ show_border()
 	fprintf(stderr, "\tborder is not drawn\n");
     else {
 	fprintf(stderr, "\tborder %d (0x%X) is drawn in %s layer with\n\t ",
-	    draw_border, draw_border, 
+	    draw_border, draw_border,
 	    border_layer == LAYER_BEHIND ? "behind" : border_layer == LAYER_BACK ? "back" : "front");
 	save_linetype(stderr, &border_lp, FALSE);
 	fputc('\n',stderr);
@@ -1213,6 +1201,7 @@ show_boxwidth()
 	fprintf(stderr, "\tboxwidth is %g %s\n", boxwidth,
 		(boxwidth_is_absolute) ? "absolute" : "relative");
     }
+    fprintf(stderr, "\tboxdepth is %g\n", boxdepth);
 }
 
 /* process 'show boxplot' command */
@@ -1294,6 +1283,9 @@ show_clip()
 
     fprintf(stderr, "\t%s lines with both ends out of range (clip two)\n",
 	clip_lines2 ? "clipping" : "not drawing");
+
+    fprintf(stderr, "\t%sclipping lines on polar plot at maximum radius\n",
+	clip_radial ? "" : "not ");
 }
 
 
@@ -1388,7 +1380,7 @@ show_dashtype(int tag)
 	}
     }
     if (tag > 0 && !showed)
-	int_error(c_token, "dashtype not found");	
+	int_error(c_token, "dashtype not found");
 }
 
 
@@ -1452,7 +1444,7 @@ show_dummy()
 {
     int i;
     SHOW_ALL_NL;
-   
+
     fputs("\tdummy variables are ", stderr);
     for (i=0; i<MAX_NUM_VAR; i++) {
 	if (*set_dummy_var[i] == '\0') {
@@ -1523,12 +1515,10 @@ show_style()
 	show_histogram();
 	c_token++;
 	break;
-#ifdef EAM_BOXED_TEXT
     case SHOW_STYLE_TEXTBOX:
 	show_textbox();
 	c_token++;
 	break;
-#endif
     case SHOW_STYLE_PARALLEL:
 	save_style_parallel(stderr);
 	c_token++;
@@ -1542,7 +1532,6 @@ show_style()
 	show_boxplot();
 	c_token++;
 	break;
-#ifdef EAM_OBJECTS
     case SHOW_STYLE_RECTANGLE:
 	show_style_rectangle();
 	c_token++;
@@ -1555,7 +1544,6 @@ show_style()
 	show_style_ellipse();
 	c_token++;
 	break;
-#endif
     default:
 	/* show all styles */
 	show_styles("Data",data_style);
@@ -1564,23 +1552,18 @@ show_style()
 	show_fillstyle();
 	show_increment();
 	show_histogram();
-#ifdef EAM_BOXED_TEXT
 	show_textbox();
-#endif
 	save_style_parallel(stderr);
 	show_arrowstyle(0);
 	show_boxplot();
-#ifdef EAM_OBJECTS
 	show_style_rectangle();
 	show_style_circle();
 	show_style_ellipse();
-#endif
 	break;
     }
 #undef CHECK_TAG_GT_ZERO
 }
 
-#ifdef EAM_OBJECTS
 /* called by show_style() - defined for aesthetic reasons */
 static void
 show_style_rectangle()
@@ -1625,7 +1608,6 @@ show_style_ellipse()
 	    break;
     }
 }
-#endif
 
 /* called by show_data() and show_func() */
 static void
@@ -1689,6 +1671,8 @@ show_grid()
     fprintf(stderr, "\n\tMinor grid drawn with");
     save_linetype(stderr, &(mgrid_lp), FALSE);
     fputc('\n', stderr);
+    if (grid_vertical_lines)
+	fprintf(stderr, "\tVertical grid lines in 3D plots\n");
     if (polar_grid_angle)
 	fprintf(stderr, "\tGrid radii drawn every %f %s\n",
 		polar_grid_angle / ang2rad,
@@ -1711,9 +1695,9 @@ show_paxis()
 	int_error(c_token, "no such parallel axis is active");
     fputs("\n\t", stderr);
     if (equals(c_token, "range"))
-	save_prange(stderr, &parallel_axis[p-1]);
+	save_prange(stderr, &parallel_axis_array[p-1]);
     else if (almost_equals(c_token, "tic$s"))
-	show_ticdefp(&parallel_axis[p-1]);
+	show_ticdefp(&parallel_axis_array[p-1]);
     c_token++;
 }
 
@@ -1782,10 +1766,11 @@ show_label(int tag)
 		show_position(&this_label->offset, 3);
 	    }
 
-#ifdef EAM_BOXED_TEXT
-	    if (this_label->boxed)
+	    if (this_label->boxed) {
 		fprintf(stderr," boxed");
-#endif
+		if (this_label->boxed > 0)
+		    fprintf(stderr," bs %d",this_label->boxed);
+	    }
 
 	    /* Entry font added by DJL */
 	    fputc('\n', stderr);
@@ -1994,6 +1979,19 @@ show_position(struct position *pos, int ndim)
 }
 
 
+/* helper function for "show log" */
+static int
+show_log(struct axis *axis)
+{
+    if (axis->log) {
+	fprintf(stderr, " %s", axis_name(axis->index));
+	if (axis->base != 10.)
+	    fprintf(stderr, " (base %g)", axis->base);
+	return 1;
+    }
+    return 0;
+}
+
 /* process 'show logscale' command */
 static void
 show_logscale()
@@ -2001,29 +1999,15 @@ show_logscale()
     int count = 0;
 
     SHOW_ALL_NL;
-
-#define SHOW_LOG(axis)							\
-    {									\
-	if (axis_array[axis].log) 					\
-	    fprintf(stderr, "%s %s (base %g)",				\
-		    !count++ ? "\tlogscaling" : " and",			\
-		    axis_name(axis),axis_array[axis].base);	\
-    }
-    SHOW_LOG(FIRST_X_AXIS );
-    SHOW_LOG(FIRST_Y_AXIS );
-    SHOW_LOG(FIRST_Z_AXIS );
-    SHOW_LOG(SECOND_X_AXIS);
-    SHOW_LOG(SECOND_Y_AXIS);
-    SHOW_LOG(COLOR_AXIS );
-    SHOW_LOG(POLAR_AXIS );
-#undef SHOW_LOG
-
-    if (count == 0)
-	fputs("\tno logscaling\n", stderr);
-    else if (count == 1)
-	fputs(" only\n", stderr);
-    else
-	putc('\n', stderr);
+    fprintf(stderr, "\tlogscaling on ");
+    count += show_log(&axis_array[FIRST_X_AXIS] );
+    count += show_log(&axis_array[FIRST_Y_AXIS] );
+    count += show_log(&axis_array[FIRST_Z_AXIS] );
+    count += show_log(&axis_array[SECOND_X_AXIS]);
+    count += show_log(&axis_array[SECOND_Y_AXIS]);
+    count += show_log(&axis_array[COLOR_AXIS] );
+    count += show_log(&axis_array[POLAR_AXIS] );
+    fputs(count ? "\n" : "none\n", stderr);
 }
 
 
@@ -2115,6 +2099,19 @@ show_psdir()
 #endif
 }
 
+/* process 'show overflow' command */
+static void
+show_overflow()
+{
+    fprintf(stderr, "\t64-bit integer overflow %s\n",
+	overflow_handling == INT64_OVERFLOW_UNDEFINED
+	? "is treated as an undefined value" :
+	overflow_handling == INT64_OVERFLOW_NAN
+	? "is treated as NaN (not a number)" :
+	overflow_handling == INT64_OVERFLOW_TO_FLOAT
+	? "becomes a floating point value"
+	: "is ignored");
+}
 
 /* process 'show parametric' command */
 static void
@@ -2388,7 +2385,6 @@ show_palette()
 	case C_MODEL_RGB: fputs( "RGB\n", stderr ); break;
 	case C_MODEL_HSV: fputs( "HSV\n", stderr ); break;
 	case C_MODEL_CMY: fputs( "CMY\n", stderr ); break;
-	case C_MODEL_XYZ: fputs( "XYZ\n", stderr ); break;
 	}
 	fprintf(stderr,"\tgamma is %.4g\n", sm_palette.gamma );
 	return;
@@ -2503,6 +2499,8 @@ show_pm3d()
 	fputs("at least 1 point of the quadrangle in x,y ranges\n", stderr);
     else
 	fputs( "all 4 points of the quadrangle in x,y ranges\n", stderr);
+    if (pm3d.no_clipcb)
+	fputs( "\t         quadrangles with cb < cbmin will not be drawn\n", stderr);
     if (pm3d.border.l_type == LT_NODRAW) {
 	fprintf(stderr,"\tpm3d quadrangles will have no border\n");
     } else {
@@ -2511,8 +2509,10 @@ show_pm3d()
 	fprintf(stderr,"\n");
     }
     if (pm3d_shade.strength > 0) {
-	fprintf(stderr,"\tlighting primary component %g specular component %g\n",
+	fprintf(stderr,"\tlighting primary component %g specular component %g",
 		pm3d_shade.strength, pm3d_shade.spec);
+	fprintf(stderr," second spot contribution %g\n",
+		pm3d_shade.spec2);
     }
     fprintf(stderr,"\tsteps for bilinear interpolation: %d,%d\n",
 	 pm3d.interp_i, pm3d.interp_j);
@@ -2591,7 +2591,7 @@ show_micro()
 {
     SHOW_ALL_NL;
 
-    fprintf(stderr, "\tmicro character for output is %s \n", 
+    fprintf(stderr, "\tmicro character for output is %s \n",
     	(use_micro && micro) ? micro : "u");
 }
 
@@ -2675,9 +2675,9 @@ show_fit()
     fprintf(stderr, "\n");
 
     v = get_udv_by_name((char *)FITMAXITER);
-    if ((v != NULL) && (v->udv_value.type != NOTDEFINED) && (real_int(&(v->udv_value)) > 0))
+    if ((v != NULL) && (v->udv_value.type != NOTDEFINED) && (real(&(v->udv_value)) > 0))
 	fprintf(stderr, "\tfit will stop after a maximum of %i iterations\n",
-	        real_int(&(v->udv_value)));
+	        (int)real(&(v->udv_value)));
     else
 	fprintf(stderr, "\tfit has no limit in the number of iterations\n");
 
@@ -2754,9 +2754,14 @@ show_view()
     if (splot_map == TRUE) {
 	fprintf(stderr,"map scale %g\n", mapview_scale);
 	return;
-    }
-    fprintf(stderr, "%g rot_x, %g rot_z, %g scale, %g scale_z\n",
+    } else if (xz_projection) {
+	fprintf(stderr,"xz projection\n");
+    } else if (yz_projection) {
+	fprintf(stderr,"yz projection\n");
+    } else {
+	fprintf(stderr, "%g rot_x, %g rot_z, %g scale, %g scale_z\n",
 		surface_rot_x, surface_rot_z, surface_scale, surface_zscale);
+    }
     fprintf(stderr,"\t\t%s axes are %s\n",
 		aspect_ratio_3D == 2 ? "x/y" : aspect_ratio_3D == 3 ? "x/y/z" : "",
 		aspect_ratio_3D >= 2 ? "on the same scale" : "independently scaled");
@@ -2802,14 +2807,11 @@ show_histogram()
     save_histogram_opts(stderr);
 }
 
-#ifdef EAM_BOXED_TEXT
 static void
 show_textbox()
 {
-    fprintf(stderr, "\ttextbox style");
     save_style_textbox(stderr);
 }
-#endif
 
 /* process 'show history' command */
 static void
@@ -2818,7 +2820,7 @@ show_history()
 #ifndef GNUPLOT_HISTORY
     fprintf(stderr, "\tThis copy of gnuplot was not built to use a command history file\n");
 #endif
-    fprintf(stderr, "\t history size %d%s,  %s,  %s\n", 
+    fprintf(stderr, "\t history size %d%s,  %s,  %s\n",
 		gnuplot_history_size, gnuplot_history_size<0 ? "(unlimited)" : "",
 		history_quiet ? "quiet" : "numbers",
 		history_full ? "full" : "suppress duplicates");
@@ -2910,7 +2912,7 @@ show_mtics(struct axis *axis)
     case MINI_DEFAULT:
 	fprintf(stderr, "\
 \tminor %stics are off for linear scales\n\
-\tminor %stics are computed automatically for log scales\n", 
+\tminor %stics are computed automatically for log scales\n",
 	name, name);
 	break;
     case MINI_AUTO:
@@ -2958,6 +2960,9 @@ show_xyzlabel(const char *name, const char *suffix, text_label *label)
 	fprintf(stderr, "\t%s%s is \"%s\", offset at ", name, suffix,
 	    label->text ? conv_text(label->text) : "");
 	show_position(&label->offset, 3);
+	fprintf(stderr, label->pos == LEFT ? " left justified"
+			: label->pos == RIGHT ? " right justified"
+			: "");
     } else
 	return;
 
@@ -3061,10 +3066,14 @@ show_loadpath()
 static void
 show_fontpath()
 {
-    SHOW_ALL_NL;
-    dump_fontpath();
-}
+    const char *env_fontpath = getenv("GNUPLOT_FONTPATH");
 
+    SHOW_ALL_NL;
+    fprintf(stderr, "\tdirectory from 'set fontpath': %s\n",
+	PS_fontpath ? PS_fontpath : "none");
+    fprintf(stderr, "\tenvironmental variable GNUPLOT_FONTPATH: %s\n",
+	env_fontpath ? env_fontpath : "none");
+}
 
 /* process 'show zero' command */
 static void
@@ -3098,6 +3107,12 @@ show_datafile()
     }
     if (END_OF_COMMAND || almost_equals(c_token,"com$mentschars")) {
 	fprintf(stderr, "\tComments chars are \"%s\"\n", df_commentschars);
+    }
+    if (END_OF_COMMAND || almost_equals(c_token,"columnhead$ers")) {
+	if (df_columnheaders)
+	    fprintf(stderr, "\tFirst line is always treated as headers rather than data\n");
+	else
+	    fprintf(stderr, "\tFirst line is treated as headers only if accessed explicitly\n");
     }
     if (df_fortran_constants)
 	fputs("\tDatafile parsing will accept Fortran D or Q constants\n",stderr);
@@ -3143,11 +3158,11 @@ show_table()
 	fprintf(stderr, "\ttable mode is off\n");
 }
 
-#ifdef USE_MOUSE
 /* process 'show mouse' command */
 static void
 show_mouse()
 {
+#ifdef USE_MOUSE
     SHOW_ALL_NL;
     if (mouse_setting.on) {
 	fprintf(stderr, "\tmouse is on\n");
@@ -3167,13 +3182,17 @@ show_mouse()
 	} else {
 	    fprintf(stderr, "\tdouble click resolution is off\n");
 	}
-	fprintf(stderr, "\tformatting numbers with \"%s\"\n",
-	    mouse_setting.fmt);
-	fprintf(stderr, "\tformat for Button 2 is %d\n", (int) mouse_mode);
-	if (mouse_alt_string) {
-	    fprintf(stderr, "\talternative format for Button 2 is '%s'\n",
+	if (mouse_mode == MOUSE_COORDINATES_FUNCTION)
+	    fprintf(stderr, "\tcoordinate readout via mouseformat function %s\n",
+		mouse_readout_function.definition);
+	else if (mouse_mode == MOUSE_COORDINATES_ALT)
+	    fprintf(stderr, "\tcoordinate readout via mouseformat '%s'\n",
 		mouse_alt_string);
-	}
+	else
+	    fprintf(stderr, "\tcoordinate readout via mouseformat %d\n",
+		(int)mouse_mode);
+	fprintf(stderr, "\tformat for individual coordinates is '%s'\n",
+	    mouse_setting.fmt);
 	if (mouse_setting.label) {
 	    fprintf(stderr, "\tButton 2 draws persistent labels with options \"%s\"\n",
 		mouse_setting.labelopts);
@@ -3189,8 +3208,10 @@ show_mouse()
     } else {
 	fprintf(stderr, "\tmouse is off\n");
     }
+#else  /* USE_MOUSE */
+    int_warn(NO_CARET, "this copy of gnuplot has no mouse support");
+#endif /* USE_MOUSE */
 }
-#endif
 
 /* process 'show plot' command */
 static void
@@ -3341,7 +3362,7 @@ show_arrowstyle(int tag)
 		    fprintf(stderr," (default length and angles)");
 		}
 
-		fprintf(stderr, 
+		fprintf(stderr,
 		    (this_arrowstyle->arrow_properties.head_fixedsize) ? " fixed\n" : "\n");
 	    }
 	}
@@ -3403,7 +3424,7 @@ show_ticdefp(struct axis *this_axis)
     } else
         fputs("justified automatically, ", stderr);
     fprintf(stderr, "format \"%s\"", ticfmt);
-    fprintf(stderr, "%s", 
+    fprintf(stderr, "%s",
 	this_axis->tictype == DT_DMS ? " geographic" :
 	this_axis->tictype == DT_TIMEDATE ? " timedate" :
 	"");

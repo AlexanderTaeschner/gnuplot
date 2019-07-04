@@ -27,16 +27,15 @@
  * contain code for calculating colors from gray by user defined functions.
  */
 #ifndef GPLT_X11_MODE
-static int calculate_color_from_formulae __PROTO((double, rgb_color *));
+static int calculate_color_from_formulae(double, rgb_color *);
 #endif
 
-static void color_components_from_gray __PROTO((double gray, rgb_color *color));
-static int interpolate_color_from_gray __PROTO((double, rgb_color *));
-static double get_max_dev __PROTO((rgb_color *colors, int j, double limit));
-static int is_extremum __PROTO((rgb_color left,rgb_color mid,rgb_color right));
-static void CMY_2_RGB __PROTO((rgb_color *color));
-static void CIEXYZ_2_RGB __PROTO((rgb_color *color));
-static void HSV_2_RGB __PROTO((rgb_color *color));
+static void color_components_from_gray(double gray, rgb_color *color);
+static int interpolate_color_from_gray(double, rgb_color *);
+static double get_max_dev(rgb_color *colors, int j, double limit);
+static int is_extremum(rgb_color left,rgb_color mid,rgb_color right);
+static void CMY_2_RGB(rgb_color *color);
+static void HSV_2_RGB(rgb_color *color);
 
 
 /* check if two palettes p1 and p2 differ significantly */
@@ -258,9 +257,9 @@ color_components_from_gray(double gray, rgb_color *color)
 	color->r = gray + a * (-0.14861 * cos(phi) + 1.78277 * sin(phi));
 	color->g = gray + a * (-0.29227 * cos(phi) - 0.90649 * sin(phi));
 	color->b = gray + a * ( 1.97294 * cos(phi));
-	if (color->r > 1.0) color->r = 1.0; if (color->r < 0.0) color->r = 0.0;
-	if (color->g > 1.0) color->g = 1.0; if (color->g < 0.0) color->g = 0.0;
-	if (color->b > 1.0) color->b = 1.0; if (color->b < 0.0) color->b = 0.0;
+	color->r = clip_to_01(color->r);
+	color->g = clip_to_01(color->g);
+	color->b = clip_to_01(color->b);
 	}	
 	break;
     }
@@ -292,9 +291,6 @@ rgb1_from_gray(double gray, rgb_color *color)
 	break;
     case C_MODEL_CMY:
 	CMY_2_RGB(color);
-	break;
-    case C_MODEL_XYZ:
-	CIEXYZ_2_RGB(color);
 	break;
     }
 }
@@ -779,19 +775,6 @@ CMY_2_RGB(rgb_color *col)
     col->r = CONSTRAIN(1.0 - c);
     col->g = CONSTRAIN(1.0 - m);
     col->b = CONSTRAIN(1.0 - y);
-}
-
-static void
-CIEXYZ_2_RGB(rgb_color *col)
-{
-    double x,y,z;
-    
-    x = col->r;
-    y = col->g;
-    z = col->b;
-    col->r = CONSTRAIN( 1.9100 * x - 0.5338 * y - 0.2891 * z);
-    col->g = CONSTRAIN(-0.9844 * x + 1.9990 * y - 0.0279 * z);
-    col->b = CONSTRAIN( 0.0585 * x - 0.1187 * y - 0.9017 * z);
 }
 
 static void

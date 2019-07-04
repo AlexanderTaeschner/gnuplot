@@ -5,8 +5,8 @@
 
 <h2 align=center>Demos for gnuplot version 5.3 (pngcairo terminal)<br>
     See also the demo output for the
-    <a href="../demo_svg_cvs/">SVG</a> and
-    <a href="../demo_canvas_cvs/">canvas</a> terminals.
+    <a href="../demo_svg_5.3/">SVG</a> and
+    <a href="../demo_canvas_5.3/">canvas</a> terminals.
 </h2>
 
 <p>
@@ -62,6 +62,15 @@ Here are samples of PNG output from some of the demos.
     <li><a href="fit.html">Levenberg-Marquardt DLS</a></li>
     </ul>
 
+    <h4>Colors</h4>
+    <ul>
+    <li><a href="varcolor.html">data-dependent coloring</a></li>
+    <li><a href="rgb_variable.html">RGB coloring</a></li>
+    <li><a href="rgba_lines.html">RGB + alpha channel</a></li>
+    <li><a href="pm3dcolors.html">pm3d colors</a></li>
+    <li><a href="pm3dgamma.html">pm3d gamma</a></li>
+    </ul>
+
     <h4>Animation</h4>
     <ul>
     <li><a href="animate2.html">animated gif</a></li>
@@ -74,25 +83,38 @@ Here are samples of PNG output from some of the demos.
     <li><a href="surface1.html">surfaces 1</a></li>
     <li><a href="surface2.html">surfaces 2</a></li>
     <li><a href="contours.html">contours</a></li>
+    <li><a href="custom_contours.html">custom contour lines</a></li>
     <li><a href="singulr.html">singularities</a></li>
     <li><a href="hidden.html">hidden surfaces</a></li>
     <li><a href="pm3d.html">pm3d coloring</a></li>
     <li><a href="hidden2.html">pm3d hidden surfaces</a></li>
     <li><a href="world2.html">3D mapping</a></li>
+    <li><a href="projection.html">2D projection of 3D surface</a></li>
     <li><a href="zerror.html">shaded error region</a></li>
     <li><a href="azimuth.html">azimuth</a></li>
+    <li><a href="boxes3d.html">boxes</a></li>
     <li><a href="armillary.html">circles and polygons</a></li>
     <li><a href="pm3d_lighting.html">lighting model</a></li>
+    <li><a href="hidden_compare.html">hidden3d v. pm3d</a></li>
+    </ul>
+
+    <h4>Volume plots (new!)</h4>
+    <ul>
+    <li><a href="voxel.html">voxel-dependent coloring</a></li>
+    <li><a href="vplot.html">3D representaion of voxels</a></li>
+    <li><a href="isosurface.html">3D isosurface</a></li>
     </ul>
 
     <h4>Coordinate and<br> axis transforms</h4>
     <ul>
     <li><a href="linkedaxes.html">linked axes</a></li>
+    <li><a href="nonlinear2.html">logscale axes</a></li>
     <li><a href="nonlinear3.html">nonlinear axes</a></li>
     <li><a href="nonlinear1.html">broken axes</a></li>
     <li><a href="ttics.html">polar coords</a></li>
     <li><a href="polar.html">polar functions</a></li>
     <li><a href="poldat.html">polar data</a></li>
+    <li><a href="polar_quadrants.html">polar quadrants</a></li>
     <li><a href="world.html">cylindrical/spherical</a></li>
     <li><a href="timedat.html">time/date coords</a></li>
     <li><a href="sampling.html">coord sampling ranges</a></li>
@@ -105,15 +127,6 @@ Here are samples of PNG output from some of the demos.
     <li><a href="image2.html">binary and image tricks</a></li>
     <li><a href="rgbalpha.html">RGB + alpha channel</a></li>
     <li><a href="barchart_art.html">bar chart art</a></li>
-    </ul>
-
-    <h4>Colors</h4>
-    <ul>
-    <li><a href="varcolor.html">data-dependent coloring</a></li>
-    <li><a href="rgb_variable.html">RGB coloring</a></li>
-    <li><a href="rgba_lines.html">RGB + alpha channel</a></li>
-    <li><a href="pm3dcolors.html">pm3d colors</a></li>
-    <li><a href="pm3dgamma.html">pm3d gamma</a></li>
     </ul>
 
 </td>
@@ -137,6 +150,7 @@ Here are samples of PNG output from some of the demos.
     <li><a href="label_stacked_histograms.html">label stacked histogram</a></li>
     <li><a href="heatmaps.html">2D and 3D heat maps</a></li>
     <li><a href="solar_path.html">solar path diagram</a></li>
+    <li><a href="map_projection.html">map projections</a></li>
     <li><a href="violinplot.html">violin plot</a></li>
     </ul>
 
@@ -149,6 +163,7 @@ Here are samples of PNG output from some of the demos.
     <li><a href="cities.html">variable font size</a></li>
     <li><a href="stringvar.html">string variables</a></li>
     <li><font color=gray>hypertext (no png support)</font></li>
+    <li><a href="unicode.html">unicode as \U+xxxx"</li>
     </ul>
 
     <h4>Page Layout</h4>
@@ -198,7 +213,7 @@ Here are samples of PNG output from some of the demos.
 <tbody><tr valign="top">
 
     <td>
-    <i>This page generated November 2017</i>
+    <i>This page generated January 2019</i>
     </td>
 
     <td>
@@ -206,9 +221,9 @@ Here are samples of PNG output from some of the demos.
     <li><a href="http://sourceforge.net/projects/gnuplot/">
 	Gnuplot development pages on SourceForge</a></li>
     <li>On-line PDF documentation in
-	<a href="http://gnuplot.sourceforge.net/docs_cvs/gnuplot.pdf">English</a>
+	<a href="http://gnuplot.sourceforge.net/docs_5.3/gnuplot.pdf">English</a>
 	and
-	<a href="http://gnuplot.sourceforge.net/docs_cvs/gnuplot-ja.pdf">Japanese</a>
+	<a href="http://gnuplot.sourceforge.net/docs_5.3/gnuplot-ja.pdf">Japanese</a>
     </li>
     </ul>
     </td>

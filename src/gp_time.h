@@ -52,7 +52,15 @@
 #define ZERO_YEAR	1970
 #define JAN_FIRST_WDAY 4	/* 1 jan 1970 was a Thursday (cal 1 1970 on unix) */
 #define SEC_OFFS_SYS	0.0	/* difference between internal and external epochs */
+#define DEFAULT_TZ     0        /* offset in seconds relative to UTC, east = positive */
 #endif
+
+#ifdef HAVE_STRUCT_TM_TM_GMTOFF
+#define init_timezone(tm) tm->tm_gmtoff = DEFAULT_TZ
+#else
+#define init_timezone(tm)
+#endif
+
 
 /* defines used for timeseries, seconds */
 #define YEAR_SEC	31557600.0	/* avg, incl. leap year */
@@ -67,16 +75,16 @@
 /* Prototypes of functions exported by time.c */
 
 /* string to *tm */
-td_type gstrptime __PROTO((char *, char *, struct tm *, double *, double *));
+td_type gstrptime(char *, char *, struct tm *, double *, double *);
 
 /* seconds to string */
-size_t gstrftime __PROTO((char *, size_t, const char *, double));
+size_t gstrftime(char *, size_t, const char *, double);
 
 /* *tm to seconds */
-double gtimegm __PROTO((struct tm *));
+double gtimegm(struct tm *);
 
 /* seconds to *tm */
-int ggmtime __PROTO((struct tm *, double));
+int ggmtime(struct tm *, double);
 
 
 

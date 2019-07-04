@@ -50,21 +50,24 @@ noinst_PROGRAMS = checkdoc doc2ipf doc2tex doc2gih doc2rnh doc2hlp	\
 
 AM_CPPFLAGS = -I$(top_srcdir)/src -I$(top_srcdir)/term
 
+# Documentation will be prepared for all terminals in CORETERM
+# even if the terminal itself is not included in the build.
+
 T = $(top_srcdir)/term/
 CORETERM = $(T)ai.trm $(T)aquaterm.trm $(T)be.trm $(T)caca.trm \
 $(T)cairo.trm $(T)canvas.trm $(T)cgm.trm $(T)context.trm \
 $(T)corel.trm $(T)debug.trm $(T)djsvga.trm $(T)dumb.trm $(T)dxf.trm \
-$(T)dxy.trm $(T)eepic.trm $(T)emf.trm $(T)emxvga.trm $(T)epson.trm \
+$(T)dxy.trm $(T)emf.trm $(T)emxvga.trm $(T)epson.trm \
 $(T)estimate.trm $(T)excl.trm $(T)fig.trm $(T)gd.trm $(T)ggi.trm \
 $(T)gpic.trm $(T)grass.trm $(T)hp2648.trm $(T)hp26.trm $(T)hp500c.trm \
 $(T)hpgl.trm $(T)hpljii.trm $(T)hppj.trm $(T)imagen.trm $(T)kyo.trm \
-$(T)latex.trm $(T)linux.trm $(T)lua.trm $(T)metafont.trm \
-$(T)metapost.trm $(T)mif.trm $(T)pbm.trm \
+$(T)linux-vgagl.trm $(T)latex.trm $(T)eepic.trm $(T)tpic.trm \
+$(T)lua.trm $(T)metafont.trm \
+$(T)metapost.trm $(T)mif.trm $(T)pbm.trm $(T)pict2e.trm \
 $(T)pdf.trm $(T)pm.trm $(T)post.trm $(T)pslatex.trm \
 $(T)pstricks.trm $(T)qms.trm $(T)qt.trm $(T)regis.trm \
 $(T)svg.trm $(T)t410x.trm $(T)tek.trm $(T)texdraw.trm $(T)tgif.trm \
-$(T)tkcanvas.trm $(T)tpic.trm $(T)vgagl.trm \
-$(T)vws.trm $(T)win.trm $(T)wxt.trm $(T)x11.trm $(T)xlib.trm 
+$(T)tkcanvas.trm $(T)vws.trm $(T)win.trm $(T)wxt.trm $(T)x11.trm $(T)xlib.trm 
 
 # DIST_COMMON = README
 
@@ -77,7 +80,7 @@ DOCHEADERS = doc2x.h xref.h
 
 EXTRA_DIST = Makefile.in doc2texi.el figure_missing.pdf gnuplot.doc \
 titlepag.ipf titlepag.ms titlepag.tex	\
-toc_entr.sty psdoc faq-ja.tex gnuplot-ja.doc README.ja	\
+toc_entr.sty psdoc gnuplot-ja.doc README.ja	\
 term-ja.diff plotstyles.gnu gnuplot.pdf \
 windows/wgnuplot.hhk windows/wgnuplot.hhp windows/wgnuplot.stp windows/doc2html.c
 

@@ -30,10 +30,6 @@
  * to the extent permitted by applicable law.
 ]*/
 
-/* HBB 20010724: I moved several variables and functions from parse.c
- * to here, because they're involved with *evaluating* functions, not
- * with parsing them: evaluate_at(), fpe(), and fpe_env */
-
 #include "eval.h"
 
 #include "syscfg.h"
@@ -48,12 +44,13 @@
 #include "util.h"
 #include "version.h"
 #include "term_api.h"
+#include "voxelgrid.h"
 
 #include <signal.h>
 #include <setjmp.h>
 
 /* Internal prototypes */
-static RETSIGTYPE fpe __PROTO((int an_int));
+static RETSIGTYPE fpe(int an_int);
 
 /* Global variables exported by this module */
 struct udvt_entry udv_pi = { NULL, "pi", {INTGR, {0} } };
@@ -64,7 +61,15 @@ struct udft_entry *first_udf = NULL;
 /* pointer to first udv users can delete */
 struct udvt_entry **udv_user_head;
 
+/* Various abnormal conditions during evaluation of an action table
+ * (the stored form of an expression) are signalled by setting
+ * undefined = TRUE.
+ * NB:  A test for  "if (undefined)"  is only valid immediately
+ * following a call to evaluate_at() or eval_link_function().
+ */
 TBOOLEAN undefined;
+
+enum int64_overflow overflow_handling = INT64_OVERFLOW_TO_FLOAT;
 
 /* The stack this operates on */
 static struct value stack[STACK_DEPTH];
@@ -75,7 +80,7 @@ static int jump_offset;		/* to be modified by 'jump' operators */
 
 /* The table of built-in functions */
 /* These must strictly parallel enum operators in eval.h */
-const struct ft_entry GPFAR ft[] =
+const struct ft_entry ft[] =
 {
     /* internal functions: */
     {"push",  f_push},
@@ -164,6 +169,8 @@ const struct ft_entry GPFAR ft[] =
     {"exp",  f_exp},
     {"log10",  f_log10},
     {"log",  f_log},
+    {"besi0",  f_besi0},
+    {"besi1",  f_besi1},
     {"besj0",  f_besj0},
     {"besj1",  f_besj1},
     {"besjn",  f_besjn},
@@ -180,7 +187,6 @@ const struct ft_entry GPFAR ft[] =
     {"rand",  f_rand},
     {"floor",  f_floor},
     {"ceil",  f_ceil},
-    {"defined", f_exists},	/* DEPRECATED syntax defined(foo) */
 
     {"norm",  f_normal},	/* XXX-JG */
     {"inverf",  f_inverse_erf},	/* XXX-JG */
@@ -191,6 +197,7 @@ const struct ft_entry GPFAR ft[] =
     {"lambertw",  f_lambertw}, /* HBB, from G.Kuhnle 20001107 */
     {"airy",  f_airy},         /* janert, 20090905 */
     {"expint",  f_expint},     /* Jim Van Zandt, 20101010 */
+    {"besin",  f_besin},
 
 #ifdef HAVE_LIBCERF
     {"cerf", f_cerf},		/* complex error function */
@@ -214,6 +221,7 @@ const struct ft_entry GPFAR ft[] =
     {"strlen",  f_strlen},	/* for string variables only */
     {"strstrt",  f_strstrt},	/* for string variables only */
     {"substr",  f_range},	/* for string variables only */
+    {"trim",  f_trim},		/* for string variables only */
     {"word",  f_word},		/* for string variables only */
     {"words", f_words},		/* implemented as word(s,-1) */
     {"strftime",  f_strftime},  /* time to string */
@@ -225,6 +233,10 @@ const struct ft_entry GPFAR ft[] =
     {"value", f_value},		/* retrieve value of variable known by name */
 
     {"hsv2rgb", f_hsv2rgb},	/* color conversion */
+
+#ifdef VOXEL_GRID_SUPPORT
+    {"voxel", f_voxel},		/* extract value of single voxel */
+#endif
 
     {NULL, NULL}
 };
@@ -238,7 +250,7 @@ static JMP_BUF fpe_env;
 static RETSIGTYPE
 fpe(int an_int)
 {
-#if defined(MSDOS) && !defined(__EMX__) && !defined(DJGPP) && !defined(_WIN32)
+#if defined(MSDOS) && !defined(__EMX__) && !defined(DJGPP)
     /* thanks to lotto@wjh12.UUCP for telling us about this  */
     _fpreset();
 #endif
@@ -276,25 +288,6 @@ real(struct value *val)
 }
 
 
-/* returns the real part of val, converted to int if necessary */
-int
-real_int(struct value *val)
-{
-    switch (val->type) {
-    case INTGR:
-	return val->v.int_val;
-    case CMPLX:
-	return (int) val->v.cmplx_val.real;
-    case STRING:
-	return atoi(val->v.string_val);
-    default:
-	int_error(NO_CARET, "unknown type in real_int()");
-    }
-    /* NOTREACHED */
-    return 0;
-}
-
-
 /* returns the imag part of val */
 double
 imag(struct value *val)
@@ -309,6 +302,8 @@ imag(struct value *val)
 	/*     x = 2;  plot sprintf(format,x)         */
 	int_warn(NO_CARET, "encountered a string when expecting a number");
 	int_error(NO_CARET, "Did you try to generate a file name using dummy variable x or y?");
+    case NOTDEFINED:
+	return not_a_number();
     default:
 	int_error(NO_CARET, "unknown type in imag()");
     }
@@ -392,7 +387,7 @@ Gcomplex(struct value *a, double realpart, double imagpart)
 
 
 struct value *
-Ginteger(struct value *a, int i)
+Ginteger(struct value *a, intgr_t i)
 {
     a->type = INTGR;
     a->v.int_val = i;
@@ -403,8 +398,19 @@ struct value *
 Gstring(struct value *a, char *s)
 {
     a->type = STRING;
-    a->v.string_val = s;
+    a->v.string_val = s ? s : strdup("");
     return (a);
+}
+
+/* Common interface for freeing data structures attached to a struct value.
+ * Each of the type-specific routines will ignore values of other types.
+ */
+void
+free_value(struct value *a)
+{
+    gpfree_string(a);
+    gpfree_datablock(a);
+    gpfree_array(a);
 }
 
 /* It is always safe to call gpfree_string with a->type is INTGR or CMPLX.
@@ -412,22 +418,13 @@ Gstring(struct value *a, char *s)
  * was not obtained by a previous call to gp_alloc(), or has already been freed.
  * Thus 'a->type' is set to NOTDEFINED afterwards to make subsequent calls safe.
  */
-struct value *
+void
 gpfree_string(struct value *a)
 {
     if (a->type == STRING) {
 	free(a->v.string_val);
 	a->type = NOTDEFINED;
     }
-
-    else if (a->type == ARRAY) {
-	/* gpfree_array() is now a separate routine. This is to help find */
-	/* any remaining callers who expect gpfree_string to handle it.   */
-	FPRINTF((stderr,"eval.c:%d hit array in gpfree_string()", __LINE__));
-	a->type = NOTDEFINED;
-    }
-
-    return a;
 }
 
 void
@@ -516,9 +513,9 @@ pop_or_convert_from_string(struct value *v)
 
 	if (*(v->v.string_val)
 	&&  strspn(v->v.string_val,"0123456789 ") == strlen(v->v.string_val)) {
-	    int i = atoi(v->v.string_val);
+	    long long li = atoll(v->v.string_val);
 	    gpfree_string(v);
-	    Ginteger(v, i);
+	    Ginteger(v, li);
 	} else {
 	    double d = strtod(v->v.string_val,&eov);
 	    if (v->v.string_val == eov) {
@@ -544,33 +541,6 @@ push(struct value *x)
     /* WARNING - This is a memory leak if the string is not later freed */
     if (x->type == STRING && x->v.string_val)
 	stack[s_p].v.string_val = gp_strdup(x->v.string_val);
-
-#ifdef ARRAY_COPY_ON_REFERENCE
-    /* NOTE: Without this code, any operation during expression evaluation that */
-    /* alters the content of an existing array would potentially corrupt the	*/
-    /* original copy.  E.g. "Array A[3];  B=A" would result in a new variable B	*/
-    /* that points to the same content as the original array A.  This problem	*/
-    /* can be avoided by making a copy of the original array when pushing it on	*/
-    /* the evaluation stack.  Any change or persistance of the copy does not	*/
-    /* corrupt the original.  However there are two penalties from this.   	*/
-    /* (1) Every reference, including retrieval of a single array element, 	*/
-    /* triggers a sequence of copy/evaluate/free so it is very wasteful.  	*/
-    /* (2) The lifetime of the copy is problematic.  Enabling this code in its	*/
-    /* current state will almost certainly reveal memory leaks or double-free	*/
-    /* failures.  Some compromise (detect and allow a simple copy but nothing	*/
-    /* else?) might be possible so this code is left as a starting point.  	*/
-    if (x->type == ARRAY) {
-	int i;
-	int array_size = x->v.value_array[0].v.int_val + 1;
-	stack[s_p].v.value_array = gp_alloc(array_size * sizeof(struct value), "push copy of array");
-	memcpy(stack[s_p].v.value_array, x->v.value_array, array_size*sizeof(struct value));
-	for (i=1; i<array_size; i++) 
-	    if (stack[s_p].v.value_array[i].type == STRING) {
-		stack[s_p].v.value_array[i].v.string_val
-		= strdup(stack[s_p].v.value_array[i].v.string_val);
-	    }
-    }
-#endif
 }
 
 
@@ -685,7 +655,12 @@ execute_at(struct at_type *at_ptr)
 void
 evaluate_at(struct at_type *at_ptr, struct value *val_ptr)
 {
+    /* A test for if (undefined) is allowed only immediately following
+     * evalute_at() or eval_link_function().  Both must clear it on entry
+     * so that the value on return reflects what really happened.
+     */
     undefined = FALSE;
+
     errno = 0;
     reset_stack();
 
@@ -713,7 +688,8 @@ evaluate_at(struct at_type *at_ptr, struct value *val_ptr)
 	 * E.g. load_one_range()
 	 */
 	val_ptr->type = NOTDEFINED;
-	int_error(NO_CARET, "evaluate_at: unsupported array operation");
+	if (!string_result_only)
+	    int_error(NO_CARET, "evaluate_at: unsupported array operation");
     }
 }
 
@@ -798,18 +774,16 @@ del_udv_by_name(char *key, TBOOLEAN wildcard)
 
  	/* exact match */
 	else if (!wildcard && !strcmp(key, udv_ptr->udv_name)) {
-	    gpfree_array(&(udv_ptr->udv_value));
-	    gpfree_string(&(udv_ptr->udv_value));
-	    gpfree_datablock(&(udv_ptr->udv_value));
+	    gpfree_vgrid(udv_ptr);
+	    free_value(&(udv_ptr->udv_value));
 	    udv_ptr->udv_value.type = NOTDEFINED;
 	    break;
 	}
 
 	/* wildcard match: prefix matches */
 	else if ( wildcard && !strncmp(key, udv_ptr->udv_name, strlen(key)) ) {
-	    gpfree_array(&(udv_ptr->udv_value));
-	    gpfree_string(&(udv_ptr->udv_value));
-	    gpfree_datablock(&(udv_ptr->udv_value));
+	    gpfree_vgrid(udv_ptr);
+	    free_value(&(udv_ptr->udv_value));
 	    udv_ptr->udv_value.type = NOTDEFINED;
 	    /* no break - keep looking! */
 	}
@@ -836,10 +810,10 @@ clear_udf_list()
     first_udf = NULL;
 }
 
-static void update_plot_bounds __PROTO((void));
-static void fill_gpval_axis __PROTO((AXIS_INDEX axis));
-static void fill_gpval_sysinfo __PROTO((void));
-static void set_gpval_axis_sth_double __PROTO((const char *prefix, AXIS_INDEX axis, const char *suffix, double value));
+static void update_plot_bounds(void);
+static void fill_gpval_axis(AXIS_INDEX axis);
+static void fill_gpval_sysinfo(void);
+static void set_gpval_axis_sth_double(const char *prefix, AXIS_INDEX axis, const char *suffix, double value);
 
 static void
 set_gpval_axis_sth_double(const char *prefix, AXIS_INDEX axis, const char *suffix, double value)
@@ -850,7 +824,7 @@ set_gpval_axis_sth_double(const char *prefix, AXIS_INDEX axis, const char *suffi
     for (cc=s; *cc; cc++)
 	*cc = toupper((unsigned char)*cc); /* make the name uppercase */
     v = add_udv_by_name(s);
-    if (!v) 
+    if (!v)
 	return; /* should not happen */
     Gcomplex(&v->udv_value, value, 0);
 }
@@ -887,7 +861,7 @@ fill_gpval_string(char *var, const char *stringvalue)
 }
 
 void
-fill_gpval_integer(char *var, int value)
+fill_gpval_integer(char *var, intgr_t value)
 {
     struct udvt_entry *v = add_udv_by_name(var);
     if (!v)
@@ -971,9 +945,9 @@ update_gpval_variables(int context)
 	/* in which x/y axes are drawn after 'set view equal xy[z]' */
 	fill_gpval_float("GPVAL_VIEW_XCENT",
 		(double)(canvas.xright+1 - xmiddle)/(double)(canvas.xright+1));
-	fill_gpval_float("GPVAL_VIEW_YCENT", 
+	fill_gpval_float("GPVAL_VIEW_YCENT",
 		1.0 - (double)(canvas.ytop+1 - ymiddle)/(double)(canvas.ytop+1));
-	fill_gpval_float("GPVAL_VIEW_RADIUS", 
+	fill_gpval_float("GPVAL_VIEW_RADIUS",
 		0.5 * surface_scale * xscaler/(double)(canvas.xright+1));
 
 	return;
@@ -1128,7 +1102,7 @@ gp_word(char *string, int i)
     struct value a;
 
     push(Gstring(&a, string));
-    push(Ginteger(&a, i));
+    push(Ginteger(&a, (intgr_t)i));
     f_word((union argument *)NULL);
     pop(&a);
 

@@ -16,11 +16,7 @@ BEGIN
         MENUITEM    "~Print..."   , IDM_PRINT
         MENUITEM    "~Fonts...", IDM_FONTS
         MENUITEM    "~Colours",  IDM_COLOURS,,MIA_CHECKED
-        SUBMENU     "~Lines", IDM_LINES
-        BEGIN
-            MENUITEM  "~Solid", IDM_LINES_SOLID,,MIA_CHECKED
-            MENUITEM  "~Thick", IDM_LINES_THICK
-        END
+        MENUITEM    "~Thick Lines", IDM_LINES_THICK
         SUBMENU     "Pa~use mode", IDM_PAUSEOPT
         BEGIN
             MENUITEM  "~Dialog box", IDM_PAUSEDLG,,MIA_CHECKED
@@ -187,9 +183,7 @@ BEGIN
     HELPSUBITEM  IDM_ABOUT ,IDM_ABOUT 
     HELPSUBITEM  IDM_FRONT ,IDM_FRONT 
     HELPSUBITEM  IDM_COLOURS ,IDM_COLOURS 
-    HELPSUBITEM  IDM_LINES ,IDM_LINES 
     HELPSUBITEM  IDM_LINES_THICK ,IDM_LINES_THICK 
-    HELPSUBITEM  IDM_LINES_SOLID ,IDM_LINES_SOLID
     HELPSUBITEM  IDM_SAVE ,IDM_SAVE 
     HELPSUBITEM  IDM_COMMAND ,IDM_COMMAND  
     HELPSUBITEM  IDM_CONTINUE,IDM_CONTINUE
@@ -229,8 +223,8 @@ BEGIN
     DIALOG  "", ID_ABOUT, 22, 17, 144, 75, 
     BEGIN
         CTEXT           "GnuplotPM", -1, 8, 65, 128, 8
-        CTEXT           "Gnuplot display for OS/2", -1, 8, 50, 128, 8
-        CTEXT           "$Revision: 1.10 $", -1, 8, 35, 128, 8
+        CTEXT           "gnuplot display for OS/2", -1, 8, 50, 128, 8
+        CTEXT           "Revision: 1.11", -1, 8, 35, 128, 8
         DEFPUSHBUTTON   "OK", DID_OK, 56, 10, 32, 14, WS_GROUP
     END
 END

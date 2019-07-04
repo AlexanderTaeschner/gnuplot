@@ -66,8 +66,8 @@ static TBOOLEAN debug = FALSE;
 static char path[PATH_MAX];
 static const char name[] = "wgnuplot";
 
-void convert __PROTO((FILE *, FILE *, FILE *, FILE *));
-void process_line __PROTO((char *, FILE *, FILE *, FILE *));
+void convert(FILE *, FILE *, FILE *, FILE *);
+void process_line(char *, FILE *, FILE *, FILE *);
 
 int
 main (int argc, char **argv)
@@ -499,15 +499,16 @@ process_line(char *line, FILE *b, FILE *c, FILE *d)
 #else
 		/* split contents manually */
                 if (!startpage) {
-		    char newfile[PATH_MAX];
+		    char newfile[PATH_MAX] = "";
 
                     /* close current file */
 		    footer(b);
 		    fclose(b);
 
                     /* open new file */
-                    sprintf(newfile, "%s%s.html", path, location);
-                    /* fprintf(stderr, "%s\n", newfile); */
+		    strcat(newfile,path);
+		    strncat(newfile,location,PATH_MAX-strlen(newfile)-6);
+		    strcat(newfile,".html");
                     if (!(b = fopen(newfile, "w"))) {
                         fprintf(stderr, "%s: Can't open %s for writing\n",
                             "doc2html", newfile);

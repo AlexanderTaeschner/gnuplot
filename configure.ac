@@ -22,9 +22,6 @@ dnl configure.in body
 
 dnl Compiler characteristics
 dnl Check for the const and inline keywords and ANSI style stringification
-dnl automake 1.12 dropped support for AM_C_PROTOTYPES and ansi2knr
-dnl But our code still tests for #ifdef PROTOTYPES, so define it here
-AC_DEFINE(PROTOTYPES,1,[Automake 1.12 dropped support for building without prototypes])
 AC_USE_SYSTEM_EXTENSIONS
 AC_PROG_CC
 AC_PROG_CPP
@@ -80,8 +77,13 @@ AC_CHECK_TYPES([off_t])
 AC_FUNC_FSEEKO
 AC_SYS_LARGEFILE
 
+dml timezone support
+AC_CHECK_MEMBERS([struct tm.tm_gmtoff, struct tm.__tm_gmtoff],,,[
+#include <sys/types.h>
+#include <time.h>])
+
 AC_ARG_WITH(libcerf,dnl
-[  --without-libcerf      build without special functions from libcerf (default enabled)],,
+[  --without-libcerf       build without special functions from libcerf (default enabled)],,
   [test -z "${with_libcerf}" && with_libcerf=yes])
 
 if test "${with_libcerf}" = yes ; then
@@ -123,8 +125,7 @@ AC_CHECK_PROGS(TROFF, troff, no)
 AC_CHECK_PROGS(LATEX2HTML, latex2html, no)
 
 AC_ARG_WITH(texdir,dnl
-  [--with-texdir=DIR       where to install latex style files
-                          (default by kpsexpand in subdir PACKAGE)],
+  [--with-texdir=DIR       where to install latex style files (default: ask kpsexpand)],
   TEXDIR="$withval",
   TEXDIR="no")
 dnl Allow manual specification of kpsexpand 
@@ -177,13 +178,6 @@ if test "$no_x" != yes; then
 fi
 AM_CONDITIONAL(BUILD_GNUPLOT_X11, test "$no_x" != yes)
 
-dnl change location of X11 defaults
-AC_ARG_WITH(x-app-defaultdir,dnl
-[  --with-x-app-defaultdir=DIR       location of X11 application defaults
-                          (default /etc/X11/app-defaults/)],
-  X11_APPDEFAULTS_DIR="$withval",
-  X11_APPDEFAULTS_DIR="/etc/X11/app-defaults/")
-
 dnl Operating systems.
 dnl FIXME AC_DEFINE(ISC22)
 dnl FIXME AC_DEFINE(KSR)
@@ -210,17 +204,11 @@ AC_CHECK_HEADERS(dirent.h errno.h float.h langinfo.h limits.h locale.h math.h \
   sys/bsdtypes.h sys/ioctl.h sys/param.h sys/select.h sys/socket.h \
   sys/stat.h sys/systeminfo.h sys/timeb.h sys/utsname.h \
   libc.h malloc.h poll.h sgtty.h termios.h values.h dirent.h \
+  inttypes.h \
   dlfcn.h dl.h
 )
 
 AC_HEADER_STDBOOL
-
-if test "$ac_cv_header_math_h" = yes ; then
-  AC_MSG_CHECKING([for struct exception in math.h])
-  AC_LINK_IFELSE([AC_LANG_PROGRAM([[#include <math.h>]], [[struct exception *x; x->type; x->name;]])],[AC_MSG_RESULT(yes)
-     AC_DEFINE(HAVE_STRUCT_EXCEPTION_IN_MATH_H,1,
-               [ Define if math.h declares struct exception for matherr(). ])],[AC_MSG_RESULT(no)])
-fi
 
 if test "$ac_cv_header_sys_stat_h" = yes; then
   AC_HEADER_STAT
@@ -283,7 +271,7 @@ AC_CHECK_FUNCS(atexit memcpy memmove memset \
   on_exit bcopy bzero \
   setvbuf strerror strchr strrchr strstr \
   index rindex \
-  erf erfc gamma lgamma \
+  erf erfc gamma lgamma tgamma \
   getcwd poll pclose popen fdopen select sleep stpcpy \
   strcspn strdup strndup strnlen strcasecmp stricmp strncasecmp strnicmp \
   sysinfo tcgetattr vfprintf doprnt uname usleep
@@ -340,28 +328,11 @@ AC_ARG_WITH(gihdir,dnl
   GIHDIR="$withval",
   GIHDIR="$pkgdatadir/$VERSION_MAJOR")
 
-dnl The Linux console driver
-AC_ARG_WITH(linux-vga,dnl
-[  --with-linux-vga        use the Linux SVGA console driver
-                          (requires /usr/lib/libvga)],,
-  test -z "$with_linux_vga" && with_linux_vga=no)
-
-dnl check for installed linux vgalib
-if test "$with_linux_vga" = yes; then
-  AC_MSG_CHECKING(for linux vga library)
-  AC_CHECK_LIB(vga, vga_init,
-    [AC_DEFINE(LINUXVGA,1,
-               [ Define if this is a Linux system with SuperVGA library. ])
-     LINUXSUID='chown root $(bindir)/gnuplot; chmod u+s $(bindir)/gnuplot'
-     TERMLIBS="-lvga $TERMLIBS"],
-    with_linux_vga=no)
-fi
-
-dnl TODO: simplify, get rid of GGI_SUPPORT
+dnl TODO: simplify, update ggi support
 dnl new ggi driver
 GGI_SUPPORT=no
 AC_ARG_WITH(ggi,dnl
-[  --with-ggi[=DIR]        enable the ggi driver],
+[  --with-ggi[=DIR]          enable the ggi driver],
   [if test "$withval" != no; then
      if test -d $withval/include; then
        CPPFLAGS="$CPPFLAGS -I$withval/include"
@@ -372,8 +343,12 @@ AC_ARG_WITH(ggi,dnl
      AC_CHECK_LIB(ggi,ggiInit,
        [TERMLIBS="-lggi $TERMLIBS"
         AC_DEFINE(USE_GGI_DRIVER,1,
-                  [ Define if you want to use the experimental ggi driver. ])
+                  [ Define this to build the General Graphics Interface (ggi) driver. ])
         GGI_SUPPORT=yes
+	dnl check for customized libxmi (xmiInit not in normal libxmi)
+        AC_CHECK_LIB(xmi,xmiInit,
+          [TERMLIBS="-lxmi $TERMLIBS"
+           AC_CHECK_HEADERS(ggi/xmi.h)])
         dnl check if libggiwmh and ggi/wmh.h are found
         AC_CHECK_LIB(ggiwmh,ggiWmhInit,
           [TERMLIBS="-lggiwmh $TERMLIBS"
@@ -383,28 +358,16 @@ please add path to ggi/wmh.h to CPPFLAGS in Makefile]))
           ])])
    fi])
 
-AC_ARG_WITH(xmi,dnl
-[  --with-xmi[=DIR]        ggi's xmi support for pm3d (EXPERIMENTAL)],
-  [if test "$withval" != no -a "$GGI_SUPPORT" = yes; then
-     if test -d $withval/include; then
-       CPPFLAGS="$CPPFLAGS -I$withval/include"
-     fi
-     if test -d $withval/lib; then
-       LDFLAGS="$LDFLAGS -L$withval/lib"
-     fi
-     AC_CHECK_LIB(xmi,xmiInit,
-       [TERMLIBS="-lxmi $TERMLIBS"
-        AC_CHECK_HEADERS(ggi/xmi.h)])
-   fi])
-
 dnl Use builtin readline or GNU readline or NetBSD editline
 AC_ARG_WITH(readline,dnl
 [  --with-readline=builtin  use the built-in readline
   --with-readline=gnu      use the GNU readline library (default if present)
   --with-readline=bsd      use the NetBSD editline library (NB: does not handle UTF-8!)
   --with-readline=DIR      specify the location of readline/editline
-  --without-readline       do not use any readline function], ,
+  --without-readline       same as --with-readline=builtin], ,
   test -z "$with_readline" && with_readline=gnu)
+
+AS_IF([test "x${with_readline}" = "xno"], with_readline="builtin", )
 
 dnl Gnuplot history
 AC_ARG_ENABLE(history-file,dnl
@@ -489,6 +452,14 @@ if test "$with_readline" != no; then
         [${TERMLIBS}])
     AC_SEARCH_LIBS(rl_reset_after_signal, readline,
 	AC_DEFINE(HAVE_READLINE_RESET,1,[ Define if your libreadline has rl_reset_after_signal]),
+	,
+        [${TERMLIBS}])
+    AC_SEARCH_LIBS(_rl_signal_handler, readline,
+	AC_DEFINE(HAVE_READLINE_SIGNAL_HANDLER,1,[ Define if your libreadline has _rl_signal_handler]),
+	,
+        [${TERMLIBS}])
+    AC_SEARCH_LIBS(rl_pending_signal, readline,
+	AC_DEFINE(HAVE_READLINE_PENDING_SIGNAL,1,[ Define if your libreadline has rl_pending_signal]),
 	,
         [${TERMLIBS}])
     # Warning: rl_complete_with_tilde_expansion is an int, not a function.
@@ -629,7 +600,7 @@ AC_SEARCH_LIBS([iconv_open], [iconv],
 
 dnl check presence of lua/TikZ support
 AC_ARG_WITH(lua,dnl
-[  --without-lua         disable lua/TikZ terminal (default enabled)],,
+[  --without-lua           disable lua/TikZ terminal (default enabled)],,
   [test -z "${with_lua}" && with_lua=yes])
 
 dnl Some distributions allow for parallel installation of different
@@ -748,7 +719,7 @@ AC_ARG_WITH(row-help,dnl
 dnl Whether we want to create the LaTeX tutorial
 TUTORIAL=notutorial
 AC_ARG_WITH(tutorial,dnl
-[  --with-tutorial      process the LaTeX tutorial when building])
+[  --with-tutorial         process the LaTeX tutorial when building])
 dnl only if latex/2e is found
 if test "$with_latex" != no -a "$with_tutorial" = yes ; then
   TUTORIAL=tutorial
@@ -774,118 +745,21 @@ AC_ARG_ENABLE(x11-mbfonts,dnl
 
 dnl x11_external
 AC_ARG_ENABLE(x11_external,dnl
-[  --disable-x11-external        disable drawing to windows belonging to external apps],,
+[  --disable-x11-external  disable drawing to windows belonging to external apps],,
   test -z "$enable_x11_external" && enable_x11_external=yes)
 
 if test "$enable_x11_external" = yes; then
   AC_DEFINE(EXTERNAL_X11_WINDOW,1,[ Define if you want to supply pre-existing X11 windows. ])
 fi
 
-dnl check for installed linux vgagl lib if
-dnl both linux_vga is defined.
-if test "$with_linux_vga" = yes; then
-  _LIBS="$LIBS"
-  dnl make sure LIBS contains -lvga
-  LIBS="$TERMLIBS $LIBS"
-  AC_MSG_CHECKING(for the vgagl library)
-  AC_CHECK_LIB(vgagl, gl_hline,
-    [LIBS="-lvgagl $LIBS"
-     AC_CHECK_HEADERS(vgagl.h,
-      [AC_DEFINE(VGAGL,1,[ Define if the vgagl libray is present. ])
-       dnl yup, we've the libvgagl.
-       dnl check now, if lib3dkit is found.
-       AC_CHECK_LIB(3dkit, gl_striangle,
-         [AC_CHECK_HEADERS(3dkit.h,
-            [dnl success! If we're here, all checks for
-             dnl the vgagl terminal driver succeeded.
-             AC_DEFINE(THREEDKIT,1,[ Define if the 3dkit libray is present. ])
-             AC_DEFINE(EXTENDED_COLOR_SPECS,1,
-                       [ Define if color information should be passed for each vertex. ])
-             VGAGLLIB="-l3dkit -lvgagl"
-             with_vgagl=yes
-            ],dnl <-- 3dkit.h found
-            [with_vgagl=no
-             AC_MSG_RESULT([unable to find 3dkit.h])
-            ]dnl <-- 3dkit.h not found
-          )
-         ],dnl <-- 3dkit is present
-         [
-          with_vgagl=no
-          AC_MSG_RESULT([unable to find lib3dkit])
-         ]dnl <-- 3dkit is not present
-       )
-      ],dnl <-- vgagl.h is present
-      [
-       with_vgagl=no
-       AC_MSG_RESULT([unable to find vgagl.h])
-      ]dnl <-- vgagl.h is not present
-     )
-    ],dnl <-- libvgagl was found
-    [with_vgagl=no
-     AC_MSG_RESULT([unable to find libvgagl])
-    ]dnl <-- libvgagl was not found
-  )
-  dnl restore LIBS
-  LIBS="$_LIBS"
-else
-  with_vgagl=no
-fi
-
-TERMLIBS="$VGAGLLIB $TERMLIBS"
-
-dnl labels with boxes around them
-AC_ARG_ENABLE(boxed_text,dnl
-[  --disable-boxed-text    disable support for boxed labels],,
-  test -z "$enable_boxed_text" && enable_boxed_text=yes)
-
-  if test "$enable_boxed_text" = yes; then
-  AC_DEFINE(EAM_BOXED_TEXT,1,
-               [ Define to support boxed labels ])
-  fi
-
 dnl disable the "space raises console" behaviour
 AC_ARG_ENABLE(raise-console,dnl
-[  --disable-raise-console        spacebar in plot window does not raise console],,
+[  --disable-raise-console spacebar in plot window does not raise console],,
   test -z "$enable_raise_console" && enable_raise_console=yes)
   if test "$enable_raise_console" != yes; then
       AC_DEFINE(DISABLE_SPACE_RAISES_CONSOLE,1,
                 [ Define to treat spacebar like any other keystroke. ])
   fi
-
-dnl rectangles and other objects
-AC_ARG_ENABLE(objects,dnl
-[  --disable-objects       disable rectangles and other objects ],,
-  test -z "$enable_objects" && enable_objects=yes)
-
-  if test "$enable_objects" = yes; then
-  AC_DEFINE(EAM_OBJECTS,1,
-               [ Define to allow placement of rectangles and other objects ])
-  fi
-
-dnl hidden3d compile-time options...
-dnl NOTE: have to check that they're not both turned on --- the code
-dnl doesn't allow that choice.
-AC_ARG_ENABLE(h3d-quadtree,dnl
-[  --disable-h3d-quadtree   disable quadtree optimization in hidden3d code],,
-  [test -z "${enable_h3d_quadtree}" && enable_h3d_quadtree=yes])
-if test "$enable_h3d_quadtree" = yes; then
-     AC_DEFINE(HIDDEN3D_QUADTREE,1,
-	       [ Define to enable quadtree optimization in hidden3d code.])
-fi
-
-AC_ARG_ENABLE(h3d-gridbox,dnl
-[  --enable-h3d-gridbox    enable gridbox optimization in hidden3d code],
-  [if test "$enable_h3d_quadtree" = yes; then
-     AC_MSG_ERROR(dnl
-[Only one of the hidden3d options quadtree and gridbox may be enabled.])
-   fi
-   if test "$enableval" = yes; then
-     AC_DEFINE(HIDDEN3D_GRIDBOX,1,
-               [ Define to enable gridbox optimization in hidden3d code.])
-   fi])
-
-AC_DEFINE(HIDDEN3D_VAR_PTSIZE,1,
-	[ Define to enable handling point size in hidden3d code.])
 
 
 dnl
@@ -924,7 +798,7 @@ if test "x${cxxerror}" != "xyes"; then
 fi
 
 AC_ARG_ENABLE(wxwidgets,dnl
-[  --disable-wxwidgets      wxWidgets terminal (default enabled)],,
+[  --disable-wxwidgets     wxWidgets terminal (default enabled)],,
   [test -z "${enable_wxwidgets}" && enable_wxwidgets=yes])
 
 if test "${enable_wxwidgets}" = yes ; then
@@ -940,7 +814,7 @@ if test "${enable_wxwidgets}" = yes ; then
   dnl The user can specify another path for wx-config
   WXWIDGETS_PATH="${PATH}"
   AC_ARG_WITH(wx,dnl
-  [--with-wx=DIR   Where to find wx-config, the wxWidgets configuration program
+  [--with-wx=DIR           Where to find wx-config, the wxWidgets configuration program
     (default search in $PATH)],
     [ if test "${with_wx}" != "no" ; then
 	WXWIDGETS_PATH="${with_wx}:${PATH}"
@@ -1000,10 +874,10 @@ if test "${enable_wxwidgets_ok}" = yes ; then
     WX_LIBS="$WX_LIBS $GTK_LIBS"
   fi
 
-  dnl The user can force single-threaded mode
-  AC_ARG_WITH(wx-single-threaded, dnl
-  [--with-wx-single-threaded   do not use multithreaded wxgtk even if available],
-  WX_CXXFLAGS="$WX_CXXFLAGS -DWXT_MONOTHREADED", 
+  dnl Default to single-threaded
+  AC_ARG_WITH(wx-multithreaded, dnl
+  [--with-wx-multithreaded  use multithreaded wxgtk (known problems, not recommended)],
+  , WX_CXXFLAGS="$WX_CXXFLAGS -DWXT_MONOTHREADED"
   )
 
   CPPFLAGS="$CPPFLAGS $CAIROPANGO_CFLAGS"
@@ -1018,28 +892,49 @@ dnl  End wxWidgets terminal
 
 dnl  Allow to disable terminals requiring bitmap support.
 AC_ARG_WITH(bitmap_terminals,dnl
-[  --with-bitmap-terminals         dot-matrix printers and pbm])
+[  --with-bitmap-terminals  dot-matrix printers and pbm])
 AS_IF([test "x${with_bitmap_terminals}" = "xyes"],,
   AC_DEFINE(NO_BITMAP_SUPPORT,1,
           [ Define to disable terminals that depend on code in bitmap.c ]))
 AM_CONDITIONAL(BUILD_BITMAP, test "${with_bitmap_terminals}" = yes)
 
+dnl  Allow to disable support for tektronix terminal emulators
+AC_ARG_WITH(tektronix,dnl
+[  --without-tektronix      tektronix terminal emulators (default enabled)])
+AS_IF([test "x${with_tektronix}" != "xno"],
+  AC_DEFINE(WITH_TEKTRONIX,1,
+          [ Define to include support for tektronix terminal emulators ],))
+
 dnl  Allow to include gpic terminal
 AC_ARG_WITH(gpic,dnl
-[  --with-gpic                     gpic terminal])
+[  --with-gpic              gpic terminal])
 AS_IF([test "x${with_gpic}" = "xyes"],
   AC_DEFINE(HAVE_GPIC,1,
           [ Define to include support for gpic terminal ],))
 
+dnl  Allow to include tgif terminal
+AC_ARG_WITH(tgif,dnl
+[  --with-tgif              tgif terminal])
+AS_IF([test "x${with_tgif}" = "xyes"],
+  AC_DEFINE(HAVE_TGIF,1,
+          [ Define to include support for tgif terminal ],))
+
 dnl  Allow to include mif (FrameMaker 3) terminal
 AC_ARG_WITH(mif,dnl
-[  --with-mif                     mif terminal (FrameMaker 3)])
+[  --with-mif               mif terminal (FrameMaker 3)])
 AS_IF([test "x${with_mif}" = "xyes"],
   AC_DEFINE(HAVE_MIF,1,
           [ Define to include support for mif terminal ],))
 
+dnl ReGIS terminal
+AC_ARG_WITH(regis,dnl
+[  --with-regis             ReGIS terminal])
+AS_IF([test "x${with_regis}" = "xyes"],
+  AC_DEFINE(HAVE_REGIS,1,
+          [ Define to include support for ReGIS terminal ],))
+
 AC_ARG_WITH(cairo,dnl
-[  --without-cairo      cairo-based terminals (default enabled)],,
+[  --without-cairo          cairo-based terminals (default enabled)],,
   [test -z "${with_cairo}" && with_cairo=yes])
 
 if test "${with_cairo}" = yes ; then
@@ -1072,7 +967,7 @@ AM_CONDITIONAL(BUILD_GPCAIRO, test "${build_gpcairo}" = yes)
 
 dnl Enable subsystem to generate statistical summary of file contents
 AC_ARG_ENABLE(stats,dnl
-[  --disable-stats          Omit calculation of statistical summary of data],
+[  --disable-stats         Omit calculation of statistical summary of data],
   [if test "$enableval" != no; then
     AC_DEFINE(USE_STATS,1,
                [ Define to add support for generating a statistical summary of data])
@@ -1082,17 +977,17 @@ AC_ARG_ENABLE(stats,dnl
    )
 
 dnl Enable parsing of deprecated syntax
-AC_ARG_ENABLE(backwards-compatibility,dnl
-[  --enable-backwards-compatibility       enable deprecated syntax ],
-  [if test "$enableval" = yes; then
-    AC_DEFINE(BACKWARDS_COMPATIBLE,1,
-               [ Define to allow use of certain deprecated syntax. ])
-  fi])
+dnl AC_ARG_ENABLE(backwards-compatibility,dnl
+dnl [  --enable-backwards-compatibility       enable deprecated syntax ],
+dnl   [if test "$enableval" = yes; then
+dnl     AC_DEFINE(BACKWARDS_COMPATIBLE,1,
+dnl                [ Define to allow use of certain deprecated syntax. ])
+dnl   fi])
 
 dnl Qt terminal
 
 AC_ARG_WITH(qt,dnl
-[  --with-qt [=qt4 =qt5 =no] Qt terminal (default autodetect)],
+[  --with-qt [=qt4 =qt5 =no]  Qt terminal (default autodetect)],
   [if test "x${with_qt}" != "xno"; then
      enable_qt=yes;
    fi],
@@ -1217,11 +1112,9 @@ AC_SUBST(VERSION)
 AC_SUBST(PATCHLEVEL)
 AC_SUBST(GIHDIR)
 AC_SUBST(TEXDIR)
-AC_SUBST(LINUXSUID)
 AC_SUBST(TERMLIBS)
 AC_SUBST(TERMXLIBS)
 AC_SUBST(TUTORIAL)
-AC_SUBST(X11_APPDEFAULTS_DIR)
 
 dnl Write Makefiles and configuration header
 AC_CONFIG_FILES([Makefile
@@ -1257,11 +1150,11 @@ AC_MSG_RESULT([])
 AC_MSG_RESULT([gnuplot will be compiled with the following terminals:])
 AC_MSG_RESULT([])
 
-AC_MSG_RESULT([  Standalone terminals: yes (always builtin)])
+AC_MSG_RESULT([  Standalone terminals: yes (included by default)])
 AC_MSG_RESULT([    canvas, cgm, context, dumb, dxf, eepic, emf, emtex,])
-AC_MSG_RESULT([    epslatex, fig, hpgl, latex, metafont, metapost, mif, pcl5,])
-AC_MSG_RESULT([    postscript, pslatex, pstex, pstricks, qms, svg,])
-AC_MSG_RESULT([    tek40xx, tek410x, texdraw, tgif, tkcanvas, tpic, vttek])
+AC_MSG_RESULT([    epslatex, fig, hpgl, latex, metafont, metapost, pcl5,])
+AC_MSG_RESULT([    postscript, pslatex, pstex, pstricks, svg,])
+AC_MSG_RESULT([    texdraw, tkcanvas, tpic])
 AC_MSG_RESULT([])
 
 if test "$with_bitmap_terminals" == yes; then
@@ -1273,12 +1166,83 @@ AC_MSG_RESULT([    epson, nec, okidata, tandy, and seiko dp414 printers])
 AC_MSG_RESULT([    hp500c, hpdj, hpljii, hppj, pbm, sixel, starc])
 AC_MSG_RESULT([])
 
-if test "$no_x" != yes; then
-  AC_MSG_RESULT([  X Window System terminal: yes])
-  if test "$enable_x11_mbfonts" = yes; then
-    AC_MSG_RESULT([    (with multi-byte fonts)])
+if test "$with_tektronix" == no; then
+  AC_MSG_RESULT([  tektronix terminal emulators: no ( --with-tektronix to enable)])
+else
+  AC_MSG_RESULT([  tektronix terminal emulators: yes ( --without-tektronix to disable)])
+fi
+AC_MSG_RESULT([    tek410x tek40 vttek xterm kc_tek40 km_tek40 selanar sixeltek bitgraph])
+AC_MSG_RESULT([    note: not needed for sixel graphics output to vt100-series emulators])
+
+AC_MSG_RESULT([])
+AC_MSG_RESULT([  Platform-specific, legacy, or specialized terminals omitted by default:])
+
+if test "$GGI_SUPPORT" = yes; then
+  if test "$ac_cv_header_ggi_xmi_h" = yes; then
+    AC_MSG_RESULT([    ggi terminal: yes (with pm3d support)])
   else
-    AC_MSG_RESULT([    (without multi-byte fonts, requires support in libX11)])
+    AC_MSG_RESULT([    ggi terminal: yes (no pm3d support, requires ggi xmi library)])
+  fi
+else
+  AC_MSG_RESULT([    ggi terminal:  no   (use --with-ggi to enable, requires libggi)])
+fi
+
+if test "$with_gpic" == yes; then
+  AC_MSG_RESULT([    gpic terminal: yes])
+else
+  AC_MSG_RESULT([    gpic terminal: no   (use --with-gpic to enable)])
+fi
+
+if test "$with_tgif" == yes; then
+  AC_MSG_RESULT([    tgif terminal: yes])
+else
+  AC_MSG_RESULT([    tgif terminal: no   (use --with-tgif to enable)])
+fi
+
+if test "$with_mif" == yes; then
+  AC_MSG_RESULT([    mif terminal (FrameMaker 3): yes])
+else
+  AC_MSG_RESULT([    mif terminal (FrameMaker 3): no   (use --with-mif to enable)])
+fi
+
+if test "$with_regis" = yes; then
+  AC_MSG_RESULT([    ReGIS terminal: yes])
+else
+  AC_MSG_RESULT([    ReGIS terminal: no  (use --with-regis to enable)])
+fi
+
+if test "$is_msdos" = yes; then
+  AC_MSG_RESULT([    svga terminal (MSDOS/djgpp): yes])
+fi
+
+if test "$build_src_beos_subdir" = yes; then
+  AC_MSG_RESULT([    be terminal (BeOS): yes])
+fi
+
+if test "$with_caca" = yes; then
+  AC_MSG_RESULT([    caca terminal: yes (EXPERIMENTAL)])
+else
+  AC_MSG_RESULT([    caca terminal:  no   (use --with-caca to enable)])
+fi
+
+if test "$gnuplot_framework_AquaTerm" = yes; then
+  AC_MSG_RESULT([    aqua terminal (OSX): yes])
+else
+  AC_MSG_RESULT([    aqua terminal (OSX): no])
+fi
+
+AC_MSG_RESULT([])
+AC_MSG_RESULT([  Other terminals that can be enabled but have no ./configure option:])
+AC_MSG_RESULT([    hp2623a, hp2648, imagen, kyocera, qms ])
+AC_MSG_RESULT([    pm (makefile.os2), be (BeOS), svga (MSDOS/djgpp), windows])
+
+dnl These are the most common interactive terminal options
+AC_MSG_RESULT([])
+if test "$no_x" != yes; then
+  if test "$enable_x11_mbfonts" = yes; then
+    AC_MSG_RESULT([  X Window System terminal: yes  (multi-byte fonts OK)])
+  else
+    AC_MSG_RESULT([  X Window System terminal: yes  (multi-byte fonts not supported)])
   fi
 
   if test "$enable_x11_external" = yes; then
@@ -1290,65 +1254,8 @@ if test "$no_x" != yes; then
   if test "$with_x_dcop" = yes; then
     AC_MSG_RESULT([    (gnuplot_x11 can use KDE3/DCOP to raise konsole) ])
   fi
-
-  AC_MSG_RESULT([    (with application defaults, in $X11_APPDEFAULTS_DIR)])
 else
   AC_MSG_RESULT([  X Window System terminal: no (requires X libraries)])
-fi
-
-if test "$with_linux_vga" = yes; then
-    AC_MSG_RESULT([  linux terminal (vga console): yes])
-  if test "$with_vgagl" = yes; then
-    AC_MSG_RESULT([  vgagl terminal ((s)vga console): yes])
-  else
-    AC_MSG_RESULT([  vgagl terminal ((s)vga console): no (requires vgagl)])
-  fi
-  AC_MSG_RESULT([    SECURITY NOTICE: SVGAlib requires that gnuplot is installed suid root!])
-else
-  AC_MSG_RESULT([  linux terminal (vga console): no (use --with-linux-vga to enable)])
-  AC_MSG_RESULT([  vgagl terminal ((s)vga console): no (use --with-linux-vga to enable)])
-fi
-
-if test "$GGI_SUPPORT" = yes; then
-  if test "$ac_cv_header_ggi_xmi_h" = yes; then
-    AC_MSG_RESULT([  ggi terminal: yes (with pm3d support)])
-  else
-    AC_MSG_RESULT([  ggi terminal: yes (without pm3d support, requires libxmi)])
-  fi
-else
-  AC_MSG_RESULT([  ggi terminal: no (use --with-ggi to enable, requires libggi)])
-fi
-
-if test "$with_gpic" == yes; then
-  AC_MSG_RESULT([  gpic terminal: yes])
-else
-  AC_MSG_RESULT([  gpic terminal: no   (use --with-gpic to enable)])
-fi
-
-if test "$with_mif" == yes; then
-  AC_MSG_RESULT([  mif terminal: yes])
-else
-  AC_MSG_RESULT([  mif terminal: no   (use --with-mif to enable)])
-fi
-
-if test "$is_msdos" = yes; then
-  AC_MSG_RESULT([  svga terminal (MSDOS/djgpp): yes])
-fi
-
-if test "$build_src_beos_subdir" = yes; then
-  AC_MSG_RESULT([  be terminal (BeOS): yes])
-fi
-
-if test "$with_caca" = yes; then
-  AC_MSG_RESULT([  caca terminal: yes (EXPERIMENTAL)])
-else
-  AC_MSG_RESULT([  caca terminal: no (use --with-caca to enable)])
-fi
-
-if test "$gnuplot_framework_AquaTerm" = yes; then
-  AC_MSG_RESULT([  aqua terminal (OSX): yes])
-else
-  AC_MSG_RESULT([  aqua terminal (OSX): no])
 fi
 
 if test "$ac_cv_lib_gd_gdImageJpeg" = yes && 
@@ -1376,8 +1283,8 @@ else
 fi
 
 if test "$enable_wxwidgets_ok" = yes; then
-  if test "$with_wx_single_threaded" = yes; then
-    AC_MSG_RESULT([  wxt terminal: yes (single-threaded)])
+  if test "$with_wx_multithreaded" = yes; then
+    AC_MSG_RESULT([  wxt terminal: yes (multithreaded)])
   else
     AC_MSG_RESULT([  wxt terminal: yes ])
   fi
@@ -1397,12 +1304,6 @@ else
 fi
 
 AC_MSG_RESULT([])
-AC_MSG_RESULT([  Additional platform-specific or older terminals omitted by default:])
-AC_MSG_RESULT([   gpic, mif (FrameMaker 3), hp2623a, hp2648, imagen, kyocera ])
-AC_MSG_RESULT([   pm (makefile.os2), be (BeOS), svga (MSDOS/djgpp)])
-AC_MSG_RESULT([   windows (several options)])
-
-AC_MSG_RESULT([])
 AC_MSG_RESULT([gnuplot will be compiled with the following configurable features:])
 AC_MSG_RESULT([])
 
@@ -1413,15 +1314,9 @@ else
 fi
 
 if test "$enable_raise_console" = yes; then
-  AC_MSG_RESULT([  Typing <space> in plot window raises console])
+  AC_MSG_RESULT([  Typing <space> in plot window raises console: yes])
 else
-  AC_MSG_RESULT([  Treat <space> in plot window like any other key: yes])
-fi
-
-if test "$enable_objects" = yes; then
-  AC_MSG_RESULT([  Placement of rectangles and other objects: yes ])
-else
-  AC_MSG_RESULT([  Placement of rectangles and other objects: no])
+  AC_MSG_RESULT([  Typing <space> in plot window raises console: no])
 fi
 
 if test "$with_readline" = no; then
@@ -1485,21 +1380,11 @@ else
   AC_MSG_RESULT([  Use TeX kpsexpand to search for fonts: no (use --with-kpsexpand to enable)])
 fi
 
-if test "$enable_h3d_gridbox" = yes; then
-  AC_MSG_RESULT([  Hidden3d optimization (gridbox/quadtree/none): gridbox])
-else
-  if test "$enable_h3d_quadtree" = no; then
-    AC_MSG_RESULT([  Hidden3d optimization (gridbox/quadtree/none): none])
-  else
-    AC_MSG_RESULT([  Hidden3d optimization (gridbox/quadtree/none): quadtree])
-  fi
-fi
-
-if test "$enable_backwards_compatibility" = yes; then
-  AC_MSG_RESULT([  Allow deprecated syntax: yes])
-else
-  AC_MSG_RESULT([  Allow deprecated syntax: no (use --enable-backwards-compatibility)])
-fi
+dnl if test "$enable_backwards_compatibility" = yes; then
+dnl   AC_MSG_RESULT([  Allow deprecated syntax: yes])
+dnl else
+dnl   AC_MSG_RESULT([  Allow deprecated syntax: no (use --enable-backwards-compatibility)])
+dnl fi
 
 if test "$enable_stats" != no; then
   AC_MSG_RESULT([  Statistical summary of data ("stats" command): yes])
@@ -1513,22 +1398,15 @@ AC_MSG_RESULT([gnuplot will install the following additional materials:])
 AC_MSG_RESULT([])
 
 if test "$with_latex" != no; then
-  AC_MSG_RESULT([  cfg file for epslatex terminal: yes])
-  if test "$with_lua" != no; then
-    AC_MSG_RESULT([  TeX *.sty for lua/tikz terminal: yes])
-  else
-    AC_MSG_RESULT([  TeX *.sty for lua/tikz terminal: no])
-  fi
   AC_MSG_RESULT([  TeX files will be installed in $TEXDIR])
   AC_MSG_RESULT([                               (use --with-texdir=DIR to change)])
 else
-  AC_MSG_RESULT([  cfg file for epslatex terminal: no])
-  AC_MSG_RESULT([  TeX *.sty for lua/tikz terminal: no])
+  AC_MSG_RESULT([  TeX files will not be installed])
 fi
-
+AC_MSG_RESULT([  PostScript prologue files: $GIHDIR/PostScript/])
 AC_MSG_RESULT([  Help file: $GIHDIR/gnuplot.gih])
 
-AC_MSG_RESULT([  PostScript prologue files: $GIHDIR/PostScript/])
+AC_MSG_RESULT([])
 
 dnl end config report
 

@@ -42,10 +42,10 @@
 #include "variable.h"		/* For locale handling */
 #include "setshow.h"		/* for conv_text() */
 #include "tabulate.h"		/* for table_mode */
-
-#if defined(HAVE_DIRENT_H) && !defined(_WIN32)
-# include <sys/types.h>
-# include <dirent.h>
+#include "voxelgrid.h"
+#include "encoding.h"
+#if defined(_MSC_VER) || defined(__WATCOMC__)
+# include <io.h>		/* for _access */
 #endif
 
 /* Exported (set-table) variables */
@@ -66,7 +66,7 @@ TBOOLEAN use_minus_sign = FALSE;
 char *numeric_locale = NULL;
 
 /* Holds the name of the current LC_TIME as set by "set locale" */
-char *current_locale = NULL;
+char *time_locale = NULL;
 
 const char *current_prompt = NULL; /* to be set by read_line() */
 
@@ -80,10 +80,9 @@ int debug = 0;
 
 /* internal prototypes */
 
-static void mant_exp __PROTO((double, double, TBOOLEAN, double *, int *, const char *));
-static void parse_sq __PROTO((char *));
-static TBOOLEAN utf8_getmore __PROTO((unsigned long * wch, const char **str, int nbytes));
-static char *utf8_strchrn __PROTO((const char *s, int N));
+static void mant_exp(double, double, TBOOLEAN, double *, int *, const char *);
+static void parse_sq(char *);
+static char *utf8_strchrn(const char *s, int N);
 static char *num_to_str(double r);
 
 /*
@@ -145,7 +144,19 @@ almost_equals(int t_num, const char *str)
     return (after || str[i] == '$' || str[i] == NUL);
 }
 
+/* Extract one token from the input line */
+char *
+token_to_string(int t)
+{
+    static char *token_string = NULL;
+    int token_length = token[t].length;
 
+    token_string = realloc(token_string, token_length+1);
+    memcpy(token_string, &gp_input_line[token[t].start_index], token_length);
+    token_string[token_length] = '\0';
+
+    return token_string;
+}
 
 int
 isstring(int t_num)
@@ -193,6 +204,22 @@ isletter(int t_num)
 	    (isalpha(c) || (c == '_') || ALLOWED_8BITVAR(c)));
 }
 
+/* Test whether following bit of command line might be parsable as a number.
+ * constant, defined variable, function, ...
+ */
+TBOOLEAN
+might_be_numeric(int t_num)
+{
+    if (END_OF_COMMAND)
+	return FALSE;
+    if (isanumber(t_num) || is_function(t_num))
+	return TRUE;
+    if (type_udv(t_num) == INTGR || type_udv(t_num) == CMPLX || type_udv(t_num) == ARRAY)
+	return TRUE;
+    if (equals(t_num, "("))
+	return TRUE;
+    return FALSE;
+}
 
 /*
  * is_definition() returns TRUE if the next tokens are of the form
@@ -383,8 +410,6 @@ gp_stradd(const char *a, const char *b)
     return new;
 }
 
-/* HBB 20020405: moved these functions here from axis.c, where they no
- * longer truly belong. */
 /*{{{  mant_exp - split into mantissa and/or exponent */
 /* HBB 20010121: added code that attempts to fix rounding-induced
  * off-by-one errors in 10^%T and similar output formats */
@@ -527,14 +552,15 @@ gprintf_value(
     char *dest  = &tempdest[0];
     char *limit = &tempdest[MAX_LINE_LEN];
     static double log10_of_1024; /* to avoid excess precision comparison in check of connection %b -- %B */
-    
+
     log10_of_1024 = log10(1024);
-    
+
 #define remaining_space (size_t)(limit-dest)
 
     *dest = '\0';
 
-    set_numeric_locale();
+    if (!evaluate_inside_using)
+	set_numeric_locale();
 
     /* Should never happen but fuzzer managed to hit it */
     if (!format)
@@ -587,8 +613,8 @@ gprintf_value(
 	    t[1] = 'l';
 	    t[2] = *format;
 	    t[3] = '\0';
-	    snprintf(dest, remaining_space, temp, 
-		     v->type == INTGR ? v->v.int_val : (int)real(v));
+	    snprintf(dest, remaining_space, temp,
+		     v->type == INTGR ? v->v.int_val : (intgr_t)real(v));
 	    break;
 	    /*}}} */
 	    /*{{{  e, f and g */
@@ -898,15 +924,12 @@ gprintf_value(
 	    }
 	    /*}}} */
 	default:
-	   reset_numeric_locale();
 	   int_error(NO_CARET, "Bad format character");
 	} /* switch */
 	/*}}} */
 
-	if (got_hash && (format != strpbrk(format,"oeEfFgG"))) {
-	   reset_numeric_locale();
+	if (got_hash && (format != strpbrk(format,"oeEfFgG")))
 	   int_error(NO_CARET, "Bad format character");
-	}
 
     /* change decimal '.' to the actual entry in decimalsign */
 	if (decimalsign != NULL) {
@@ -983,21 +1006,11 @@ gprintf_value(
 
 done:
 
-#if (0)
-    /* Oct 2013 - Not safe because it fails to recognize LaTeX macros.	*/
-    /* For LaTeX terminals, if the user has not already provided a   	*/
-    /* format in math mode, wrap whatever we got by default in $...$ 	*/
-    if (((term->flags & TERM_IS_LATEX)) && !strchr(tempdest, '$')) {
-	*(outstring++) = '$';
-	strcat(tempdest, "$");
-	count -= 2;
-    }
-#endif
-
     /* Copy as much as fits */
     safe_strncpy(outstring, tempdest, count);
 
-    reset_numeric_locale();
+    if (!evaluate_inside_using)
+	reset_numeric_locale();
 }
 
 /* some macros for the error and warning functions below
@@ -1021,6 +1034,7 @@ static void
 print_line_with_error(int t_num)
 {
     int i;
+    int true_line_num = inline_num;
 
     if (t_num == DATAFILE) {
 	/* Print problem line from data file to the terminal */
@@ -1030,17 +1044,19 @@ print_line_with_error(int t_num)
 
 	/* If the current line was built by concatenation of lines inside */
 	/* a {bracketed clause}, try to reconstruct the true line number  */
-	char *minimal_input_line = gp_input_line;
+	/* FIXME:  This seems to no longer work reliably */
+	char *copy_of_input_line = gp_strdup(gp_input_line);
+	char *minimal_input_line = copy_of_input_line;
 	char *trunc;
-	while ((trunc = strrchr(gp_input_line, '\n')) != NULL) {
+	while ((trunc = strrchr(copy_of_input_line, '\n')) != NULL) {
 	    int current = (t_num == NO_CARET) ? c_token : t_num;
-	    if (trunc < &gp_input_line[token[current].start_index]) {
+	    if (trunc < &copy_of_input_line[token[current].start_index]) {
 		minimal_input_line = trunc+1;
 		t_num = NO_CARET;
 		break;
 	    }
 	    *trunc = '\0';
-	    inline_num--;
+	    true_line_num--;
 	}
 
 	if (t_num != NO_CARET) {
@@ -1059,14 +1075,19 @@ print_line_with_error(int t_num)
 	    /* Print token */
 	    fputs("^\n",stderr);
 	}
+	free(copy_of_input_line);
     }
 
     PRINT_SPACES_UNDER_PROMPT;
 
     if (!interactive) {
-	if (lf_head && lf_head->name)
-	    fprintf(stderr, "\"%s\", ", lf_head->name);
-	fprintf(stderr, "line %d: ", inline_num);
+	LFS *lf = lf_head;
+	/* Back out of any nested if/else clauses */
+	while (lf && !lf->fp && !lf->name && lf->prev)
+	    lf = lf->prev;
+	if (lf && lf->name)
+	    fprintf(stderr, "\"%s\" ", lf->name);
+	fprintf(stderr, "line %d: ", true_line_num);
     }
 }
 
@@ -1084,10 +1105,6 @@ os_error(int t_num, const char *str, va_dcl)
 #ifdef VA_START
     va_list args;
 #endif
-#ifdef VMS
-    static status[2] = { 1, 0 };		/* 1 is count of error msgs */
-#endif /* VMS */
-
     /* reprint line if screen has been written to */
     print_line_with_error(t_num);
 
@@ -1106,12 +1123,7 @@ os_error(int t_num, const char *str, va_dcl)
 #endif
     putc('\n', stderr);
 
-#ifdef VMS
-    status[1] = vaxc$errno;
-    sys$putmsg(status);
-#else /* VMS */
     perror("system error");
-#endif /* VMS */
 
     putc('\n', stderr);
     fill_gpval_string("GPVAL_ERRMSG", strerror(errno));
@@ -1169,6 +1181,9 @@ common_error_exit()
     plot_iterator = cleanup_iteration(plot_iterator);
     scanning_range_in_progress = FALSE;
     inside_zoom = FALSE;
+#ifdef HAVE_LOCALE_H
+    setlocale(LC_NUMERIC, "C");
+#endif
 
     /* Load error state variables */
     update_gpval_variables(2);
@@ -1296,9 +1311,14 @@ parse_esc(char *instr)
 		    *t++ = '\\';
 		    *t++ = *s++;
 		}
+	    } else if (s[0] == 'U' && s[1] == '+') {
+		/* Unicode escape:  \U+hhhh
+		 * Keep backslash; translation will be handled elsewhere.
+		 */
+		*t++ = '\\';
 	    }
 	} else if (df_separators && *s == '\"' && *(s+1) == '\"') {
-	/* EAM Mar 2003 - For parsing CSV strings with quoted quotes */
+	    /* For parsing CSV strings with quoted quotes */
 	    *t++ = *s++; s++;
 	} else {
 	    *t++ = *s++;
@@ -1312,15 +1332,13 @@ parse_esc(char *instr)
 TBOOLEAN
 existdir(const char *name)
 {
-#if defined(HAVE_DIRENT_H ) || defined(_WIN32)
+#if defined(HAVE_DIRENT)
     DIR *dp;
     if ((dp = opendir(name)) == NULL)
 	return FALSE;
 
     closedir(dp);
     return TRUE;
-#elif defined(VMS)
-    return FALSE;
 #else
     int_warn(NO_CARET,
 	     "Test on directory existence not supported\n\t('%s!')",
@@ -1333,7 +1351,7 @@ existdir(const char *name)
 TBOOLEAN
 existfile(const char *name)
 {
-#ifdef __MSC__
+#ifdef _MSC_VER
     return (_access(name, 0) == 0);
 #else
     return (access(name, F_OK) == 0);
@@ -1352,124 +1370,6 @@ getusername()
 
     return gp_strdup(username);
 }
-
-TBOOLEAN contains8bit(const char *s)
-{
-    while (*s) {
-	if ((*s++ & 0x80))
-	    return TRUE;
-    }
-    return FALSE;
-}
-
-#define INVALID_UTF8 0xfffful
-
-/* Read from second byte to end of UTF-8 sequence.
-   used by utf8toulong() */
-static TBOOLEAN
-utf8_getmore (unsigned long * wch, const char **str, int nbytes)
-{
-  int i;
-  unsigned char c;
-  unsigned long minvalue[] = {0x80, 0x800, 0x10000, 0x200000, 0x4000000};
-
-  for (i = 0; i < nbytes; i++) {
-    c = (unsigned char) **str;
-
-    if ((c & 0xc0) != 0x80) {
-      *wch = INVALID_UTF8;
-      return FALSE;
-    }
-    *wch = (*wch << 6) | (c & 0x3f);
-    (*str)++;
-  }
-
-  /* check for overlong UTF-8 sequences */
-  if (*wch < minvalue[nbytes-1]) {
-    *wch = INVALID_UTF8;
-    return FALSE;
-  }
-  return TRUE;
-}
-
-/* Convert UTF-8 multibyte sequence from string to unsigned long character.
-   Returns TRUE on success.
-*/
-TBOOLEAN
-utf8toulong (unsigned long * wch, const char ** str)
-{
-  unsigned char c;
-
-  c =  (unsigned char) *(*str)++;
-  if ((c & 0x80) == 0) {
-    *wch = (unsigned long) c;
-    return TRUE;
-  }
-
-  if ((c & 0xe0) == 0xc0) {
-    *wch = c & 0x1f;
-    return utf8_getmore(wch, str, 1);
-  }
-
-  if ((c & 0xf0) == 0xe0) {
-    *wch = c & 0x0f;
-    return utf8_getmore(wch, str, 2);
-  }
-
-  if ((c & 0xf8) == 0xf0) {
-    *wch = c & 0x07;
-    return utf8_getmore(wch, str, 3);
-  }
-
-  if ((c & 0xfc) == 0xf8) {
-    *wch = c & 0x03;
-    return utf8_getmore(wch, str, 4);
-  }
-
-  if ((c & 0xfe) == 0xfc) {
-    *wch = c & 0x01;
-    return utf8_getmore(wch, str, 5);
-  }
-
-  *wch = INVALID_UTF8;
-  return FALSE;
-}
-
-/*
- * Returns number of (possibly multi-byte) characters in a UTF-8 string
- */
-size_t
-strlen_utf8(const char *s)
-{
-    int i = 0, j = 0;
-    while (s[i]) {
-	if ((s[i] & 0xc0) != 0x80) j++;
-	i++;
-    }
-    return j;
-}
-
-
-TBOOLEAN
-is_sjis_lead_byte(char c)
-{
-    unsigned int ch = (unsigned char) c;
-    return ((ch >= 0x81) && (ch <= 0x9f)) || ((ch >= 0xe1) && (ch <= 0xee));
-}
-
-
-size_t
-strlen_sjis(const char *s)
-{
-    int i = 0, j = 0;
-    while (s[i]) {
-	if (is_sjis_lead_byte(s[i])) i++; /* skip */
-	j++;
-	i++;
-    }
-    return j;
-}
-
 
 size_t
 gp_strlen(const char *s)
@@ -1536,7 +1436,7 @@ streq(const char *a, const char *b)
 
 
 /* append string src to dest
-   re-allocates memory if necessary, (re-)determines the length of the 
+   re-allocates memory if necessary, (re-)determines the length of the
    destination string only if len==0
  */
 size_t
@@ -1572,7 +1472,7 @@ value_to_str(struct value *val, TBOOLEAN need_quotes)
 
     switch (val->type) {
     case INTGR:
-	sprintf(s[j], "%d", val->v.int_val);
+	sprintf(s[j], PLD, val->v.int_val);
 	break;
     case CMPLX:
 	if (isnan(val->v.cmplx_val.real))
@@ -1614,7 +1514,13 @@ value_to_str(struct value *val, TBOOLEAN need_quotes)
 	}
     case ARRAY:
 	{
-	sprintf(s[j], "<%d element array>", val->v.value_array->v.int_val);
+	sprintf(s[j], "<%d element array>", (int)(val->v.value_array->v.int_val));
+	break;
+	}
+    case VOXELGRID:
+	{
+	int N = val->v.vgrid->size;
+	sprintf(s[j], "%d x %d x %d voxel grid", N, N, N);
 	break;
 	}
     case NOTDEFINED:
@@ -1653,3 +1559,23 @@ num_to_str(double r)
     return s[j];
 }
 
+/* Auto-generated titles need modification to be compatible with LaTeX.
+ * For example filenames may contain underscore characters or dollar signs.
+ * Function plots auto-generate a copy of the function or expression,
+ * which probably looks better in math mode.
+ * We could perhaps go further and texify syntax such as a**b -> a^b
+ */
+char *
+texify_title(char *str, int plot_type)
+{
+    static char *latex_title = NULL;
+
+	if (plot_type == DATA || plot_type == DATA3D) {
+	    latex_title = escape_reserved_chars(str,"#$%^&_{}\\");
+	} else {
+	    latex_title = gp_realloc(latex_title, strlen(str) + 4, NULL);
+	    sprintf(latex_title, "$%s$", str);
+	}
+
+    return latex_title;
+}

@@ -45,8 +45,9 @@ AM_CPPFLAGS = -I../term -I$(top_srcdir)/term -DBINDIR=\"$(bindir)\" -DX11_DRIVER
 gnuplot_SOURCES = alloc.c alloc.h axis.c axis.h breaders.c breaders.h bitmap.h \
 boundary.c boundary.h color.c color.h command.c command.h contour.c contour.h \
 datablock.c datablock.h datafile.c datafile.h dynarray.c dynarray.h \
-eval.c eval.h external.c external.h fit.c fit.h gadgets.c gadgets.h getcolor.c getcolor.h \
-gp_hist.h gp_time.h gp_types.h gplt_x11.h graph3d.c graph3d.h graphics.c graphics.h \
+encoding.c encoding.h eval.c eval.h external.c external.h fit.c fit.h \
+gadgets.c gadgets.h getcolor.c getcolor.h gp_hist.h gp_time.h \
+gp_types.h gplt_x11.h graph3d.c graph3d.h graphics.c graphics.h \
 help.c help.h hidden3d.c hidden3d.h history.c internal.c internal.h \
 interpol.c interpol.h jitter.c jitter.h libcerf.c libcerf.h \
 matrix.c matrix.h misc.c misc.h mouse.c mouse.h mousecmn.h \
@@ -56,7 +57,8 @@ save.h scanner.c scanner.h set.c setshow.h show.c specfun.c specfun.h \
 standard.c standard.h stats.h stats.c stdfn.c stdfn.h syscfg.h tables.c tables.h \
 tabulate.c tabulate.h \
 term_api.h term.c term.h time.c unset.c util.c util.h \
-util3d.c util3d.h variable.c variable.h version.c version.h
+util3d.c util3d.h variable.c variable.h version.c version.h \
+voxelgrid.c voxelgrid.h vplot.c vplot.h marching_cubes.h
 
 gnuplot_LDADD = $(TERMLIBS) $(TERMXLIBS) $(WX_LIBS) $(QT_LIBS)
 
@@ -81,7 +83,7 @@ endif
 
 SUBDIRS = $(d_beos) wxterminal qtterminal
 
-EXTRA_gnuplot_SOURCES = strftime.c vms.c
+EXTRA_gnuplot_SOURCES = strftime.c vms.c vms.h
 
 EXTRA_DIST = GNUmakefile Makefile.maint \
 genopt.com gnuplot.opt x11.opt linkopt.vms \
@@ -105,11 +107,12 @@ endif
 
 DISTCLEANFILES = timestamp.h
 BUILT_SOURCES = timestamp.h
-timestamp.h: $(top_srcdir)/ChangeLog Makefile
+git_current := $(shell cut -c6- $(top_srcdir)/.git/HEAD)
+timestamp.h: $(top_srcdir)/.git/${git_current} Makefile
 	@echo Making $@
 	@echo "#ifndef GNUPLOT_TIMEBASE_H_INCLUDED" >$@t
 	@echo "#define GNUPLOT_TIMEBASE_H_INCLUDED" >>$@t
-	@head -1 $< | sed -e 's,\(^[0-9-]* \).*$$,const char gnuplot_date[] = "\1";,' >>$@t
+	@echo "const char gnuplot_date[] = \"`git --git-dir '$(top_srcdir)/.git' log -1 --format=%ci | cut -b-11`\";" >>$@t
 	@echo "#endif /* GNUPLOT_TIMEBASE_H_INCLUDED */" >> $@t
 	@if cmp -s $@ $@t; then rm -f $@t; else mv $@t $@; fi
 

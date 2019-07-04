@@ -76,7 +76,7 @@ BINARYFILES=$(M)binary1 $(M)binary2 $(M)binary3
 #
 # Defines
 
-CPPFLAGS =  -DHAVE_CONFIG_H -DHAVE_CONFIG_H -DUSE_MOUSE -DEAM_OBJECTS -DPIPES
+CPPFLAGS =  -DHAVE_CONFIG_H -DHAVE_CONFIG_H -DUSE_MOUSE -DPIPES
 CPPFLAGS += -DVERSION_MAJOR="5.3" -DPATCHLEVEL="0"
 CPPFLAGS += -DUNICODE -D_UNICODE
 # library-dependent ones may have to be added, like:
@@ -139,7 +139,7 @@ LDLIBS += LIBRARY d2d1.lib LIBRARY dwrite.lib
 # -aa : allow non-const initializers for locals
 # -d2 : debug information
 WCFLAGS = -zlf -ei -zq -I$(S);$(W) -zm -bm -5r -sg -orilt -aa -d2 $(CPPFLAGS) $(OPTS)
-WPPFLAGS = -zlf -ei -zq -I$(S);$(W) -zm -bm -5r -sg -orilt -d2 $(CPPFLAGS) $(OPTS)
+WPPFLAGS = -zlf -ei -zq -I$(S);$(W) -zm -bm -5r -sg -orilt -xs -d2 $(CPPFLAGS) $(OPTS)
 # removed: -za99
 
 # ...and here.

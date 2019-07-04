@@ -27,18 +27,6 @@
 /* Define if this system uses a 32-bit DOS extender (djgpp/emx). */
 /* #undef DOS32 */
 
-/* Define to support boxed labels */
-#define EAM_BOXED_TEXT 1
-
-/* Define to allow placement of rectangles and other objects */
-/* Warning: Uses union initializers which earlier versions of VC did not support */
-#if _MSC_VER >= 1900
-# define EAM_OBJECTS 1
-#endif
-
-/* Define if color information should be passed for each vertex. */
-/* #undef EXTENDED_COLOR_SPECS */
-
 /* Define if you want to supply pre-existing X11 windows. */
 /* #undef EXTERNAL_X11_WINDOW */
 
@@ -170,7 +158,10 @@
 /* #undef HAVE_INDEX */
 
 /* Define to 1 if you have the <inttypes.h> header file. */
-/* #undef HAVE_INTTYPES_H */
+/* Available since VS 2013 */ 
+#if _MSC_VER >= 1800
+# define HAVE_INTTYPES_H 1
+#endif
 
 /* Define if you want to use kpsexpand (TeX). */
 /* #undef HAVE_KPSEXPAND */
@@ -179,7 +170,10 @@
 /* #undef HAVE_LANGINFO_H */
 
 /* Define to 1 if you have the `lgamma' function. */
-/* #undef HAVE_LGAMMA */
+/* Available since VS 2013, but we also need signgam */ 
+#if _MSC_VER >= 1800
+/* # define HAVE_LGAMMA */
+#endif
 
 /* Define if you have the caca library. */
 /* #undef HAVE_LIBCACA */
@@ -457,12 +451,6 @@
 /* Define to 1 if the system has the type `_Bool'. */
 /* #undef HAVE__BOOL */
 
-/* Define to enable gridbox optimization in hidden3d code. */
-/* #undef HIDDEN3D_GRIDBOX */
-
-/* Define to enable quadtree optimization in hidden3d code. */
-#define HIDDEN3D_QUADTREE 1
-
 /* Define to enable handling point size in hidden3d code. */
 #define HIDDEN3D_VAR_PTSIZE 1
 
@@ -517,9 +505,6 @@
 
 /* Unix-type of Interprocess Communication is required for mouse support. */
 /* #undef PIPE_IPC */
-
-/* Automake 1.12 dropped support for building without prototypes */
-#define PROTOTYPES 1
 
 /* Define if you want the Qt terminal. */
 /* #undef QTTERM */
@@ -630,13 +615,16 @@
 #define GP_INLINE __inline
 #define GP_EXCEPTION_NAME _exception
 #define GP_MATHERR _matherr
+
 /* no longer needed with VS2015: */
 #if _MSC_VER < 1900
 # define isnan _isnan
 #endif
 #define ftruncate _chsize
-#define strtoll _strtoi64
-#define isblank isspace
+#if _MSC_VER < 1800
+# define strtoll _strtoi64
+# define isblank isspace
+#endif
 #if _MSC_VER <= 1800
 # define va_copy(dest, src) (dest = src)
 #endif

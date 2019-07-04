@@ -163,6 +163,8 @@ void QtGnuplotScene::flushCurrentPointsItem()
 void QtGnuplotScene::update_key_box(const QRectF rect)
 {
 	if (m_currentPlotNumber > m_key_boxes.count()) {
+		// DEBUG Feb 2018 should no longer trigger
+		// because m_key_box insertion is done in layer code for GEAfterPlot
 		m_key_boxes.insert(m_currentPlotNumber, QtGnuplotKeybox(rect));
 	} else if (m_key_boxes[m_currentPlotNumber-1].isEmpty()) {
 		// Retain the visible/hidden flag when re-initializing the Keybox
@@ -299,6 +301,21 @@ void QtGnuplotScene::processEvent(QtGnuplotEventType type, QDataStream& in)
 	{
 		QString fontName; in >> fontName;
 		int size        ; in >> size;
+
+		// strip :Bold or :Italic property out of font name
+		if (fontName.contains(":italic", Qt::CaseInsensitive))
+			m_font.setStyle(QFont::StyleItalic);
+		else
+			m_font.setStyle(QFont::StyleNormal);
+		if (fontName.contains(":bold", Qt::CaseInsensitive))
+			m_font.setWeight(QFont::Bold);
+		else
+			m_font.setWeight(QFont::Normal);
+		int sep = fontName.indexOf(":");
+		if (sep >= 0)
+			fontName.truncate(sep);
+
+		// Blank font name means keep using the previous font
 		m_font.setFamily(fontName);
 		m_font.setPointSize(size);
 		m_font.setStyleStrategy(QFont::ForceOutline);	// pcf fonts die if rotated
@@ -327,7 +344,7 @@ void QtGnuplotScene::processEvent(QtGnuplotEventType type, QDataStream& in)
 		// Create a hypertext label that will become visible on mouseover.
 		// The Z offset is a kludge to force the label into the foreground.
 		if (!m_currentHypertext.isEmpty()) {
-			QGraphicsTextItem* textItem = addText(m_currentHypertext, m_font);
+			QGraphicsTextItem* textItem = addText(m_currentHypertext, m_hypertextFont);
 			textItem->setPos(point + m_textOffset);
 			textItem->setZValue(m_currentZ+10000);
 			textItem->setVisible(false);
@@ -358,13 +375,12 @@ void QtGnuplotScene::processEvent(QtGnuplotEventType type, QDataStream& in)
 			update_key_box(rect);
 		else
 			m_currentGroup.append(textItem);
-#ifdef EAM_BOXED_TEXT
+
 		if (m_inTextBox) {
 			m_currentTextBox |= rect;
 			m_currentBoxRotation = m_textAngle;
 			m_currentBoxOrigin = point;
 		}
-#endif
 	}
 	else if (type == GEEnhancedFlush)
 	{
@@ -408,13 +424,12 @@ void QtGnuplotScene::processEvent(QtGnuplotEventType type, QDataStream& in)
 			update_key_box(rect);
 		else
 			m_currentGroup.append(m_enhanced);
-#ifdef EAM_BOXED_TEXT
+
 		if (m_inTextBox) {
 			m_currentTextBox |= rect;
 			m_currentBoxRotation = m_textAngle;
 			m_currentBoxOrigin = point;
 		}
-#endif
 		m_enhanced = 0;
 	}
 	else if (type == GEImage)
@@ -498,6 +513,13 @@ void QtGnuplotScene::processEvent(QtGnuplotEventType type, QDataStream& in)
 			// Store it in an ordered list so we can toggle it by index
 			m_plot_group.insert(m_currentPlotNumber, newgroup);
 		} 
+
+		if (m_currentPlotNumber >= m_key_boxes.count()) {
+			QRectF empty( QPointF(0,0), QPointF(0,0));
+			m_key_boxes.insert(m_currentPlotNumber,  empty);
+			m_key_boxes[m_currentPlotNumber-1].resetStatus();
+		}
+
 		m_currentPlotNumber = 0;
 	}
 	else if (type == GEPlotNumber) 
@@ -522,7 +544,6 @@ void QtGnuplotScene::processEvent(QtGnuplotEventType type, QDataStream& in)
 		enum QtGnuplotModPlots ops = (enum QtGnuplotModPlots) ops_i;
 
 		/* FIXME: This shouldn't happen, but it does. */
-		/* Failure to reset lists after multiplot??   */
 		if (i > m_plot_group.count())
 		    i = m_plot_group.count();
 
@@ -577,8 +598,8 @@ void QtGnuplotScene::processEvent(QtGnuplotEventType type, QDataStream& in)
 	{
 		m_currentHypertext.clear();
 		in >> m_currentHypertext;
+		m_hypertextFont = m_font;
 	}
-#ifdef EAM_BOXED_TEXT
 	else if (type == GETextBox)
 	{
 		flushCurrentPointsItem();
@@ -636,7 +657,6 @@ void QtGnuplotScene::processEvent(QtGnuplotEventType type, QDataStream& in)
 			break;
 		}
 	}
-#endif
 	else if (type == GEFontMetricRequest)
 	{
 		QFontMetrics metrics(m_font);
@@ -845,6 +865,7 @@ void QtGnuplotScene::mouseMoveEvent(QGraphicsSceneMouseEvent* event)
 	// The first item in m_hypertextList is always a background rectangle for the text
 	int i = m_hypertextList.count();
 	bool hit = false;
+	m_selectedHypertext.clear();
 	while (i-- > 1) {
 		if (!hit && ((m_hypertextList[i]->pos() - m_textOffset) 
 				- m_lastMousePos).manhattanLength() <= 5) {
@@ -865,7 +886,11 @@ void QtGnuplotScene::mouseMoveEvent(QGraphicsSceneMouseEvent* event)
 				m_hyperimage->setPixmap(QPixmap(imagename));
 				m_hyperimage->setVisible(true);
 				break;
+			} else {
+				// If there is a mouse click we will push this to the clipboard
+				m_selectedHypertext = current_text;
 			}
+
 		} else {
 			m_hypertextList[i]->setVisible(false);
 			m_hyperimage->setVisible(false);
@@ -911,6 +936,10 @@ void QtGnuplotScene::mouseReleaseEvent(QGraphicsSceneMouseEvent* event)
 		    }
 	    }
 	}
+
+	// Supposedly !isEmpty indicates the mouse is hovering over a hypertext anchor
+	if ((button == 1) && !m_selectedHypertext.isEmpty())
+		QApplication::clipboard()->setText(m_selectedHypertext);
 
 	QGraphicsScene::mouseReleaseEvent(event);
 }
@@ -988,9 +1017,14 @@ void QtGnuplotScene::keyPressEvent(QKeyEvent* event)
 			case Qt::Key_9        : key = GP_KP_9        ; break;
 		}
 	// ASCII keys
-	else if ((event->key() <= 0xff) && (!event->text().isEmpty()))
-		// event->key() does not respect the case
-		key = event->text()[0].toLatin1();
+	else if (event->key() <= 0xff) {
+		key = event->key();
+		// the core code is supposed handle upper/lower case by
+		// inspecting the Shift modifier, but currently that does not work
+		// so instead we check here for lowercase and pass it as text.
+		if (islower((event->text()[0].toLatin1())))
+			key = event->text()[0].toLatin1();
+	}
 	// Special keys
 	else
 		switch (event->key())
@@ -1026,6 +1060,10 @@ void QtGnuplotScene::keyPressEvent(QKeyEvent* event)
 			case Qt::Key_F12        : key = GP_F12        ; break;
 		}
 
+	// The <tab> key is special.  We will catch it on keyRelease.
+	if (key == GP_Tab)
+		key = 0;
+
 	if (key >= 0)
 		live = m_eventHandler->postTermEvent(GE_keypress,
 			int(m_lastMousePos.x()), int(m_lastMousePos.y()), key, 0, m_widget);
@@ -1054,6 +1092,24 @@ void QtGnuplotScene::keyPressEvent(QKeyEvent* event)
 	}
 
 	QGraphicsScene::keyPressEvent(event);
+}
+
+/*
+ * Qt swallows the keyPress events from <tab> because it is used to
+ * cycle focus among a set of widgets. The documented methods for bypassing
+ * this focus-related theft are beyond my comprehension.  So instead we
+ * catch the key release event (for <tab> only) and pretend it was a press.
+ */
+void QtGnuplotScene::keyReleaseEvent(QKeyEvent* event)
+{
+	if (Qt::Key_Tab == event->key()) {
+		updateModifiers();
+		m_eventHandler->postTermEvent(GE_keypress,
+			int(m_lastMousePos.x()), int(m_lastMousePos.y()),
+			GP_Tab, 0, m_widget);
+	}
+
+	QGraphicsScene::keyReleaseEvent(event);
 }
 
 double QtGnuplotScene::sceneToGraph(int axis, double coord) const

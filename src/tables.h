@@ -36,7 +36,7 @@
 #include "syscfg.h"
 
 
-typedef void (*parsefuncp_t) __PROTO((void));
+typedef void (*parsefuncp_t)(void);
 
 struct gen_ftable {
     const char *key;
@@ -71,7 +71,7 @@ enum save_id { SAVE_INVALID, SAVE_FUNCS, SAVE_TERMINAL, SAVE_SET, SAVE_VARS, SAV
 enum set_id {
     S_INVALID,
     S_ACTIONTABLE, S_ALL, S_ANGLES, S_ARROW, S_AUTOSCALE, S_BARS, S_BIND, S_BORDER,
-    S_BOXWIDTH, S_CLABEL, S_CLIP, S_CNTRPARAM, S_CNTRLABEL, S_CONTOUR, 
+    S_BOXDEPTH, S_BOXWIDTH, S_CLABEL, S_CLIP, S_CNTRPARAM, S_CNTRLABEL, S_CONTOUR,
     S_COLOR, S_COLORSEQUENCE, S_DASHTYPE, S_DATA, S_DATAFILE,
     S_FUNCTIONS, S_DGRID3D, S_DUMMY, S_ENCODING, S_DECIMALSIGN, S_FIT,
     S_FONTPATH, S_FORMAT,
@@ -80,13 +80,11 @@ enum set_id {
     S_LINESTYLE, S_LINETYPE, S_LOADPATH, S_LOCALE, S_LOGSCALE, S_MACROS,
     S_MAPPING, S_MARGIN, S_LMARGIN, S_RMARGIN, S_TMARGIN, S_BMARGIN, S_MISSING,
     S_MICRO, S_MINUS_SIGN,
-#ifdef USE_MOUSE
     S_MOUSE,
-#endif
     S_MONOCHROME, S_MULTIPLOT, S_MX2TICS, S_NOMX2TICS, S_MXTICS, S_NOMXTICS,
     S_MY2TICS, S_NOMY2TICS, S_MYTICS, S_NOMYTICS,
     S_MZTICS, S_NOMZTICS, S_MRTICS,
-    S_OFFSETS, S_ORIGIN, SET_OUTPUT, S_PARAMETRIC,
+    S_OFFSETS, S_ORIGIN, SET_OUTPUT, S_OVERFLOW, S_PARAMETRIC,
     S_PALETTE, S_PM3D, S_COLORBOX, S_COLORNAMES,
     S_CBLABEL, S_CBRANGE, S_CBTICS, S_NOCBTICS, S_MCBTICS, S_NOMCBTICS,
     S_CBDATA, S_CBDTICS, S_NOCBDTICS, S_CBMTICS, S_NOCBMTICS, S_OBJECT, S_WALL,
@@ -95,6 +93,8 @@ enum set_id {
     S_TABLE, S_TERMINAL, S_TERMOPTIONS, S_THETA,
     S_TICS, S_TICSCALE, S_TICSLEVEL, S_TIMEFMT, S_TIMESTAMP, S_TITLE,
     S_TRANGE, S_URANGE, S_VARIABLES, S_VERSION, S_VIEW, S_VRANGE,
+
+    S_VGRID, S_VXRANGE, S_VYRANGE, S_VZRANGE, S_ISOSURFACE,
 
     S_X2DATA, S_X2DTICS, S_NOX2DTICS, S_X2LABEL, S_X2MTICS, S_NOX2MTICS,
     S_X2RANGE, S_X2TICS, S_NOX2TICS,
@@ -168,7 +168,7 @@ enum set_pm3d_id {
     S_PM3D_SCANSFORWARD, S_PM3D_SCANSBACKWARD, S_PM3D_SCANS_AUTOMATIC,
     S_PM3D_DEPTH,
     S_PM3D_FLUSH, S_PM3D_FTRIANGLES, S_PM3D_NOFTRIANGLES,
-    S_PM3D_CLIP_1IN, S_PM3D_CLIP_4IN,
+    S_PM3D_CLIP_1IN, S_PM3D_CLIP_4IN, S_PM3D_CLIPCB, S_PM3D_NOCLIPCB,
     S_PM3D_MAP, S_PM3D_BORDER, S_PM3D_NOBORDER, S_PM3D_HIDDEN, S_PM3D_NOHIDDEN,
     S_PM3D_SOLID, S_PM3D_NOTRANSPARENT, S_PM3D_NOSOLID, S_PM3D_TRANSPARENT,
     S_PM3D_IMPLICIT, S_PM3D_NOEXPLICIT, S_PM3D_NOIMPLICIT, S_PM3D_EXPLICIT,
@@ -188,10 +188,8 @@ enum show_style_id {
     SHOW_STYLE_FILLING, SHOW_STYLE_ARROW, 
     SHOW_STYLE_CIRCLE, SHOW_STYLE_ELLIPSE, SHOW_STYLE_RECTANGLE,
     SHOW_STYLE_INCREMENT, SHOW_STYLE_HISTOGRAM, SHOW_STYLE_BOXPLOT,
-    SHOW_STYLE_PARALLEL
-#ifdef EAM_BOXED_TEXT
-    , SHOW_STYLE_TEXTBOX
-#endif
+    SHOW_STYLE_PARALLEL,
+    SHOW_STYLE_TEXTBOX
 };
 
 enum filledcurves_opts_id {
@@ -221,6 +219,7 @@ extern const struct gen_table color_model_tbl[];
 extern const struct gen_table set_hidden3d_tbl[];
 extern const struct gen_table show_style_tbl[];
 extern const struct gen_table plotstyle_tbl[];
+extern const struct gen_table fit_verbosity_level[];
 
 /* EAM Nov 2008 - this is now dynamic, so we can add colors on the fly */
 extern       struct gen_table *user_color_names_tbl;
@@ -233,12 +232,12 @@ extern const struct gen_ftable command_ftbl[];
 extern const struct gen_table filledcurves_opts_tbl[];
 
 /* Function prototypes */
-int lookup_table __PROTO((const struct gen_table *, int));
-parsefuncp_t lookup_ftable __PROTO((const struct gen_ftable *, int));
-int lookup_table_entry __PROTO((const struct gen_table *tbl, const char *search_str));
-int lookup_table_nth __PROTO((const struct gen_table *tbl, const char *search_str));
-int lookup_table_nth_reverse __PROTO((const struct gen_table *tbl, int table_len, const char *search_str));
-const char * reverse_table_lookup __PROTO((const struct gen_table *tbl, int entry));
+int lookup_table(const struct gen_table *, int);
+parsefuncp_t lookup_ftable(const struct gen_ftable *, int);
+int lookup_table_entry(const struct gen_table *tbl, const char *search_str);
+int lookup_table_nth(const struct gen_table *tbl, const char *search_str);
+int lookup_table_nth_reverse(const struct gen_table *tbl, int table_len, const char *search_str);
+const char * reverse_table_lookup(const struct gen_table *tbl, int entry);
 
 
 #endif /* GNUPLT_TABLES_H */

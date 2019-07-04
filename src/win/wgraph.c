@@ -231,9 +231,9 @@ static void	SelFont(LPGW lpgw);
 static void	SetFont(LPGW lpgw, HDC hdc);
 static void	GraphChangeFont(LPGW lpgw, LPCTSTR font, int fontsize, HDC hdc, RECT rect);
 static void	dot(HDC hdc, int xdash, int ydash);
-static unsigned int GraphGetTextLength(LPGW lpgw, HDC hdc, LPCSTR text);
+static unsigned int GraphGetTextLength(LPGW lpgw, HDC hdc, LPCSTR text, TBOOLEAN escapes);
 static void	draw_text_justify(HDC hdc, int justify);
-static void	draw_put_text(LPGW lpgw, HDC hdc, int x, int y, char * str);
+static void	draw_put_text(LPGW lpgw, HDC hdc, int x, int y, char * str, TBOOLEAN escapes);
 static void	draw_image(LPGW lpgw, HDC hdc, char *image, POINT corners[4], unsigned int width, unsigned int height, int color_mode);
 static void	drawgraph(LPGW lpgw, HDC hdc, LPRECT rect);
 #endif
@@ -679,8 +679,8 @@ GraphInit(LPGW lpgw)
 	if (!lpgw->bDocked && lpgw->Canvas.x != 0) {
 		lpgw->Size.x = lpgw->Canvas.x + lpgw->Decoration.x;
 		lpgw->Size.y = lpgw->Canvas.y + lpgw->Decoration.y;
-		SetWindowPos(lpgw->hWndGraph, HWND_BOTTOM, 
-			     lpgw->Origin.x, lpgw->Origin.y, 
+		SetWindowPos(lpgw->hWndGraph, HWND_BOTTOM,
+			     lpgw->Origin.x, lpgw->Origin.y,
 			     lpgw->Size.x, lpgw->Size.y,
 			     SWP_NOACTIVATE | SWP_NOZORDER | SWP_NOMOVE);
 	}
@@ -763,7 +763,7 @@ GraphStart(LPGW lpgw, double pointsize)
 	if (!lpgw->hWndGraph || !IsWindow(lpgw->hWndGraph))
 		GraphInit(lpgw);
 
-	if (IsIconic(lpgw->hWndGraph))
+	if (IsIconic(lpgw->hWndGraph) || !IsWindowVisible(lpgw->hWndGraph))
 		ShowWindow(lpgw->hWndGraph, SW_SHOWNORMAL);
 	if (lpgw->graphtotop) {
 		/* HBB NEW 20040221: avoid grabbing the keyboard focus
@@ -1293,7 +1293,7 @@ luma_from_color(unsigned red, unsigned green, unsigned blue)
 
 #ifdef USE_WINGDI
 static unsigned int
-GraphGetTextLength(LPGW lpgw, HDC hdc, LPCSTR text)
+GraphGetTextLength(LPGW lpgw, HDC hdc, LPCSTR text, TBOOLEAN escapes)
 {
 	SIZE size;
 	LPWSTR textw;
@@ -1301,7 +1301,10 @@ GraphGetTextLength(LPGW lpgw, HDC hdc, LPCSTR text)
 	if (text == NULL)
 		return 0;
 
-	textw = UnicodeText(text, lpgw->encoding);
+	if (escapes)
+		textw = UnicodeTextWithEscapes(text, lpgw->encoding);
+	else
+		textw = UnicodeText(text, lpgw->encoding);
 	if (textw) {
 		GetTextExtentPoint32W(hdc, textw, wcslen(textw), &size);
 		free(textw);
@@ -1327,13 +1330,13 @@ EnhancedSetFont()
 static unsigned
 EnhancedTextLength(char * text)
 {
-	return GraphGetTextLength(enhstate.lpgw, enhstate_gdi.hdc, text);
+	return GraphGetTextLength(enhstate.lpgw, enhstate_gdi.hdc, text, TRUE);
 }
 
 static void
 EnhancedPutText(int x, int y, char * text)
 {
-	draw_put_text(enhstate.lpgw, enhstate_gdi.hdc, x, y, text);
+	draw_put_text(enhstate.lpgw, enhstate_gdi.hdc, x, y, text, TRUE);
 }
 
 static void
@@ -1358,7 +1361,83 @@ draw_enhanced_init(HDC hdc)
 #endif // USE_WINGDI
 
 
-/* enhanced text functions shared with wgdiplus.cpp */
+/* enhanced text functions shared with wgdiplus.cpp/wd2d.cpp */
+
+LPWSTR
+UnicodeTextWithEscapes(LPCSTR str, enum set_encoding_id encoding)
+{
+	LPWSTR p;
+	LPWSTR textw;
+
+	textw = UnicodeText(str, encoding);
+	if (encoding == S_ENC_UTF8)
+		return textw;  // Escapes already handled in core gnuplot
+
+	p = wcsstr(textw, L"\\");
+	if (p != NULL) {
+		LPWSTR q, r;
+
+		// make a copy of the string
+		LPWSTR w = (LPWSTR) malloc(wcslen(textw) * sizeof(WCHAR));
+		wcsncpy(w, textw, (p - textw));
+
+		// q points at end of new string
+		q = w + (p - textw);
+		// r is the remaining string to copy
+		r = p;
+
+		*q = 0;
+		do {
+			uint32_t codepoint;
+			size_t length = 0;
+			WCHAR wstr[3];
+
+			// copy intermediate characters
+			if (p > r) {
+				size_t n = (p - r);
+				wcsncat(w, r, n);
+				r += n;
+				q += n;
+			}
+			// Handle Unicode escapes
+			if (p[1] == L'U' && p[2] == L'+') {
+				swscanf(&(p[3]), L"%5x", &codepoint);
+				// Windows does not offer an API for direct conversion from UTF-32 to UTF-16.
+				// So we convert "by hand".
+				if ((codepoint <= 0xD7FF) || (codepoint >= 0xE000 && codepoint <= 0xFFFF)) {
+					wstr[0] = codepoint;
+					length = 1;
+				} else if (codepoint <= 0x10FFFF) {
+					codepoint -= 0x10000;
+					wstr[0] = 0xD800 + (codepoint >> 10);
+					wstr[1] = 0xDC00 + (codepoint & 0x3FF);
+					length = 2;
+				}
+			}
+			if (length > 0) {
+				int i;
+
+				p += (codepoint > 0xFFFF) ? 8 : 7;
+				for (i = 0; i < length; i++, q++)
+					*q = wstr[i];
+			} else if (p[1] == '\\') {
+				p++;
+			} else {
+				*q = L'\\';
+				q++;
+			}
+			*q = 0;
+			r = p;
+			p++;
+			p = wcsstr(p, L"\\U+");
+		} while (p != NULL);
+		if (r != NULL)
+			wcscat(w, r);
+		free(textw);
+		return w;
+	}
+	return textw;
+}
 
 void
 GraphEnhancedOpen(char *fontname, double fontsize, double base,
@@ -1630,7 +1709,7 @@ draw_text_justify(HDC hdc, int justify)
 
 
 static void
-draw_put_text(LPGW lpgw, HDC hdc, int x, int y, char * str)
+draw_put_text(LPGW lpgw, HDC hdc, int x, int y, char * str, TBOOLEAN escapes)
 {
 	SetBkMode(hdc, TRANSPARENT);
 
@@ -1638,7 +1717,12 @@ draw_put_text(LPGW lpgw, HDC hdc, int x, int y, char * str)
 	if ((lpgw->encoding == S_ENC_DEFAULT) || (lpgw->encoding == S_ENC_INVALID)) {
 		TextOutA(hdc, x, y, str, strlen(str));
 	} else {
-		LPWSTR textw = UnicodeText(str, lpgw->encoding);
+		LPWSTR textw;
+
+		if (escapes)
+			textw = UnicodeTextWithEscapes(str, lpgw->encoding);
+		else
+			textw = UnicodeText(str, lpgw->encoding);
 		if (textw) {
 			TextOutW(hdc, x, y, textw, wcslen(textw));
 			free(textw);
@@ -1928,7 +2012,7 @@ drawgraph(LPGW lpgw, HDC hdc, LPRECT rect)
 	int seq = 0;				/* sequence counter for W_image and W_boxedtext */
 	int i;
 
-	if (lpgw->locked) 
+	if (lpgw->locked)
 		return;
 
 	/* clear hypertexts only in display sessions */
@@ -2205,13 +2289,13 @@ drawgraph(LPGW lpgw, HDC hdc, LPRECT rect)
 				int slen, vsize;
 
 				/* shift correctly for rotated text */
-				draw_put_text(lpgw, hdc, xdash + hshift, ydash + vshift, str);
+				draw_put_text(lpgw, hdc, xdash + hshift, ydash + vshift, str, FALSE);
 #ifndef EAM_BOXED_TEXT
 				if (keysample) {
 #else
 				if (keysample || boxedtext.boxing) {
 #endif
-					slen  = GraphGetTextLength(lpgw, hdc, str);
+					slen  = GraphGetTextLength(lpgw, hdc, str, FALSE);
 					vsize = MulDiv(lpgw->vchar, rb - rt, 2 * lpgw->ymax);
 					if (lpgw->justify == LEFT) {
 						dxl = 0;
@@ -3053,7 +3137,7 @@ SaveAsEMF(LPGW lpgw)
 	Ofn.lpstrFilter = TEXT("Enhanced Metafile (*.emf)\0*.emf\0Enhanced Metafile+ (*.emf)\0*.emf\0");
 #elif defined (USE_WINGDI)
 	Ofn.lpstrFilter = TEXT("Enhanced Metafile (*.emf)\0*.emf\0");
-#elif defined(HAVE_GDIPLUS) 
+#elif defined(HAVE_GDIPLUS)
 	Ofn.lpstrFilter = TEXT("Enhanced Metafile+ (*.emf)\0*.emf\0");
 #endif
 	Ofn.lpstrCustomFilter = lpstrCustomFilter;
@@ -3325,7 +3409,7 @@ CopyPrint(LPGW lpgw)
 
 #if defined(HAVE_D2D11) && !defined(DCRENDERER)
 	if (lpgw->d2d) {
-		dpiX = dpiY = 96;  // DIPS 
+		dpiX = dpiY = 96;  // DIPS
 	} else
 #endif
 	{
@@ -3382,7 +3466,7 @@ CopyPrint(LPGW lpgw)
 #endif
 			/* Print using GDI+ */
 			print_gdiplus(lpgw, printer, printerHandle, &rect);
-		} else 
+		} else
 #endif
 		{
 #ifdef USE_WINGDI
@@ -3560,9 +3644,9 @@ ReadGraphIni(LPGW lpgw)
 		lpgw->Origin.y = CW_USEDEFAULT;
 	if (bOKINI)
 		GetPrivateProfileString(section, TEXT("GraphSize"), TEXT(""), profile, 80, file);
-	if ((p = GetInt(profile, (LPINT)&lpgw->Size.x)) == NULL)
+	if ((p = GetInt(profile, (LPINT)&lpgw->Size.x)) == NULL || lpgw->Size.x < 1)
 		lpgw->Size.x = CW_USEDEFAULT;
-	if ((p = GetInt(p, (LPINT)&lpgw->Size.y)) == NULL)
+	if ((p = GetInt(p, (LPINT)&lpgw->Size.y)) == NULL || lpgw->Size.y < 1)
 		lpgw->Size.y = CW_USEDEFAULT;
 	/* Saved size and origin are normalised to 96dpi. */
 	dpi = GetDPI();
@@ -4162,11 +4246,11 @@ GraphUpdateMenu(LPGW lpgw)
 	EnableMenuItem(lpgw->hPopMenu, M_FASTROTATE, MF_BYCOMMAND | (lpgw->gdiplus ? MF_ENABLED : MF_DISABLED));
 	CheckMenuItem(lpgw->hPopMenu, M_ANTIALIASING, MF_BYCOMMAND |
 					((lpgw->gdiplus || lpgw->d2d) && lpgw->antialiasing ? MF_CHECKED : MF_UNCHECKED));
-	CheckMenuItem(lpgw->hPopMenu, M_OVERSAMPLE, MF_BYCOMMAND | 
+	CheckMenuItem(lpgw->hPopMenu, M_OVERSAMPLE, MF_BYCOMMAND |
 					((lpgw->gdiplus || lpgw->d2d) && lpgw->oversample ? MF_CHECKED : MF_UNCHECKED));
 	CheckMenuItem(lpgw->hPopMenu, M_FASTROTATE, MF_BYCOMMAND |
 					(lpgw->gdiplus && lpgw->fastrotation ? MF_CHECKED : MF_UNCHECKED));
-	CheckMenuItem(lpgw->hPopMenu, M_POLYAA, MF_BYCOMMAND | 
+	CheckMenuItem(lpgw->hPopMenu, M_POLYAA, MF_BYCOMMAND |
 					((lpgw->gdiplus || lpgw->d2d) && lpgw->polyaa ? MF_CHECKED : MF_UNCHECKED));
 #endif
 	CheckMenuItem(lpgw->hPopMenu, M_GRAPH_TO_TOP, MF_BYCOMMAND |
@@ -4218,7 +4302,7 @@ WndGraphParentProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 			// update the actual graph window
 			{
 				GetClientRect(hwnd, &rect);
-				SetWindowPos(lpgw->hGraph, NULL, 
+				SetWindowPos(lpgw->hGraph, NULL,
 					     0, lpgw->ToolbarHeight,
 					     rect.right - rect.left, rect.bottom - rect.top - lpgw->ToolbarHeight - lpgw->StatusHeight,
 					     SWP_NOACTIVATE | SWP_NOZORDER);

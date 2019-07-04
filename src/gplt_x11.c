@@ -185,8 +185,10 @@ typedef struct axis_scale_t {
 #ifdef __EMX__
 /* for gethostname ... */
 # include <netdb.h>
+/* name collision with X11 headers */
+# undef generic
 /* for __XOS2RedirRoot */
-#include <X11/Xlibint.h>
+# include <X11/Xlibint.h>
 #endif
 
 
@@ -233,7 +235,7 @@ typedef struct cmap_struct {
     cmap_t *cmap;
     struct cmap_struct *next_cmap_struct;
 } cmap_struct;
-    
+
 /* Stuff for toggling plots on/off in response to a mouse click on the key entry */
 typedef struct {
 	unsigned int left;
@@ -315,17 +317,17 @@ typedef struct plot_struct {
     int plot_number;
 } plot_struct;
 
-static plot_struct *Add_Plot_To_Linked_List __PROTO((int));
-static void Remove_Plot_From_Linked_List __PROTO((Window));
-static plot_struct *Find_Plot_In_Linked_List_By_Number __PROTO((int));
-static plot_struct *Find_Plot_In_Linked_List_By_Window __PROTO((Window));
-static plot_struct *Find_Plot_In_Linked_List_By_CMap __PROTO((cmap_t *));
+static plot_struct *Add_Plot_To_Linked_List(int);
+static void Remove_Plot_From_Linked_List(Window);
+static plot_struct *Find_Plot_In_Linked_List_By_Number(int);
+static plot_struct *Find_Plot_In_Linked_List_By_Window(Window);
+static plot_struct *Find_Plot_In_Linked_List_By_CMap(cmap_t *);
 
 static struct plot_struct *current_plot = NULL;
 static int most_recent_plot_number = 0;
 static struct plot_struct *plot_list_start = NULL;
 
-static void x11_setfill __PROTO((GC *gc, int style));
+static void x11_setfill(GC *gc, int style);
 
 /* information about window/plot to be removed */
 typedef struct plot_remove_struct {
@@ -334,18 +336,18 @@ typedef struct plot_remove_struct {
     int processed;
 } plot_remove_struct;
 
-static void Add_Plot_To_Remove_FIFO_Queue __PROTO((Window));
-static void Process_Remove_FIFO_Queue __PROTO((void));
+static void Add_Plot_To_Remove_FIFO_Queue(Window);
+static void Process_Remove_FIFO_Queue(void);
 
 static struct plot_remove_struct *remove_fifo_queue_start = NULL;
 static int process_remove_fifo_queue = 0;
 
-static cmap_t *Add_CMap_To_Linked_List __PROTO((void));
-static void Remove_CMap_From_Linked_List __PROTO((cmap_t *));
-static cmap_t *Find_CMap_In_Linked_List __PROTO((cmap_t *));
-static int cmaps_differ __PROTO((cmap_t *, cmap_t *));
+static cmap_t *Add_CMap_To_Linked_List(void);
+static void Remove_CMap_From_Linked_List(cmap_t *);
+static cmap_t *Find_CMap_In_Linked_List(cmap_t *);
+static int cmaps_differ(cmap_t *, cmap_t *);
 
-static void clear_used_font_list __PROTO((void));
+static void clear_used_font_list(void);
 
 /* current_cmap always points to a valid colormap.  At start up
  * it is the default colormap.  When a palette command comes
@@ -378,18 +380,18 @@ static char selection[SEL_LEN] = "";
 # define PIXMAP_HEIGHT(plot)  ((plot)->height)
 #endif
 
-static void CmapClear __PROTO((cmap_t *));
-static void RecolorWindow __PROTO((plot_struct *));
-static void FreeColormapList __PROTO((plot_struct *plot));
-static void FreeColors __PROTO((cmap_t *));
-static void ReleaseColormap __PROTO((cmap_t *));
-static unsigned long *ReallocColors __PROTO((cmap_t *, int));
-static void PaletteMake __PROTO((t_sm_palette *));
-static void PaletteSetColor __PROTO((plot_struct *, double));
-static int GetVisual __PROTO((int, Visual **, int *));
-static void scan_palette_from_buf __PROTO((void));
+static void CmapClear(cmap_t *);
+static void RecolorWindow(plot_struct *);
+static void FreeColormapList(plot_struct *plot);
+static void FreeColors(cmap_t *);
+static void ReleaseColormap(cmap_t *);
+static unsigned long *ReallocColors(cmap_t *, int);
+static void PaletteMake(t_sm_palette *);
+static void PaletteSetColor(plot_struct *, double);
+static int GetVisual(int, Visual **, int *);
+static void scan_palette_from_buf(void);
 
-static unsigned short BitMaskDetails __PROTO((unsigned long mask, unsigned short *left_shift, unsigned short *right_shift));
+static unsigned short BitMaskDetails(unsigned long mask, unsigned short *left_shift, unsigned short *right_shift);
 
 TBOOLEAN swap_endian = 0;  /* For binary data. */
 /* Petr's byte swapping routine. */
@@ -421,83 +423,82 @@ char byteswap_char;
     ((char *)x)[1] = ((char *)x)[2]; \
     ((char *)x)[2] = byteswap_char
 
-static void store_command __PROTO((char *, plot_struct *));
-static void prepare_plot __PROTO((plot_struct *));
-static void delete_plot __PROTO((plot_struct *));
+static void store_command(char *, plot_struct *);
+static void prepare_plot(plot_struct *);
+static void delete_plot(plot_struct *);
 
-static int record __PROTO((void));
-static void process_event __PROTO((XEvent *));	/* from Xserver */
-static void process_configure_notify_event __PROTO((XEvent *event, TBOOLEAN isRetry ));
+static int record(void);
+static void process_event(XEvent *);	/* from Xserver */
+static void process_configure_notify_event(XEvent *event, TBOOLEAN isRetry );
 
-static void mainloop __PROTO((void));
+static void mainloop(void);
 
-static void display __PROTO((plot_struct *));
-static void UpdateWindow __PROTO((plot_struct *));
+static void display(plot_struct *);
+static void UpdateWindow(plot_struct *);
 #ifdef USE_MOUSE
-static void gp_execute_GE_plotdone __PROTO((int windowid));
+static void gp_execute_GE_plotdone(int windowid);
 
-static int ErrorHandler __PROTO((Display *, XErrorEvent *));
-static void DrawRuler __PROTO((plot_struct *));
-static void EventuallyDrawMouseAddOns __PROTO((plot_struct *));
-static void DrawBox __PROTO((plot_struct *));
-static void DrawLineToRuler __PROTO((plot_struct *));
-static void AnnotatePoint __PROTO((plot_struct *, int, int, const char[], const char[]));
-static long int SetTime __PROTO((plot_struct *, Time));
-static unsigned long AllocateXorPixel __PROTO((cmap_t *));
-static void GetGCXor __PROTO((plot_struct *, GC *));
-static void GetGCXorDashed __PROTO((plot_struct *, GC *));
-static void EraseCoords __PROTO((plot_struct *));
-static void DrawCoords __PROTO((plot_struct *, const char *));
-static void DisplayCoords __PROTO((plot_struct *, const char *));
+static int ErrorHandler(Display *, XErrorEvent *);
+static void DrawRuler(plot_struct *);
+static void EventuallyDrawMouseAddOns(plot_struct *);
+static void DrawBox(plot_struct *);
+static void DrawLineToRuler(plot_struct *);
+static void AnnotatePoint(plot_struct *, int, int, const char[], const char[]);
+static long int SetTime(plot_struct *, Time);
+static unsigned long AllocateXorPixel(cmap_t *);
+static void GetGCXor(plot_struct *, GC *);
+static void GetGCXorDashed(plot_struct *, GC *);
+static void EraseCoords(plot_struct *);
+static void DrawCoords(plot_struct *, const char *);
+static void DisplayCoords(plot_struct *, const char *);
 
-static TBOOLEAN is_meta __PROTO((KeySym));
+static TBOOLEAN is_meta(KeySym);
 
 #ifndef DISABLE_SPACE_RAISES_CONSOLE
 static unsigned long gnuplotXID = 0; /* WINDOWID of gnuplot */
-static char* getMultiTabConsoleSwitchCommand __PROTO((unsigned long *));
+static char* getMultiTabConsoleSwitchCommand(unsigned long *);
 #endif /* DISABLE_SPACE_RAISES_CONSOLE */
 
-static void x11_initialize_key_boxes __PROTO((plot_struct *plot, int i));
-static void x11_initialize_hidden __PROTO((plot_struct *plot, int i));
-static void x11_update_key_box __PROTO((plot_struct *plot,  unsigned int x, unsigned int y ));
-static int x11_check_for_toggle __PROTO((plot_struct *plot, unsigned int x, unsigned int y));
+static void x11_initialize_key_boxes(plot_struct *plot, int i);
+static void x11_initialize_hidden(plot_struct *plot, int i);
+static void x11_update_key_box(plot_struct *plot,  unsigned int x, unsigned int y );
+static int x11_check_for_toggle(plot_struct *plot, unsigned int x, unsigned int y);
 
 #endif /* USE_MOUSE */
 
-static void DrawRotated __PROTO((plot_struct *, Display *, GC,
-				 int, int, const char *, int));
-static int DrawRotatedErrorHandler __PROTO((Display *, XErrorEvent *));
-static void exec_cmd __PROTO((plot_struct *, char *));
+static void DrawRotated(plot_struct *, Display *, GC, int, int, const char *, int);
+static int DrawRotatedErrorHandler(Display *, XErrorEvent *);
+static void exec_cmd(plot_struct *, char *);
 
-static void reset_cursor __PROTO((Window));
+static void reset_cursor(Window);
 
-static void preset __PROTO((int, char **));
-static char *pr_GetR __PROTO((XrmDatabase, char *));
-static void pr_color __PROTO((cmap_t *));
-static void pr_dashes __PROTO((void));
-static void pr_encoding __PROTO((void));
-static void pr_font __PROTO((char *));
-static void pr_geometry __PROTO((char *));
-static void pr_pointsize __PROTO((void));
-static void pr_width __PROTO((void));
-static void pr_window __PROTO((plot_struct *));
-static void pr_raise __PROTO((void));
-static void pr_replotonresize __PROTO((void));
-static void pr_persist __PROTO((void));
-static void pr_feedback __PROTO((void));
-static void pr_ctrlq __PROTO((void));
-static void pr_fastrotate __PROTO((void));
+static void preset(int, char **);
+static char *pr_GetR(XrmDatabase, char *);
+static void pr_color(cmap_t *);
+static void pr_dashes(void);
+static void pr_encoding(void);
+static void pr_font(char *);
+static void pr_geometry(char *);
+static void pr_pointsize(void);
+static void pr_width(void);
+static void pr_window(plot_struct *);
+static void pr_raise(void);
+static void pr_replotonresize(void);
+static void pr_persist(void);
+static void pr_feedback(void);
+static void pr_ctrlq(void);
+static void pr_fastrotate(void);
 
 #ifdef EXPORT_SELECTION
-static void export_graph __PROTO((plot_struct *));
-static void handle_selection_event __PROTO((XEvent *));
-static void pr_exportselection __PROTO((void));
+static void export_graph(plot_struct *);
+static void handle_selection_event(XEvent *);
+static void pr_exportselection(void);
 #endif
 
 #if defined(USE_MOUSE) && defined(MOUSE_ALL_WINDOWS)
-static void mouse_to_coords __PROTO((plot_struct *, XEvent *,
-			double *, double *, double *, double *));
-static double mouse_to_axis __PROTO((int, axis_scale_t *));
+static void mouse_to_coords(plot_struct *, XEvent *,
+			double *, double *, double *, double *);
+static double mouse_to_axis(int, axis_scale_t *);
 #endif
 
 static char *FallbackFont = "fixed";
@@ -507,18 +508,17 @@ static char *FallbackFontMBUTF = "mbfont:*-medium-r-normal--14-*-iso10646-1";
 # define FontSetSep ';'
 static int usemultibyte = 0;
 static int multibyte_fonts_usable=1;
-static int fontset_transsep __PROTO((char *, char *, int));
+static int fontset_transsep(char *, char *, int);
 #endif /* USE_X11_MULTIBYTE */
-static int gpXTextWidth __PROTO((XFontStruct *, const char *, int));
-static int gpXTextHeight __PROTO((XFontStruct *));
-static int gpXTextExtents __PROTO((XFontStruct *, char *, int, XCharStruct *));
-static void gpXSetFont __PROTO((Display *, GC, Font));
-static void gpXDrawImageString __PROTO((Display *, Drawable, GC, int, int, const char *, int));
-static void gpXDrawString __PROTO((Display *, Drawable, GC, int, int, const char *, int));
-static void gpXFreeFont __PROTO((Display *, XFontStruct *));
-static XFontStruct *gpXLoadQueryFont __PROTO((Display *, char *));
-static char *gpFallbackFont __PROTO((void));
-static int gpXGetFontascent __PROTO((XFontStruct *cfont));
+static int gpXTextWidth(XFontStruct *, const char *, int);
+static int gpXTextHeight(XFontStruct *);
+static int gpXTextExtents(XFontStruct *, char *, int, XCharStruct *);
+static void gpXSetFont(Display *, GC, Font);
+static void gpXDrawImageString(Display *, Drawable, GC, int, int, const char *, int);
+static void gpXDrawString(Display *, Drawable, GC, int, int, const char *, int);
+static XFontStruct *gpXLoadQueryFont(Display *, char *);
+static char *gpFallbackFont(void);
+static int gpXGetFontascent(XFontStruct *cfont);
 
 enum set_encoding_id encoding = S_ENC_DEFAULT; /* EAM - mirrored from core code by 'QE' */
 static char default_font[196] = { '\0' };
@@ -627,13 +627,11 @@ static int cx = 0, cy = 0;
 static int vchar, hchar;
 
 /* Will hold the bounding box of the previous enhanced text string */
-#ifdef EAM_BOXED_TEXT
     unsigned int bounding_box[4];
     TBOOLEAN boxing = FALSE;
 #define X11_TEXTBOX_MARGIN 2
     int box_xmargin = X11_TEXTBOX_MARGIN;
     int box_ymargin = X11_TEXTBOX_MARGIN;
-#endif
 
 /* Specify negative values as indicator of uninitialized state */
 static double xscale = -1.;
@@ -698,7 +696,7 @@ static int polyline_size = 0;
    display() */
 static TBOOLEAN currently_receiving_gr_image = FALSE;
 
-static void gpXStoreName __PROTO((Display *, Window, char *));
+static void gpXStoreName(Display *, Window, char *);
 
 /*
  * Main program
@@ -1209,7 +1207,7 @@ store_command(char *buffer, plot_struct *plot)
 
 #ifndef VMS
 
-static int read_input __PROTO((void));
+static int read_input(void);
 
 /*
  * Handle input.  Use read instead of fgets because stdio buffering
@@ -1265,7 +1263,7 @@ read_input()
     return partial_read;
 }
 
-static void read_input_line __PROTO((void));
+static void read_input_line(void);
 
 /*
  * Handle a whole input line, issuing an error message if a complete
@@ -1607,7 +1605,7 @@ record()
 	case X11_GR_MAKE_PALETTE:
 	    if (have_pm3d) {
 		char cmapidx[6] = "e";
-		int cm_index;
+		unsigned int cm_index;
 	        cmap_struct *csp;
 		/* Get and process palette */
 		scan_palette_from_buf();
@@ -1877,7 +1875,7 @@ record()
 		int scaled_hchar, scaled_vchar;
 		char *c = &(buf[strlen(buf)-1]);
 		while (*c <= ' ') *c-- = '\0';
-		strncpy(default_font, &buf[2], strlen(&buf[2])+1);
+		strncpy(default_font, &buf[2], sizeof(default_font)-1);
 		pr_font(NULL);
 		if (plot) {
 		    double scale = (double)plot->width / 4096.0;
@@ -2287,7 +2285,7 @@ exec_cmd(plot_struct *plot, char *command)
 		/* Save the request default font */
 		c = &(buffer[strlen(buffer)-1]);
 		while (*c <= ' ') *c-- = '\0';
-		strncpy(default_font, &buffer[2], strlen(&buffer[2])+1);
+		strncpy(default_font, &buffer[2], sizeof(default_font)-1);
 		FPRINTF((stderr, "gnuplot_x11: exec_cmd() set default_font to \"%s\"\n", default_font));
 		break;
 	}
@@ -2298,9 +2296,7 @@ exec_cmd(plot_struct *plot, char *command)
 	/* Enhanced text mode added November 2003 - Ethan A Merritt */
 	int x_offset=0, y_offset=0, v_offset=0;
 	int char_byte_offset;
-#ifdef EAM_BOXED_TEXT
 	unsigned int bb[4];
-#endif
 
 	switch (buffer[1]) {
 
@@ -2308,28 +2304,22 @@ exec_cmd(plot_struct *plot, char *command)
 		    sscanf(buffer+2, "%d %d", &x_offset, &y_offset);
 		    plot->xLast = x_offset - (plot->xLast - x_offset);
 		    plot->yLast = y_offset - (vchar/3) / yscale;
-#ifdef EAM_BOXED_TEXT
 		    bounding_box[0] = bounding_box[2] = X(plot->xLast);
 		    bounding_box[1] = bounding_box[3] = Y(plot->yLast);
-#endif
 		    return;
 	case 'k':	/* Set start for center-justified enhanced text */
 		    sscanf(buffer+2, "%d %d", &x_offset, &y_offset);
 		    plot->xLast = x_offset - 0.5*(plot->xLast - x_offset);
 		    plot->yLast = y_offset - (vchar/3) / yscale;
-#ifdef EAM_BOXED_TEXT
 		    bounding_box[0] = bounding_box[2] = X(plot->xLast);
 		    bounding_box[1] = bounding_box[3] = Y(plot->yLast);
-#endif
 		    return;
 	case 'l':	/* Set start for left-justified enhanced text */
 		    sscanf(buffer+2, "%d %d", &x_offset, &y_offset);
 		    plot->xLast = x_offset;
 		    plot->yLast = y_offset - (vchar/3) / yscale;
-#ifdef EAM_BOXED_TEXT
 		    bounding_box[0] = bounding_box[2] = X(plot->xLast);
 		    bounding_box[1] = bounding_box[3] = Y(plot->yLast);
-#endif
 		    return;
 	case 'o':	/* Enhanced mode print with no update */
 	case 'c':	/* Enhanced mode print with update to center */
@@ -2361,7 +2351,6 @@ exec_cmd(plot_struct *plot, char *command)
 		    plot->xLast = plot->xSave;
 		    plot->yLast = plot->ySave;
 		    return;
-#ifdef EAM_BOXED_TEXT
 	case 'b':	/* Initialize text bounding box */
 		    sscanf(buffer, "Tb%d %d", &x, &y);
 		    bounding_box[0] = bounding_box[2] = X(x);
@@ -2389,7 +2378,7 @@ exec_cmd(plot_struct *plot, char *command)
 			fill_gc = XCreateGC(dpy,plot->window,0,0);
 		    XCopyGC(dpy, *current_gc, ~0, fill_gc);
 		    XSetFillStyle(dpy, fill_gc, FillSolid);
-		    XFillRectangle(dpy, plot->pixmap, fill_gc, 
+		    XFillRectangle(dpy, plot->pixmap, fill_gc,
 			bb[0], bb[1], bb[2]-bb[0], bb[3]-bb[1]);
 		    /* boxing = FALSE; */
 		    return;
@@ -2398,7 +2387,6 @@ exec_cmd(plot_struct *plot, char *command)
 		    box_xmargin = X11_TEXTBOX_MARGIN * (double)(x) / 100.;
 		    box_ymargin = X11_TEXTBOX_MARGIN * (double)(y) / 100.;
 		    return;
-#endif
 	default:
 		    sscanf(buffer, "T%d %d%n", &x, &y, &char_byte_offset);
 		    /* extra 1 for the space before the string start */
@@ -2450,7 +2438,6 @@ exec_cmd(plot_struct *plot, char *command)
 	    /* horizontal text */
 	    gpXDrawString(dpy, plot->pixmap, *current_gc,
 		    X(x) + sj, Y(y) + v_offset, str, sl);
-#ifdef EAM_BOXED_TEXT
 	    if (boxing) {
 		/* Request bounding box information for this string */
 		unsigned int bb[4];
@@ -2465,7 +2452,6 @@ exec_cmd(plot_struct *plot, char *command)
 		if (bb[1] < bounding_box[1]) bounding_box[1] = bb[1];
 		if (bb[3] > bounding_box[3]) bounding_box[3] = bb[3];
 	    }
-#endif
 
 	    /* Toggle mechanism */
 	    if (x11_in_key_sample) {
@@ -4083,7 +4069,7 @@ DrawLineToRuler(plot_struct * plot)
     if (!gc_xor) {
 	GetGCXor(plot, &gc_xor);
     }
-    XDrawLine(dpy, plot->window, gc_xor, 
+    XDrawLine(dpy, plot->window, gc_xor,
 	    X(plot->ruler_x), Y(plot->ruler_y),
 	    plot->ruler_lineto_x, plot->ruler_lineto_y);
 }
@@ -4462,7 +4448,7 @@ reset_cursor(Window skip_window)
 */
 static int modifier_mask = 0;
 
-static void update_modifiers __PROTO((unsigned int));
+static void update_modifiers(unsigned int);
 
 static void
 update_modifiers(unsigned int state)
@@ -4658,7 +4644,7 @@ process_event(XEvent *event)
 		static int cmd_tried = 0;
 		static char *cmd = NULL;
 		static unsigned long newGnuplotXID = 0;
-		
+
 		/* If the "-ctrlq" resource is set, ignore ' ' unless control key is also pressed */
 		if (ctrlq && !(modifier_mask & Mod_Ctrl))
 		    break;
@@ -5601,7 +5587,7 @@ static char dash_mono[Ndashes][10] = {
 /* Version 5 default dash types */
 static char dash_color[Ndashes][10] = {
     "0", "16",
-    "0", "64", "26", "6424", "642424", "0", "64", "26" 
+    "0", "64", "26", "6424", "642424", "0", "64", "26"
 };
 
 static void
@@ -5671,10 +5657,10 @@ int gpXTextHeight (XFontStruct *cfont)
 	return cfont->ascent + cfont->descent;
 }
 
-int gpXTextExtents (XFontStruct *cfont, char *str, int nchar, 
+int gpXTextExtents (XFontStruct *cfont, char *str, int nchar,
 		    XCharStruct *overall)
 {
-    int direction, ascent, decent; 
+    int direction, ascent, decent;
 #ifdef USE_X11_MULTIBYTE
     if (usemultibyte) {
 	int ret;
@@ -5688,7 +5674,7 @@ int gpXTextExtents (XFontStruct *cfont, char *str, int nchar,
 	return ret;
     }
 #endif
-    return XTextExtents(cfont, str, nchar, &direction, &ascent, 
+    return XTextExtents(cfont, str, nchar, &direction, &ascent,
 			&decent, overall);
 }
 
@@ -5722,23 +5708,6 @@ void gpXDrawString (Display *disp, Drawable d, GC gc, int x, int y,
     }
 #endif
     XDrawString(disp, d, gc, x, y, str, len);
-}
-
-void gpXFreeFont(Display *disp, XFontStruct *cfont)
-{
-#ifndef USE_X11_MULTIBYTE
-    if (cfont)
-	XFreeFont(disp, cfont);
-#else
-    if (font) {
-	XFreeFont(disp, font);
-	font=NULL;
-    }
-    if (mbfont) {
-	XFreeFontSet(disp, mbfont);
-	mbfont=NULL;
-    }
-#endif
 }
 
 XFontStruct *gpXLoadQueryFont (Display *disp, char *fontname)
@@ -5877,10 +5846,8 @@ clear_used_font_list() {
     struct used_font *f;
     while (fontlist.next) {
 	f = fontlist.next;
-#ifndef USE_X11_MULTIBYTE
-	gpXFreeFont(dpy, f->font);
-#else
 	if (f->font) XFreeFont(dpy, f->font);
+#ifdef USE_X11_MULTIBYTE
 	if (f->mbfont) XFreeFontSet(dpy, f->mbfont);
 #endif
 	free(f->requested_name);
@@ -5912,7 +5879,7 @@ char *fontname;
     if (!fontname || !(*fontname)) {
 	if ((fontname = pr_GetR(db, ".font"))) {
 	    strncpy(default_font, fontname, sizeof(default_font)-1);
-    /* shige: default_font may be clear for each plot command by 
+    /* shige: default_font may be clear for each plot command by
      * X11_set_default_font() in x11.trm, since the function is called
      * in X11_graphics(). And then the font list will be cleared by the
      * next line in the case the default font is defined in X11 Resources.
@@ -5951,7 +5918,7 @@ char *fontname;
 	    hchar = search->hchar;
 	    return;
 #else
-	    if (!usemultibyte && !search->ismbfont) { 
+	    if (!usemultibyte && !search->ismbfont) {
 		font = search->font;
 		vchar = search->vchar;
 		hchar = search->hchar;
@@ -5967,7 +5934,7 @@ char *fontname;
     }
     /* If we get here, the request doesn't match a previously used font.
      * Whatever font we end up with should be recorded in the used_font
-     * list so that we can find it cheaply next time.		
+     * list so that we can find it cheaply next time.
      */
     requested_name = strdup(fontname);
 
@@ -6128,7 +6095,7 @@ char *fontname;
 		/* But (mincho|gothic) X fonts are not provided
 		 * on some X servers even in Japan
 		 */
-		sprintf(fontspec, "*-%s-%c-*--%d-*", 
+		sprintf(fontspec, "*-%s-%c-*--%d-*",
 			weight, slant, fontsize);
 		font = gpXLoadQueryFont(dpy, try_name = fontspec);
 	    }
@@ -6203,7 +6170,7 @@ char *fontname;
 #ifndef USE_X11_MULTIBYTE
     search->font = font;
 #else
-    if (!usemultibyte) { 
+    if (!usemultibyte) {
 	search->ismbfont = 0;
 	search->font = font;
 	search->mbfont = NULL;
@@ -6219,7 +6186,7 @@ char *fontname;
 
     FPRINTF((stderr, "gnuplot_x11: pr_font() set font %s, vchar %d hchar %d\n",
 		fontname, vchar, hchar));
-    FPRINTF((stderr, "gnuplot_x11: requested \"%s\" succeeded with \"%s\"\n", 
+    FPRINTF((stderr, "gnuplot_x11: requested \"%s\" succeeded with \"%s\"\n",
     		requested_name, try_name));
 
 }
@@ -6333,7 +6300,7 @@ pr_window(plot_struct *plot)
 	plot->gheight = gattr.height;
 	if (!plot->window) {
 	    plot->window = XCreateWindow(dpy, plot->external_container, plot->x, plot->y, plot->width,
-					 plot->height, 0, dep, InputOutput, vis, 0, NULL);
+					 plot->height, 0, dep, InputOutput, gattr.visual, 0, NULL);
 		gp_execute_GE_plotdone(plot->window); /* notify main program, send WINDOWID */
 	}
     }

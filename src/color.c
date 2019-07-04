@@ -36,7 +36,6 @@ t_sm_palette sm_palette;  /* initialized in plot.c on program entry */
 
 /* Copy of palette previously in use.
  * Exported so that change_term() can invalidate contents
- * FIXME: better naming 
  */
 static t_sm_palette prev_palette = {
 	-1, -1, -1, -1, -1, -1, -1, -1,
@@ -45,11 +44,10 @@ static t_sm_palette prev_palette = {
 
 /* Internal prototype declarations: */
 
-static void draw_inside_color_smooth_box_postscript __PROTO((void));
-static void draw_inside_color_smooth_box_bitmap __PROTO((void));
-static void cbtick_callback __PROTO((struct axis *, double place, char *text, int ticlevel,
-			struct lp_style_type grid, struct ticmark *userlabels));
-
+static void draw_inside_color_smooth_box_postscript(void);
+static void draw_inside_color_smooth_box_bitmap(void);
+static void cbtick_callback(struct axis *, double place, char *text, int ticlevel,
+			struct lp_style_type grid, struct ticmark *userlabels);
 
 
 /* *******************************************************************
@@ -200,111 +198,6 @@ set_rgbcolor_const(unsigned int rgbvalue)
     apply_pm3dcolor(&color);
 }
 
-void
-ifilled_quadrangle(gpiPoint* icorners)
-{
-    if (default_fillstyle.fillstyle == FS_EMPTY)
-	icorners->style = FS_OPAQUE;
-    else
-	icorners->style = style_from_fill(&default_fillstyle);
-    term->filled_polygon(4, icorners);
-
-    if (pm3d.border.l_type != LT_NODRAW) {
-	int i;
-
-	/* LT_DEFAULT means draw border in current color */
-	/* FIXME: currently there is no obvious way to set LT_DEFAULT  */
-	if (pm3d.border.l_type != LT_DEFAULT) {
-	    /* It should be sufficient to set only the color, but for some */
-	    /* reason this causes the svg terminal to lose the fill type.  */
-	    term_apply_lp_properties(&pm3d_border_lp);
-	}
-
-	term->move(icorners[0].x, icorners[0].y);
-	for (i = 3; i >= 0; i--) {
-	    term->vector(icorners[i].x, icorners[i].y);
-	}
-    }
-}
-
-
-/* The routine above for 4 points explicitly.
- * This is the only routine which supportes extended
- * color specs currently.
- */
-#ifdef EXTENDED_COLOR_SPECS
-void
-filled_quadrangle(gpdPoint * corners, gpiPoint * icorners)
-#else
-void
-filled_quadrangle(gpdPoint * corners)
-#endif
-{
-    int i;
-    double x, y;
-#ifndef EXTENDED_COLOR_SPECS
-    gpiPoint icorners[4];
-#endif
-    for (i = 0; i < 4; i++) {
-	map3d_xy_double(corners[i].x, corners[i].y, corners[i].z, &x, &y);
-	icorners[i].x = x;
-	icorners[i].y = y;
-    }
-
-    ifilled_quadrangle(icorners);
-}
-
-#ifdef PM3D_CONTOURS
-/*
-   Makes mapping from real 3D coordinates, passed as coords array,
-   to 2D terminal coordinates, then draws filled polygon
- */
-void
-filled_polygon_common(int points, struct coordinate GPHUGE * coords, TBOOLEAN fixed, double z)
-{
-    int i;
-    double x, y;
-    gpiPoint *icorners;
-    icorners = gp_alloc(points * sizeof(gpiPoint), "filled_polygon3d corners");
-    for (i = 0; i < points; i++) {
-	if (fixed)
-	    z = coords[i].z;
-	map3d_xy_double(coords[i].x, coords[i].y, z, &x, &y);
-	icorners[i].x = x;
-	icorners[i].y = y;
-    }
-#ifdef EXTENDED_COLOR_SPECS
-    if ((term->flags & TERM_EXTENDED_COLOR)) {
-	icorners[0].spec.gray = -1;	/* force solid color */
-    }
-#endif
-    if (default_fillstyle.fillstyle == FS_EMPTY)
-	icorners->style = FS_OPAQUE;
-    else
-	icorners->style = style_from_fill(&default_fillstyle);
-    term->filled_polygon(points, icorners);
-    free(icorners);
-}
-
-void
-filled_polygon_3dcoords(int points, struct coordinate GPHUGE * coords)
-{
-    filled_polygon_common(points, coords, FALSE, 0.0);
-}
-
-/*
-   Makes mapping from real 3D coordinates, passed as coords array, but at z coordinate
-   fixed (base_z, for instance) to 2D terminal coordinates, then draws filled polygon
- */
-void
-filled_polygon_3dcoords_zfixed(int points, struct coordinate GPHUGE * coords, double z)
-{
-    filled_polygon_common(points, coords, TRUE, z);
-}
-
-#endif /* PM3D_CONTOURS */
-
-
 /*
    Draw colour smooth box
 
@@ -414,10 +307,6 @@ draw_inside_color_smooth_box_bitmap()
 	    corners[0].x = corners[3].x = xy;
 	    corners[1].x = corners[2].x = GPMIN(xy_to,xy2+1);
 	}
-#ifdef EXTENDED_COLOR_SPECS
-	if ((term->flags & TERM_EXTENDED_COLOR))
-	    corners[0].spec.gray = -1;	/* force solid color */
-#endif
 	/* print the rectangle with the given colour */
 	if (default_fillstyle.fillstyle == FS_EMPTY)
 	    corners->style = FS_OPAQUE;
@@ -590,20 +479,13 @@ draw_color_smooth_box(int plot_mode)
 
     } else { /* color_box.where == SMCOLOR_BOX_DEFAULT */
 	if (plot_mode == MODE_SPLOT && !splot_map) {
-	    /* HBB 20031215: new code.  Constants fixed to what the result
-	     * of the old code in default view (set view 60,30,1,1)
-	     * happened to be. Somebody fix them if they're not right! */
+	    /* general 3D plot */
 	    color_box.bounds.xleft = xmiddle + 0.709 * xscaler;
 	    color_box.bounds.xright   = xmiddle + 0.778 * xscaler;
 	    color_box.bounds.ybot = ymiddle - 0.147 * yscaler;
 	    color_box.bounds.ytop   = ymiddle + 0.497 * yscaler;
-
-	} else if (is_3d_plot) {
-	    /* MWS 09-Dec-05, make color box full size for splot maps. */
-	    double dx = (X_AXIS.max - X_AXIS.min);
-	    map3d_xy(X_AXIS.max + dx * 0.025, Y_AXIS.min, base_z, &color_box.bounds.xleft, &color_box.bounds.ybot);
-	    map3d_xy(X_AXIS.max + dx * 0.075, Y_AXIS.max, ceiling_z, &color_box.bounds.xright, &color_box.bounds.ytop);
-	} else { /* 2D plot */
+	} else {
+	    /* 2D plot (including splot map) */
 	    struct position default_origin = {graph,graph,graph, 1.025, 0, 0};
 	    struct position default_size = {graph,graph,graph, 0.05, 1.0, 0};
 	    double xtemp, ytemp;

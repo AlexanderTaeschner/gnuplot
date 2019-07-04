@@ -67,12 +67,15 @@ static int title_x, title_y;
  */
 int key_entry_height;		/* bigger of t->v_char, t->v_tic */
 int key_point_offset;		/* offset from x for point sample */
-int key_col_wth, yl_ref;
 int ylabel_x, y2label_x, xlabel_y, x2label_y;
 int x2label_yoffset;
 int ylabel_y, y2label_y, xtic_y, x2tic_y, ytic_x, y2tic_x;
 int key_rows;
 int key_cols;
+int key_count;
+
+static int key_col_wth, yl_ref;
+static int xl, yl;
 
 /*{{{  boundary() */
 /* borders of plotting area
@@ -227,9 +230,12 @@ boundary(struct curve_points *plots, int count)
 	if (vertical_timelabel) {
 	    timelabel_textheight = timelabel_textwidth * t->v_char;
 	    timelabel_textwidth = (timelin + 1.5) * t->h_char;
+	    timelabel.place.y = 0;
 	} else {
 	    timelabel_textheight = timelin * t->v_char;
 	    timelabel_textwidth = timelabel_textwidth * t->h_char;
+	    /* save textheight for use in do_key_bounds() */
+	    timelabel.place.y = timelabel_textheight;
 	}
     }
 
@@ -237,11 +243,13 @@ boundary(struct curve_points *plots, int count)
     if (axis_array[FIRST_Y_AXIS].label.text) {
 	if (can_rotate && axis_array[FIRST_Y_AXIS].label.rotate != 0) {
 	    ylabel_textwidth = ylablin * t->v_char;
-	    if (!axis_array[FIRST_Y_AXIS].ticmode)
-		ylabel_textwidth += 0.5 * t->v_char;
 	} else {
-	    /* How on earth did this used to work when it was always set to 0? */
-	    ylabel_textwidth = estimate_strlen(axis_array[FIRST_Y_AXIS].label.text) * t->h_char;
+	    /* Trying to estimate this length caused more problems than it solved.
+	     * For one thing it comes out wrong for text passed to TeX terminals.
+	     * Assume the common case is roughly 3 character widths and let the
+	     * user adjust lmargin and offset for longer non-rotated ylabels.
+	     */
+	    ylabel_textwidth = 3 * t->h_char;
 	}
     }
 
@@ -252,9 +260,8 @@ boundary(struct curve_points *plots, int count)
 	    if (!axis_array[SECOND_Y_AXIS].ticmode)
 		y2label_textwidth += 0.5 * t->v_char;
 	} else {
-	    /* should be (estimate_strlen()*t->h_char) but that's not what 5.0 did */
-	    /* this is an ugly ad hoc approximation of what it did before */
-	    y2label_textwidth = estimate_strlen(axis_array[SECOND_Y_AXIS].label.text) * t->h_char;
+	    /* See above. Estimating true text length causes problems */
+	    y2label_textwidth = 3 * t->h_char;
 	}
     }
 
@@ -448,6 +455,9 @@ boundary(struct curve_points *plots, int count)
 
 	    ytic_textwidth = (int) (t->h_char * (widest_tic_strlen + 2));
 	}
+    } else if (axis_array[FIRST_Y_AXIS].label.text) {
+	/* substitutes for extra space added to left of ytix labels */
+	ytic_textwidth = 2 * (t->h_char);
     } else {
 	ytic_textwidth = 0;
     }
@@ -591,10 +601,6 @@ boundary(struct curve_points *plots, int count)
      * use widest_tics until tics are set up. Bit of a downer - let us
      * assume tics are 5 characters wide
      */
-    /* HBB 20001205: moved this block to before aspect_ratio is
-     * applied: setup_tics may extend the ranges, which would distort
-     * the aspect ratio */
-
     setup_tics(&axis_array[FIRST_X_AXIS], 20);
     setup_tics(&axis_array[SECOND_X_AXIS], 20);
 
@@ -611,50 +617,49 @@ boundary(struct curve_points *plots, int count)
     }
 
 
-    /* Modify the bounding box to fit the aspect ratio, if any was
-     * given. */
+    /* Modify the bounding box to fit the aspect ratio, if any was given */
     if (aspect_ratio != 0.0) {
 	double current_aspect_ratio;
+	double current, required;
 
-	if (aspect_ratio < 0
-	    && (X_AXIS.max - X_AXIS.min) != 0.0
-	    ) {
-	    current_aspect_ratio = - aspect_ratio
+	if (aspect_ratio < 0 && (X_AXIS.max - X_AXIS.min) != 0.0) {
+	    current_aspect_ratio = -aspect_ratio
 		* fabs((Y_AXIS.max - Y_AXIS.min) / (X_AXIS.max - X_AXIS.min));
 	} else
 	    current_aspect_ratio = aspect_ratio;
 
-	/* Set aspect ratio if valid and sensible */
-	/* EAM Mar 2008 - fixed borders take precedence over centering */
-	if (current_aspect_ratio >= 0.01 && current_aspect_ratio <= 100.0) {
-	    double current = ((double) (plot_bounds.ytop - plot_bounds.ybot))
-			   / (plot_bounds.xright - plot_bounds.xleft);
-	    double required = (current_aspect_ratio * t->v_tic) / t->h_tic;
+	if (current_aspect_ratio < 0.005 || current_aspect_ratio > 2000.0)
+	    int_warn(NO_CARET, "extreme aspect ratio");
 
-	    if (current > required) {
-		/* too tall */
-		int old_height = plot_bounds.ytop - plot_bounds.ybot;
-		int new_height = required * (plot_bounds.xright - plot_bounds.xleft);
-		if (bmargin.scalex == screen)
-		    plot_bounds.ytop = plot_bounds.ybot + new_height;
-		else if (tmargin.scalex == screen)
-		    plot_bounds.ybot = plot_bounds.ytop - new_height;
-		else {
-		    plot_bounds.ybot += (old_height - new_height) / 2;
-		    plot_bounds.ytop -= (old_height - new_height) / 2;
-		}
+	current = ((double) (plot_bounds.ytop - plot_bounds.ybot))
+		/ ((double) (plot_bounds.xright - plot_bounds.xleft));
+	required = (current_aspect_ratio * t->v_tic) / t->h_tic;
 
-	    } else {
-		int old_width = plot_bounds.xright - plot_bounds.xleft;
-		int new_width = (plot_bounds.ytop - plot_bounds.ybot) / required;
-		if (lmargin.scalex == screen)
-		    plot_bounds.xright = plot_bounds.xleft + new_width;
-		else if (rmargin.scalex == screen)
-		    plot_bounds.xleft = plot_bounds.xright - new_width;
-		else {
-		    plot_bounds.xleft += (old_width - new_width) / 2;
-		    plot_bounds.xright -= (old_width - new_width) / 2;
-		}
+	/* Fixed borders take precedence over centering */
+	if (current > required) {
+	    /* too tall */
+	    int old_height = plot_bounds.ytop - plot_bounds.ybot;
+	    int new_height = required * (plot_bounds.xright - plot_bounds.xleft);
+	    if (bmargin.scalex == screen)
+		plot_bounds.ytop = plot_bounds.ybot + new_height;
+	    else if (tmargin.scalex == screen)
+		plot_bounds.ybot = plot_bounds.ytop - new_height;
+	    else {
+		plot_bounds.ybot += (old_height - new_height) / 2;
+		plot_bounds.ytop -= (old_height - new_height) / 2;
+	    }
+
+	} else {
+	    /* too wide */
+	    int old_width = plot_bounds.xright - plot_bounds.xleft;
+	    int new_width = (plot_bounds.ytop - plot_bounds.ybot) / required;
+	    if (lmargin.scalex == screen)
+		plot_bounds.xright = plot_bounds.xleft + new_width;
+	    else if (rmargin.scalex == screen)
+		plot_bounds.xleft = plot_bounds.xright - new_width;
+	    else {
+		plot_bounds.xleft += (old_width - new_width) / 2;
+		plot_bounds.xright -= (old_width - new_width) / 2;
 	    }
 	}
     }
@@ -707,8 +712,9 @@ boundary(struct curve_points *plots, int count)
 	    plot_bounds.ybot += xtic_textheight;
     }
 
-    /* EAM - FIXME
-     * Notwithstanding all these fancy calculations, plot_bounds.ytop must always be above plot_bounds.ybot
+    /*
+     * Notwithstanding all these fancy calculations,
+     * plot_bounds.ytop must always be above plot_bounds.ybot
      */
     if (plot_bounds.ytop < plot_bounds.ybot) {
 	int i = plot_bounds.ytop;
@@ -718,8 +724,7 @@ boundary(struct curve_points *plots, int count)
 	FPRINTF((stderr,"boundary: Big problems! plot_bounds.ybot > plot_bounds.ytop\n"));
     }
 
-    /*  compute coordinates for axis labels, title et al
-     *     (some of these may not be used) */
+    /*  compute coordinates for axis labels, title etc */
 
     x2label_y = plot_bounds.ytop + x2label_textheight;
     x2label_y += 0.5 * t->v_char;
@@ -743,9 +748,10 @@ boundary(struct curve_points *plots, int count)
 	+ ((float)xlablin+0.2) * t->v_char;
     xlabel_y -= ttic_textheight;
     ylabel_x = plot_bounds.xleft - ytic_width - ytic_textwidth;
-    ylabel_x -= ylabel_textwidth;
+    ylabel_x -= ylabel_textwidth/2;
 
     y2label_x = plot_bounds.xright + y2tic_width + y2tic_textwidth;
+    y2label_x += y2label_textwidth/2;
 
     /* Nov 2016  - simplify placement of timestamp
      * Stamp the same place on the page regardless of plot margins
@@ -848,6 +854,8 @@ do_key_bounds(legend_key *key)
 	} else if (key->margin == GPKEY_BMARGIN) {
 	    /* align bottom first since bmargin may be manual */
 	    key->bounds.ybot = yoffset * t->ymax + t->v_tic;
+	    if (timelabel.rotate == 0 && timelabel_bottom && timelabel.place.y > 0)
+		key->bounds.ybot += (int)(timelabel.place.y);
 	    key->bounds.ytop = key->bounds.ybot + key_height;
 	} else {
 	    if (key->vpos == JUST_TOP) {
@@ -927,7 +935,10 @@ do_key_layout(legend_key *key)
     if (key->font)
 	t->set_font(key->font);
 
+    /* Is it OK to initialize these here rather than in do_plot? */
+    key_count = 0;
     key_xleft = 0;
+    xl = yl = 0;
 
     if (key->swidth >= 0) {
 	key_sample_width = key->swidth * t->h_char + t->h_tic;
@@ -1082,6 +1093,10 @@ find_maxl_keys(struct curve_points *plots, int count, int *kcnt)
     mlen = cnt = 0;
     this_plot = plots;
     for (curve = 0; curve < count; this_plot = this_plot->next, curve++) {
+
+	if (this_plot->plot_style == PARALLELPLOT)
+	    continue;
+
 	if (this_plot->title && !this_plot->title_is_suppressed && !this_plot->title_position) {
 	    ignore_enhanced(this_plot->title_no_enhanced);
 	    len = estimate_strlen(this_plot->title);
@@ -1126,8 +1141,7 @@ void
 do_key_sample(
     struct curve_points *this_plot,
     legend_key *key,
-    char *title,
-    int xl, int yl)
+    char *title)
 {
     struct termentry *t = term;
 
@@ -1157,6 +1171,10 @@ do_key_sample(
 	/* Draw key text in black */
 	(*t->linetype)(LT_BLACK);
 
+    if (this_plot->title_is_automated && (t->flags & TERM_IS_LATEX)) {
+	title = texify_title(title, this_plot->plot_type);
+    }
+
     if (key->just == GPKEY_LEFT) {
 	write_multiline(xl + key_text_left, yl, title, LEFT, JUST_CENTRE, 0, key->font);
     } else {
@@ -1180,18 +1198,18 @@ do_key_sample(
     if (this_plot->plot_style & PLOT_STYLE_HAS_FILL && t->fillbox) {
 	struct fill_style_type *fs = &this_plot->fill_properties;
 	int style = style_from_fill(fs);
-	unsigned int x = xl + key_sample_left;
-	unsigned int y = yl - key_sample_height/4;
-	unsigned int w = key_sample_right - key_sample_left;
-	unsigned int h = key_sample_height/2;
+	int x = xl + key_sample_left;
+	int y = yl - key_sample_height/4;
+	int w = key_sample_right - key_sample_left;
+	int h = key_sample_height/2;
 
-#ifdef EAM_OBJECTS
 	if (this_plot->plot_style == CIRCLES && w > 0) {
 	    do_arc(xl + key_point_offset, yl, key_sample_height/4, 0., 360., style, FALSE);
 	    /* Retrace the border if the style requests it */
 	    if (need_fill_border(fs)) {
 	        do_arc(xl + key_point_offset, yl, key_sample_height/4, 0., 360., 0, FALSE);
 	    }
+
 	} else if (this_plot->plot_style == ELLIPSES && w > 0) {
 	    t_ellipse *key_ellipse = (t_ellipse *) gp_alloc(sizeof(t_ellipse),
 	        "cute little ellipse for the key sample");
@@ -1207,9 +1225,8 @@ do_key_sample(
 		do_ellipse(2, key_ellipse, 0, FALSE);
 	    }
 	    free(key_ellipse);
-	} else
-#endif
-	if (w > 0) {    /* All other plot types with fill */
+
+	} else if (w > 0) {    /* All other plot types with fill */
 	    if (style != FS_EMPTY)
 		(*t->fillbox)(style,x,y,w,h);
 
@@ -1236,7 +1253,7 @@ do_key_sample(
 	    }
 	}
 
-    } else if (this_plot->plot_style == VECTOR && t->arrow) {
+    } else if ((this_plot->plot_style & PLOT_STYLE_HAS_VECTOR) && t->arrow) {
 	double x1 = xl + key_sample_left;
 	double y1 = yl;
 	double x2 = xl + key_sample_right;
@@ -1248,7 +1265,7 @@ do_key_sample(
     } else if (this_plot->lp_properties.l_type == LT_NODRAW) {
 	;
 
-    } else if ((this_plot->plot_style & PLOT_STYLE_HAS_ERRORBAR) &&  this_plot->plot_type == DATA) {
+    } else if ((this_plot->plot_style & PLOT_STYLE_HAS_ERRORBAR) && this_plot->plot_type != FUNC) {
 	/* errors for data plots only */
 	if ((bar_lp.flags & LP_ERRORBAR_SET) != 0)
 	    term_apply_lp_properties(&bar_lp);
@@ -1261,7 +1278,7 @@ do_key_sample(
 	draw_clip_line(xl + key_sample_left, yl, xl + key_sample_right, yl);
     }
 
-    if ((this_plot->plot_type == DATA)
+    if ((this_plot->plot_type == DATA || this_plot->plot_type == KEYENTRY)
 	&& (this_plot->plot_style & PLOT_STYLE_HAS_ERRORBAR)
 	&& (this_plot->plot_style != CANDLESTICKS)
 	&& (bar_size > 0.0)) {
@@ -1286,8 +1303,7 @@ do_key_sample(
 void
 do_key_sample_point(
     struct curve_points *this_plot,
-    legend_key *key,
-    int xl, int yl)
+    legend_key *key)
 {
     struct termentry *t = term;
 
@@ -1347,9 +1363,11 @@ do_key_sample_point(
 /* are drawn. Then the reserved space for the legend is blanked out, and 	*/
 /* finally the second pass through this code draws the legend.			*/
 void
-draw_key(legend_key *key, TBOOLEAN key_pass, int *xinkey, int *yinkey)
+draw_key(legend_key *key, TBOOLEAN key_pass)
 {
     struct termentry *t = term;
+
+    (t->layer)(TERM_LAYER_KEYBOX);
 
     /* In two-pass mode (set key opaque) we blank out the key box after	*/
     /* the graph is drawn and then redo the key in the blank area.	*/
@@ -1402,8 +1420,8 @@ draw_key(legend_key *key, TBOOLEAN key_pass, int *xinkey, int *yinkey)
 
     yl_ref = key->bounds.ytop - (key_title_height + key_title_extra);
     yl_ref -= ((key->height_fix + 1) * key_entry_height) / 2;
-    *xinkey = key->bounds.xleft + key_size_left;
-    *yinkey = yl_ref;
+    xl = key->bounds.xleft + key_size_left;
+    yl = yl_ref;
 }
 
 /*
@@ -1416,24 +1434,18 @@ draw_titles()
 
     /* YLABEL */
     if (axis_array[FIRST_Y_AXIS].label.text) {
-	unsigned int x = ylabel_x;
-	unsigned int y = (plot_bounds.ytop + plot_bounds.ybot) / 2;
-	x += t->h_char;
-	axis_array[FIRST_Y_AXIS].label.pos = CENTRE;
+	int x = ylabel_x;
+	int y = (plot_bounds.ytop + plot_bounds.ybot) / 2;
+	/* There has been much argument about the optimal ylabel position */
+	x += t->h_char / 4.;
 	write_label(x, y, &(axis_array[FIRST_Y_AXIS].label));
 	reset_textcolor(&(axis_array[FIRST_Y_AXIS].label.textcolor));
     }
 
     /* Y2LABEL */
     if (axis_array[SECOND_Y_AXIS].label.text) {
-	unsigned int x = y2label_x;
-	unsigned int y = (plot_bounds.ytop + plot_bounds.ybot) / 2;
-	if (axis_array[SECOND_Y_AXIS].label.rotate) {
-	    x += 2 * t->h_char;
-	    axis_array[SECOND_Y_AXIS].label.pos = CENTRE;
-	} else {
-	    axis_array[SECOND_Y_AXIS].label.pos = LEFT;
-	}
+	int x = y2label_x;
+	int y = (plot_bounds.ytop + plot_bounds.ybot) / 2;
 	write_label(x, y, &(axis_array[SECOND_Y_AXIS].label));
 	reset_textcolor(&(axis_array[SECOND_Y_AXIS].label.textcolor));
     }
@@ -1442,7 +1454,7 @@ draw_titles()
     if (axis_array[FIRST_X_AXIS].label.text) {
 	struct text_label *label = &axis_array[FIRST_X_AXIS].label;
 	double tmpx, tmpy;
-	unsigned int x, y;
+	int x, y;
 	map_position_r(&(label->offset), &tmpx, &tmpy, "xlabel");
 
 	x = (plot_bounds.xright + plot_bounds.xleft) / 2;
@@ -1456,7 +1468,7 @@ draw_titles()
     /* PLACE TITLE */
     if (title.text) {
 	double tmpx, tmpy;
-	unsigned int x, y;
+	int x, y;
 	map_position_r(&(title.offset), &tmpx, &tmpy, "doplot");
 	/* we worked out y-coordinate in boundary(), including the y offset */
 	x = title_x;
@@ -1469,7 +1481,7 @@ draw_titles()
 
     /* X2LABEL */
     if (axis_array[SECOND_X_AXIS].label.text) {
-	unsigned int x, y;
+	int x, y;
 	/* we worked out y-coordinate in boundary() */
 	x = (plot_bounds.xright + plot_bounds.xleft) / 2;
 	y = x2label_y - t->v_char / 2;
@@ -1479,7 +1491,7 @@ draw_titles()
 
     /* RLABEL */
     if (axis_array[POLAR_AXIS].label.text) {
-	unsigned int x, y;
+	int x, y;
 
 	/* This assumes we always have a horizontal R axis */
 	x = map_x(polar_radius(R_AXIS.max) / 2.0);
@@ -1491,4 +1503,29 @@ draw_titles()
     /* PLACE TIMELABEL */
     if (timelabel.text)
 	do_timelabel(time_x, time_y);
+}
+
+/* advance current position in the key in preparation for next key entry */
+void
+advance_key(TBOOLEAN only_invert)
+{
+    legend_key *key = &keyT;
+
+    if (key->invert)
+        yl = key->bounds.ybot + yl_ref + key_entry_height/2 - yl;
+    if (only_invert)
+	return;
+    if (key_count >= key_rows) {
+        yl = yl_ref;
+        xl += key_col_wth;
+        key_count = 0;
+    } else
+        yl = yl - key_entry_height;
+}
+
+/* stupid test used in only one place but it refers to our local variables */
+TBOOLEAN
+at_left_of_key()
+{
+    return (yl == yl_ref);
 }

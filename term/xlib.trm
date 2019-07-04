@@ -18,9 +18,9 @@ register_term(xlib)
 #endif
 
 #ifdef TERM_PROTO
-TERM_PUBLIC void Xlib_init __PROTO((void));
-TERM_PUBLIC void Xlib_text __PROTO((void));
-TERM_PUBLIC void Xlib_reset __PROTO((void));
+TERM_PUBLIC void Xlib_init(void);
+TERM_PUBLIC void Xlib_text(void);
+TERM_PUBLIC void Xlib_reset(void);
 #define GOT_XLIB_PROTO
 #endif
 
@@ -83,9 +83,7 @@ TERM_TABLE_START(xlib_driver)
     , NULL	/* path */
     , 0.0	/* tscale */
     , NULL	/* hypertext */
-#ifdef EAM_BOXED_TEXT
     , ENHX11_boxed_text
-#endif
     , NULL	/* modify_plots */
     , X11_dashtype
 TERM_TABLE_END(xlib_driver)

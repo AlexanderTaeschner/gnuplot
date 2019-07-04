@@ -10,8 +10,8 @@
 <h2 align=center>
     Gnuplot Version 5.3 demos (SVG terminal)<br>
     See also the demo output for the 
-       <a href="../demo_cvs/">PNG</a> and
-       <a href="../demo_canvas_cvs/">canvas</a> terminals.
+       <a href="../demo_5.3/">PNG</a> and
+       <a href="../demo_canvas_5.3/">canvas</a> terminals.
 </h2>
 
 <p>
@@ -53,7 +53,7 @@ on mouse-coordinate tracking.
     <ul>
     <li><a href="approximate.html">approximation</a></li>
     <li><font color=gray>complex trig functions</font></li>
-    <li><a href="cerf.html">complex error function</font></li>
+    <li><a href="cerf.html">complex error function</a></li>
     <li><a href="prob2.html">probability</a></li>
     <li><a href="prob.html">probability (more)</a></li>
     <li><a href="random.html">random numbers</a></li>
@@ -69,6 +69,14 @@ on mouse-coordinate tracking.
     <li><a href="airfoil.html">explicit Bezier splines</a></li>
     </ul>
 
+    <h4>Colors</h4>
+    <ul>
+    <li><a href="varcolor.html">data-dependent coloring</a></li>
+    <li><a href="rgb_variable.html">RGB and HSV coloring</a></li>
+    <li><a href="rgba_lines.html">RGB + Alpha</a></li>
+    <li><a href="pm3dcolors.html">pm3d colors</a></li>
+    </ul>
+
 </td>
 
 <td rowspan=2>
@@ -77,25 +85,38 @@ on mouse-coordinate tracking.
     <li><a href="surface1.html">surfaces 1</a></li>
     <li><a href="surface2.html">surfaces 2</a></li>
     <li><a href="contours.html">contours</a></li>
+    <li><a href="custom_contours.html">custom contour lines</a></li>
     <li><a href="singulr.html">singularities</a></li>
     <li><a href="hidden.html">hidden surfaces</a></li>
     <li><a href="pm3d.html">pm3d coloring</a></li>
     <li><a href="hidden2.html">pm3d hidden surfaces</a></li>
     <li><a href="world2.html">3D mapping</a></li>
+    <li><a href="projection.html">2D projection of 3D surface</a></li>
     <li><a href="zerror.html">shaded error region</a></li>
     <li><a href="azimuth.html">azimuth</a></li>
+    <li><a href="boxes3d.html">boxes</a></li>
     <li><a href="armillary.html">circles and polygons</a></li>
     <li><a href="pm3d_lighting.html">lighting model</a></li>
+    <li><a href="hidden_compare.html">hidden3d v. pm3d</a></li>
+    </ul>
+
+    <h4>Volume plots (new!)</h4>
+    <ul>
+    <li><a href="voxel.html">voxel-dependent coloring</a></li>
+    <li><a href="vplot.html">3D representaion of voxels</a></li>
+    <li><a href="isosurface.html">3D isosurface</a></li>
     </ul>
 
     <h4>Coordinate and<br> axis transforms</h4>
     <ul>
     <li><a href="linkedaxes.html">linked axes</a></li>
+    <li><a href="nonlinear2.html">logscale axes</a></li>
     <li><a href="nonlinear3.html">nonlinear axes</a></li>
     <li><a href="nonlinear1.html">broken axes</a></li>
     <li><a href="ttics.html">polar coords</a></li>
     <li><a href="polar.html">polar functions</a></li>
     <li><a href="poldat.html">polar data</a></li>
+    <li><a href="polar_quadrants.html">polar quadrants</a></li>
     <li><a href="world.html">cylindrical/spherical</a></li>
     <li><a href="timedat.html">time/date coords</a></li>
     <li><a href="sampling.html">coord sampling ranges</a></li>
@@ -106,14 +127,6 @@ on mouse-coordinate tracking.
     <li><a href="binary.html">binary data</a></li>
     <li><a href="rgbalpha.html">RGB + alpha channel</a></li>
     <li><a href="barchart_art.html">rescaled images</a></li>
-    </ul>
-
-    <h4>Colors</h4>
-    <ul>
-    <li><a href="varcolor.html">data-dependent coloring</a></li>
-    <li><a href="rgb_variable.html">RGB and HSV coloring</a></li>
-    <li><a href="rgba_lines.html">RGB + Alpha</a></li>
-    <li><a href="pm3dcolors.html">pm3d colors</a></li>
     </ul>
 </td>
 
@@ -135,6 +148,7 @@ on mouse-coordinate tracking.
     <li><a href="label_stacked_histograms.html">label stacked histogram</a></li>
     <li><a href="heatmaps.html">2D and 3D heat maps</a></li>
     <li><a href="solar_path.html">solar path diagram</a></li>
+    <li><a href="map_projection.html">map projections</a></li>
     <li><a href="violinplot.html">violin plot</a></li>
     </ul>
 
@@ -147,6 +161,7 @@ on mouse-coordinate tracking.
     <li><font color=gray>boxed text (no svg support)</font></li>
     <li><a href="cities.html">variable font size</a></li>
     <li><a href="hypertext.html">hypertext</a></li>
+    <li><a href="unicode.html">unicode as \U+xxxx"</li>
     </ul>
 
     <h4>Page Layout</h4>
@@ -183,8 +198,11 @@ on mouse-coordinate tracking.
 	    	<embed src="showcase_plot.svg" type="image/svg+xml" width=500 height=350 class="float-right">
 	    </td></tr>
 	    <tr> <td width=50></td><td>
-		Click on the plot to enable mouse tracking.
-	    	Click on the figure legend to toggle plot elements on/off.
+		Left click to enable mouse tracking <br>
+		Drag with left mouse <br>
+		Zoom with mouse wheel <br>
+		Right click to reset plot <br>
+	    	Click on the figure legend text to toggle plot elements on/off 
 	    </td><td>
 		<a href="http://validator.w3.org/check?uri=referer"><img
 		src="http://www.w3.org/Icons/valid-svg11"
@@ -201,7 +219,7 @@ on mouse-coordinate tracking.
 <tbody><tr valign="top">
 
     <td>
-    <i>This page generated November 2017</i>
+    <i>This page generated January 2019</i>
     </td>
 
     <td>
@@ -209,7 +227,7 @@ on mouse-coordinate tracking.
     <li><a href="http://sourceforge.net/projects/gnuplot/">
 	Gnuplot development pages on SourceForge</a></li>
     <li>On-line documentation in
-	<a href="http://gnuplot.sourceforge.net/docs_cvs/gnuplot.pdf">PDF</a></li>
+	<a href="http://gnuplot.sourceforge.net/docs_5.3/gnuplot.pdf">PDF</a></li>
     </ul>
     </td>
     

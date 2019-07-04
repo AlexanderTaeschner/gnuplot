@@ -40,7 +40,8 @@
 #include "util.h"
 #include "alloc.h"	/* for init_colornames() */
 #include "graph3d.h"	/* for DGRID3D_* options */
-# include "getcolor.h"
+#include "getcolor.h"
+#include "voxelgrid.h"
 
 /* gnuplot commands */
 
@@ -92,6 +93,9 @@ const struct gen_ftable command_ftbl[] =
     { "und$efine", undefine_command },
     { "uns$et", unset_command },
     { "up$date", update_command },
+    { "vclear", vclear_command },
+    { "vfill", vfill_command },
+    { "voxel", voxel_command },
     { "while", while_command },
     { "{", begin_clause },
     { "}", end_clause },
@@ -127,6 +131,7 @@ const struct gen_table plot_smooth_tbl[] =
     { "cn$ormal", SMOOTH_CUMULATIVE_NORMALISED },
     { "mcs$plines", SMOOTH_MONOTONE_CSPLINE },
     { "fnor$mal", SMOOTH_FREQUENCY_NORMALISED },
+    { "z$sort", SMOOTH_ZSORT },
     { NULL, SMOOTH_NONE }
 };
 
@@ -166,6 +171,7 @@ const struct gen_table set_tbl[] =
     { "b$ars", S_BARS },
     { "bind", S_BIND },
     { "bor$der", S_BORDER },
+    { "boxdepth", S_BOXDEPTH },
     { "box$width", S_BOXWIDTH },
     { "cl$abel", S_CLABEL },
     { "c$lip", S_CLIP },
@@ -193,6 +199,7 @@ const struct gen_table set_tbl[] =
     { "hid$den3d", S_HIDDEN3D },
     { "historysize", S_HISTORYSIZE },	/* Deprecated */
     { "his$tory", S_HISTORY },
+    { "isosurf$ace", S_ISOSURFACE },
     { "is$osamples", S_ISOSAMPLES },
     { "jitter", S_JITTER },
     { "k$ey", S_KEY },
@@ -218,9 +225,7 @@ const struct gen_table set_tbl[] =
 
     { "micro", S_MICRO },
     { "minus$sign", S_MINUS_SIGN },
-#ifdef USE_MOUSE
     { "mo$use", S_MOUSE },
-#endif
     { "mono$chrome", S_MONOCHROME },
     { "multi$plot", S_MULTIPLOT },
 
@@ -242,6 +247,7 @@ const struct gen_table set_tbl[] =
     { "of$fsets", S_OFFSETS },
     { "or$igin", S_ORIGIN },
     { "o$utput", SET_OUTPUT },
+    { "overflow", S_OVERFLOW },
     { "pa$rametric", S_PARAMETRIC },
     { "pm$3d", S_PM3D },
     { "pal$ette", S_PALETTE },
@@ -343,6 +349,11 @@ const struct gen_table set_tbl[] =
     { "tr$ange", S_TRANGE },
     { "ur$ange", S_URANGE },
     { "vr$ange", S_VRANGE },
+
+    { "vgrid", S_VGRID },
+    { "vxr$ange", S_VXRANGE },
+    { "vyr$ange", S_VYRANGE },
+    { "vzr$ange", S_VZRANGE },
 
     { "xzeroa$xis", S_XZEROAXIS },
     { "x2zeroa$xis", S_X2ZEROAXIS },
@@ -484,7 +495,7 @@ const struct gen_table color_model_tbl[] =
     { "RGB", C_MODEL_RGB },
     { "HSV", C_MODEL_HSV },
     { "CMY", C_MODEL_CMY },
-    { "XYZ", C_MODEL_XYZ },
+    { "XYZ", C_MODEL_XYZ },	/* Obsolete */
     { NULL,  -1 }
 };
 
@@ -502,6 +513,8 @@ const struct gen_table set_pm3d_tbl[] =
     { "noftr$iangles",	S_PM3D_NOFTRIANGLES },
     { "clip1$in",	S_PM3D_CLIP_1IN },
     { "clip4$in",	S_PM3D_CLIP_4IN },
+    { "clipcb", 	S_PM3D_CLIPCB },
+    { "noclipcb",	S_PM3D_NOCLIPCB },
     { "map", 		S_PM3D_MAP },
     { "bo$rder",	S_PM3D_BORDER },
     { "nobo$rder",	S_PM3D_NOBORDER },
@@ -672,9 +685,7 @@ const struct gen_table show_style_tbl[] =
     { "rect$angle", SHOW_STYLE_RECTANGLE },
     { "boxplot", SHOW_STYLE_BOXPLOT },
     { "parallel$axis", SHOW_STYLE_PARALLEL },
-#ifdef EAM_BOXED_TEXT
     { "textbox", SHOW_STYLE_TEXTBOX },
-#endif
     { NULL, SHOW_STYLE_INVALID }
 };
 
@@ -696,6 +707,7 @@ const struct gen_table plotstyle_tbl[] =
     { "xye$rrorbars", XYERRORBARS },
     { "boxes", BOXES },
     { "hist$ograms", HISTOGRAMS },
+    { "isosurface", ISOSURFACE },
     { "filledc$urves", FILLEDCURVES },
     { "boxer$rorbars", BOXERROR },
     { "boxx$yerrorbars", BOXXYERROR },
@@ -704,6 +716,7 @@ const struct gen_table plotstyle_tbl[] =
     { "fs$teps", FSTEPS },
     { "his$teps", HISTEPS },
     { "vec$tors", VECTOR },
+    { "arrow$s", ARROWS },
     { "fin$ancebars", FINANCEBARS },
     { "can$dlesticks", CANDLESTICKS },
     { "boxplot", BOXPLOT },
@@ -712,10 +725,8 @@ const struct gen_table plotstyle_tbl[] =
     { "ima$ge", IMAGE },
     { "rgbima$ge", RGBIMAGE },
     { "rgba$lpha", RGBA_IMAGE },
-#ifdef EAM_OBJECTS
     { "cir$cles", CIRCLES },
     { "ell$ipses", ELLIPSES },
-#endif
     { "sur$face", SURFACEGRID },
     { "parallel$axes", PARALLELPLOT },
     { "table", TABLESTYLE },
@@ -735,6 +746,16 @@ const struct gen_table filledcurves_opts_tbl[] =
     { "above", FILLEDCURVES_ABOVE },
     { "below", FILLEDCURVES_BELOW },
     { "y",  FILLEDCURVES_Y1 },
+    { NULL, -1 }
+};
+
+const struct gen_table fit_verbosity_level[] =
+{
+    { "brief", BRIEF },
+    { "quiet", QUIET },
+    { "noquiet", BRIEF },
+    { "results", RESULTS },
+    { "verbose", VERBOSE },
     { NULL, -1 }
 };
 

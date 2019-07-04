@@ -26,15 +26,6 @@
 /* Define if this system uses a 32-bit DOS extender (djgpp/emx). */
 /* #undef DOS32 */
 
-/* Define to support boxed labels */
-#define EAM_BOXED_TEXT 1
-
-/* Define to allow placement of rectangles and other objects */
-#define EAM_OBJECTS 1
-
-/* Define if color information should be passed for each vertex. */
-/* #undef EXTENDED_COLOR_SPECS */
-
 /* Define if you want to supply pre-existing X11 windows. */
 /* #undef EXTERNAL_X11_WINDOW */
 
@@ -336,9 +327,6 @@
 /* Define to 1 if you have the `strstr' function. */
 #define HAVE_STRSTR 1
 
-/* Define if math.h declares struct exception for matherr(). */
-#define HAVE_STRUCT_EXCEPTION_IN_MATH_H 1
-
 /* Define to 1 if you have the `sysinfo' function. */
 /* #undef HAVE_SYSINFO */
 
@@ -426,12 +414,6 @@
 /* Define to 1 if the system has the type `_Bool'. */
 #define HAVE__BOOL 1
 
-/* Define to enable gridbox optimization in hidden3d code. */
-/* #undef HIDDEN3D_GRIDBOX */
-
-/* Define to enable quadtree optimization in hidden3d code. */
-#define HIDDEN3D_QUADTREE 1
-
 /* Define to enable handling point size in hidden3d code. */
 #define HIDDEN3D_VAR_PTSIZE 1
 
@@ -486,9 +468,6 @@
 
 /* Unix-type of Interprocess Communication is required for mouse support. */
 /* #undef PIPE_IPC */
-
-/* Automake 1.12 dropped support for building without prototypes */
-#define PROTOTYPES 1
 
 /* Define if you want the Qt terminal. */
 /* #undef QTTERM */
@@ -613,6 +592,13 @@
 #define _fcloseall fcloseall
 #define mktemp _mktemp
 #define wcsnicmp _wcsnicmp
+#if __WATCOMC__ <= 1290
+# define trunc(a) (int)(a)
+#endif
+
+/* Warning: _wsystem is broken and hence we do not have Unicode support
+            for fake pipe commands nor system commands */
+#define HAVE_BROKEN_WSYSTEM
 
 /* gnuplot.gih is not used by wgnuplot */
 #define NO_GIH 1

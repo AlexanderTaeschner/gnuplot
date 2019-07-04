@@ -38,6 +38,7 @@
 #include "command.h"
 #include "datafile.h"
 #include "datablock.h"
+#include "encoding.h"
 #include "eval.h"
 #include "fit.h"
 #include "graphics.h"
@@ -61,17 +62,18 @@
 
 /* static prototypes */
 
-static struct curve_points * cp_alloc __PROTO((int num));
-static int get_data __PROTO((struct curve_points *));
-static void store2d_point __PROTO((struct curve_points *, int i, double x, double y, double xlow, double xhigh, double ylow, double yhigh, double width));
-static void eval_plots __PROTO((void));
-static void parametric_fixup __PROTO((struct curve_points * start_plot, int *plot_num));
-static void box_range_fiddling __PROTO((struct curve_points *plot));
-static void boxplot_range_fiddling __PROTO((struct curve_points *plot));
-static void histogram_range_fiddling __PROTO((struct curve_points *plot));
-static void impulse_range_fiddling __PROTO((struct curve_points *plot));
-static int check_or_add_boxplot_factor __PROTO((struct curve_points *plot, char* string, double x));
-static void add_tics_boxplot_factors __PROTO((struct curve_points *plot));
+static struct curve_points * cp_alloc(int num);
+static int get_data(struct curve_points *);
+static void store2d_point(struct curve_points *, int i, double x, double y, double xlow, double xhigh, double ylow, double yhigh, double width);
+static void eval_plots(void);
+static void parametric_fixup(struct curve_points * start_plot, int *plot_num);
+static void box_range_fiddling(struct curve_points *plot);
+static void boxplot_range_fiddling(struct curve_points *plot);
+static void histogram_range_fiddling(struct curve_points *plot);
+static void impulse_range_fiddling(struct curve_points *plot);
+static void parallel_range_fiddling(struct curve_points *plot);
+static int check_or_add_boxplot_factor(struct curve_points *plot, char* string, double x);
+static void add_tics_boxplot_factors(struct curve_points *plot);
 
 /* internal and external variables */
 
@@ -79,15 +81,12 @@ static void add_tics_boxplot_factors __PROTO((struct curve_points *plot));
 struct curve_points *first_plot = NULL;
 static struct udft_entry plot_func;
 
-/* box width (automatic) */
-double   boxwidth              = -1.0;
-/* whether box width is absolute (default) or relative */
-TBOOLEAN boxwidth_is_absolute  = TRUE;
-
 static double histogram_rightmost = 0.0;    /* Highest x-coord of histogram so far */
 static text_label histogram_title;          /* Subtitle for this histogram */
 static int stack_count = 0;                 /* counter for stackheight */
-static struct coordinate GPHUGE *stackheight = NULL; /* Scratch space for y autoscale */
+static struct coordinate *stackheight = NULL; /* Scratch space for y autoscale */
+
+static int paxis_start, paxis_end, paxis_current;	/* PARALLELPLOT bookkeeping */
 
 /* function implementations */
 
@@ -106,7 +105,7 @@ cp_alloc(int num)
 
     cp->p_max = (num >= 0 ? num : 0);
     if (num > 0)
-	cp->points = (struct coordinate GPHUGE *)
+	cp->points = (struct coordinate *)
 	    gp_alloc(num * sizeof(struct coordinate), "curve points");
 
     /* Initialize various fields */
@@ -130,40 +129,25 @@ cp_extend(struct curve_points *cp, int num)
 	return;
 
     if (num > 0) {
-	if (cp->points == NULL) {
-	    cp->points = gp_alloc(num * sizeof(cp->points[0]),
-				  "curve points");
-	} else {
-	    cp->points = gp_realloc(cp->points, num * sizeof(cp->points[0]),
-				    "expanding curve points");
-	    if (cp->varcolor)
-		cp->varcolor = gp_realloc(cp->varcolor, num * sizeof(double),
-					"expanding curve variable colors");
-	    if (cp->z_n) {
-		int i;
-		for (i = 0; i < cp->n_par_axes; i++)
-		    cp->z_n[i] = gp_realloc(cp->z_n[i], num * sizeof(double),
-					"expanding curve z_n[i]");
-	    }
-	}
+	cp->points = gp_realloc(cp->points, num * sizeof(cp->points[0]),
+				"expanding 2D points");
+	if (cp->varcolor)
+	    cp->varcolor = gp_realloc(cp->varcolor, num * sizeof(double),
+				    "expanding curve variable colors");
 	cp->p_max = num;
 	cp->p_max -= 1;		/* Set trigger point for reallocation ahead of	*/
 				/* true end in case two slots are used at once	*/
 				/* (e.g. redundant final point of closed curve)	*/
     } else {
+	/* FIXME: Does this ever happen?  Should it call cp_free() instead? */
 	free(cp->points);
 	cp->points = NULL;
 	cp->p_max = 0;
 	free(cp->varcolor);
 	cp->varcolor = NULL;
-	if (cp->z_n) {
-	    int i;
-	    for (i = 0; i < cp->n_par_axes; i++)
-		free(cp->z_n[i]);
-	    free(cp->z_n);
-	    cp->n_par_axes = 0;
-	    cp->z_n = NULL;
-	}
+	if (cp->labels)
+	    free_labels(cp->labels);
+	cp->labels = NULL;
     }
 }
 
@@ -188,14 +172,6 @@ cp_free(struct curve_points *cp)
 	if (cp->labels)
 	    free_labels(cp->labels);
 	cp->labels = NULL;
-	if (cp->z_n) {
-	    int i;
-	    for (i = 0; i < cp->n_par_axes; i++)
-		free(cp->z_n[i]);
-	    free(cp->z_n);
-	    cp->n_par_axes = 0;
-	    cp->z_n = NULL;
-	}
 
 	free(cp);
 	cp = next;
@@ -218,24 +194,28 @@ plotrequest()
 
     is_3d_plot = FALSE;
 
-    /* Deactivate if 'set view map' is still running after the previous 'splot': */
-    /* EAM Jan 2012 - this should no longer be necessary, but it doesn't hurt. */
-    splot_map_deactivate();
-
     if (parametric && strcmp(set_dummy_var[0], "u") == 0)
 	strcpy(set_dummy_var[0], "t");
 
-    /* initialise the arrays from the 'set' scalars */
+    /* initialize the arrays from the 'set' scalars */
+    axis_init(&axis_array[FIRST_X_AXIS], FALSE);
+    axis_init(&axis_array[FIRST_Y_AXIS], TRUE);
+    axis_init(&axis_array[SECOND_X_AXIS], FALSE);
+    axis_init(&axis_array[SECOND_Y_AXIS], TRUE);
+    axis_init(&axis_array[T_AXIS], FALSE);
+    axis_init(&axis_array[U_AXIS], FALSE);
+    axis_init(&axis_array[V_AXIS], FALSE);
+    axis_init(&axis_array[POLAR_AXIS], TRUE);
+    axis_init(&axis_array[COLOR_AXIS], TRUE);
 
-    AXIS_INIT2D(FIRST_X_AXIS, 0);
-    AXIS_INIT2D(FIRST_Y_AXIS, 1);
-    AXIS_INIT2D(SECOND_X_AXIS, 0);
-    AXIS_INIT2D(SECOND_Y_AXIS, 1);
-    AXIS_INIT2D(T_AXIS, 0);
-    AXIS_INIT2D(U_AXIS, 0);
-    AXIS_INIT2D(V_AXIS, 0);
-    AXIS_INIT2D(POLAR_AXIS, 1);
-    AXIS_INIT2D(COLOR_AXIS, 1);
+    /* Always be prepared to restore the autoscaled values on "refresh"
+     * Dima Kogan April 2018
+     */
+    for (axis = 0; axis < NUMBER_OF_MAIN_VISIBLE_AXES; axis++) {
+	AXIS *this_axis = &axis_array[axis];
+	if (this_axis->set_autoscale != AUTOSCALE_NONE)
+	    this_axis->range_flags |= RANGE_WRITEBACK;
+    }
 
     /* Nonlinear mapping of x or y via linkage to a hidden primary axis. */
     /* The user set autoscale for the visible axis; apply it also to the hidden axis. */
@@ -315,21 +295,8 @@ refresh_bounds(struct curve_points *first_plot, int nplots)
 	    continue;
 	}
 
-	/* FIXME: I don't think this test does what the comment says. */
-	/*
-	 * If the state has been set to autoscale since the last plot,
-	 * mark everything INRANGE and re-evaluate the axis limits now.
-	 * Otherwise test INRANGE/OUTRANGE against previous data limits.
-	 */
-	if (!this_plot->noautoscale) {
-	    if (x_axis->set_autoscale & AUTOSCALE_MIN && x_axis->data_min < x_axis->min)
-		 x_axis->min = x_axis->data_min;
-	    if (x_axis->set_autoscale & AUTOSCALE_MAX && x_axis->data_max > x_axis->max)
-		 x_axis->max = x_axis->data_max;
-	}
-
 	for (i=0; i<this_plot->p_count; i++) {
-	    struct coordinate GPHUGE *point = &this_plot->points[i];
+	    struct coordinate *point = &this_plot->points[i];
 
 	    if (point->type == UNDEFINED)
 		continue;
@@ -341,7 +308,7 @@ refresh_bounds(struct curve_points *first_plot, int nplots)
 	     */
 	    if (!this_plot->noautoscale) {
 		autoscale_one_point(x_axis, point->x);
-		if (this_plot->plot_style == VECTOR)
+		if (this_plot->plot_style & PLOT_STYLE_HAS_VECTOR)
 		    autoscale_one_point(x_axis, point->xhigh);
 	    }
 	    if (!inrange(point->x, x_axis->min, x_axis->max)) {
@@ -376,15 +343,8 @@ refresh_bounds(struct curve_points *first_plot, int nplots)
 }
 
 
-/* A quick note about boxes style. For boxwidth auto, we cannot
- * calculate widths yet, since it may be sorted, etc. But if
- * width is set, we must do it now, before logs of xmin/xmax
- * are taken.
- * We store -1 in point->z as a marker to mean width needs to be
- * calculated, or 0 to mean that xmin/xmax are set correctly
- */
 /* current_plot->token is after datafile spec, for error reporting
- * it will later be moved passed title/with/linetype/pointtype
+ * it will later be moved past title/with/linetype/pointtype
  */
 static int
 get_data(struct curve_points *current_plot)
@@ -392,8 +352,7 @@ get_data(struct curve_points *current_plot)
     int i /* num. points ! */ , j;
     int ngood;
     int max_cols, min_cols;    /* allowed range of column numbers */
-    int storetoken = current_plot->token;
-    struct coordinate GPHUGE *cp;
+    struct coordinate *cp;
     double v[MAXDATACOLS];
     memset(v, 0, sizeof(v));
 
@@ -406,18 +365,16 @@ get_data(struct curve_points *current_plot)
 	    variable_color = TRUE;
 	if (current_plot->lp_properties.l_type == LT_COLORFROMCOLUMN)
 	    variable_color = TRUE;
-	if (current_plot->plot_smooth != SMOOTH_NONE) {
+	if (current_plot->plot_smooth != SMOOTH_NONE
+	&&  current_plot->plot_smooth != SMOOTH_ZSORT) {
 	    /* FIXME:  It would be possible to support smooth cspline lc palette */
 	    /* but it would require expanding and interpolating plot->varcolor   */
 	    /* in parallel with the y values.                                    */
 	    variable_color = FALSE;
 	}
-	if (variable_color)
+	if (variable_color) {
 	    current_plot->varcolor = gp_alloc(current_plot->p_max * sizeof(double),
 		"varcolor array");
-	if (variable_color && current_plot->plot_style == PARALLELPLOT) {
-	    /* Oops, we reserved one column of data too many */
-	    free(current_plot->z_n[--(current_plot->n_par_axes)]);
 	}
     }
 
@@ -493,6 +450,7 @@ get_data(struct curve_points *current_plot)
 	break;
 
     case VECTOR:	/* x, y, dx, dy, variable color or arrow style */
+    case ARROWS:	/* x, y, len, ang, variable color or arrow style */
 	min_cols = 4;
 	max_cols = 5;
 	break;
@@ -543,9 +501,9 @@ get_data(struct curve_points *current_plot)
 
     case LABELPOINTS:
 	/* 3 column data: X Y Label */
-	/* extra columns allow variable pointsize and/or rotation */
+	/* extra columns allow variable pointsize, pointtype, and/or rotation */
 	min_cols = 3;
-	max_cols = 5;
+	max_cols = 6;
 	expect_string( 3 );
 	break;
 
@@ -564,17 +522,15 @@ get_data(struct curve_points *current_plot)
 	max_cols = 6;
 	break;
 
-#ifdef EAM_OBJECTS
     case CIRCLES:	/* 3 + possible variable color, or 5 + possible variable color */
 	min_cols = 2;
 	max_cols = 6;
 	break;
 
-	case ELLIPSES:
-	    min_cols = 2; /* x, y, major axis, minor axis */
-	    max_cols = 6; /* + optional angle, possible variable color */
-	    break;
-#endif
+    case ELLIPSES:
+	min_cols = 2; /* x, y, major axis, minor axis */
+	max_cols = 6; /* + optional angle, possible variable color */
+	break;
 
     case POINTSTYLE:
     case LINESPOINTS:
@@ -588,18 +544,10 @@ get_data(struct curve_points *current_plot)
 	break;
 
     case PARALLELPLOT:
-	/* Maximum number of parallel axes is fixed at compile time */
-	if (current_plot->n_par_axes > num_parallel_axes)
-	    extend_parallel_axis(current_plot->n_par_axes);
-
-	/* First N columns are data; one more is optional varcolor */
-	min_cols = current_plot->n_par_axes;
-	max_cols = current_plot->n_par_axes + 1;
-	/* We have not yet read in any data, so we cannot do complete initialization */
-	for (j = 0; j < current_plot->n_par_axes; j++) {
-	    struct axis *this_axis = &parallel_axis[j];
-	    axis_init(this_axis, 1);
-	}
+	/* 1 column: y coordinate only */
+	/* Allow 1 extra column for variable color */
+	min_cols = 1;
+	max_cols = 2;
 	break;
 
     case TABLESTYLE:
@@ -617,10 +565,13 @@ get_data(struct curve_points *current_plot)
     switch (current_plot->plot_smooth) {
     case SMOOTH_NONE:
 	break;
+    case SMOOTH_ZSORT:
+	min_cols = 3;
+	if (current_plot->plot_style != POINTSTYLE)
+	    int_error(NO_CARET, "'smooth zsort' only possible in plots 'with points'");
+	break;
     case SMOOTH_ACSPLINES:
 	max_cols = 3;
-	current_plot->z_axis = FIRST_Z_AXIS;
-	df_axis[2] = FIRST_Z_AXIS;
 	break;
     default:
 	if (df_no_use_specs > 2)
@@ -628,9 +579,10 @@ get_data(struct curve_points *current_plot)
 	break;
     }
 
-    /* EXPERIMENTAL May 2013 - Treating timedata columns as strings allows */
-    /* functions column(N) and column("HEADER") to work on time data.	   */
-    /* Sep 2014: But the column count is wrong for HISTOGRAMS */
+    /* May 2013 - Treating timedata columns as strings allows
+     * functions column(N) and column("HEADER") to work on time data.
+     * Sep 2014: But the column count is wrong for HISTOGRAMS
+     */
     if (current_plot->plot_style != HISTOGRAMS) {
 	if (axis_array[current_plot->x_axis].datatype == DT_TIMEDATE)
 	    expect_string(1);
@@ -662,138 +614,43 @@ get_data(struct curve_points *current_plot)
 	    cp_extend(current_plot, i + i + 1000);
 	}
 
-	/* Version 5
-	 * We are now trying to pass back all available info even if one of the requested
-	 * columns was missing or undefined.  This check replaces the DF_UNDEFINED case in
-	 * the main switch statement below.
-	 */
-	if (j == DF_UNDEFINED) {
-	    current_plot->points[i].type = UNDEFINED;
-	    if (missing_val && !strcmp(missing_val, "NaN"))
-		j = DF_MISSING;
-	    else
-		j = df_no_use_specs;
-	} else {
-	    /* Assume range is OK; we will check later */
-	    current_plot->points[i].type = INRANGE;
-	}
+	/* Assume range is OK; we will check later */
+	current_plot->points[i].type = (j == 0) ? UNDEFINED : INRANGE;
 
-	if (j > 0) {
-	    ngood++;
-	    /* June 2010 - New mechanism for variable color                  */
-	    /* If variable color is requested, take the color value from the */
-	    /* final column of input and decrement the column count by one.  */
-	    if (current_plot->varcolor) {
-		static char *errmsg = "Not enough columns for variable color";
-		switch (current_plot->plot_style) {
-
-		case CANDLESTICKS:
-		case FINANCEBARS:
-				if (j < 6) int_error(NO_CARET,errmsg);
-				break;
-		case XYERRORLINES:
-		case XYERRORBARS:
-		case BOXXYERROR:
-				if (j != 7 && j != 5) int_error(NO_CARET,errmsg);
-				break;
-		case VECTOR:
-				if (j < 5) int_error(NO_CARET,errmsg);
-				break;
-		case LABELPOINTS:
-		case BOXERROR:
-		case XERRORLINES:
-		case XERRORBARS:
-		case YERRORLINES:
-		case YERRORBARS:
-				if (j < 4) int_error(NO_CARET,errmsg);
-				break;
-#ifdef EAM_OBJECTS
-		case CIRCLES: 
-				if (j == 5 || j < 3) int_error(NO_CARET,errmsg);
-				break;
-		case ELLIPSES:
-#endif
-		case BOXES:
-		case POINTSTYLE:
-		case LINESPOINTS:
-		case IMPULSES:
-		case LINES:
-		case DOTS:
-				if (j < 3) int_error(NO_CARET,errmsg);
-				break;
-		case PARALLELPLOT:
-				if (j < 4) int_error(NO_CARET,errmsg);
-				break;
-		case BOXPLOT:
-				/* Only the key sample uses this value */
-				v[j++] = current_plot->base_linetype + 1;
-				break;
-		default:
-		    break;
-		}
-
-		current_plot->varcolor[i] = v[--j];
-	    }
-
-	    if (current_plot->plot_style == TABLESTYLE) {
-		/* tabulate_one_line() applies an input data filter and 
-		 * returns TRUE if the line was accepted and written out
-		 */
-		tabulate_one_line(v, df_strings, j);
-		continue;
-	    }
-
-	}
-
-	/* TODO: It would make more sense to organize the switch below by plot	*/
-	/* type rather than by number of columns in use.  The mis-organization 	*/
-	/* is particularly evident for parallel axis plots, to the point where	*/
-	/* I decided the only reasonable option is to handle it separately.	*/
-	if (current_plot->plot_style == PARALLELPLOT && j > 0) {
-	    int iaxis;
-	    if (j != current_plot->n_par_axes)
-		int_error(NO_CARET, "Expecting %d input columns, got %d\n",
-			current_plot->n_par_axes, j);
-	    /* Primary coordinate structure holds only x range and 1st y value.	*/
-	    /* The x range brackets the parallel axes by 0.5 on either side.	*/
-	    store2d_point(current_plot, i, 1.0, v[0], 
-				0.5, (double)(current_plot->n_par_axes)+0.5,
-				v[0], v[0], 0.0);
-	    /* The parallel axis data is stored in separate arrays */
-	    for (iaxis = 0; iaxis < current_plot->n_par_axes; iaxis++) {
-		int dummy_type = INRANGE;
-		ACTUAL_STORE_AND_UPDATE_RANGE( current_plot->z_n[iaxis][i],
-			v[iaxis], dummy_type, &parallel_axis[iaxis],
-			current_plot->noautoscale, NOOP );
-	    }
-	    i++;
-
-	} else {
-	/* This "else" block currently handles all plot styles other than PARALLEL_AXES */
-
+	/* First handle all the special cases (j <= 0) */
 	switch (j) {
-	default:
-	    {
-		df_close();
-		int_error(c_token, "internal error : df_readline returned %d : datafile line %d", j, df_line_number);
-	    }
 
-	case DF_MISSING:
-	    /* Plot type specific handling of missing points goes here. */
-	    if (current_plot->plot_style == HISTOGRAMS) {
-		current_plot->points[i].type = UNDEFINED;
-		i++;
-		continue;
-	    }
-
-	    /* Jun 2006 - Return to behavior of 3.7 and current docs:
-	     *            do not interrupt plotted line because of missing data
-	     */
-	    FPRINTF((stderr,"Missing datum %d\n", i));
+	case 0:
+	    df_close();
+	    int_error(current_plot->token, "Bad data on line %d of file %s",
+		      df_line_number, df_filename ? df_filename : ""); 
 	    continue;
 
 	case DF_UNDEFINED:
-	    /* Version 5:  can't get here because we trapped DF_UNDEFINED above */
+	    /* Version 5 - We are now trying to pass back all available info even
+	     * if one of the requested columns was missing or undefined.
+	     */
+	    current_plot->points[i].type = UNDEFINED;
+	    if (missing_val && !strcmp(missing_val, "NaN")) {
+		j = DF_MISSING;
+		/* fall through to short-circuit for missing data */
+	    } else {
+		j = df_no_use_specs;
+		break;
+		/* continue with normal processing for this line */
+	    }
+	
+	case DF_MISSING:
+	    /* Plot type specific handling of missing points goes here. */
+	    if (current_plot->plot_style == PARALLELPLOT) {
+		current_plot->points[i].type = UNDEFINED;
+		j = df_no_use_specs;
+		break;
+	    }
+	    if (current_plot->plot_style == HISTOGRAMS) {
+		current_plot->points[i].type = UNDEFINED;
+		i++;
+	    }
 	    continue;
 
 	case DF_FIRST_BLANK:
@@ -823,6 +680,7 @@ get_data(struct curve_points *current_plot)
 	case DF_FOUND_KEY_TITLE:
 	    df_set_key_title(current_plot);
 	    continue;
+
 	case DF_KEY_TITLE_MISSING:
 	    fprintf(stderr,"get_data: key title not found in requested column\n");
 	    continue;
@@ -830,431 +688,481 @@ get_data(struct curve_points *current_plot)
 	case DF_COLUMN_HEADERS:
 	    continue;
 
-	case 0:         /* not blank line, but df_readline couldn't parse it */
-	    {
+	default:
+	    if (j < 0) {
 		df_close();
-		int_error(current_plot->token, "Bad data on line %d of file %s",
-			  df_line_number, df_filename ? df_filename : ""); 
+		int_error(c_token,
+			"internal error : df_readline returned %d : datafile line %d",
+			j, df_line_number);
 	    }
+	    break;	/* Not continue!! */
+	}
 
-	case 1:
-	    /* only one number */
-	    if (default_smooth_weight(current_plot->plot_smooth)) { 
-		v[1] = 1.0;
-	    } else {
-		/* x is index, assign number to y */
-		v[1] = v[0];
-		v[0] = df_datum;
-		/* nobreak */
-	    }
+	/* We now know that j > 0, i.e. there is some data on this input line */
+	ngood++;
 
-	case 2:
-	    H_ERR_BARS:
-	    if (current_plot->plot_style == HISTOGRAMS) {
-		if (histogram_opts.type == HT_ERRORBARS) {
-		    /* The code is a tangle, but we can get here with j = 1, 2, or 3 */
-		    if (j == 1)
-			int_error(c_token, "Not enough columns in using specification");
-		    else if (j == 2) {
-		 	v[3] = v[0] + v[1];
-			v[2] = v[0] - v[1];
-		    } else {
-		 	v[3] = v[2];
-			v[2] = v[1];
-		    }
-		    v[1] = v[0];
-		    v[0] = df_datum;
-		} else if (j >= 2)
-		    int_error(c_token, "Too many columns in using specification");
-		else
-		    v[2] = v[3] = v[1];
+	/* "plot ... with table" bypasses all the column interpretation */
+	if (current_plot->plot_style == TABLESTYLE) {
+	    tabulate_one_line(v, df_strings, j);
+	    continue;
+	}
 
-		if (histogram_opts.type == HT_STACKED_IN_TOWERS) {
-		    histogram_rightmost = current_plot->histogram_sequence
-					+ current_plot->histogram->start;
-		    current_plot->histogram->end = histogram_rightmost;
-		} else if (v[0] + current_plot->histogram->start > histogram_rightmost) {
-		    histogram_rightmost = v[0] + current_plot->histogram->start;
-		    current_plot->histogram->end = histogram_rightmost;
-		}
-		/* Histogram boxwidths are always absolute */
-		if (boxwidth > 0)
-		    store2d_point(current_plot, i++, v[0], v[1],
-				  v[0] - boxwidth / 2, v[0] + boxwidth / 2,
-				  v[2], v[3], 0.0);
-		else
-		    store2d_point(current_plot, i++, v[0], v[1],
-				  v[0] - 0.5, v[0] + 0.5,
-				  v[2], v[3], 0.0);
-
-		/* x, y */
-		/* ylow and yhigh are same as y */
-
-	    } else if ( (current_plot->plot_style == BOXES)
-		     && boxwidth > 0 && boxwidth_is_absolute) {
-		    /* calculate width now */
-		    if (axis_array[current_plot->x_axis].log) {
-			double base = axis_array[current_plot->x_axis].base;
-			store2d_point(current_plot, i++, v[0], v[1],
-				      v[0] * pow(base, -boxwidth/2.), v[0] * pow(base, boxwidth/2.),
-				      v[1], v[1], 0.0);
-		    } else
-			store2d_point(current_plot, i++, v[0], v[1],
-				      v[0] - boxwidth / 2, v[0] + boxwidth / 2,
-				      v[1], v[1], 0.0);
-
-#ifdef EAM_OBJECTS
-	    } else if (current_plot->plot_style == CIRCLES) {
-		    /* x, y, default radius, full circle */
-		    store2d_point(current_plot, i++, v[0], v[1], v[0], v[0],
-		    		  0., 360., DEFAULT_RADIUS);
-		}  else if (current_plot->plot_style == ELLIPSES) {
-			/* x, y, major axis = minor axis = default, default orientation */
-		    store2d_point(current_plot, i++, v[0], v[1], 0.0, 0.0,
-		    		  0.0, 0.0, DEFAULT_ELLIPSE);
-
-#endif
-	    } else if (current_plot->plot_style == YERRORBARS) {
-		/* x is index, assign number to y */
-		v[2] = v[1];
-		v[1] = v[0];
-		v[0] = df_datum;
-		store2d_point(current_plot, i++, v[0], v[1], v[0], v[0],
-			      v[1] - v[2], v[1] + v[2], -1.0);
-	    } else if (current_plot->plot_style == BOXPLOT) {
-		store2d_point(current_plot, i++, v[0], v[1], v[0], v[0], v[1], v[1],
-				DEFAULT_BOXPLOT_FACTOR);
-	    } else if (current_plot->plot_style == FILLEDCURVES) {
-		v[2] = current_plot->filledcurves_options.at;
-		store2d_point(current_plot, i++, v[0], v[1], v[0], v[0],
-				  v[1], v[2], -1.0);
-	    } else {
-		double w;
-		if (current_plot->plot_style == CANDLESTICKS
-		    || current_plot->plot_style == FINANCEBARS) {
-		    int_warn(storetoken, "This plot style does not work with 1 or 2 cols. Setting to points");
-		    current_plot->plot_style = POINTSTYLE;
-		}
-		if (current_plot->plot_smooth == SMOOTH_ACSPLINES)
-		    w = 1.0;	/* Unit weights */
-		else
-		    w = -1.0;	/* Auto-width boxes in some styles */
-		/* Set x/y high/low to exactly [x,y] */
-		store2d_point(current_plot, i++, v[0], v[1], 
-						 v[0], v[0], v[1], v[1], w);
-	    }
-	    break;
-
-
-	case 3:
-	    /* x, y, ydelta OR x, y, xdelta OR x, y, width */
-	    if (current_plot->plot_smooth == SMOOTH_ACSPLINES)
-		store2d_point(current_plot, i++, v[0], v[1], v[0], v[0], v[1],
-			      v[1], v[2]);
-	    else
-		switch (current_plot->plot_style) {
-
-		case HISTOGRAMS:
-		    if (histogram_opts.type == HT_ERRORBARS)
-			goto H_ERR_BARS;
-		    else
-			/* fall through */
-		default:
-		    int_warn(storetoken, "This plot style does not work with 3 cols. Setting to yerrorbars");
-		    current_plot->plot_style = YERRORBARS;
-		    /* fall through */
-
-		case FILLEDCURVES:
-		    if (current_plot->filledcurves_options.closeto == FILLEDCURVES_DEFAULT)
-			current_plot->filledcurves_options.closeto = FILLEDCURVES_BETWEEN;
-		    store2d_point(current_plot, i++, v[0], v[1], v[0], v[0],
-				  v[1], v[2], -1.0);
-		    break;
-
-		case YERRORLINES:
-		case YERRORBARS:
-		case BOXERROR:  /* x, y, dy */
-		    /* auto width if boxes, else ignored */
-		    store2d_point(current_plot, i++, v[0], v[1], v[0], v[0],
-				  v[1] - v[2], v[1] + v[2], -1.0);
-		    break;
-
-		case XERRORLINES:
-		case XERRORBARS:
-		    store2d_point(current_plot, i++, v[0], v[1], v[0] - v[2],
-				  v[0] + v[2], v[1], v[1], 0.0);
-		    break;
-
-		case BOXES:
-		    /* calculate xmin and xmax here, so that logs are taken if if necessary */
-		    store2d_point(current_plot, i++, v[0], v[1],
-				  v[0] - v[2] / 2, v[0] + v[2] / 2,
-				  v[1], v[1], 0.0);
-		    break;
-
-		case LABELPOINTS:
-		    /* Load the coords just as we would have for a point plot */
-		    store2d_point(current_plot, i, v[0], v[1], v[0], v[0], v[1],
-				  v[1], -1.0);
-		    /* Allocate and fill in a text_label structure to match it */
-		    if (current_plot->points[i].type != UNDEFINED)
-			store_label(current_plot->labels, &(current_plot->points[i]), 
-				i, df_tokens[2], 
-				current_plot->varcolor ? current_plot->varcolor[i] : 0.0);
-		    i++;
-		    break;
-
-		case IMAGE:  /* x_center y_center color_value */
-		    {
-		    coord_type dummy_type;
-		    store2d_point(current_plot, i, v[0], v[1], v[0], v[0], v[1],
-				  v[1], v[2]);
-		    cp = &(current_plot->points[i]);
-		    dummy_type = cp->type;
-		    STORE_AND_UPDATE_RANGE(cp->CRD_COLOR, v[2], dummy_type,
-				COLOR_AXIS, current_plot->noautoscale, NOOP);
-		    i++;
-		    }
-		    break;
-
-		case POINTSTYLE: /* x, y, variable point size or type */
-		case LINESPOINTS:
-		case IMPULSES:
-		case LINES:
-		case DOTS:
-		    store2d_point(current_plot, i++, v[0], v[1], v[0], v[2],
-				  v[1], v[1], v[2]);
-		    break;
-
-		case BOXPLOT:	/* x, y, width expanded to xlow, xhigh */
-		    store2d_point(current_plot, i++, v[0], v[1], v[0]-v[2]/2., v[0]+v[2]/2.,
-		    		  v[1], v[1], DEFAULT_BOXPLOT_FACTOR);
-		    break;
-
-#ifdef EAM_OBJECTS
-		case CIRCLES:	/* x, y, radius */
-		    /* by default a full circle is drawn */
-		    /* negative radius means default radius -> set flag in width */
-		    store2d_point(current_plot, i++, v[0], v[1], v[0]-v[2], v[0]+v[2],
-		    		  0.0, 360.0, (v[2] >= 0) ? 0.0 : DEFAULT_RADIUS);
-		    break;
-
-		case ELLIPSES:	/* x, y, major axis = minor axis, 0 as orientation */
-		    store2d_point(current_plot, i++, v[0], v[1], fabs(v[2]), fabs(v[2]),
-		    		  0.0, v[2], (v[2] >= 0) ? 0.0 : DEFAULT_RADIUS);
-		    break;
-#endif
-		}               /*inner switch */
-
-	    break;
-
-
-
-	case 4:
-	    /* x, y, ylow, yhigh OR
-	     * x, y, xlow, xhigh OR
-	     * x, y, xdelta, ydelta OR
-	     * x, y, ydelta, width
-	     */
-
+	/* June 2010 - New mechanism for variable color                  */
+	/* If variable color is requested, take the color value from the */
+	/* final column of input and decrement the column count by one.  */
+	if (current_plot->varcolor) {
+	    static char *errmsg = "Not enough columns for variable color";
 	    switch (current_plot->plot_style) {
-	    default:
-		int_warn(storetoken, "This plot style does not work with 4 cols. Setting to yerrorbars");
-		current_plot->plot_style = YERRORBARS;
-		/* fall through */
 
-	    case YERRORLINES:
-	    case YERRORBARS:
-		store2d_point(current_plot, i++, v[0], v[1], v[0], v[0], v[2],
-			      v[3], -1.0);
-		break;
-
-	    case BOXXYERROR:    /* x, y, dx, dy */
-	    case XYERRORLINES:
-	    case XYERRORBARS:
-		store2d_point(current_plot, i++, v[0], v[1],
-			      v[0] - v[2], v[0] + v[2],
-			      v[1] - v[3], v[1] + v[3], 0.0);
-		break;
-
-
-	    case BOXES:
-		/* x, y, xmin, xmax */
-		store2d_point(current_plot, i++, v[0], v[1], v[2], v[3],
-			      v[1], v[1], 0.0);
-		break;
-
-	    case XERRORLINES:
-	    case XERRORBARS:
-		/* x, y, xmin, xmax */
-		store2d_point(current_plot, i++, v[0], v[1], v[2], v[3],
-			      v[1], v[1], 0.0);
-		break;
-
-	    case BOXERROR:
-		if (boxwidth == -2)
-		    /* x,y, ylow, yhigh --- width automatic */
-		    store2d_point(current_plot, i++, v[0], v[1], v[0], v[0],
-				  v[2], v[3], -1.0);
-		else
-		    /* x, y, dy, width */
-		    store2d_point(current_plot, i++, v[0], v[1],
-				  v[0] - v[3] / 2, v[0] + v[3] / 2,
-				  v[1] - v[2], v[1] + v[2], 0.0);
-		break;
-
-	    case BOXPLOT:	/* x, y, factor */
-		{
-		int factor_index = check_or_add_boxplot_factor(current_plot, df_tokens[3], v[0]);
-		store2d_point(current_plot, i++, v[0], v[1], v[0]-v[2]/2., v[0]+v[2]/2.,
-		    		  v[1], v[1], factor_index);
-		}
-		break;
-
-	    case VECTOR:
-		/* x,y,dx,dy */
-		store2d_point(current_plot, i++, v[0], v[1], v[0], v[0] + v[2],
-			      v[1], v[1] + v[3], 0.);
-		break;
-
-	    case LABELPOINTS:
-		/* Load the coords just as we would have for a point plot */
-		store2d_point(current_plot, i, v[0], v[1],
-				v[0], v[0], v[1], v[1], v[3]);
-		/* Allocate and fill in a text_label structure to match it */
-		if (current_plot->points[i].type != UNDEFINED) {
-		    struct text_label *tl;
-		    tl = store_label(current_plot->labels, &(current_plot->points[i]), 
-			    i, df_tokens[2], 
-			    current_plot->varcolor ? current_plot->varcolor[i] : 0.0);
-		    if (current_plot->labels->tag == VARIABLE_ROTATE_LABEL_TAG)
-			tl->rotate = (int)(v[3]);
-		    else
-			tl->lp_properties.p_size = v[3];
-		}
-		i++;
-		break;
-
-	    case POINTSTYLE:
-	    case LINESPOINTS:
-		/* Either there is no using spec and more than 3 columns in the data file */
-		/* or this is x:y:variable_size:variable_type */
-		store2d_point(current_plot, i++, v[0], v[1], 
-				v[0], v[3], v[1], v[1], v[2]);
-		break;
-
-
-#ifdef EAM_OBJECTS
-	    case ELLIPSES:	/* x, y, major axis, minor axis, 0 as orientation */
-		store2d_point(current_plot, i++, v[0], v[1], fabs(v[2]), fabs(v[3]),
-				0.0, v[2], ((v[2] >= 0) && (v[3] >= 0)) ? 0.0 : DEFAULT_RADIUS);
-		break;
-#endif
-
-	    }                   /*inner switch */
-
-	    break;
-
-
-	case 5:
-	    {   /* x, y, ylow, yhigh, width  or  x open low high close */
-		switch (current_plot->plot_style) {
-		default:
-		    int_warn(storetoken, "Unrecognized 5 column plot style; resetting to boxerrorbars");
-		    current_plot->plot_style = BOXERROR;
-		    /*fall through */
-
-		case BOXERROR:  /* x, y, ylow, yhigh, width */
-		    store2d_point(current_plot, i++, v[0], v[1],
-				  v[0] - v[4] / 2, v[0] + v[4] / 2,
-				  v[2], v[3], 0.0);
-		    break;
-
-		case FINANCEBARS: /* x yopen ylow yhigh yclose */
-		case CANDLESTICKS:
-		    store2d_point(current_plot, i++, v[0], v[1], v[0], v[0],
-				  v[2], v[3], v[4]);
-		    break;
-
-		case VECTOR:
-		    /* x,y,dx,dy, variable arrowstyle */
-		    store2d_point(current_plot, i++, v[0], v[1], v[0], v[0] + v[2],
-				  v[1], v[1] + v[3], v[4]);
-		    break;
-
-#ifdef EAM_OBJECTS
-		case CIRCLES:	/* x, y, radius, arc begin, arc end */
-		    /* negative radius means default radius -> set flag in width */
-		    store2d_point(current_plot, i++, v[0], v[1], v[0]-v[2], v[0]+v[2],
-		    		  v[3], v[4], (v[2] >= 0) ? 0.0 : DEFAULT_RADIUS);
-		    break;
-
-		case ELLIPSES:	/* x, y, major axis, minor axis, orientation */
-		    store2d_point(current_plot, i++, v[0], v[1], fabs(v[2]), fabs(v[3]),
-		    		  v[4], v[2], ((v[2] >= 0) && (v[3] >= 0)) ? 0.0 : DEFAULT_RADIUS);
-		    break;
-#endif
-
-		case RGBIMAGE:  /* x_center y_center r_value g_value b_value (rgb) */
-		    goto images;
-
-		case POINTSTYLE:
-		case LINESPOINTS:
-		    /* If there is no using spec and more than 4 columns in the data file */
-		    /* then use only the first 4 columns  x:y:variable_size:variable_type */
-		    store2d_point(current_plot, i++, v[0], v[1], 
-				    v[0], v[3], v[1], v[1], v[2]);
-		    break;
-
-		}               /* inner switch */
-
-
-		break;
-	    }
-
-	case 7:
-	    /* same as six columns. Width ignored */
-	    /* eh ? - fall through */
-	case 6:
-	    /* x, y, xlow, xhigh, ylow, yhigh */
-	    switch (current_plot->plot_style) {
-	    default:
-		int_warn(storetoken, "This plot style does not work with 6 cols. Setting to xyerrorbars");
-		current_plot->plot_style = XYERRORBARS;
-		/*fall through */
+	    case CANDLESTICKS:
+	    case FINANCEBARS:
+			    if (j < 6) int_error(NO_CARET,errmsg);
+			    break;
 	    case XYERRORLINES:
 	    case XYERRORBARS:
 	    case BOXXYERROR:
-		store2d_point(current_plot, i++, v[0], v[1], v[2], v[3], v[4],
-			      v[5], 0.0);
-		break;
-
-	    case CANDLESTICKS:
-		store2d_point(current_plot, i++, v[0], v[1],
-				v[5] > 0 ? v[0]-v[5]/2. : v[0], v[0],
-				v[2], v[3], v[4]);
-		break;
-
-images:
-	    case RGBA_IMAGE:  /* x_cent y_cent red green blue alpha */
-	    case RGBIMAGE:    /* x_cent y_cent red green blue */
-		store2d_point(current_plot, i, v[0], v[1], v[0], v[0], v[1], v[1], v[2]);
-		/* We will autoscale the RGB components to  a total range [0:255]
-		 * so we don't need to do any fancy scaling here.
-		 */
-		cp = &(current_plot->points[i]);
-		cp->CRD_R = v[2];
-		cp->CRD_G = v[3];
-		cp->CRD_B = v[4];
-		cp->CRD_A = v[5];	/* Alpha channel */
-		i++;
+			    if (j != 7 && j != 5) int_error(NO_CARET,errmsg);
+			    break;
+	    case VECTOR:
+	    case ARROWS:
+			    if (j < 5) int_error(NO_CARET,errmsg);
+			    break;
+	    case LABELPOINTS:
+	    case BOXERROR:
+	    case XERRORLINES:
+	    case XERRORBARS:
+	    case YERRORLINES:
+	    case YERRORBARS:
+			    if (j < 4) int_error(NO_CARET,errmsg);
+			    break;
+	    case CIRCLES: 
+			    if (j == 5 || j < 3) int_error(NO_CARET,errmsg);
+			    break;
+	    case ELLIPSES:
+	    case BOXES:
+	    case POINTSTYLE:
+	    case LINESPOINTS:
+	    case IMPULSES:
+	    case LINES:
+	    case DOTS:
+			    if (j < 3) int_error(NO_CARET,errmsg);
+			    break;
+	    case PARALLELPLOT:
+			    if (j < 1) int_error(NO_CARET,errmsg);
+			    break;
+	    case BOXPLOT:
+			    /* Only the key sample uses this value */
+			    v[j++] = current_plot->base_linetype + 1;
+			    break;
+	    default:
 		break;
 	    }
 
-	}                       /*switch */
-	}                       /* "else" case for all plot types */
+	    current_plot->varcolor[i] = v[--j];
+	}
 
-    }                           /*while */
+	/* Unusual special cases */
+	/* Single data value - is it y with implicit x or something else? */
+	if (j == 1 && !(current_plot->plot_style == HISTOGRAMS)) {
+	    if (default_smooth_weight(current_plot->plot_smooth))
+		v[1] = 1.0;
+	    else {
+		v[1] = v[0];
+		v[0] = df_datum;
+	    }
+	    j = 2;
+	}
+
+	/* May 2018:  The huge switch statement below is now organized by plot	*/
+	/* style.  Each plot style can have its own understanding of what the	*/
+	/* value in a particular field of the "using" specifier represents.	*/
+	/* E.g. the 3rd field might be z or radius or color.			*/
+	switch (current_plot->plot_style) {
+
+	case LINES:
+	case DOTS:
+	case IMPULSES:
+	{   /* x y [acspline weight] */
+	    coordval w;	/* only for (current_plot->plot_smooth == SMOOTH_ACSPLINES) */
+	    w = (j > 2) ? v[2] : 1.0;
+	    store2d_point(current_plot, i++, v[0], v[1],
+				v[0], v[0], v[1], v[1], w);
+	    break;
+	}
+
+	case POINTSTYLE:
+	case LINESPOINTS:
+	{   /* x y {z} {var_ps} {var_pt} {lc variable} */
+	    /* NB: assumes CRD_PTSIZE == xlow CRD_PTTYPE == xhigh CRD_PTCHAR == ylow */
+	    int var = 2; /* column number for next variable spec */
+	    coordval weight = (current_plot->plot_smooth == SMOOTH_ACSPLINES) ? v[2] : 1.0;
+	    coordval var_ps = current_plot->lp_properties.p_size;
+	    coordval var_pt = current_plot->lp_properties.p_type;
+	    coordval var_char = 0;
+	    if (current_plot->plot_smooth == SMOOTH_ZSORT)
+		weight = v[var++];
+	    if (var_pt == PT_VARIABLE) {
+		if (isnan(v[var]) && df_tokens[var]) {
+		    safe_strncpy( (char *)(&var_char), df_tokens[var], sizeof(coordval));
+		    truncate_to_one_utf8_char((char *)(&var_char));
+		}
+		var_pt = v[var++];
+	    }
+	    if (var_ps == PTSZ_VARIABLE)
+		var_ps = v[var++];
+	    if (var > j)
+		int_error(NO_CARET, "Not enough using specs");
+	    if (var_pt < 0)
+		var_pt = 0;
+	    store2d_point(current_plot, i++, v[0], v[1],
+					var_ps, var_pt, var_char, v[1], weight);
+	    break;
+	}
+
+	case LABELPOINTS:
+	{   /* x y string {rotate variable}
+	     *            {point {pt variable} {ps variable}}
+	     *            {tc|lc variable}
+	     */
+	    int var = 3;	/* column number for next variable spec */
+	    coordval var_rotation = 0.0;
+	    coordval var_ps = current_plot->labels->lp_properties.p_size;
+	    coordval var_pt = current_plot->labels->lp_properties.p_type;
+
+	    if (current_plot->labels->tag == VARIABLE_ROTATE_LABEL_TAG)
+		var_rotation = v[var++];
+	    if (var_pt == PT_VARIABLE)
+		var_pt = v[var++];
+	    if (var_ps == PTSZ_VARIABLE)
+		var_ps = v[var++];
+	    if (var > j)
+		int_error(NO_CARET, "Not enough using specs");
+
+	    store2d_point(current_plot, i, v[0], v[1],
+				var_ps, var_pt, var_rotation, v[1], 0.0);
+
+	    /* Allocate and fill in a text_label structure to match it */
+	    if (current_plot->points[i].type != UNDEFINED) {
+		store_label(current_plot->labels, &(current_plot->points[i]),
+			i, df_tokens[2],
+			current_plot->varcolor ? current_plot->varcolor[i] : 0.0);
+	    }
+	    i++;
+	    break;
+	}
+
+	case STEPS:
+	case FSTEPS:
+	case FILLSTEPS:
+	case HISTEPS:
+	{    /* x y */
+	    store2d_point(current_plot, i++, v[0], v[1],
+				v[0], v[0], v[1], v[1], -1.0);
+	    break;
+	}
+
+	case CANDLESTICKS:
+	case FINANCEBARS:
+	{   /* x yopen ylow yhigh yclose [xhigh] */
+	    coordval yopen = v[1];
+	    coordval ylow = v[2];
+	    coordval yhigh = v[3];
+	    coordval yclose = v[4];
+	    coordval xlow = v[0];
+	    coordval xhigh = v[0];
+
+	    /* NB: plot_c_bars will set xhigh = xlow + 2*(x-xlow) */
+	    if (j > 5 && v[5] > 0)
+		xlow = v[0] - v[5]/2.;
+	    store2d_point(current_plot, i++, v[0], yopen,
+			xlow, xhigh, ylow, yhigh, yclose);
+	    break;
+	}
+
+	case XERRORLINES:
+	case XERRORBARS:
+	{   /* x y xdelta   or    x y xlow xhigh */
+	    coordval xlow  = (j > 3) ? v[2] : v[0] - v[2];
+	    coordval xhigh = (j > 3) ? v[3] : v[0] + v[2];
+	    store2d_point(current_plot, i++, v[0], v[1],
+			xlow, xhigh, v[1], v[1], 0.0);
+	    break;
+	}
+
+	case YERRORLINES:
+	case YERRORBARS:
+	{   /* x y ydelta   or    x y ylow yhigh */
+	    coordval ylow  = (j > 3) ? v[2] : v[1] - v[2];
+	    coordval yhigh = (j > 3) ? v[3] : v[1] + v[2];
+	    store2d_point(current_plot, i++, v[0], v[1],
+			v[0], v[0], ylow, yhigh, -1.0);
+	    break;
+	}
+
+	case BOXERROR:
+	{   /* 3 columns:  x y ydelta
+	     * 4 columns:  x y ydelta xdelta   (boxwidth != -2)
+	     * 4 columns:  x y ylow yhigh      (boxwidth == -2)
+	     * 5 columns:  x y ylow yhigh xdelta
+	     */
+	    coordval xlow, xhigh, ylow, yhigh, width;
+	    if (j == 3) {
+		xlow  = v[0];
+		xhigh = v[0];
+		ylow  = v[1] - v[2];
+		yhigh = v[1] + v[2];
+		width = -1.0;
+	    } else if (j == 4) {
+		xlow  = (boxwidth == -2) ? v[0] : v[0] - v[3]/2.;
+		xhigh = (boxwidth == -2) ? v[0] : v[0] + v[3]/2.;
+		ylow  = (boxwidth == -2) ? v[2] : v[1] - v[2];
+		yhigh = (boxwidth == -2) ? v[3] : v[1] + v[2];
+		width = (boxwidth == -2) ? -1.0 : 0.0;
+	    } else {
+		xlow  = v[0] - v[4]/2.;
+		xhigh = v[0] + v[4]/2.;
+		ylow  = v[2];
+		yhigh = v[3];
+		width = 0.0;
+	    }
+	    store2d_point(current_plot, i++, v[0], v[1],
+			xlow, xhigh, ylow, yhigh, width);
+	    break;
+	}
+
+	case XYERRORLINES:
+	case XYERRORBARS:
+	case BOXXYERROR:
+	{   /* 4 columns: x y xdelta ydelta 
+	     * 6 columns: x y xlow xhigh ylow yhigh
+	     */
+	    coordval xlow  = (j>5) ? v[2] : v[0] - v[2];
+	    coordval xhigh = (j>5) ? v[3] : v[0] + v[2];
+	    coordval ylow  = (j>5) ? v[4] : v[1] - v[3];
+	    coordval yhigh = (j>5) ? v[5] : v[1] + v[3];
+	    store2d_point(current_plot, i++, v[0], v[1],
+			xlow, xhigh, ylow, yhigh, 0.0);
+	    if (j == 5)
+		int_error(NO_CARET, "wrong number of columns for this plot style");
+	    break;
+	}
+
+	case BOXES:
+	{   /* 2 columns: x y (width depends on "set boxwidth")
+	     * 3 columns: x y xdelta
+	     * 4 columns: x y xlow xhigh
+	     */
+	    coordval xlow  = v[0];
+	    coordval xhigh = v[0];
+	    coordval width = 0.0;
+	    double base = axis_array[current_plot->x_axis].base;
+	    if (j == 2) {
+		/* For boxwidth auto, we cannot calculate xlow/xhigh yet since they
+		 * depend on both adjacent boxes.  This is signalled by storing -1
+		 * in point->z to indicate xlow/xhigh must be calculated later.
+		 */
+		if (boxwidth > 0 && boxwidth_is_absolute) {
+		    xlow = (axis_array[current_plot->x_axis].log)
+			 ? v[0] * pow(base, -boxwidth/2.) : v[0] - boxwidth / 2;
+		    xhigh = (axis_array[current_plot->x_axis].log)
+			 ? v[0] * pow(base, boxwidth/2.) : v[0] + boxwidth / 2;
+		} else {
+		    width = -1.0;
+		}
+	    } else if (j == 3) {
+		xlow  = v[0] - v[2]/2;
+		xhigh = v[0] + v[2]/2;
+	    } else if (j == 4) {
+		xlow  = v[2];
+		xhigh = v[3];
+	    }
+	    store2d_point(current_plot, i++, v[0], v[1],
+			xlow, xhigh, v[1], v[1], width);
+	    break;
+	}
+
+	case FILLEDCURVES:
+	{   /* 2 columns:  x y
+	     * 3 columns:  x y1 y2
+	     */
+	    coordval y1 = v[1];
+	    coordval y2;
+	    if (j==2) {
+		y2 = current_plot->filledcurves_options.at;
+	    } else {
+		y2 = v[2];
+		if (current_plot->filledcurves_options.closeto == FILLEDCURVES_DEFAULT)
+		    current_plot->filledcurves_options.closeto = FILLEDCURVES_BETWEEN;
+	    }
+	    store2d_point(current_plot, i++, v[0], y1,
+			v[0], v[0], y1, y2, 0.0);
+	    break;
+	}
+
+	case BOXPLOT:
+	{   /* 2 columns:  x data 
+	     * 3 columns:  x data width
+	     * 4 columns:  x data width factor
+	     */
+	    coordval extra = DEFAULT_BOXPLOT_FACTOR;
+	    coordval xlow =  (j > 2) ? v[0] - v[2]/2. : v[0];
+	    coordval xhigh = (j > 2) ? v[0] + v[2]/2. : v[0];
+	    if (j == 4)
+		extra = check_or_add_boxplot_factor(current_plot, df_tokens[3], v[0]);
+	    store2d_point(current_plot, i++, v[0], v[1],
+			xlow, xhigh, v[1], v[1], extra);
+	    break;
+	}
+
+	case VECTOR:
+	{   /* 4 columns:	x y xdelta ydelta [arrowstyle variable] */
+	    coordval xlow  = v[0];
+	    coordval xhigh = v[0] + v[2];
+	    coordval ylow  = v[1];
+	    coordval yhigh = v[1] + v[3];
+	    coordval arrowstyle = (j == 5) ? v[4] : 0.0;
+
+	    store2d_point(current_plot, i++, v[0], v[1],
+			  xlow, xhigh, ylow, yhigh, arrowstyle);
+	    break;
+	}
+
+	case ARROWS:
+	{   /* 4 columns:	x y len ang [arrowstyle variable] */
+	    coordval xlow  = v[0];
+	    coordval ylow  = v[1];
+	    coordval len = v[2];
+	    coordval ang = v[3];
+	    coordval arrowstyle = (j == 5) ? v[4] : 0.0;
+	    store2d_point(current_plot, i++, v[0], v[1],
+			  xlow, len, ylow, ang, arrowstyle);
+	    break;
+	}
+
+	case CIRCLES:
+	{   /* x y
+	     * x y radius
+	     * x y radius arc_begin arc_end
+	     */
+	    coordval x = v[0];
+	    coordval y = v[1];
+	    coordval xlow = x;
+	    coordval xhigh = x;
+	    coordval arc_begin = (j >= 5) ? v[3] : 0.0;
+	    coordval arc_end = (j >= 5) ? v[4] : 360.0;
+	    coordval radius = DEFAULT_RADIUS;
+
+	    if (j >= 3 && v[2] >= 0) {
+		xlow  = x - v[2];
+		xhigh = x + v[2];
+		radius = 0.0;
+	    }
+	    store2d_point(current_plot, i++, x, y,
+			  xlow, xhigh, arc_begin, arc_end, radius);
+	    break;
+	}
+
+	case ELLIPSES:
+	{   /* x y
+	     * x y major_diam
+	     * x y major_diam minor_diam
+	     * x y major_diam minor_diam orientation
+	     */
+	    coordval x = v[0];
+	    coordval y = v[1];
+	    coordval major_axis = (j >= 3) ? fabs(v[2]) : 0.0;
+	    coordval minor_axis = (j >= 4) ? fabs(v[3]) : (j >= 3) ? fabs(v[2]) : 0.0;
+	    coordval orientation = (j >= 5) ? v[4] : 0.0;
+	    coordval flag = (major_axis > 0 && minor_axis > 0) ? 0.0 : DEFAULT_RADIUS;
+
+	    if (j == 2)	/* FIXME: why not also for j == 3 or 4? */
+		orientation = default_ellipse.o.ellipse.orientation;
+
+	    store2d_point(current_plot, i++, x, y,
+			  major_axis, minor_axis, orientation, 0.0 /* not used */,
+			  flag);
+	    break;
+	}
+
+	case IMAGE:
+	{   /* x y color_value */
+	    store2d_point(current_plot, i++, v[0], v[1],
+			  v[0], v[0], v[1], v[1], v[2]);
+	    break;
+	}
+
+	case RGBIMAGE:
+	case RGBA_IMAGE:
+	{   /* x y red green blue [alpha] */
+	    store2d_point(current_plot, i, v[0], v[1], v[0], v[0], v[1], v[1], 0.0);
+	    cp = &(current_plot->points[i]);
+	    cp->CRD_R = v[2];
+	    cp->CRD_G = v[3];
+	    cp->CRD_B = v[4];
+	    cp->CRD_A = v[5];	/* Alpha channel */
+	    i++;
+	    break;
+	}
+
+	case HISTOGRAMS:
+	{   /* 1 column:	y
+	     * 2 columns:	y yerr		(set style histogram errorbars)
+	     * 3 columns:	y ymin ymax	(set style histogram errorbars)
+	     */
+	    coordval x = df_datum;
+	    coordval y = v[0];
+	    coordval ylow  = v[0];
+	    coordval yhigh = v[0];
+	    coordval width = (boxwidth > 0) ? boxwidth : 1.0;
+	    coordval xlow  = x - width / 2.;
+	    coordval xhigh = x + width / 2.;
+
+	    if (histogram_opts.type == HT_ERRORBARS) {
+		if (j == 1)
+		    int_error(c_token, "No column given for errorbars in using specifier");
+		if (j == 2) {
+		    ylow  = y - v[1];
+		    yhigh = y + v[1];
+		} else {
+		    ylow   = v[1];
+		    yhigh  = v[2];
+		}
+	    } else if (j > 1)
+		int_error(c_token, "Too many columns in using specification");
+
+	    if (histogram_opts.type == HT_STACKED_IN_TOWERS) {
+		histogram_rightmost = current_plot->histogram_sequence
+				    + current_plot->histogram->start;
+		current_plot->histogram->end = histogram_rightmost;
+	    } else if (x + current_plot->histogram->start > histogram_rightmost) {
+		histogram_rightmost = x + current_plot->histogram->start;
+		current_plot->histogram->end = histogram_rightmost;
+	    }
+	    store2d_point(current_plot, i++, x, y, xlow, xhigh, ylow, yhigh, 0.0);
+	    break;
+	}
+
+	case PARALLELPLOT:
+	{   /* Similar to histogram plots, each parallel axis gets a separate
+	     * comma-separated plot element with a single "using" spec.
+	     */
+	    coordval x = parallel_axis_array[paxis_current-1].paxis_x;
+	    coordval y = v[1];
+	    store2d_point(current_plot, i++, x, y, x, x, y, y, 0.0); 
+	    break;
+	}
+
+	/* If anybody hits this it is because we missed handling a plot style above.
+	 * To be fixed immediately!
+	 */
+	default:
+	    int_error(NO_CARET,
+		"This plot style must have been missed in the grand code reorganization");
+	    break;
+
+	}    /* switch (plot->plot_style) */
+
+    }	/* while more input data */
 
     /* If the plot style specifically requests a closed curve, we can make */
     /* this easier by duplicating the first point at the end of the curve. */
@@ -1296,7 +1204,8 @@ store2d_point(
     double ylow, double yhigh,
     double width)               /* BOXES widths: -1 -> autocalc, 0 ->  use xlow/xhigh */
 {
-    struct coordinate GPHUGE *cp = &(current_plot->points[i]);
+    struct coordinate *cp = &(current_plot->points[i]);
+    struct axis *x_axis_ptr, *y_axis_ptr;
     coord_type dummy_type = INRANGE;   /* sometimes we dont care about outranging */
     TBOOLEAN excluded_range = FALSE;
 
@@ -1305,7 +1214,7 @@ store2d_point(
     dummy_type = cp->type;
 
     if (polar) {
-	double theta = x * ang2rad;
+	double theta = x;
 	AXIS *theta_axis = &axis_array[T_AXIS];
 
 	/* "x" is really the polar angle theta,	so check it against trange. */
@@ -1349,11 +1258,14 @@ store2d_point(
     }
 
     /* Version 5: Allow to store Inf or NaN 
-     *  We used to exit immediately in this case rather than storing anything */
-    STORE_AND_UPDATE_RANGE(cp->x, x, cp->type, current_plot->x_axis,
-			current_plot->noautoscale, NOOP);
-    STORE_AND_UPDATE_RANGE(cp->y, y, cp->type, current_plot->y_axis,
-			current_plot->noautoscale, NOOP);
+     *  We used to exit immediately in this case rather than storing anything
+     */
+    x_axis_ptr = &axis_array[current_plot->x_axis];
+    y_axis_ptr = (current_plot->plot_style == PARALLELPLOT)
+		? &parallel_axis_array[current_plot->p_axis-1]
+		: &axis_array[current_plot->y_axis];
+    store_and_update_range(&(cp->x), x, &(cp->type), x_axis_ptr, current_plot->noautoscale);
+    store_and_update_range(&(cp->y), y, &(cp->type), y_axis_ptr, current_plot->noautoscale);
 
     switch (current_plot->plot_style) {
     case POINTSTYLE:		/* Only x and y are relevant to axis scaling */
@@ -1365,6 +1277,8 @@ store2d_point(
     case STEPS:
     case FSTEPS:
     case HISTEPS:
+    case ARROWS:
+    case PARALLELPLOT:
 	cp->xlow = xlow;
 	cp->xhigh = xhigh;
 	cp->ylow = ylow;
@@ -1379,7 +1293,6 @@ store2d_point(
 	STORE_AND_UPDATE_RANGE(cp->xhigh, xhigh, dummy_type, current_plot->x_axis,
 				current_plot->noautoscale, cp->xhigh = -VERYLARGE);
 	break;
-#ifdef EAM_OBJECTS
     case CIRCLES:
 	cp->yhigh = yhigh;
 	STORE_AND_UPDATE_RANGE(cp->xlow, xlow, dummy_type, current_plot->x_axis, 
@@ -1422,7 +1335,11 @@ store2d_point(
 	cp->xhigh = xhigh;  /* minor axis */
 	cp->ylow = ylow;    /* orientation */
 	break;
-#endif
+
+    case IMAGE:
+	STORE_AND_UPDATE_RANGE(cp->CRD_COLOR, width, dummy_type,
+				COLOR_AXIS, current_plot->noautoscale, NOOP);
+	break;
 
     default:			/* auto-scale to xlow xhigh ylow yhigh */
 	STORE_AND_UPDATE_RANGE(cp->xlow, xlow, dummy_type, current_plot->x_axis, 
@@ -1588,6 +1505,11 @@ boxplot_range_fiddling(struct curve_points *plot)
     if (plot->points[0].type == UNDEFINED)
 	int_error(NO_CARET,"boxplot has undefined x coordinate");
 
+    /* If outliers were processed, that has taken care of autoscaling. */
+    /* If not we need to calculate the whisker bar ends to determine yrange */
+    if (!boxplot_opts.outliers)
+	autoscale_boxplot(plot);
+
     extra_width = plot->points[0].xhigh - plot->points[0].xlow;
     if (extra_width == 0)
 	extra_width = (boxwidth > 0 && boxwidth_is_absolute) ? boxwidth : 0.5;
@@ -1608,6 +1530,7 @@ boxplot_range_fiddling(struct curve_points *plot)
 	else if (axis_array[plot->x_axis].max <= plot_max + extra_width)
 	    axis_array[plot->x_axis].max += extra_width;
     }
+
 }
 
 /* Since the stored x values for histogrammed data do not correspond exactly */
@@ -1628,7 +1551,7 @@ histogram_range_fiddling(struct curve_points *plot)
 		if (plot->histogram_sequence == 0) {
 		    if (stackheight)
 			free(stackheight);
-		    stackheight = gp_alloc( plot->p_count * sizeof(struct coordinate GPHUGE),
+		    stackheight = gp_alloc( plot->p_count * sizeof(struct coordinate),
 					    "stackheight array");
 		    for (stack_count=0; stack_count < plot->p_count; stack_count++) {
 			stackheight[stack_count].yhigh = 0;
@@ -1636,7 +1559,7 @@ histogram_range_fiddling(struct curve_points *plot)
 		    }
 		} else if (plot->p_count > stack_count) {
 		    stackheight = gp_realloc( stackheight,
-					    plot->p_count * sizeof(struct coordinate GPHUGE),
+					    plot->p_count * sizeof(struct coordinate),
 					    "stackheight array");
 		    for ( ; stack_count < plot->p_count; stack_count++) {
 			stackheight[stack_count].yhigh = 0;
@@ -1685,12 +1608,13 @@ histogram_range_fiddling(struct curve_points *plot)
 		/* FIXME: Rather than trying to reproduce the layout along X */
 		/* we should just track the actual xmin/xmax as we go.       */
 		if (axis_array[FIRST_X_AXIS].set_autoscale) {
-		    if ((axis_array[FIRST_X_AXIS].set_autoscale & AUTOSCALE_MIN))
+		    if ((axis_array[FIRST_X_AXIS].set_autoscale & AUTOSCALE_MIN)) {
 			xlow = -1.0;
+			if (axis_array[FIRST_X_AXIS].min > xlow)
+			    axis_array[FIRST_X_AXIS].min = xlow;
+		    }
 		    xhigh = plot->histogram_sequence;
 		    xhigh += plot->histogram->start + 1.0;
-		    if (axis_array[FIRST_X_AXIS].min > xlow)
-			axis_array[FIRST_X_AXIS].min = xlow;
 		    if (axis_array[FIRST_X_AXIS].max != xhigh)
 			axis_array[FIRST_X_AXIS].max  = xhigh;
 		}
@@ -1756,6 +1680,31 @@ impulse_range_fiddling(struct curve_points *plot)
     }
 }
 
+/* Clean up x and y axis bounds for parallel plots */
+static void
+parallel_range_fiddling(struct curve_points *plot)
+{
+    int num_parallelplots = 0;
+
+    while (plot) {
+	if (plot->plot_style == PARALLELPLOT) {
+	    double x = parallel_axis_array[plot->p_axis-1].paxis_x;
+	    autoscale_one_point( (&axis_array[plot->x_axis]), x-1.0 );
+	    autoscale_one_point( (&axis_array[plot->x_axis]), x+1.0 );
+	    num_parallelplots++;
+	}
+	plot = plot->next;
+    }
+
+    /* The normal y axis is not used by parallel plots, so if no */
+    /* range is established then we get lots of warning messages */
+    if (num_parallelplots > 0) {
+	if (axis_array[FIRST_Y_AXIS].min == VERYLARGE)
+	    axis_array[FIRST_Y_AXIS].min = 0.0;
+	if (axis_array[FIRST_Y_AXIS].max == -VERYLARGE)
+	    axis_array[FIRST_Y_AXIS].max = 1.0;
+    }
+}
 
 /* store_label() is called by get_data for each point */
 /* This routine is exported so it can be shared by plot3d */
@@ -1767,13 +1716,17 @@ store_label(
     char *string,               /* start of label string */
     double colorval)            /* used if text color derived from palette */
 {
-    struct text_label *tl = listhead;
+    static struct text_label *tl = NULL;
     int textlen;
 
-    /* Walk through list to get to the end. Yes I know this is inefficient */
-    /* but is anyone really going to plot so many labels that it matters?  */
-    if (!tl) int_error(NO_CARET,"text_label list was not initialized");
-    while (tl->next) tl = tl->next;
+    if (!listhead)
+	int_error(NO_CARET,"text_label list was not initialized");
+
+    /* If listhead->next is NULL, the list is currently empty and we will */
+    /* insert this label at the head.  Otherwise tl already points to the */
+    /* tail (previous insertion) and we will add the new label there.     */
+    if (listhead->next == NULL)
+	tl = listhead;
 
     /* Allocate a new label structure and fill it in */
     tl->next = gp_alloc(sizeof(struct text_label),"labelpoint label");
@@ -1784,6 +1737,11 @@ store_label(
     tl->place.x = cp->x;
     tl->place.y = cp->y;
     tl->place.z = cp->z;
+
+    /* optional variables from user spec */
+    tl->rotate = cp->CRD_ROTATE;
+    tl->lp_properties.p_type = cp->CRD_PTTYPE;
+    tl->lp_properties.p_size = cp->CRD_PTSIZE;
 
     /* Check for optional (textcolor palette ...) */
     if (tl->textcolor.type == TC_Z)
@@ -1857,6 +1815,8 @@ store_label(
     parse_esc(tl->text);
 
     FPRINTF((stderr,"LABELPOINT %f %f \"%s\" \n", tl->place.x, tl->place.y, tl->text));
+    FPRINTF((stderr,"           %g %g %g %g %g %g %g\n",
+		cp->x, cp->y, cp->xlow, cp->xhigh, cp->ylow, cp->yhigh, cp->z));
 
     return tl;
 }
@@ -1895,6 +1855,7 @@ eval_plots()
     int nbins = 0;
     double binlow = 0, binhigh = 0, binwidth = 0;
 
+    /* Histogram bookkeeping */
     double newhist_start = 0.0;
     int histogram_sequence = -1;
     int newhist_color = 1;
@@ -1902,6 +1863,11 @@ eval_plots()
     histogram_rightmost = 0.0;
     free_histlist(&histogram_opts);
     init_histogram(NULL,NULL);
+
+    /* Parallel plot bookkeeping */
+    paxis_start = -1;
+    paxis_end = -1;
+    paxis_current = -1;
 
     uses_axis[FIRST_X_AXIS] =
 	uses_axis[FIRST_Y_AXIS] =
@@ -1989,16 +1955,18 @@ eval_plots()
 		    c_token++;
 		    newhist_color = int_expression();
 		}
-		parse_fillstyle(&fs, FS_SOLID, 100, fs.fillpattern, default_fillstyle.border_color);
+		fs.fillstyle = FS_SOLID;
+		fs.filldensity = 100;
+		fs.border_color = default_fillstyle.border_color;
+		parse_fillstyle(&fs);
 
 		} while (c_token != previous_token);
 
 	    newhist_pattern = fs.fillpattern;
 	    if (!equals(c_token,","))
 		int_error(c_token,"syntax error");
-	} else
 
-	if (is_definition(c_token)) {
+	} else if (is_definition(c_token)) {
 	    define();
 	    if (equals(c_token,","))
 		c_token++;
@@ -2017,9 +1985,8 @@ eval_plots()
 	    TBOOLEAN set_fillstyle = FALSE;
 	    TBOOLEAN set_fillcolor = FALSE;
 	    TBOOLEAN set_labelstyle = FALSE;
-#ifdef EAM_OBJECTS
 	    TBOOLEAN set_ellipseaxes_units = FALSE;
-#endif
+	    double paxis_x = -VERYLARGE;
 	    t_colorspec fillcolor = DEFAULT_COLORSPEC;
 
 	    /* CHANGE: Aug 2017
@@ -2032,7 +1999,7 @@ eval_plots()
 	    plot_num++;
 
 	    /* Check for a sampling range. */
-	    init_sample_range(axis_array + FIRST_X_AXIS);
+	    init_sample_range(axis_array + FIRST_X_AXIS, DATA);
 	    sample_range_token = parse_range(SAMPLE_AXIS);
 	    v_range_token = 0;
 	    if (sample_range_token != 0) {
@@ -2069,6 +2036,8 @@ eval_plots()
 		    int_error(c_token, "previous parametric function not fully specified");
 		if (sample_range_token !=0 && *name_str != '+')
 		    int_warn(sample_range_token, "Ignoring sample range in non-sampled data plot");
+		if (*name_str == '$' && !get_datablock(name_str))
+		    int_error(c_token-1, "cannot plot voxel data");
 
 		if (*tp_ptr)
 		    this_plot = *tp_ptr;
@@ -2114,9 +2083,19 @@ eval_plots()
 		/* include modifiers in default title */
 		this_plot->token = end_token = c_token - 1;
 
-	    } else {
+	    } else if (equals(c_token, "keyentry")) {
+		c_token++;
+		if (*tp_ptr)
+		    this_plot = *tp_ptr;
+		else {          /* no memory malloc()'d there yet */
+		    this_plot = cp_alloc(MIN_CRV_POINTS);
+		    *tp_ptr = this_plot;
+		}
+		this_plot->plot_type = KEYENTRY;
+		this_plot->plot_style = LABELPOINTS;
+		this_plot->token = end_token = c_token - 1;
 
-		/* function to plot */
+	    } else { /* function to plot */
 
 		some_functions = TRUE;
 		if (parametric) /* working on x parametric function */
@@ -2137,6 +2116,9 @@ eval_plots()
 	    /* axis defaults */
 	    x_axis = FIRST_X_AXIS;
 	    y_axis = FIRST_Y_AXIS;
+
+	    /*  Set this before parsing any modifying options */
+	    this_plot->base_linetype = line_num;
 
 	    /* pm 25.11.2001 allow any order of options */
 	    while (!END_OF_COMMAND) {
@@ -2214,6 +2196,10 @@ eval_plots()
 			this_plot->plot_smooth = found_token;
 			this_plot->plot_style = LINES;
 			break;
+		    case SMOOTH_ZSORT:
+			this_plot->plot_smooth = SMOOTH_ZSORT;
+			this_plot->plot_style = POINTSTYLE;
+			break;
 		    case SMOOTH_NONE:
 		    default:
 			int_error(c_token, "unrecognized 'smooth' option");
@@ -2285,6 +2271,7 @@ eval_plots()
 		    if (parametric && in_parametric)
 			int_error(c_token, "\"with\" allowed only after parametric function fully specified");
 		    this_plot->plot_style = get_style();
+
 		    if (this_plot->plot_style == FILLEDCURVES) {
 			/* read a possible option for 'with filledcurves' */
 			get_filledcurves_style_options(&this_plot->filledcurves_options);
@@ -2293,7 +2280,7 @@ eval_plots()
 		    if (this_plot->plot_style == IMAGE
 		    ||  this_plot->plot_style == RGBIMAGE
 		    ||  this_plot->plot_style == RGBA_IMAGE) {
-			if (this_plot->plot_type == FUNC)
+			if (this_plot->plot_type != DATA)
 			    int_error(c_token, "This plot style is only for data files");
 			else
 			    get_image_options(&this_plot->image_properties);
@@ -2338,7 +2325,15 @@ eval_plots()
 		    }
 		}
 
-		if (this_plot->plot_style == VECTOR) {
+		if (this_plot->plot_style == PARALLELPLOT) {
+		    if (equals(c_token, "at")) {
+			c_token++;
+			paxis_x = real_expression();
+			continue;
+		    }
+		}
+
+		if (this_plot->plot_style & PLOT_STYLE_HAS_VECTOR) {
 		    int stored_token = c_token;
 
 		    if (!set_lpstyle) {
@@ -2361,7 +2356,6 @@ eval_plots()
 		    }
 		}
 
-#ifdef EAM_OBJECTS
 		/* pick up the special 'units' keyword the 'ellipses' style allows */
 		if (this_plot->plot_style == ELLIPSES) {
 		    int stored_token = c_token;
@@ -2391,7 +2385,6 @@ eval_plots()
 			}
 		    }
 		}
-#endif
 
 		/* Most plot styles accept line and point properties */
 		/* but do not want font or text properties           */
@@ -2403,7 +2396,6 @@ eval_plots()
 		    lp.l_type = line_num;
 		    lp.p_type = line_num;
 		    lp.d_type = line_num;
-		    this_plot->base_linetype = line_num;
 
 		    /* user may prefer explicit line styles */
 		    if (prefer_line_styles)
@@ -2411,8 +2403,12 @@ eval_plots()
 		    else
 			load_linetype(&lp, line_num+1);
 
-		    if (this_plot->plot_style == BOXPLOT)
+		    if (this_plot->plot_style == BOXPLOT) {
 			lp.p_type = boxplot_opts.pointtype;
+			lp.p_size = PTSZ_DEFAULT;
+			if (!boxplot_opts.outliers)
+			    this_plot->noautoscale = TRUE;
+		    }
 
 		    new_lt = lp_parse(&lp, LP_ADHOC,
 				     this_plot->plot_style & PLOT_STYLE_HAS_POINT);
@@ -2466,11 +2462,9 @@ eval_plots()
 		if (this_plot->plot_style & PLOT_STYLE_HAS_FILL){
 		    int stored_token = c_token;
 		    if (equals(c_token,"fs") || almost_equals(c_token,"fill$style")) {
-			parse_fillstyle(&this_plot->fill_properties,
-				default_fillstyle.fillstyle,
-				default_fillstyle.filldensity,
-				pattern_num,
-				default_fillstyle.border_color);
+			this_plot->fill_properties = default_fillstyle;
+			this_plot->fill_properties.fillpattern = pattern_num;
+			parse_fillstyle(&this_plot->fill_properties);
 			if (this_plot->plot_style == FILLEDCURVES
 			&& this_plot->fill_properties.fillstyle == FS_EMPTY)
 			    this_plot->fill_properties.fillstyle = FS_SOLID;
@@ -2499,21 +2493,21 @@ eval_plots()
 	    }
 
 	    /* set default values for title if this has not been specified */
-	    this_plot->title_is_filename = FALSE;
+	    this_plot->title_is_automated = FALSE;
 	    if (!set_title) {
 		this_plot->title_no_enhanced = TRUE; /* filename or function cannot be enhanced */
 		if (key->auto_titles == FILENAME_KEYTITLES) {
 		    m_capture(&(this_plot->title), start_token, end_token);
 		    if (in_parametric)
 			xtitle = this_plot->title;
-		    this_plot->title_is_filename = TRUE;
+		    this_plot->title_is_automated = TRUE;
 		} else if (xtitle != NULL)
 		    xtitle[0] = '\0';
 	    }
 
 	    /* Vectors will be drawn using linetype from arrow style, so we
 	     * copy this to overall plot linetype so that the key sample matches */
-	    if (this_plot->plot_style == VECTOR) {
+	    if (this_plot->plot_style & PLOT_STYLE_HAS_VECTOR) {
 		if (!set_lpstyle) {
 		    if (prefer_line_styles)
 			lp_use_properties(&(this_plot->arrow_properties.lp_properties), line_num+1);
@@ -2540,8 +2534,10 @@ eval_plots()
 		else
 		    load_linetype(&this_plot->lp_properties, line_num+1);
 
-		if (this_plot->plot_style == BOXPLOT)
+		if (this_plot->plot_style == BOXPLOT) {
 		    this_plot->lp_properties.p_type = boxplot_opts.pointtype;
+		    this_plot->lp_properties.p_size = PTSZ_DEFAULT;
+		}
 
 		lp_parse(&this_plot->lp_properties, LP_ADHOC,
 			 this_plot->plot_style & PLOT_STYLE_HAS_POINT);
@@ -2585,12 +2581,11 @@ eval_plots()
 
 	    /* If we got this far without initializing the fill style, do it now */
 	    if (this_plot->plot_style & PLOT_STYLE_HAS_FILL) {
-		if (!set_fillstyle)
-		    parse_fillstyle(&this_plot->fill_properties,
-				default_fillstyle.fillstyle,
-				default_fillstyle.filldensity,
-				pattern_num,
-				default_fillstyle.border_color);
+		if (!set_fillstyle) {
+		    this_plot->fill_properties = default_fillstyle;
+		    this_plot->fill_properties.fillpattern = pattern_num;
+		    parse_fillstyle(&this_plot->fill_properties);
+		}
 		if ((this_plot->fill_properties.fillstyle == FS_PATTERN)
 		  ||(this_plot->fill_properties.fillstyle == FS_TRANSPARENT_PATTERN))
 		    pattern_num = this_plot->fill_properties.fillpattern + 1;
@@ -2649,6 +2644,10 @@ eval_plots()
 		 
 	    }
 
+	    /* We can skip a lot of stuff if this is not a real plot */
+	    if (this_plot->plot_type == KEYENTRY)
+		goto SKIPPED_EMPTY_FILE;
+
 	    /* Initialize the label list in case the BOXPLOT style needs it to store factors */
 	    if (this_plot->plot_style == BOXPLOT) {
 		if (this_plot->labels == NULL)
@@ -2688,6 +2687,23 @@ eval_plots()
 						    + this_plot->histogram->startpattern;
 	    }
 
+	    /* Parallel plot data bookkeeping */
+	    if (this_plot->plot_style == PARALLELPLOT) {
+		/* FIXME - sanity check to prevent intervening non-parallelplot plots */
+		if (paxis_start < 0) {
+		    paxis_start = 1;
+		    paxis_current = 0;
+		}
+		paxis_current++;
+		paxis_end = paxis_current;
+		if (paxis_current > num_parallel_axes)
+		    extend_parallel_axis(paxis_current);   
+		this_plot->p_axis = paxis_current;
+		axis_init(&parallel_axis_array[paxis_current-1], TRUE);
+		parallel_axis_array[paxis_current-1].paxis_x
+			= (paxis_x > -VERYLARGE) ? paxis_x : (double)paxis_current;
+	    }
+
 	    /* Styles that use palette */
 
 	    /* we can now do some checks that we deferred earlier */
@@ -2700,19 +2716,6 @@ eval_plots()
 		    goto SKIPPED_EMPTY_FILE;
 		}
 
-		/* Parallel plots require allocating additional storage.		*/
-		/* NB: This will be one column more than needed if the final column	*/
-		/*     contains variable color information. We will free it later.	*/
-		if (this_plot->plot_style == PARALLELPLOT) {
-		    int i;
-		    if (df_no_use_specs < 2)
-			int_error(NO_CARET, "not enough 'using' columns");
-		    this_plot->n_par_axes = df_no_use_specs;
-		    this_plot->z_n = gp_alloc((df_no_use_specs) * sizeof(double*), "z_n");
-		    for (i = 0; i < this_plot->n_par_axes; i++)
-			this_plot->z_n[i] = gp_alloc(this_plot->p_max * sizeof(double), "z_n[i]");
-		}
-		
 		/* Reset flags to auto-scale X axis to contents of data set */
 		if (!(uses_axis[x_axis] & USES_AXIS_FOR_DATA) && X_AXIS.autoscale) {
 		    struct axis *scaling_axis = &axis_array[this_plot->x_axis];
@@ -2729,7 +2732,8 @@ eval_plots()
 		    if (specs < 1)
 			int_error(c_token, "Need using spec for y time data");
 		}
-		/* need other cols, but I'm lazy */
+
+		/* NB: df_axis is used only for timedate data and 3D cbticlabels */
 		df_axis[0] = x_axis;
 		df_axis[1] = y_axis;
 
@@ -2744,8 +2748,9 @@ eval_plots()
 		uses_axis[y_axis] |= USES_AXIS_FOR_FUNC;
 	    }
 
-	    /* These plot styles do not consume line/point properties */
-	    if (!in_parametric && this_plot->plot_style != IMAGE
+	    /* These plot styles are not differentiated by line/point properties */
+	    if (!in_parametric
+	        && this_plot->plot_style != IMAGE
 		&& this_plot->plot_style != RGBIMAGE && this_plot->plot_style != RGBA_IMAGE
 	    ) {
 		++line_num;
@@ -2754,7 +2759,7 @@ eval_plots()
 	    /* Image plots require 2 input dimensions */
 	    if (this_plot->plot_style == IMAGE
 	    ||  this_plot->plot_style == RGBIMAGE ||  this_plot->plot_style == RGBA_IMAGE) {
-		if (!strcmp(df_filename,"+"))
+		if (!df_filename || !strcmp(df_filename,"+"))
 		    int_error(NO_CARET, "image plots need more than 1 coordinate dimension ");
 	    }
 
@@ -2831,6 +2836,10 @@ eval_plots()
 		case SMOOTH_MONOTONE_CSPLINE:
 		    sort_points(this_plot);
 		    cp_implode(this_plot);
+		    break;
+		case SMOOTH_ZSORT:
+		    zsort_points(this_plot);
+		    break;
 		case SMOOTH_NONE:
 		case SMOOTH_BEZIER:
 		case SMOOTH_KDENSITY:
@@ -2912,7 +2921,9 @@ eval_plots()
 	    this_plot->plot_type = NODATA;
 	if (forever_iteration(plot_iterator) && (this_plot->plot_type == NODATA)) {
 	    FPRINTF((stderr,"Ending * iteration at %d\n",plot_iterator->iteration));
-	    ;
+	    /* Clearing the plot title ensures that it will not appear in the key */
+	    free (this_plot->title);
+	    this_plot->title = NULL;
 	} else if (forever_iteration(plot_iterator) && (this_plot->plot_type == FUNC)) {
 	    int_error(NO_CARET,"unbounded iteration in function plot");
 	} else if (next_iteration(plot_iterator)) {
@@ -2998,10 +3009,6 @@ eval_plots()
 	    }
 	}
 
-	/* FIXME HBB 20000430: here and elsewhere, the code explicitly
-	 * assumes that the dummy variables (t, u, v) cannot possibly
-	 * be logscaled in parametric or polar mode. Does this
-	 * *really* hold? */
 	if (parametric || polar) {
 	    t_min = axis_array[T_AXIS].min;
 	    t_max = axis_array[T_AXIS].max;
@@ -3048,12 +3055,15 @@ eval_plots()
 
 		/* Check for a sampling range. */
 		/* Only relevant to function plots, and only needed in second pass. */
-		init_sample_range(axis_array + x_axis);
+		if (!parametric && !polar)
+		    init_sample_range(axis_array + x_axis, FUNC);
 		sample_range_token = parse_range(SAMPLE_AXIS);
 		dummy_func = &plot_func;
 
 		if (almost_equals(c_token, "newhist$ogram")) {
 		    /* Make sure this isn't interpreted as a function */
+		    name_str = "";
+		} else if (equals(c_token, "keyentry")) {
 		    name_str = "";
 		} else {
 		    /* Allow replacement of the dummy variable in a function */
@@ -3097,31 +3107,31 @@ eval_plots()
 			double x, temp;
 			struct value a;
 			double t = t_min + i * t_step;
-			if (axis_array[SAMPLE_AXIS].linked_to_primary) {
+
+			if (parametric) {
+			    /* SAMPLE_AXIS is not relevant in parametric mode */
+			} else if (axis_array[SAMPLE_AXIS].linked_to_primary) {
 			    AXIS *vis = axis_array[SAMPLE_AXIS].linked_to_primary->linked_to_secondary;
 			    t = eval_link_function(vis, t_min + i * t_step);
-			} else
-			    t = t_min + i * t_step;
+			} else {
+			    /* Zero is often a special point in a function domain. */
+			    /* Make sure we don't miss it due to round-off error.  */
+			    if ((fabs(t) < 1.e-9) && (fabs(t_step) > 1.e-6))
+				t = 0.0;
+			}
 
-			/* Zero is often a special point in a function domain.	*/
-			/* Make sure we don't miss it due to round-off error.	*/
-			/* NB: This is a stricter test than CheckZero(). 	*/
-			if ((fabs(t) < 1.e-9) && (fabs(t_step) > 1.e-6))
-			    t = 0.0;
-
-			/* parametric/polar => NOT a log quantity */
 			x = t;
-
 			(void) Gcomplex(&plot_func.dummy_values[0], x, 0.0);
 			evaluate_at(plot_func.at, &a);
 
+			/* Imaginary values are treated as UNDEFINED */
 			if (undefined || (fabs(imag(&a)) > zero)) {
 			    this_plot->points[i].type = UNDEFINED;
 			    continue;
-			} else {
-			    /* Jan 2010 - initialize all fields! */
-			    memset(&this_plot->points[i], 0, sizeof(struct coordinate));
 			}
+
+			/* Jan 2010 - initialize all fields! */
+			memset(&this_plot->points[i], 0, sizeof(struct coordinate));
 
 			temp = real(&a);
 
@@ -3131,12 +3141,10 @@ eval_plots()
 			this_plot->points[i].type = INRANGE;
 
 			if (parametric) {
-			    /* we cannot do range-checking now, since for
-			     * the x function we did not know which axes
-			     * we were using
-			     * DO NOT TAKE LOGS YET - do it in parametric_fixup
+			    /* The syntax is plot x, y XnYnaxes
+			     * so we do not know the actual plot axes until
+			     * the y plot and cannot do range-checking now.
 			     */
-			    /* ignored, actually... */
 			    this_plot->points[i].x = t;
 			    this_plot->points[i].y = temp;
 			    if (boxwidth >= 0 && boxwidth_is_absolute )
@@ -3211,7 +3219,6 @@ eval_plots()
 			    }
 			    
 			    /* Fill in additional fields needed to draw a circle */
-#ifdef EAM_OBJECTS
 			    if (this_plot->plot_style == CIRCLES) {
 				this_plot->points[i].z = DEFAULT_RADIUS;
 				this_plot->points[i].ylow = 0;
@@ -3220,7 +3227,6 @@ eval_plots()
 				this_plot->points[i].z = DEFAULT_RADIUS;
 				this_plot->points[i].ylow = default_ellipse.o.ellipse.orientation;
 			    }
-#endif
 
 			    STORE_AND_UPDATE_RANGE(this_plot->points[i].y, temp, 
 			    	this_plot->points[i].type, in_parametric ? x_axis : y_axis,
@@ -3297,6 +3303,12 @@ eval_plots()
 	if (first_plot->plot_type == NODATA)
 	    int_error(NO_CARET,"No data in plot");
 
+    /* Parallelaxis plots do not use the normal y axis so if no other plots
+     * are present yrange may still be undefined. We fix that now.
+     * In the absence of parallelaxis plots this call does nothing.
+     */
+    parallel_range_fiddling(first_plot);
+
     /* gnuplot version 5.0 always used x1 to track autoscaled range
      * regardless of whether x1 or x2 was used to plot the data. 
      * In version 5.2 we track the x1/x2 axis data limits separately.
@@ -3318,6 +3330,7 @@ eval_plots()
 	if (axis_array[FIRST_X_AXIS].max == -VERYLARGE ||
 	    axis_array[FIRST_X_AXIS].min == VERYLARGE)
 	    int_error(NO_CARET, "all points undefined!");
+	axis_check_range(FIRST_X_AXIS);
     } else {
 	assert(uses_axis[SECOND_X_AXIS]);
     }
@@ -3325,11 +3338,10 @@ eval_plots()
 	if (axis_array[SECOND_X_AXIS].max == -VERYLARGE ||
 	    axis_array[SECOND_X_AXIS].min == VERYLARGE)
 	    int_error(NO_CARET, "all points undefined!");
+	axis_check_range(SECOND_X_AXIS);
     } else {
 	assert(uses_axis[FIRST_X_AXIS]);
     }
-    axis_check_range(FIRST_X_AXIS);
-    axis_check_range(SECOND_X_AXIS);
 
     /* For nonlinear axes, but must also be compatible with "set link x".   */
     /* min/max values were tracked during input for the visible axes.       */
@@ -3339,6 +3351,9 @@ eval_plots()
 
     if (this_plot && this_plot->plot_style == TABLESTYLE) {
 	/* the y axis range has no meaning in this case */
+	;
+    } else if (this_plot && this_plot->plot_style == PARALLELPLOT) {
+	/* we should maybe check one of the parallel axes? */
 	;
     } else if (uses_axis[FIRST_Y_AXIS] && nonlinear(&axis_array[FIRST_Y_AXIS])) {
 	axis_checked_extend_empty_range(FIRST_Y_AXIS, "all points y value undefined!");
@@ -3371,21 +3386,14 @@ eval_plots()
 	    axis_array[FIRST_Y_AXIS].max = axis_array[SECOND_Y_AXIS].max;
     }
 
-    /* This call was in boundary(), called from do_plot(), but it caused
-     * logscaling problems if do_plot() itself was called for refresh
-     * rather than for plot/replot.  So we moved it here (June 2014)
-     * and added palette checks (March 2017).
+    /* This call cannot be in boundary(), called from do_plot(), because
+     * it would cause logscaling problems if do_plot() itself was called for
+     * refresh rather than for plot/replot.
      */
     set_plot_with_palette(0, MODE_PLOT);
     if (is_plot_with_palette())
 	set_cbminmax();
 
-    /* the following ~5 lines were moved from the end of the
-     * function to here, as do_plot calles term->text, which
-     * itself might process input events in mouse enhanced
-     * terminals. For redrawing to work, line capturing and
-     * setting the plot_num must already be done before
-     * entering do_plot(). Thu Jan 27 23:56:24 2000 (joze) */
     /* if we get here, all went well, so record this line for replot */
     if (plot_token != -1) {
 	/* note that m_capture also frees the old replot_line */
@@ -3458,10 +3466,9 @@ parametric_fixup(struct curve_points *start_plot, int *plot_num)
 
 	    assert(xp->p_count == yp->p_count);
 
-	    /* because syntax is   plot x(t), y(t) axes ..., only
+	    /* IMPORTANT: because syntax is   plot x(t), y(t) XnYnaxes ..., only
 	     * the y function axes are correct
 	     */
-
 
 	    /*
 	     * Go through all the points assigning the y's from xp to be
@@ -3475,7 +3482,7 @@ parametric_fixup(struct curve_points *start_plot, int *plot_num)
 		    double r = yp->points[i].y;
 		    double t = xp->points[i].y;
 		    /* Convert from polar to cartesian coordinate and check ranges */
-		    /* FIXME: The old in-line conversion checked R_AXIS.max agains fabs(r).
+		    /* Note: The old in-line conversion checked R_AXIS.max agains fabs(r).
 		     * That's not what polar_to_xy() is currently doing.
 		     */
 		    if (polar_to_xy(t, r, &x, &y, TRUE) == OUTRANGE)
@@ -3493,9 +3500,9 @@ parametric_fixup(struct curve_points *start_plot, int *plot_num)
 		    STORE_AND_UPDATE_RANGE( yp->points[i].xhigh, x + boxwidth/2, dmy_type, yp->x_axis,
 					     xp->noautoscale, NOOP );
 		}
-		STORE_AND_UPDATE_RANGE( yp->points[i].x, x, yp->points[i].type, xp->x_axis,
+		STORE_AND_UPDATE_RANGE( yp->points[i].x, x, yp->points[i].type, yp->x_axis,
 		    			xp->noautoscale, NOOP);
-		STORE_AND_UPDATE_RANGE( yp->points[i].y, y, yp->points[i].type, xp->y_axis,
+		STORE_AND_UPDATE_RANGE( yp->points[i].y, y, yp->points[i].type, yp->y_axis,
 		    			xp->noautoscale, NOOP);
 	    }
 
@@ -3575,7 +3582,9 @@ parse_plot_title(struct curve_points *this_plot, char *xtitle, char *ytitle, TBO
 		/* We can evaluate the title for a function plot immediately */
 		/* FIXME: or this code could go into eval_plots() so that    */
 		/*        function and data plots are treated the same way.  */
-		if (this_plot->plot_type == FUNC || this_plot->plot_type == FUNC3D) {
+		if (this_plot->plot_type == FUNC || this_plot->plot_type == FUNC3D
+		||  this_plot->plot_type == VOXELDATA
+		||  this_plot->plot_type == KEYENTRY) {
 		    struct value a;
 		    evaluate_at(df_plot_title_at, &a);
 		    if (a.type == STRING) {
@@ -3642,6 +3651,16 @@ reevaluate_plot_title(struct curve_points *this_plot)
 	if (a.type == STRING) {
 	    free(this_plot->title);
 	    this_plot->title = a.v.string_val;
+	    /* Special case where the "title" is used as a tic label */
+	    if (this_plot->plot_style == HISTOGRAMS
+	    &&  histogram_opts.type == HT_STACKED_IN_TOWERS) {
+		double xpos = this_plot->histogram_sequence + this_plot->histogram->start;
+		add_tic_user(&axis_array[FIRST_X_AXIS], this_plot->title, xpos, -1);
+	    }
+	    if (this_plot->plot_style == PARALLELPLOT) {
+		double xpos = parallel_axis_array[this_plot->p_axis-1].paxis_x;
+		add_tic_user(&axis_array[FIRST_X_AXIS], this_plot->title, xpos, -1);
+	    }
 	}
     }
 }

@@ -48,15 +48,15 @@
  * with the distribution.
  *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
- * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE 
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
- * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE 
- * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR 
- * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF 
- * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS 
- * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN 
- * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) 
- * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
+ * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+ * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  *
 ]*/
@@ -65,7 +65,7 @@
 
 t_jitter jitter = {{first_axes, first_axes, first_axes, 0.0, 0.0, 0.0}, 0.0, 0.0, JITTER_DEFAULT};
 
-static int compare_xypoints __PROTO((SORTFUNC_ARGS arg1, SORTFUNC_ARGS arg2));
+static int compare_xypoints(SORTFUNC_ARGS arg1, SORTFUNC_ARGS arg2);
 
 static int
 compare_xypoints(SORTFUNC_ARGS arg1, SORTFUNC_ARGS arg2)
@@ -89,7 +89,7 @@ compare_xypoints(SORTFUNC_ARGS arg1, SORTFUNC_ARGS arg2)
 }
 
 /*
- * "set jitter overlap <ydelta> spread <factor>" 
+ * "set jitter overlap <ydelta> spread <factor>"
  * displaces overlapping points in a point plot.
  * The jittering algorithm is inspired by the beeswarm plot variant in R.
  */
@@ -141,13 +141,19 @@ jitter_points(struct curve_points *plot)
 			xjit -= jitter.limit;
 	    if ((j & 01) != 0)
 		    xjit = -xjit;
-
 	    plot->points[i+j].xhigh = xjit;
 
 	    if (jitter.style == JITTER_SQUARE)
 		plot->points[i+j].yhigh = plot->points[i].y - plot->points[i+j].y;
+
+	    /* Displace points on y instead of x */
+	    if (jitter.style == JITTER_ON_Y) {
+		plot->points[i+j].yhigh = xjit;
+		plot->points[i+j].xhigh = 0;
+	    }
+
 	}
-        i += j;
+	i += j;
     }
 
     /* Copy variable colors back to where the plotting code expects to find them */
@@ -191,6 +197,9 @@ set_jitter()
 	} else if (equals(c_token, "wrap")) {
 	    c_token++;
 	    jitter.limit = real_expression();
+	} else if (almost_equals(c_token, "vert$ical")) {
+	    c_token++;
+	    jitter.style = JITTER_ON_Y;
 	} else
 	    int_error(c_token, "unrecognized keyword");
     }
@@ -205,10 +214,11 @@ show_jitter()
 	return;
     }
     fprintf(stderr, "\toverlap criterion  %g %s coords\n", jitter.overlap.x, coord_msg[jitter.overlap.scalex]);
-    fprintf(stderr, "\tspread multiplier on x: %g\n", jitter.spread);
+    fprintf(stderr, "\tspread multiplier on x (or y): %g\n", jitter.spread);
     if (jitter.limit > 0)
 	fprintf(stderr, "\twrap at %g character widths\n", jitter.limit);
-    fprintf(stderr, "\tstyle: %s\n", jitter.style == JITTER_SQUARE ? "square" : "swarm");
+    fprintf(stderr, "\tstyle: %s\n", jitter.style == JITTER_SQUARE ? "square" :
+			jitter.style == JITTER_ON_Y ? "vertical" : "swarm");
 }
 
 /* process 'unset jitter' command */
@@ -228,6 +238,7 @@ save_jitter(FILE *fp)
 	fprintf(fp, "set jitter overlap %s%g",
 		jitter.overlap.scalex == character ? "" : coord_msg[jitter.overlap.scalex], jitter.overlap.x);
 	fprintf(fp, "  spread %g  wrap %g", jitter.spread, jitter.limit);
-	fprintf(fp, jitter.style == JITTER_SQUARE ? " square\n" : "\n");
+	fprintf(fp, jitter.style == JITTER_SQUARE ? " square\n" :
+		    jitter.style == JITTER_ON_Y ? " vertical\n" : "\n");
     }
 }
