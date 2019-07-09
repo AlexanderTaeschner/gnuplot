@@ -107,7 +107,8 @@
 $(SolutionDir)$(PlatformShortName)\$(Configuration)\gnuplot.exe -d -e "winhelp=1; cd '$(SolutionDir)..\..\..\docs'" plotstyles.gnu
 "C:\Program Files (x86)\HTML Help Workshop\hhc.exe" $(SolutionDir)..\..\..\docs\windows\wgnuplot.hhp
 IF ERRORLEVEL 1 ver &gt; nul
-copy /y $(SolutionDir)..\..\..\docs\windows\wgnuplot.chm $(SolutionDir)$(PlatformShortName)\$(Configuration)\wgnuplot.chm</Command>
+copy /y $(SolutionDir)..\..\..\docs\windows\wgnuplot.chm $(SolutionDir)$(PlatformShortName)\$(Configuration)\wgnuplot.chm
+</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">

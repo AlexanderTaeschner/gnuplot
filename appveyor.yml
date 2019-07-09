@@ -5,30 +5,30 @@ branches:
   - dev
 image: Visual Studio 2017
 install:
-  - vcpkg install zlib:%PLATFORM%-windows-static
-  - vcpkg install pcre:%PLATFORM%-windows-static
-  - vcpkg install libffi:%PLATFORM%-windows-static
-  - vcpkg install gettext:%PLATFORM%-windows-static
-  - vcpkg install libiconv:%PLATFORM%-windows-static
-  - vcpkg install glib:%PLATFORM%-windows-static
-  - vcpkg install libpng:%PLATFORM%-windows-static
-  - vcpkg install pixman:%PLATFORM%-windows-static
-  - vcpkg install bzip2:%PLATFORM%-windows-static
-  - vcpkg install freetype:%PLATFORM%-windows-static
-  - vcpkg install expat:%PLATFORM%-windows-static
-  - vcpkg install fontconfig:%PLATFORM%-windows-static
-  - vcpkg install cairo:%PLATFORM%-windows-static
-  - vcpkg install harfbuzz:%PLATFORM%-windows-static
+  - vcpkg install zlib:%PLATFORM%-windows
+  - vcpkg install pcre:%PLATFORM%-windows
+  - vcpkg install libffi:%PLATFORM%-windows
+  - vcpkg install gettext:%PLATFORM%-windows
+  - vcpkg install libiconv:%PLATFORM%-windows
+  - vcpkg install glib:%PLATFORM%-windows
+  - vcpkg install libpng:%PLATFORM%-windows
+  - vcpkg install pixman:%PLATFORM%-windows
+  - vcpkg install bzip2:%PLATFORM%-windows
+  - vcpkg install freetype:%PLATFORM%-windows
+  - vcpkg install expat:%PLATFORM%-windows
+  - vcpkg install fontconfig:%PLATFORM%-windows
+  - vcpkg install cairo:%PLATFORM%-windows
+  - vcpkg install --recurse harfbuzz[core,glib,ucdn]:%PLATFORM%-windows
 ######
-  - vcpkg install pango:%PLATFORM%-windows-static
+  - vcpkg install pango:%PLATFORM%-windows
 ######
-  - vcpkg install libjpeg-turbo:%PLATFORM%-windows-static
-  - vcpkg install libwebp:%PLATFORM%-windows-static
-  - vcpkg install liblzma:%PLATFORM%-windows-static
-  - vcpkg install tiff:%PLATFORM%-windows-static
+  - vcpkg install libjpeg-turbo:%PLATFORM%-windows
+  - vcpkg install libwebp:%PLATFORM%-windows
+  - vcpkg install liblzma:%PLATFORM%-windows
+  - vcpkg install tiff:%PLATFORM%-windows
 ######
-  - vcpkg install libgd:%PLATFORM%-windows-static
-  - vcpkg install wxwidgets:%PLATFORM%-windows-static
+  - vcpkg install libgd:%PLATFORM%-windows
+  - vcpkg install wxwidgets:%PLATFORM%-windows
 cache:
   - c:\tools\vcpkg\installed\
 environment:
@@ -36,7 +36,7 @@ environment:
   APPVEYOR_CACHE_ENTRY_ZIP_ARGS: -t7z -mx
 build:
   project: config\msvc\gnuplot\gnuplot.sln
-  verbosity: minimal
+  verbosity: normal
 platform:
   - x86
   - x64

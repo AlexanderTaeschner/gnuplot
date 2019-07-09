@@ -46,11 +46,7 @@ make.log
 docs/figures.*
 docs/pdf_figures
 share/Gnuplot
-
-/config/msvc/gnuplot/wgnuplot/Debug
 .vs
-/config/msvc/gnuplot/Debug
+/config/msvc/gnuplot/x86
 /config/msvc/gnuplot/x64
-/config/msvc/gnuplot/wgnuplot/x64
-/config/msvc/gnuplot/Release
-/config/msvc/gnuplot/wgnuplot/Release
+*.vcxproj.user

@@ -170,7 +170,10 @@
 /* #undef HAVE_INDEX */
 
 /* Define to 1 if you have the <inttypes.h> header file. */
-/* #undef HAVE_INTTYPES_H */
+/* Available since VS 2013 */ 
+#if _MSC_VER >= 1800
+# define HAVE_INTTYPES_H 1
+#endif
 
 /* Define if you want to use kpsexpand (TeX). */
 /* #undef HAVE_KPSEXPAND */
@@ -653,7 +656,8 @@
 #ifdef USE_FAKEPIPES
 # define PIPES
 #elif defined(PIPES)
-# define popen _popen
+// Already defined in syscfg.h
+//# define popen _popen
 # define pclose _pclose
 #endif
 

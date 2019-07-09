@@ -52,14 +52,6 @@
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
-  <PropertyGroup Condition="'$(Platform)'=='Win32'" Label="Globals">
-    <VcpkgTriplet>x86-windows-static</VcpkgTriplet>
-    <VcpkgEnabled>true</VcpkgEnabled>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Platform)'=='x64'" Label="Globals">
-    <VcpkgTriplet>x64-windows-static</VcpkgTriplet>
-    <VcpkgEnabled>true</VcpkgEnabled>
-  </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ImportGroup Label="ExtensionSettings">
   </ImportGroup>
@@ -79,22 +71,18 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-    <LinkIncremental>false</LinkIncremental>
     <OutDir>$(SolutionDir)$(PlatformShortName)\$(Configuration)\</OutDir>
     <IntDir>$(PlatformShortName)\$(Configuration)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <LinkIncremental>false</LinkIncremental>
     <OutDir>$(SolutionDir)$(PlatformShortName)\$(Configuration)\</OutDir>
     <IntDir>$(PlatformShortName)\$(Configuration)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <LinkIncremental>false</LinkIncremental>
     <OutDir>$(SolutionDir)$(PlatformShortName)\$(Configuration)\</OutDir>
     <IntDir>$(PlatformShortName)\$(Configuration)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <LinkIncremental>false</LinkIncremental>
     <OutDir>$(SolutionDir)$(PlatformShortName)\$(Configuration)\</OutDir>
     <IntDir>$(PlatformShortName)\$(Configuration)\</IntDir>
   </PropertyGroup>
@@ -104,13 +92,13 @@
       </PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>HAVE_CONFIG_H;USE_MOUSE;WXWIDGETS;HAVE_CAIROPDF;HAVE_CAIROEPS;HAVE_LIBGD;HAVE_GD_H;HAVE_GD_GIF;GIF_ANIMATION;HAVE_GD_PNG;HAVE_GD_JPEG;HAVE_GD_TTF;HAVE_LIBPNG;BGDWIN32;NONDLL;CAIRO_WIN32_STATIC_BUILD;GNUPLOT_PS_DIR="share\\PostScript";PIPES;WGP_CONSOLE;WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>HAVE_CONFIG_H;USE_MOUSE;WXWIDGETS;HAVE_CAIROPDF;HAVE_CAIROEPS;HAVE_LIBGD;HAVE_GD_H;HAVE_GD_GIF;GIF_ANIMATION;HAVE_GD_PNG;HAVE_GD_JPEG;HAVE_GD_TTF;HAVE_LIBPNG;WXUSINGDLL;GNUPLOT_PS_DIR="share\\PostScript";PIPES;WGP_CONSOLE;WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>$(SolutionDir)..\..\..\src;$(SolutionDir)..\..\..\term;$(SolutionDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
+      <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
-      <AdditionalDependencies>Comctl32.lib;Shlwapi.lib;Msimg32.lib;Htmlhelp.lib;d2d1.lib;dwrite.lib;Usp10.lib;Rpcrt4.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>Gdiplus.lib;Comctl32.lib;Shlwapi.lib;Msimg32.lib;Htmlhelp.lib;d2d1.lib;dwrite.lib;Usp10.lib;Rpcrt4.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
       <Command>xcopy /S /E /I /Y $(VcpkgRoot)tools\fontconfig\fonts $(TargetDir)fonts</Command>
@@ -122,13 +110,13 @@
       </PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>HAVE_CONFIG_H;USE_MOUSE;WXWIDGETS;HAVE_CAIROPDF;HAVE_CAIROEPS;HAVE_LIBGD;HAVE_GD_H;HAVE_GD_GIF;GIF_ANIMATION;HAVE_GD_PNG;HAVE_GD_JPEG;HAVE_GD_TTF;HAVE_LIBPNG;BGDWIN32;NONDLL;CAIRO_WIN32_STATIC_BUILD;GNUPLOT_PS_DIR="share\\PostScript";PIPES;WGP_CONSOLE;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>HAVE_CONFIG_H;USE_MOUSE;WXWIDGETS;HAVE_CAIROPDF;HAVE_CAIROEPS;HAVE_LIBGD;HAVE_GD_H;HAVE_GD_GIF;GIF_ANIMATION;HAVE_GD_PNG;HAVE_GD_JPEG;HAVE_GD_TTF;HAVE_LIBPNG;WXUSINGDLL;GNUPLOT_PS_DIR="share\\PostScript";PIPES;WGP_CONSOLE;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>$(SolutionDir)..\..\..\src;$(SolutionDir)..\..\..\term;$(SolutionDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
+      <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
-      <AdditionalDependencies>Comctl32.lib;Shlwapi.lib;Msimg32.lib;Htmlhelp.lib;d2d1.lib;dwrite.lib;Usp10.lib;Rpcrt4.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>Gdiplus.lib;Comctl32.lib;Shlwapi.lib;Msimg32.lib;Htmlhelp.lib;d2d1.lib;dwrite.lib;Usp10.lib;Rpcrt4.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
       <Command>xcopy /S /E /I /Y $(VcpkgRoot)tools\fontconfig\fonts $(TargetDir)fonts</Command>
@@ -142,15 +130,15 @@
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <PreprocessorDefinitions>HAVE_CONFIG_H;USE_MOUSE;WXWIDGETS;HAVE_CAIROPDF;HAVE_CAIROEPS;HAVE_LIBGD;HAVE_GD_H;HAVE_GD_GIF;GIF_ANIMATION;HAVE_GD_PNG;HAVE_GD_JPEG;HAVE_GD_TTF;HAVE_LIBPNG;BGDWIN32;NONDLL;CAIRO_WIN32_STATIC_BUILD;GNUPLOT_PS_DIR="share\\PostScript";PIPES;WGP_CONSOLE;WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>HAVE_CONFIG_H;USE_MOUSE;WXWIDGETS;HAVE_CAIROPDF;HAVE_CAIROEPS;HAVE_LIBGD;HAVE_GD_H;HAVE_GD_GIF;GIF_ANIMATION;HAVE_GD_PNG;HAVE_GD_JPEG;HAVE_GD_TTF;HAVE_LIBPNG;WXUSINGDLL;GNUPLOT_PS_DIR="share\\PostScript";PIPES;WGP_CONSOLE;WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>$(SolutionDir)..\..\..\src;$(SolutionDir)..\..\..\term;$(SolutionDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>Comctl32.lib;Shlwapi.lib;Msimg32.lib;Htmlhelp.lib;d2d1.lib;dwrite.lib;Usp10.lib;Rpcrt4.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>Gdiplus.lib;Comctl32.lib;Shlwapi.lib;Msimg32.lib;Htmlhelp.lib;d2d1.lib;dwrite.lib;Usp10.lib;Rpcrt4.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <GenerateDebugInformation>false</GenerateDebugInformation>
       <LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration>
     </Link>
@@ -166,15 +154,15 @@
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <PreprocessorDefinitions>HAVE_CONFIG_H;USE_MOUSE;WXWIDGETS;HAVE_CAIROPDF;HAVE_CAIROEPS;HAVE_LIBGD;HAVE_GD_H;HAVE_GD_GIF;GIF_ANIMATION;HAVE_GD_PNG;HAVE_GD_JPEG;HAVE_GD_TTF;HAVE_LIBPNG;BGDWIN32;NONDLL;CAIRO_WIN32_STATIC_BUILD;GNUPLOT_PS_DIR="share\\PostScript";PIPES;WGP_CONSOLE;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>HAVE_CONFIG_H;USE_MOUSE;WXWIDGETS;HAVE_CAIROPDF;HAVE_CAIROEPS;HAVE_LIBGD;HAVE_GD_H;HAVE_GD_GIF;GIF_ANIMATION;HAVE_GD_PNG;HAVE_GD_JPEG;HAVE_GD_TTF;HAVE_LIBPNG;WXUSINGDLL;GNUPLOT_PS_DIR="share\\PostScript";PIPES;WGP_CONSOLE;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>$(SolutionDir)..\..\..\src;$(SolutionDir)..\..\..\term;$(SolutionDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>Comctl32.lib;Shlwapi.lib;Msimg32.lib;Htmlhelp.lib;d2d1.lib;dwrite.lib;Usp10.lib;Rpcrt4.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>Gdiplus.lib;Comctl32.lib;Shlwapi.lib;Msimg32.lib;Htmlhelp.lib;d2d1.lib;dwrite.lib;Usp10.lib;Rpcrt4.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration>
       <GenerateDebugInformation>false</GenerateDebugInformation>
     </Link>
@@ -194,6 +182,7 @@
     <ClCompile Include="..\..\..\..\src\datablock.c" />
     <ClCompile Include="..\..\..\..\src\datafile.c" />
     <ClCompile Include="..\..\..\..\src\dynarray.c" />
+    <ClCompile Include="..\..\..\..\src\encoding.c" />
     <ClCompile Include="..\..\..\..\src\eval.c" />
     <ClCompile Include="..\..\..\..\src\external.c" />
     <ClCompile Include="..\..\..\..\src\fit.c" />
@@ -236,6 +225,8 @@
     <ClCompile Include="..\..\..\..\src\util3d.c" />
     <ClCompile Include="..\..\..\..\src\variable.c" />
     <ClCompile Include="..\..\..\..\src\version.c" />
+    <ClCompile Include="..\..\..\..\src\voxelgrid.c" />
+    <ClCompile Include="..\..\..\..\src\vplot.c" />
     <ClCompile Include="..\..\..\..\src\win\wd2d.cpp" />
     <ClCompile Include="..\..\..\..\src\win\wgdiplus.cpp" />
     <ClCompile Include="..\..\..\..\src\win\wgnuplib.c" />
