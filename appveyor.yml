@@ -5,30 +5,13 @@ branches:
   - dev
 image: Visual Studio 2017
 install:
-  - vcpkg install zlib:%PLATFORM%-windows
-  - vcpkg install pcre:%PLATFORM%-windows
-  - vcpkg install libffi:%PLATFORM%-windows
-  - vcpkg install gettext:%PLATFORM%-windows
-  - vcpkg install libiconv:%PLATFORM%-windows
-  - vcpkg install glib:%PLATFORM%-windows
-  - vcpkg install libpng:%PLATFORM%-windows
-  - vcpkg install pixman:%PLATFORM%-windows
-  - vcpkg install bzip2:%PLATFORM%-windows
-  - vcpkg install freetype:%PLATFORM%-windows
-  - vcpkg install expat:%PLATFORM%-windows
-  - vcpkg install fontconfig:%PLATFORM%-windows
-  - vcpkg install cairo:%PLATFORM%-windows
-  - vcpkg install --recurse harfbuzz[core,glib,ucdn]:%PLATFORM%-windows
-######
-  - vcpkg install pango:%PLATFORM%-windows
-######
-  - vcpkg install libjpeg-turbo:%PLATFORM%-windows
-  - vcpkg install libwebp:%PLATFORM%-windows
-  - vcpkg install liblzma:%PLATFORM%-windows
-  - vcpkg install tiff:%PLATFORM%-windows
-######
-  - vcpkg install libgd:%PLATFORM%-windows
-  - vcpkg install wxwidgets:%PLATFORM%-windows
+  - cd C:\Tools\vcpkg
+  - git pull
+  - .\bootstrap-vcpkg.bat
+  - cd %APPVEYOR_BUILD_FOLDER%
+  - vcpkg install --recurse pango:%PLATFORM%-windows
+  - vcpkg install --recurse libgd:%PLATFORM%-windows
+  - vcpkg install --recurse wxwidgets:%PLATFORM%-windows
 cache:
   - c:\tools\vcpkg\installed\
 environment:
