@@ -190,7 +190,7 @@ boundary(struct curve_points *plots, int count)
 
     /* Extra space at the top for spiderplot axis label */
     if (spiderplot)
-	title_textheight += t->v_char;
+	title_textheight += 1.5 * t->v_char;
 
     /* x2label */
     if (x2lablin) {
@@ -396,7 +396,7 @@ boundary(struct curve_points *plots, int count)
 	    plot_bounds.ybot += (int) (t->h_char * 2);
 	}
 	if (spiderplot) /* Extra space at the bottom for spiderplot axis label */
-	    plot_bounds.ybot += t->h_char;
+	    plot_bounds.ybot += 2 * t->h_char;
 	/* Last chance for better estimate of space required for ttic labels */
 	/* It is too late to go back and adjust positions relative to ytop */
 	if (ttic_textheight > 0) {
@@ -1360,7 +1360,8 @@ do_key_sample_point(
 	    (*t->pointsize)(pointsize);
 	if (on_page(xl + key_point_offset, yl)) {
 	    if (this_plot->lp_properties.p_type == PT_CHARACTER) {
-		apply_pm3dcolor(&(this_plot->labels->textcolor));
+		if (this_plot->labels->textcolor.type != TC_DEFAULT)
+		    apply_pm3dcolor(&(this_plot->labels->textcolor));
 		(*t->put_text) (xl + key_point_offset, yl, 
 				this_plot->lp_properties.p_char);
 		apply_pm3dcolor(&(this_plot->lp_properties.pm3d_color));

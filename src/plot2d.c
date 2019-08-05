@@ -2514,8 +2514,10 @@ eval_plots()
 			this_plot->labels->layer = LAYER_PLOTLABELS;
 		    }
 		    if ((this_plot->plot_style & PLOT_STYLE_HAS_POINT)
-                    &&  (this_plot->lp_properties.p_type == PT_CHARACTER))
-			this_plot->labels->textcolor.type = TC_DEFAULT;
+                    &&  (this_plot->lp_properties.p_type == PT_CHARACTER)) {
+			if (!set_labelstyle)
+			    this_plot->labels->textcolor.type = TC_DEFAULT;
+		    }
 		    parse_label_options(this_plot->labels, 2);
 		    if (stored_token != c_token) {
 			if (set_labelstyle) {
@@ -2572,6 +2574,10 @@ eval_plots()
 
 	    if (this_plot->plot_style == SPIDERPLOT && !spiderplot)
 		int_error(NO_CARET, "'with spiderplot' requires a previous 'set spiderplot'");
+#if (0)
+	    if (spiderplot && this_plot->plot_style != SPIDERPLOT)
+		int_error(NO_CARET, "only plots 'with spiderplot' are possible in spiderplot mode");
+#endif
 
 	    /* set default values for title if this has not been specified */
 	    this_plot->title_is_automated = FALSE;
@@ -3010,13 +3016,15 @@ eval_plots()
 	/* Iterate-over-plot mechanism */
 	if (empty_iteration(plot_iterator) && this_plot)
 	    this_plot->plot_type = NODATA;
-	if (forever_iteration(plot_iterator) && (this_plot->plot_type == NODATA)) {
+	if (forever_iteration(plot_iterator) && !this_plot)
+	    int_error(NO_CARET,"unbounded iteration in something other than a data plot");
+	else if (forever_iteration(plot_iterator) && (this_plot->plot_type == NODATA)) {
 	    FPRINTF((stderr,"Ending * iteration at %d\n",plot_iterator->iteration));
 	    /* Clearing the plot title ensures that it will not appear in the key */
 	    free (this_plot->title);
 	    this_plot->title = NULL;
-	} else if (forever_iteration(plot_iterator) && (this_plot->plot_type == FUNC)) {
-	    int_error(NO_CARET,"unbounded iteration in function plot");
+	} else if (forever_iteration(plot_iterator) && (this_plot->plot_type != DATA)) {
+	    int_error(NO_CARET,"unbounded iteration in something other than a data plot");
 	} else if (next_iteration(plot_iterator)) {
 	    c_token = start_token;
 	    continue;
@@ -3342,8 +3350,6 @@ eval_plots()
 		this_plot = this_plot->next;
 	    }
 
-	    /* Jan 2014: Earlier 2.6 versions missed this case,   */
-	    /*           breaking iteration over parametric plots */
 	    if (in_parametric) {
 		if (equals(c_token, ",")) {
 		    c_token++;
@@ -3475,14 +3481,6 @@ eval_plots()
 	    axis_array[SECOND_Y_AXIS].max = axis_array[FIRST_Y_AXIS].max;
 	if (! axis_array[SECOND_Y_AXIS].autoscale)
 	    axis_check_range(SECOND_Y_AXIS);
-    }
-    if (! uses_axis[FIRST_Y_AXIS]) {
-	/* FIXME:  probably unneeded or wrong since adding reconcile_linked_axes */
-	assert(uses_axis[SECOND_Y_AXIS]);
-	if (axis_array[FIRST_Y_AXIS].autoscale & AUTOSCALE_MIN)
-	    axis_array[FIRST_Y_AXIS].min = axis_array[SECOND_Y_AXIS].min;
-	if (axis_array[FIRST_Y_AXIS].autoscale & AUTOSCALE_MAX)
-	    axis_array[FIRST_Y_AXIS].max = axis_array[SECOND_Y_AXIS].max;
     }
 
     /* This call cannot be in boundary(), called from do_plot(), because
