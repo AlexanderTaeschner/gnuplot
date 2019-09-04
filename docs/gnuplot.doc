@@ -274,7 +274,7 @@ C
 #b `set rgbmax <value>` controls interpretation of input RGB values.
 #b new formats descriptors tH tM tS handle relative times (interval lengths).
 ##See `time_specifiers`.
-#b Array size can be implicit if initializer is present, e.g. `Array A = [1,2,3]`.
+#b Array size can be implicit if an initializer is present, e.g. `Array A = [1,2,3]`.
 #b Optional radial clipping of line segments in polar mode. See `set clip`.
 #b Extra lines to customize the key can be added by substituting `keyentry` in
 ## place of a filename or function in `plot` and `splot` commands.
@@ -287,7 +287,8 @@ C
 #b `set datafile columnheaders` causes first line of input to be read as strings
 ## rather than as data values.  Equivalent to `set key autotitle columnheader`
 ## except that it does not affect generation of key entries.  If this option is
-## in effect the `stats` command will generate an array of column headers found.
+## in effect the `stats` command will generate an array of strings containing
+## the column headers found.
 #end
 
 4 New terminals and terminal options
@@ -313,7 +314,7 @@ C
 #start
 #b Enhanced text mode accepts \U+xxxx (xxxx is a 4 or 5 character hexadecimal)
 ##as representing a Unicode code point that is converted to the corresponding
-##UTF-8 byte sequence on output. EXPERIMENTAL (implementation may change)
+##UTF-8 byte sequence on output.
 #end
 
 4 Changes
@@ -953,7 +954,7 @@ C  need @ in table, so end and restart the table !
  The markup control characers act on the following single character or
  bracketed clause. The bracketed clause may contain a string of characters with
  no additional markup, e.g. 2^{10}, or it may contain additional markup that
- changes font properties.  Font specifiers MUST be preceeded by a '/' character
+ changes font properties.  Font specifiers MUST be preceded by a '/' character
  that immediately follows the opening '{'.  If a font name contains spaces it
  must be enclosed in single or double quotes.
 
@@ -2102,7 +2103,7 @@ C marker below is used to signal this to doc2html:
  The `word` and `words` functions provide limited support for quoted strings,
  both single and double quotes can be used:
        print words("\"double quotes\" or 'single quotes'")   # 3
- A starting quote must either be preceeded by a white space, or start the
+ A starting quote must either be preceded by a white space, or start the
  string. This means that apostrophes in the middle or at the end of words are
  considered as parts of the respective word:
        print words("Alexis' phone doesn't work") # 4
@@ -2838,7 +2839,7 @@ Ffigure_newsyntax
  Successive functions or datafiles plotted by a single command will be assigned
  successive linetypes in the current default sequence.  You can override this
  for any individual function, datafile, or plot element by giving explicit line
- prooperties in the plot command.
+ properties in the plot command.
 
  Examples:
 
@@ -2976,7 +2977,7 @@ Ffigure_newsyntax
  information for each line in the data file. This requires a corresponding
  additional column in the `using` specifier.  The extra column is interpreted as
  a 24-bit packed RGB triple. If the value is provided directly in the data file
- it is easiest to give it as a hexidecimal value (see `rgbcolor`).
+ it is easiest to give it as a hexadecimal value (see `rgbcolor`).
  Alternatively, the `using` specifier can contain an expression that evaluates
  to a 24-bit RGB color as in the example below.
  Text colors are similarly set using `tc rgbcolor variable`.
@@ -3499,9 +3500,6 @@ Ffigure_newsyntax
  Curly braces are used in the syntax for enhanced text mode and to delimit
  blocks in if/then/else statements.  They are also used to denote complex
  numbers: {3,2} = 3 + 2i.
-
- The EEPIC, Imagen, Uniplex, LaTeX, and TPIC drivers allow a newline to be
- specified by \\ in a single-quoted string or \\\\ in a double-quoted string.
 3 Quote Marks
 ?quotes
 ?syntax quotes
@@ -4723,7 +4721,7 @@ Ffigure_points
  radially rather than vertically. Such plots are sometimes called `rader charts`.
  In gnuplot this requires working within a coordinate system established by the
  command `set spiderplot`, analogous to `set polar` except that the angular
- coordinate is detemined implicitly by the parallel axis number. The appearance,
+ coordinate is determined implicitly by the parallel axis number. The appearance,
  labelling, and tic placement of the axes is controlled by `set paxis`.
  Further style choices are controlled using `set style spiderplot`, `set grid`,
  and the individual components of the plot command.
@@ -7149,7 +7147,7 @@ Ffigure_fenceplot
  An independent sampling range can be provided immediately before the '+'. As
  in normal function plots, a name can be assigned to the independent variable.
  If given for the first plot element, the sampling range specifier has to be
- preceeded by the `sample` keyword (see also `plot sampling`).
+ preceded by the `sample` keyword (see also `plot sampling`).
 
        plot sample [beta=0:2*pi] '+' using (sin(beta)):(cos(beta)) with lines
 
@@ -12122,7 +12120,7 @@ Ffigure_multiple_keys
 
  Earlier gnuplot versions were limited to 32-bit arithmetic and ignored
  integer overflow.  Note, however, that some built-in operators did not
- use integer arithemetic at all, even when given integer arguments. This
+ use integer arithmetic at all, even when given integer arguments. This
  included the exponentiation operator N**M and the summation operator
  (see `summation`).  These operations now return an integer value when
  given integer arguments, making them potentially susceptible to overflow
@@ -12922,8 +12920,6 @@ Ffigure_multiple_keys
  This coloring option works best with `pm3d depthorder`, however, which
  unfortunately does not allow you to control the scan order so you may have
  to instead swap the colors defined for linestyles N and N+1.
-
- EXPERIMENTAL - details may change before this appears in a release version.
 4 interpolate
 ?set pm3d interpolate
 ?pm3d interpolate
@@ -13900,7 +13896,7 @@ Ffigure_multiple_keys
 
  Syntax:
        set table {"outfile" | $datablock} {append}
-                 {separator {space|tab|comma|"<char>"}}
+                 {separator {whitespace|tab|comma|"<char>"}}
        plot <whatever>
        unset table
 
@@ -14991,7 +14987,7 @@ Ffigure_walls
  alone, or a start point, interval, and end point (see `xtics series`).
 
  Individual tic positions can be specified individually by providing an
- eplicit list of positions, where each position may have an associated
+ explicit list of positions, where each position may have an associated
  text label. See `xtics list`.
 
  However they are specified, tics will only be plotted when in range.
@@ -15768,7 +15764,8 @@ Ffigure_walls
 ?matrix every
  The `every` keyword has special meaning when used with matrix data.
  Rather than applying to blocks of single points, it applies to rows and
- column values.
+ column values.  Note that matrix rows and columns are indexed starting
+ from 0, so the row with index N is the (N+1)th row.
  Syntax:
        plot 'file' every {<column_incr>}
                            {:{<row_incr>}
@@ -15777,9 +15774,9 @@ Ffigure_walls
                                  {:{<end_column>}
                                    {:<end_row>}}}}}
  Examples:
-       plot 'file' matrix every :::N::N     # plot all values in row N of matrix
-       plot 'file' matrix every ::3::7:     # plot columns 3 to 7 of all rows
-       plot 'file' matrix every ::3:2:7:4   # submatrix of columns 3-7 rows 2-4
+       plot 'file' matrix every :::N::N   # plot all values in row with index N
+       plot 'file' matrix every ::3::7    # plot columns 3 to 7 for all rows
+       plot 'file' matrix every ::3:0:7:4 # submatrix bounded by [3,0] and [7,4]
 5 examples
 ?commands plot datafile matrix examples
 ?commands splot datafile matrix examples

@@ -424,6 +424,8 @@ df_binary_file_record_struct df_bin_record_reset = {
     {0, 0, 0},
     DF_TRANSLATE_DEFAULT,
     {0, 0, 0},
+
+    0, 0,	   /* submatrix size */
     NULL           /* data_memory */
 };
 
@@ -2265,11 +2267,13 @@ df_readascii(double v[], int max)
 		    struct tm tm;
 		    double usec = 0.0;
 		    double reltime;
+		    int status;
 		    if (column > df_no_cols ||
 			df_column[column - 1].good == DF_MISSING ||
 			!df_column[column - 1].position ||
-			DT_TIMEDATE != gstrptime(df_column[column - 1].position,
-						 timefmt, &tm, &usec, &reltime)
+			(status = gstrptime(df_column[column - 1].position,
+					     timefmt, &tm, &usec, &reltime),
+			 status == DT_BAD)
 			) {
 			/* line bad only if user explicitly asked for this column */
 			if (df_no_use_specs) {
@@ -2283,7 +2287,10 @@ df_readascii(double v[], int max)
 			/* return or ignore line depending on line_okay */
 			break;
 		    }
-		    v[output] = (double) gtimegm(&tm) + usec;
+		    if (status == DT_DMS)
+			v[output] = reltime;
+		    else
+			v[output] = (double) gtimegm(&tm) + usec;
 
 		} else if (use_spec[output].expected_type == CT_STRING) {
 		    /* Do nothing. */
@@ -2458,6 +2465,17 @@ df_determine_matrix_info(FILE *fin)
 	df_bin_record[0].scan_dim[0] = nc;
 	df_bin_record[0].scan_dim[1] = nr;
 
+	/* Save submatrix size for stats */
+	if (set_every) {
+	    df_bin_record[0].submatrix_ncols
+		= 1 + ((GPMIN(lastpoint,nc-1)) - firstpoint) / everypoint;
+	    df_bin_record[0].submatrix_nrows
+		= 1 + ((GPMIN(lastline,nr-1)) - firstline) / everyline;
+	} else {
+	    df_bin_record[0].submatrix_ncols = nc;
+	    df_bin_record[0].submatrix_nrows = nr;
+	}
+
 	/* Reset counter file pointer. */
 	ierr = fseek(fin, 0L, SEEK_SET);
 	if (ierr < 0)
@@ -2522,6 +2540,10 @@ df_determine_matrix_info(FILE *fin)
 		    FPRINTF((stderr,"datafile.c:%d filtering (%d,%d) to (%d,%d)\n",
 				 __LINE__, nc, nr, df_xpixels, df_ypixels));
 		}
+
+		/* Save submatrix dimensions for stats */
+		df_bin_record[index].submatrix_ncols = df_xpixels;
+		df_bin_record[index].submatrix_nrows = df_ypixels;
 
 		/* This matrix is the one (and only) requested by name.	*/
 		/* Dummy up index range and skip rest of file.		*/
@@ -4802,10 +4824,16 @@ df_readbinary(double v[], int max)
 	    scan_size[0] = this_record->scan_dim[0];
 	    scan_size[1] = this_record->scan_dim[1];
 
-	    FPRINTF((stderr,"datafile.c:%d matrix dimensions %d x %d\n",
+	    if (df_xpixels == 0) {
+		/* df_xpixels and df_ypixels were corrected for ascii `matrix every`
+		 * but scan_size was not. For that case we must not overwrite here.
+		 * For binary matrix, df_xpixels is still 0.
+		 */
+		FPRINTF((stderr,"datafile.c:%d matrix dimensions %d x %d\n",
 			__LINE__, scan_size[1], scan_size[0]));
-	    df_xpixels = scan_size[1];
-	    df_ypixels = scan_size[0];
+		df_xpixels = scan_size[1];
+		df_ypixels = scan_size[0];
+	    }
 
 	    if (scan_size[0] == 0)
 		int_error(NO_CARET, "Scan size of matrix is zero");

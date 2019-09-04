@@ -3238,17 +3238,20 @@ plot_boxplot(struct curve_points *plot, TBOOLEAN only_autoscale)
 	    int top = N-1;
 	    int bot = 0;
 	    while ((double)(top-bot+1)/(double)(N) >= boxplot_opts.limit_value) {
+		/* This point is outside of the fractional limit. Remember where it is,
+		 * step over all points with the same value, then trim back one point.
+		 */
 		whisker_top = subset_points[top].y;
 		whisker_bot = subset_points[bot].y;
 		if (whisker_top - median >= median - whisker_bot) {
-		    top--;
 		    while ((top > 0) && (subset_points[top].y == subset_points[top-1].y))
 			top--;
+		    top--;
 		}
 		if (whisker_top - median <= median - whisker_bot) {
-		    bot++;
 		    while ((bot < top) && (subset_points[bot].y == subset_points[bot+1].y))
 			bot++;
+		    bot++;
 		}
 	    }
 	}
@@ -5199,7 +5202,7 @@ spidertick_callback(struct axis *axis, double place, char *text, int ticlevel,
 	ignore_enhanced(!axis->ticdef.enhanced);
 	write_multiline(tic_label_x + (int)offsetx_d, tic_label_y + (int)offsety_d,
 			text,
-			CENTRE, CENTRE, axis->tic_rotate,
+			CENTRE, JUST_CENTRE, axis->tic_rotate,
 			axis->ticdef.font);
 	ignore_enhanced(FALSE);
 
