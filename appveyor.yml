@@ -3,15 +3,15 @@ branches:
   only:
   - master
   - dev
-image: Visual Studio 2017
+image: Visual Studio 2019
 install:
   - cd C:\Tools\vcpkg
   - git pull
   - .\bootstrap-vcpkg.bat
-  - cd %APPVEYOR_BUILD_FOLDER%
-  - vcpkg install --recurse pango:%PLATFORM%-windows
-  - vcpkg install --recurse libgd:%PLATFORM%-windows
-  - vcpkg install --recurse wxwidgets:%PLATFORM%-windows
+  - .\vcpkg.exe install --recurse pango:%PLATFORM%-windows
+  - .\vcpkg.exe install --recurse libgd:%PLATFORM%-windows
+  - .\vcpkg.exe install --recurse wxwidgets:%PLATFORM%-windows
+  - .\vcpkg.exe integrate install
 cache:
   - c:\tools\vcpkg\installed\
 environment:

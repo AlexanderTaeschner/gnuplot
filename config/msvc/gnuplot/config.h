@@ -644,10 +644,10 @@
 /* no longer needed with VS2015: */
 #if _MSC_VER < 1900
 # define isnan _isnan
+# define isblank isspace
 #endif
 #define ftruncate _chsize
 #define strtoll _strtoi64
-#define isblank isspace
 #if _MSC_VER <= 1800
 # define va_copy(dest, src) (dest = src)
 #endif
