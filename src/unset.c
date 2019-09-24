@@ -84,6 +84,7 @@ static void unset_hidden3d(void);
 static void unset_histogram(void);
 static void unset_textbox_style(void);
 static void unset_historysize(void);
+static void unset_pixmaps(void);
 static void unset_isosamples(void);
 static void unset_key(void);
 static void unset_label(void);
@@ -253,6 +254,9 @@ unset_command()
 	break; /* FIXME: reset to default values? */
     case S_HISTORYSIZE:	/* Deprecated */
 	unset_historysize();
+	break;
+    case S_PIXMAP:
+	unset_pixmaps();
 	break;
     case S_ISOSAMPLES:
 	unset_isosamples();
@@ -720,6 +724,23 @@ free_arrowstyle(struct arrowstyle_def *arrowstyle)
 	free(arrowstyle);
     }
 }
+
+/*
+ * Deletes all pixmaps.
+ */
+static void
+unset_pixmaps()
+{
+    t_pixmap *pixmap, *next;
+    for (pixmap = pixmap_listhead; pixmap; pixmap = next) {
+	free(pixmap->filename);
+	free(pixmap->image_data);
+	next = pixmap->next;
+	free(pixmap);
+    }
+    pixmap_listhead = NULL;
+}
+
 
 /* process 'unset autoscale' command */
 static void
@@ -1919,6 +1940,8 @@ reset_command()
     unset_style_rectangle();
     unset_style_circle();
     unset_style_ellipse();
+    /* delete pixmaps */
+    unset_pixmaps();
 
     /* 'polar', 'parametric' and 'dummy' are interdependent, so be
      * sure to keep the order intact */

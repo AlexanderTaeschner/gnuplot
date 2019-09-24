@@ -808,6 +808,7 @@ do_3dplot(
 
     /* Give a chance for rectangles to be behind everything else */
     place_objects( first_object, LAYER_BEHIND, 3);
+    place_pixmaps(LAYER_BEHIND, 3);
 
     term_apply_lp_properties(&border_lp);	/* border linetype */
 
@@ -1502,6 +1503,7 @@ do_3dplot(
 
     /* Add 'front' rectangles */
     place_objects(first_object, LAYER_FRONT, 3);
+    place_pixmaps(LAYER_FRONT, 3);
 
     /* Grid walls */
     place_objects(grid_wall, LAYER_FRONT, 3);
@@ -3484,6 +3486,18 @@ key_sample_fill(int xl, int yl, struct surface_points *this_plot)
 
     } else if (w > 0) {
 	(term->fillbox)(style,x,y,w,h);
+
+	/* FIXME:  what other plot styles want a border on the key sample? */
+	if ((this_plot->plot_style & PLOT_STYLE_HAS_PM3DBORDER)) {
+	    if (pm3d.border.l_type != LT_NODRAW && pm3d.border.l_type != LT_DEFAULT)
+		term_apply_lp_properties(&pm3d.border);
+	    newpath();
+	    draw_clip_line( x, y, x+w, y);
+	    draw_clip_line( x+w, y, x+w, y+h);
+	    draw_clip_line( x+w, y+h, x, y+h);
+	    draw_clip_line( x, y+h, x, y);
+	    closepath();
+	}
     }
 
     (term->layer)(TERM_LAYER_END_KEYSAMPLE);
