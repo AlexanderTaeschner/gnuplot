@@ -29,8 +29,7 @@
 /* Used to initialize `set pm3d border` */
 struct lp_style_type default_pm3d_border = DEFAULT_LP_STYLE_TYPE;
 
-/* Used by routine filled_quadrangle() in color.c */
-struct lp_style_type pm3d_border_lp;
+/* Set by plot styles that use pm3d quadrangles even in non-pm3d mode */
 TBOOLEAN track_pm3d_quadrangles;
 
 /*
@@ -45,14 +44,15 @@ typedef struct {
     double z; /* maximal z value after rotation to graph coordinate system */
     gpdPoint corners[4];
     union { /* Only used by depthorder processing */
-	t_colorspec *border_color;
+	t_colorspec *colorspec;
 	unsigned int rgb_color;
     } qcolor;
     int fillstyle; /* from plot->fill_properties */
 } quadrangle;
 
-#define PM3D_USE_BORDER_COLOR_INSTEAD_OF_GRAY -12345
+#define PM3D_USE_COLORSPEC_INSTEAD_OF_GRAY -12345
 #define PM3D_USE_RGB_COLOR_INSTEAD_OF_GRAY -12346
+#define PM3D_USE_BACKGROUND_INSTEAD_OF_GRAY -12347
 
 static int allocated_quadrangles = 0;
 static int current_quadrangle = 0;
@@ -71,9 +71,6 @@ static int apply_lighting_model( struct coordinate *, struct coordinate *, struc
 static void illuminate_one_quadrangle( quadrangle *q );
 
 static void filled_quadrangle(gpdPoint *corners, int fillstyle);
-static void ifilled_quadrangle(gpiPoint *corners);
-
-static int pm3d_side( struct coordinate *p0, struct coordinate *p1, struct coordinate *p2);
 
 static TBOOLEAN color_from_rgbvar = FALSE;
 static double light[3];
@@ -361,7 +358,6 @@ void pm3d_depth_queue_flush(void)
 	quadrangle* qe;
 	gpdPoint* gpdPtr;
 	vertex out;
-	double z = 0;
 	double zbase = 0;
 	int i;
 
@@ -369,6 +365,8 @@ void pm3d_depth_queue_flush(void)
 	    cliptorange(zbase, Z_AXIS.min, Z_AXIS.max);
 
 	for (qp = quadrangles, qe = quadrangles + current_quadrangle; qp != qe; qp++) {
+	    double z = 0;
+	    double zmean = 0;
 
 	    gpdPtr = qp->corners;
 
@@ -378,11 +376,15 @@ void pm3d_depth_queue_flush(void)
 		    map3d_xyz(gpdPtr->x, gpdPtr->y, zbase, &out);
 		else
 		    map3d_xyz(gpdPtr->x, gpdPtr->y, gpdPtr->z, &out);
+		zmean += out.z;
 		if (i == 0 || out.z > z)
 		    z = out.z;
 	    }
 
-	    qp->z = z; /* maximal z value of all four corners */
+	    if (pm3d.zmean_sort)
+		qp->z = zmean / 4.;
+	    else
+		qp->z = z;
 	}
 
 	qsort(quadrangles, current_quadrangle, sizeof (quadrangle), compare_quadrangles);
@@ -390,8 +392,10 @@ void pm3d_depth_queue_flush(void)
 	for (qp = quadrangles, qe = quadrangles + current_quadrangle; qp != qe; qp++) {
 
 	    /* set the color */
-	    if (qp->gray == PM3D_USE_BORDER_COLOR_INSTEAD_OF_GRAY)
-		apply_pm3dcolor(qp->qcolor.border_color);
+	    if (qp->gray == PM3D_USE_COLORSPEC_INSTEAD_OF_GRAY)
+		apply_pm3dcolor(qp->qcolor.colorspec);
+	    else if (qp->gray == PM3D_USE_BACKGROUND_INSTEAD_OF_GRAY)
+		term->linetype(LT_BACKGROUND);
 	    else if (qp->gray == PM3D_USE_RGB_COLOR_INSTEAD_OF_GRAY)
 		set_rgbcolor_var(qp->qcolor.rgb_color);
 	    else if (pm3d_shade.strength > 0)
@@ -450,8 +454,7 @@ pm3d_plot(struct surface_points *this_plot, int at_which_z)
     }
 
     /* Apply and save the user-requested line properties */
-    pm3d_border_lp = this_plot->lp_properties;
-    term_apply_lp_properties(&pm3d_border_lp);
+    term_apply_lp_properties(&this_plot->lp_properties);
 
     if (at_which_z != PM3D_AT_BASE && at_which_z != PM3D_AT_TOP && at_which_z != PM3D_AT_SURFACE)
 	return;
@@ -971,7 +974,7 @@ pm3d_plot(struct surface_points *this_plot, int at_which_z)
 				qp->qcolor.rgb_color = (unsigned int)gray;
 			    } else {
 				qp->gray = gray;
-				qp->qcolor.border_color = &this_plot->lp_properties.pm3d_color;
+				qp->qcolor.colorspec = &this_plot->lp_properties.pm3d_color;
 			    }
 			    qp->fillstyle = plot_fillstyle;
 			    current_quadrangle++;
@@ -1000,7 +1003,7 @@ pm3d_plot(struct surface_points *this_plot, int at_which_z)
 			qp->qcolor.rgb_color = (unsigned int)gray;
 		    } else {
 			qp->gray = gray;
-			qp->qcolor.border_color = &this_plot->lp_properties.pm3d_color;
+			qp->qcolor.colorspec = &this_plot->lp_properties.pm3d_color;
 		    }
 		    qp->fillstyle = plot_fillstyle;
 		    current_quadrangle++;
@@ -1036,6 +1039,7 @@ pm3d_reset()
     pm3d.no_clipcb = FALSE;
     pm3d.direction = PM3D_SCANS_AUTOMATIC;
     pm3d.base_sort = FALSE;
+    pm3d.zmean_sort = TRUE;	/* DEBUG: prior to Oct 2019 default sort used zmax */
     pm3d.implicit = PM3D_EXPLICIT;
     pm3d.which_corner_color = PM3D_WHICHCORNER_MEAN;
     pm3d.interp_i = 1;
@@ -1104,8 +1108,13 @@ pm3d_add_quadrangle(struct surface_points *plot, gpdPoint corners[4])
 
     if (!plot) {
 	/* This quadrangle came from "set object polygon" rather than "splot with pm3d" */
-	q->qcolor.rgb_color = corners[0].c;
-	q->gray = PM3D_USE_RGB_COLOR_INSTEAD_OF_GRAY;
+	if (corners[0].c == LT_BACKGROUND) {
+	    q->gray = PM3D_USE_BACKGROUND_INSTEAD_OF_GRAY;
+	} else {
+	    q->qcolor.rgb_color = corners[0].c;
+	    q->gray = PM3D_USE_RGB_COLOR_INSTEAD_OF_GRAY;
+	}
+	q->fillstyle = corners[1].c;
 
     } else if (plot->pm3d_color_from_column) {
 	/* FIXME: color_from_rgbvar need only be set once per plot */
@@ -1128,7 +1137,7 @@ pm3d_add_quadrangle(struct surface_points *plot, gpdPoint corners[4])
 
     } else if (plot->plot_style == ISOSURFACE) {
 	int rgb_color = corners[0].c;
-	q->qcolor.border_color = &plot->fill_properties.border_color;
+	q->qcolor.colorspec = &plot->fill_properties.border_color;
 	q->gray = PM3D_USE_RGB_COLOR_INSTEAD_OF_GRAY;
 	if (isosurface_options.inside_offset > 0) {
 	    struct lp_style_type style;
@@ -1154,8 +1163,8 @@ pm3d_add_quadrangle(struct surface_points *plot, gpdPoint corners[4])
 
     } else {
 	/* This is the usual [only?] path for 'splot with zerror' */
-	q->qcolor.border_color = &plot->fill_properties.border_color;
-	q->gray = PM3D_USE_BORDER_COLOR_INSTEAD_OF_GRAY;
+	q->qcolor.colorspec = &plot->fill_properties.border_color;
+	q->gray = PM3D_USE_COLORSPEC_INSTEAD_OF_GRAY;
     }
 }
 
@@ -1440,35 +1449,6 @@ apply_lighting_model( struct coordinate *v0, struct coordinate *v1,
     return rgb;
 }
 
-static void
-ifilled_quadrangle(gpiPoint* icorners)
-{
-    if (icorners->style == 0) {
-	if (default_fillstyle.fillstyle == FS_EMPTY)
-	    icorners->style = FS_OPAQUE;
-	else
-	    icorners->style = style_from_fill(&default_fillstyle);
-    }
-    term->filled_polygon(4, icorners);
-
-    if (pm3d.border.l_type != LT_NODRAW) {
-	int i;
-
-	/* LT_DEFAULT means draw border in current color */
-	/* FIXME: currently there is no obvious way to set LT_DEFAULT  */
-	if (pm3d.border.l_type != LT_DEFAULT) {
-	    /* It should be sufficient to set only the color, but for some */
-	    /* reason this causes the svg terminal to lose the fill type.  */
-	    term_apply_lp_properties(&pm3d_border_lp);
-	}
-
-	term->move(icorners[0].x, icorners[0].y);
-	for (i = 3; i >= 0; i--) {
-	    term->vector(icorners[i].x, icorners[i].y);
-	}
-    }
-}
-
 
 /* The pm3d code works with gpdPoint data structures (double: x,y,z,color)
  * term->filled_polygon and term->image want gpiPoint data (int: x,y,style)
@@ -1485,8 +1465,27 @@ filled_quadrangle(gpdPoint *corners, int fillstyle)
 	icorners[i].x = x;
 	icorners[i].y = y;
     }
-    icorners[0].style = fillstyle;
-    ifilled_quadrangle(icorners);
+
+    if (fillstyle)
+	icorners[0].style = fillstyle;
+    else if (default_fillstyle.fillstyle == FS_EMPTY)
+	icorners[0].style = FS_OPAQUE;
+    else
+	icorners[0].style = style_from_fill(&default_fillstyle);
+
+    term->filled_polygon(4, icorners);
+
+    if (pm3d.border.l_type != LT_NODRAW) {
+	/* LT_DEFAULT means draw border in current color */
+	/* FIXME: currently there is no obvious way to set LT_DEFAULT  */
+	if (pm3d.border.l_type != LT_DEFAULT)
+	    term_apply_lp_properties(&pm3d.border);
+
+	term->move(icorners[0].x, icorners[0].y);
+	for (i = 3; i >= 0; i--) {
+	    term->vector(icorners[i].x, icorners[i].y);
+	}
+    }
 }
 
 /* EXPERIMENATAL
@@ -1496,7 +1495,7 @@ filled_quadrangle(gpdPoint *corners, int fillstyle)
  *     In the case of depth ordering, the user does not have good control
  *     over this.
  */
-static int
+int
 pm3d_side( struct coordinate *p0, struct coordinate *p1, struct coordinate *p2)
 {
     struct vertex v[3];

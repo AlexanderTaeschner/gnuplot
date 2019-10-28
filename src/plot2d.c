@@ -1178,6 +1178,14 @@ get_data(struct curve_points *current_plot)
 	    break;
 	}
 
+	/* These exist for 3D (splot) but not for 2D (plot) */
+	case PM3DSURFACE:
+	case SURFACEGRID:
+	case ZERRORFILL:
+	case ISOSURFACE:
+	    int_error(NO_CARET, "This plot style only available for splot");
+	    break;
+
 	/* If anybody hits this it is because we missed handling a plot style above.
 	 * To be fixed immediately!
 	 */
@@ -3358,6 +3366,11 @@ eval_plots()
 	    }
 
 	    /* Iterate-over-plot mechanism */
+	    if (forever_iteration(plot_iterator) && this_plot->plot_type == NODATA) {
+		plot_iterator = cleanup_iteration(plot_iterator);
+		c_token = start_token;
+		continue;
+	    }
 	    if (next_iteration(plot_iterator)) {
 		c_token = start_token;
 		continue;
