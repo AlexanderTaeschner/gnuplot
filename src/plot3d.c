@@ -894,6 +894,11 @@ get_3ddata(struct surface_points *this_plot)
 	    local_this_iso->next->p_count = 0;
 	}
 
+	if (this_plot->plot_style == POLYGONS) {
+	    this_plot->has_grid_topology = FALSE;
+	    track_pm3d_quadrangles = TRUE;
+	}
+
 	/* If the user has set an explicit locale for numeric input, apply it */
 	/* here so that it affects data fields read from the input file.      */
 	set_numeric_locale();
@@ -1395,7 +1400,7 @@ get_3ddata(struct surface_points *this_plot)
 }
 
 /* HBB 20000501: code isolated from eval_3dplots(), where practically
- * identical code occured twice, for direct and crossing isolines,
+ * identical code occurred twice, for direct and crossing isolines,
  * respectively.  The latter only are done for in non-hidden3d
  * mode. */
 static void
@@ -2238,6 +2243,8 @@ eval_3dplots()
 		    this_plot->iteration = plot_iterator ? plot_iterator->iteration : 0;
 		    this_plot->plot_style = first_dataset->plot_style;
 		    this_plot->lp_properties = first_dataset->lp_properties;
+		    this_plot->fill_properties = first_dataset->fill_properties;
+		    this_plot->arrow_properties = first_dataset->arrow_properties;
 		    if ((this_plot->plot_style == LABELPOINTS)
 		    ||  (this_plot->plot_style & PLOT_STYLE_HAS_POINT
 			    && this_plot->lp_properties.p_type == PT_CHARACTER)) {
@@ -2727,7 +2734,7 @@ eval_3dplots()
 
 /*
  * The hardest part of this routine is collapsing the FUNC plot types in the
- * list (which are gauranteed to occur in (x,y,z) triplets while preserving
+ * list (which are guaranteed to occur in (x,y,z) triplets while preserving
  * the non-FUNC type plots intact.  This means we have to work our way
  * through various lists.  Examples (hand checked):
  * start_plot:F1->F2->F3->NULL ==> F3->NULL

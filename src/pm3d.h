@@ -65,7 +65,9 @@ typedef enum {
     PM3D_CLIP_1IN: all 4 points of the quadrangle must be defined and at least
 		   1 point of the quadrangle must be in the x and y ranges
     PM3D_CLIP_4IN: all 4 points of the quadrangle must be in the x and y ranges
+    PM3D_CLIP_Z:   smooth clip to current zrange
 */
+#define PM3D_CLIP_Z 0
 #define PM3D_CLIP_1IN '1'
 #define PM3D_CLIP_4IN '4'
 
@@ -97,6 +99,8 @@ typedef enum {
     PM3D_COLOR_BY_NORMAL     = 11 /* derive color from surface normal (not currently used) */
 } PM3D_WHICH_CORNERS2COLOR;
 
+#define PM3D_MAX_VERTICES 50
+
 /*
   structure defining all properties of pm3d plotting mode
   (except for the properties of the smooth color box, see color_box instead)
@@ -106,7 +110,7 @@ typedef struct {
   char flush;   	/* left, right, center */
   char ftriangles;   	/* 0/1 (don't) draw flushing triangles */
   char clip;		/* 1in, 4in */
-  TBOOLEAN no_clipcb;	/* FALSE: cb<0 treated as 0  TRUE: cb<0 treated as NaN */
+  TBOOLEAN no_clipcb;	/* FALSE: out-of-range cb treated as 0  TRUE: treated as NaN */
   pm3d_scandir direction;
 			/* If direction is "depth" sort by max z of 4 corners unless ... */
   TBOOLEAN base_sort;	/*     use z values of projection to baseplane */
@@ -139,8 +143,7 @@ extern lighting_model pm3d_shade;
 /* Used to initialize `set pm3d border` */
 extern struct lp_style_type default_pm3d_border;
 
-/* Used by routine filled_quadrangle() */
-extern struct lp_style_type pm3d_border_lp;
+/* Set by plot styles that use pm3d quadrangles even in non-pm3d mode */
 extern TBOOLEAN track_pm3d_quadrangles;
 
 
@@ -154,6 +157,7 @@ void pm3d_depth_queue_flush(void);
 void pm3d_reset(void);
 void pm3d_draw_one(struct surface_points* plots);
 void pm3d_add_quadrangle(struct surface_points* plot, gpdPoint *corners);
+void pm3d_add_polygon(struct surface_points* plot, gpdPoint *corners, int vertices);
 void pm3d_init_lighting_model(void);
 int pm3d_side( struct coordinate *p0, struct coordinate *p1, struct coordinate *p2);
 double cb2gray(double cb);
@@ -162,6 +166,7 @@ void pm3d_rearrange_scan_array(struct surface_points* this_plot,
     struct iso_curve*** second_ptr, int* second_n, int* second_invert);
 
 void set_plot_with_palette(int plot_num, int plot_mode);
+void pm3d_reset_after_error(void);
 
 TBOOLEAN is_plot_with_palette(void);
 TBOOLEAN is_plot_with_colorbox(void);

@@ -1138,7 +1138,7 @@ static void
 plot_lines(struct curve_points *plot)
 {
     int i;			/* point index */
-    int x, y;			/* current point in terminal coordinates */
+    int x=0, y=0;		/* current point in terminal coordinates */
     struct termentry *t = term;
     enum coord_type prev = UNDEFINED;	/* type of previous point */
     double xprev = 0.0;
@@ -1422,7 +1422,7 @@ static void
 plot_betweencurves(struct curve_points *plot)
 {
     double x1, x2, yl1, yu1, yl2, yu2, dy;
-    double xmid, ymid;
+    double xmid=0, ymid=0;
     double xu1, xu2;	/* For polar plots */
     int i, j, istart=0, finish=0, points=0, max_corners_needed;
     static gpiPoint *corners = 0;
@@ -2940,7 +2940,7 @@ plot_parallel(struct curve_points *plot)
     struct curve_points *thisplot;
 
     /* The parallel axis data is stored in successive plot structures. */
-    /* We will draw it all at once when we see the first one and igore the rest. */
+    /* We will draw it all at once when we see the first one and ignore the rest. */
     if (plot->p_axis != 1)
 	return;
 
@@ -4442,7 +4442,7 @@ do_polygon( int dimensions, t_object *this_object, int style, int facing )
 
 	    /* FIXME: could we pass through a per-quadrangle border style also? */
 	    quad[1].c = style;
-	    pm3d_add_quadrangle( NULL, quad );
+	    pm3d_add_polygon( NULL, quad, 4 );
 
 	} else { /* Not depth-sorted; draw it now */
 	    if (out_length > 1)

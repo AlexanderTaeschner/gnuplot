@@ -85,12 +85,14 @@ Here are samples of PNG output from some of the demos.
     <li><a href="hidden.html">hidden surfaces</a></li>
     <li><a href="pm3d.html">pm3d coloring</a></li>
     <li><a href="hidden2.html">pm3d hidden surfaces</a></li>
+    <li><a href="pm3d_clip.html">pm3d clipping</a></li>
     <li><a href="world2.html">3D mapping</a></li>
     <li><a href="projection.html">2D projection of 3D surface</a></li>
     <li><a href="zerror.html">shaded error region</a></li>
     <li><a href="azimuth.html">azimuth</a></li>
     <li><a href="boxes3d.html">boxes</a></li>
-    <li><a href="armillary.html">circles and polygons</a></li>
+    <li><a href="armillary.html">circle and polygon 3D objects</a></li>
+    <li><a href="polygons.html">pm3d polygons</a></li>
     <li><a href="pm3d_lighting.html">lighting model</a></li>
     <li><a href="hidden_compare.html">hidden3d v. pm3d</a></li>
     </ul>
@@ -98,7 +100,7 @@ Here are samples of PNG output from some of the demos.
     <h4>Volume plots (new!)</h4>
     <ul>
     <li><a href="voxel.html">voxel-dependent coloring</a></li>
-    <li><a href="vplot.html">3D representaion of voxels</a></li>
+    <li><a href="vplot.html">3D representation of voxels</a></li>
     <li><a href="isosurface.html">3D isosurface</a></li>
     </ul>
 
@@ -212,7 +214,7 @@ Here are samples of PNG output from some of the demos.
 <tbody><tr valign="top">
 
     <td>
-    <i>This page generated July 2019</i>
+    <i>This page generated November 2019</i>
     </td>
 
     <td>
