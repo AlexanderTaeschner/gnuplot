@@ -43,6 +43,7 @@
 #include "eval.h"
 #include "graph3d.h"
 #include "hidden3d.h"
+#include "interpol.h"
 #include "misc.h"
 #include "parse.h"
 #include "pm3d.h"
@@ -429,7 +430,7 @@ refresh_3dbounds(struct surface_points *first_plot, int nplots)
 
 	for (this_curve = this_plot->iso_crvs; this_curve; this_curve = this_curve->next) {
 
-	    /* VECTOR plots consume two ico_crvs structures, one for heads and one for tails.
+	    /* VECTOR plots consume two iso_crvs structures, one for heads and one for tails.
 	     * Only the first one has the true point count; the second one claims zero.
 	     * FIXME: Maybe we should change this?
 	     */
@@ -881,6 +882,7 @@ get_3ddata(struct surface_points *this_plot)
 	double x, y, z;
 	double xlow = 0, xhigh = 0;
 	double xtail, ytail, ztail;
+	double weight = 1.0;
 	double zlow = VERYLARGE, zhigh = -VERYLARGE;
 	double color = VERYLARGE;
 	int pm3d_color_from_column = FALSE;
@@ -1208,6 +1210,12 @@ get_3ddata(struct surface_points *this_plot)
 		}
 		track_pm3d_quadrangles = TRUE;
 
+	    } else if (this_plot->plot_style == LINES && this_plot->plot_smooth == SMOOTH_ACSPLINES) {
+		if (j >= 4)
+		    weight = v[3];	/* spline weights */
+		else
+		    weight = 1.0;	/* default weight */
+
 	    } else {	/* all other plot styles */
 		if (j >= 4) {
 		    color = v[3];
@@ -1258,6 +1266,10 @@ get_3ddata(struct surface_points *this_plot)
 				this_plot->noautoscale, goto come_here_if_undefined);
 		    STORE_AND_UPDATE_RANGE(cp->CRD_ZHIGH, zhigh, cp->type, z_axis,
 				this_plot->noautoscale, goto come_here_if_undefined);
+		}
+
+		if (this_plot->plot_style == LINES && this_plot->plot_smooth == SMOOTH_ACSPLINES) {
+		    cp->ylow = weight;
 		}
 
 		if (this_plot->plot_style == BOXES) {
@@ -1829,6 +1841,21 @@ eval_3dplots()
 		if (save_token != c_token)
 		    continue;
 
+		/* EXPERIMENTAL smoothing options for splot with lines */
+		if (equals(c_token, "smooth")) {
+		    c_token++;
+		    if (almost_equals(c_token, "c$splines")) {
+			c_token++;
+			this_plot->plot_smooth = SMOOTH_CSPLINES;
+		    } else if (almost_equals(c_token, "acs$plines")) {
+			c_token++;
+			this_plot->plot_smooth = SMOOTH_ACSPLINES;
+		    } else
+			int_error(c_token, "only cspline or acsplines possible here");
+		    this_plot->plot_style = LINES;
+		    continue;
+		}
+
 		/* deal with style */
 		if (almost_equals(c_token, "w$ith")) {
 		    if (set_with) {
@@ -2296,6 +2323,12 @@ eval_3dplots()
 	    } else {
 		int_error(NO_CARET, "unexpected plot_type %d at plot3d:%d\n",
 			this_plot->plot_type, __LINE__);
+	    }
+
+	    if (this_plot->plot_type == DATA3D && this_plot->plot_style == LINES
+	    &&  this_plot->plot_smooth != SMOOTH_NONE) {
+		gen_3d_splines(this_plot);
+		refresh_3dbounds(this_plot, 1);
 	    }
 
 	    SKIPPED_EMPTY_FILE:
