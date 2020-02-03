@@ -364,6 +364,8 @@ get_data(struct curve_points *current_plot)
 	    variable_color = TRUE;
 	if (current_plot->lp_properties.pm3d_color.type == TC_Z)
 	    variable_color = TRUE;
+	if (current_plot->lp_properties.pm3d_color.type == TC_COLORMAP)
+	    variable_color = TRUE;
 	if (current_plot->lp_properties.l_type == LT_COLORFROMCOLUMN)
 	    variable_color = TRUE;
 	if (current_plot->plot_smooth != SMOOTH_NONE
@@ -514,12 +516,12 @@ get_data(struct curve_points *current_plot)
 	break;
 
     case RGBIMAGE:
-	min_cols = 5;
+	min_cols = 3;
 	max_cols = 6;
 	break;
 
     case RGBA_IMAGE:
-	min_cols = 6;
+	min_cols = 3;
 	max_cols = 6;
 	break;
 
@@ -1109,6 +1111,15 @@ get_data(struct curve_points *current_plot)
 	case RGBA_IMAGE:
 	{   /* x y red green blue [alpha] */
 	    store2d_point(current_plot, i, v[0], v[1], v[0], v[0], v[1], v[1], 0.0);
+	    /* If there is only one column of image data, it must be 32-bit ARGB */
+	    if (j==3) {
+		unsigned int argb = v[2];
+		v[2] = (argb >> 16) & 0xff;
+		v[3] = (argb >> 8) & 0xff;
+		v[4] = (argb) & 0xff;
+		/* The alpha channel convention is unfortunate */
+		v[5] = 255 - (unsigned int)((argb >> 24) & 0xff);
+	    }
 	    cp = &(current_plot->points[i]);
 	    cp->CRD_R = v[2];
 	    cp->CRD_G = v[3];
@@ -1408,8 +1419,13 @@ store2d_point(
 				current_plot->noautoscale, cp->z = -VERYLARGE);
 
     /* If we have variable color corresponding to a z-axis value, use it to autoscale */
-    /* June 2010 - New mechanism for variable color */
     if (current_plot->lp_properties.pm3d_color.type == TC_Z && current_plot->varcolor)
+	STORE_AND_UPDATE_RANGE(current_plot->varcolor[i], current_plot->varcolor[i],
+		dummy_type, COLOR_AXIS, current_plot->noautoscale, NOOP);
+
+    /* Same thing for colormap z-values */
+    if (current_plot->lp_properties.pm3d_color.type == TC_COLORMAP
+	&& current_plot->varcolor && current_plot->lp_properties.colormap)
 	STORE_AND_UPDATE_RANGE(current_plot->varcolor[i], current_plot->varcolor[i],
 		dummy_type, COLOR_AXIS, current_plot->noautoscale, NOOP);
 

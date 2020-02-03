@@ -205,6 +205,24 @@ C
 #b cubic spline smoothing of 3D lines. See `splot smooth csplines`
 #end
 
+4 Multiple named palettes
+#start
+#b The current palette can be saved to a named colormap for future use.
+## See `set palette save`.
+#b pm3d and image plots can specify a previously saved palette by name.
+## This permits the use of multiple palettes in a single plot command.
+## See `colorspec palette`.
+#b Named palette colormaps can be manipulated as arrays of 32-bit ARGB
+## color values. This permits addition of alpha-channel values or other
+## modifications not easily specified in a `set palette` command.
+#end
+
+4 Other new features
+#start
+#b Support XSG base directory for gnuplotrc configuration preferences.
+## See `environment`.
+#end
+
 3 Features introduced in version 5.4
 ?new version_5.4
 4 Support for 64-bit integer arithmetic
@@ -261,6 +279,8 @@ C
 #b pm3d option `noclipcb` causes quadrangles with palette color outside cbrange
 ## to be skipped rather than being drawn with color clipped to cbmin or cbmax.
 #b Customized contour line types. See `set cntrparam`.
+#b The vertical lines connecting the base plane to the corners of a 3D surface
+## can be toggled on/off. See `set cornerpoles`.
 #end
 
 4 New data pre-processing filters
@@ -1076,9 +1096,11 @@ C  need @ in table, so end and restart the table !
  system help library.
 
  On Unix, HOME is used as the name of a directory to search for a .gnuplot
- file if none is found in the current directory.  On MS-DOS, Windows and OS/2,
- GNUPLOT is used.  On Windows, the NT-specific variable USERPROFILE is also
- tried. VMS, SYS$LOGIN: is used. Type `help startup`.
+ file if none is found in the current directory.  Additionally gnuplot searches
+ for $XDG_CONFIG_HOME/gnuplot/gnuplotrc which is loaded after .gnuplot.  On
+ MS-DOS, Windows and OS/2, GNUPLOT is used.  On Windows, the NT-specific
+ variable USERPROFILE is also tried. VMS, SYS$LOGIN: is used. Type `help
+ startup`.
 
  On Unix, PAGER is used as an output filter for help messages.
 
@@ -2916,6 +2938,7 @@ Ffigure_newsyntax
        palette frac <val>      # <val> runs from 0 to 1
        palette cb <value>      # <val> lies within cbrange
        palette z
+       palette <colormap>      # use named colormap rather than current palette
        variable                # color index is read from input file
        bgnd                    # background color
        black
@@ -2985,6 +3008,33 @@ Ffigure_newsyntax
        # See `pseudocolumns`.  This example uses to value in column -2 to
        # draw each data set in a different line color.
        plot 'data' using 1:2:(column(-2)) with lines lc variable
+
+4 palette
+?colorspec palette
+ Syntax
+       ... {lc|fc|tc} palette {z}
+       ... {lc|fc|tc} palette frac <fraction>
+       ... {lc|fc|tc} palette cb <fixed z-value>
+       ... fc palette <colormap>
+
+ The palette defines a range of colors with gray values between 0 and 1.
+ `palette frac <fraction>` selects the color with gray value <fraction>.
+
+ `palette cb <z-value>` selects the single color whose fractional gray value
+ is (z - cbmin) / (cbmax - cbmin).
+
+ `palette` and `palette z` both map the z coordinate of the plot element being
+ colored onto the current palette.  If z is outside cbrange it is by default
+ mapped to palette fraction 0 or palette franction 1.  If the option 
+ `set pm3d noclipcb` is set, then quadrangles in a pm3d plot whose z values 
+ are out of range will not be drawn at all.
+
+ `fillcolor palette <colormap>` maps the z coordinate of a plot element onto
+ a previously saved named colormap instead of using the current palette.
+ See `set palette save`.
+ This option is EXPERIMENTAL. Details may change.
+ Mapping z values into the named colormap uses cbrange; there should be some
+ method for specifying a separate min/max range for each named colormap.
 
 4 rgbcolor variable
 ?rgbcolor variable
@@ -3296,12 +3346,15 @@ Ffigure_newsyntax
 ?start-up
 ?initialization
 ?.gnuplot
+?gnuplotrc
  When gnuplot is run, it first looks for a system-wide initialization file
  `gnuplotrc`.  The location of this file is determined when the program is built
  and is reported by `show loadpath`.  The program then looks in the user's HOME
  directory for a file called `.gnuplot` on Unix-like systems or `GNUPLOT.INI` on
  other systems.  (OS/2 will look for it in the directory named in
- the environment variable `GNUPLOT`; Windows will use `APPDATA`).
+ the environment variable `GNUPLOT`; Windows will use `APPDATA`).  On Unix-like
+ systems gnuplot additionally checks for the file
+ $XDG_CONFIG_HOME/gnuplot/gnuplotrc.
  Note: The program can be configured to look first in the current directory,
  but this is not recommended because it is bad security practice.
 2 String constants, string variables, and string functions
@@ -4494,12 +4547,20 @@ Ffigure_scaled_image
  are floating point values in the range [0:1]. To use the `rgbimage` style with
  such data, first use the command `set rgbmax 1.0`.
 
+=alpha channel
  The `rgbalpha` style handles input pixels that contain alpha channel
  (transparency) information in addition to the red, green, and blue components.
  Thus 6D data (x,y,r,g,b,a) is needed for `plot` and 7D data (x,y,z,r,g,b,a)
  for `splot`.  The r, g, b, and alpha components are assumed to lie in the range
  [0:255].  To plot data for which RGBA components are floating point values in
  the range [0:1], first use the command `set rgbmax 1.0`.
+
+ If only a single data column is provided for the color components of either
+ rgbimage or rgbalpha plots, it is interpreted as containing 32 bit packed ARGB 
+ data using the convention that alpha=0 means opaque and alpha=255 means fully
+ transparent. Note that this is backwards from the alpha convention if alpha
+ is supplied in a separate column, but matches the ARGB packing convention for
+ individual commands to set color. See `colorspec`.
 3 transparency
 ?image transparency
 ?transparency
@@ -8283,13 +8344,15 @@ Ffigure_zerror
 
  Note that `reset` does not necessarily return settings to the state they
  were in at program entry, because the default values may have been altered by
- commands in the initialization files gnuplotrc or $HOME/.gnuplot.  However,
- these commands can be re-executed by using the variant command `reset session`.
+ commands in the initialization files gnuplotrc, $HOME/.gnuplot, or
+ $XDG_CONFIG_HOME/gnuplot/gnuplotrc.  However, these commands can be
+ re-executed by using the variant command `reset session`.
 
 =session
  `reset session` deletes any user-defined variables and functions, restores
  default settings, and then re-executes the system-wide gnuplotrc initialization
- file and any private $HOME/.gnuplot preferences file.  See `initialization`.
+ file and any private $HOME/.gnuplot or $XDG_CONFIG_HOME/gnuplot/gnuplotrc
+ preferences file.  See `initialization`.
 
 =error state
  `reset errors` clears only the error state variables GPVAL_ERRNO and
@@ -8759,6 +8822,11 @@ Ffigure_zerror
  The default setting is 31, which is all four sides for `plot`, and base and
  z axis for `splot`.
 
+ Separate from the four vertical lines in a 3D border, the `splot` command
+ by default draws a vertical line each corner of a surface to the base plane
+ of the plot. These verticals are not controlled by `set border`.
+ Instead use `set/unset cornerpoles`.
+
  In 2D plots the border is normally drawn on top of all plots elements
  (`front`). If you want the border to be drawn behind the plot elements,
  use `set border back`.
@@ -8855,8 +8923,11 @@ Ffigure_zerror
 ?set boxdepth
 ?show boxdepth
 ?boxdepth
+      set boxdepth {<y extent>} | square
  The `set boxdepth` command affects only 3D plots created by `splot with boxes`.
  It sets the extent of each box along the y axis, i.e. its thickness.
+ `set boxdepth square` will try to choose a y extent that gives the appearance
+ of a square crossection independent of the axis scales on x and y.
 3 color
 ?commands set color
 ?set color
@@ -8895,9 +8966,9 @@ Ffigure_zerror
 ?unset clabel
 ?show clabel
 ?clabel
- This command is deprecated. Use `set cntrlabel` instead.
- `unset clabel` is replaced by `set cntrlabel onecolor`.
+ This command has been deprecated. Use `set cntrlabel` instead.
  `set clabel "format"` is replaced by `set cntrlabel format "format"`.
+ `unset clabel` is replaced by `set cntrlabel onecolor`.
 3 clip
 ?commands set clip
 ?commands unset clip
@@ -9265,6 +9336,12 @@ Ffigure_zerror
 ^ <a href="http://www.gnuplot.info/demo/discrete.html">
  contours with user defined levels demo (discrete.dem).
 ^ </a>
+3 cornerpoles
+?command set cornerpoles
+?set cornerpoles
+?cornerpoles
+ By default splot draws a vertical line from each corner of a 3D surface to the
+ base plane. These vertical lines can be suppressed using `unset cornerpoles`.
 3 dashtype
 ?commands set dashtype
 ?commands show dashtype
@@ -12284,12 +12361,17 @@ Ffigure_multiple_keys
                   { nops_allcF | ps_allcF }
                   { maxcolors <maxcolors> }
                 }
- `set palette` (i.e. without options) sets up the default values.
+      set palette save <colormap name>
+
+ `set palette` (i.e. without options) restores the default values.
  Otherwise, the options can be given in any order.
 
  `show palette` lists the current palette properties.
 
  `test palette` displays the current palette on the screen.
+
+ `set palette save <name>` creates a colormap for the current palette and saves
+ it into a named colormap array for later use.
 
  The following options determine the coloring properties.
 
@@ -12580,6 +12662,29 @@ Ffigure_multiple_keys
  Usage:
      awk -f pm3dCompress.awk thefile.ps >smallerfile.ps
      awk -f pm3dConvertToImage.awk thefile.ps >smallerfile.ps
+
+4 save <colormap>
+?set palette save
+?palette save
+?colormap
+=alpha channel
+=transparency
+
+ `set palette save <name>` creates a colormap array <name> and loads it from
+ the current palette settings. This saved colormap can be further manipulated
+ as an array of 32-bit ARGB color values and used by name in subsequent plots.
+
+ This example creates a palette running from dark red to white, saves it to
+ a colormap array named 'Reds', and makes all entries in the colormap
+ partially transparent.  This names colormap is then used later to color
+ a pm3d surface.  Note that the alpha channel value in a named colormap
+ follows the convention for ARGB line properties; i.e 0 is opaque 0xff is
+ fully transparent.
+
+      set palette defined (0 "dark-red", 1 "white"
+      set palette save Reds
+      do for [i=1:|Reds|] { Reds[i] = Reds[i] | 0x3F000000 }
+      splot func(x,y) with pm3d fillcolor palette Reds
 
 3 parametric
 ?commands set parametric

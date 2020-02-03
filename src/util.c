@@ -178,6 +178,10 @@ type_udv(int t_num)
 {
     struct udvt_entry **udv_ptr = &first_udv;
 
+    /* End of command */
+    if (t_num >= num_tokens || equals(t_num,";"))
+	return 0;
+
     while (*udv_ptr) {
 	if (equals(t_num, (*udv_ptr)->udv_name)) {
 	    if ((*udv_ptr)->udv_value.type == NOTDEFINED)
@@ -1522,6 +1526,8 @@ value_to_str(struct value *val, TBOOLEAN need_quotes)
     case ARRAY:
 	{
 	sprintf(s[j], "<%d element array>", (int)(val->v.value_array->v.int_val));
+	if (val->v.value_array->type == COLORMAP_ARRAY)
+	    strcat(s[j], " (colormap)");
 	break;
 	}
     case VOXELGRID:

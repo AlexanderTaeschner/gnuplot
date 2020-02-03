@@ -174,11 +174,12 @@ const struct gen_table set_tbl[] =
     { "bor$der", S_BORDER },
     { "boxdepth", S_BOXDEPTH },
     { "box$width", S_BOXWIDTH },
-    { "cl$abel", S_CLABEL },
+    { "clabel", S_CLABEL },
     { "c$lip", S_CLIP },
     { "cntrp$aram", S_CNTRPARAM },
     { "cntrl$abel", S_CNTRLABEL },
     { "cont$ours", S_CONTOUR },
+    { "cornerp$oles", S_CORNERPOLES },
     { "dasht$ype", S_DASHTYPE },
     { "dt", S_DASHTYPE },
     { "da$ta", S_DATA },
@@ -489,6 +490,7 @@ const struct gen_table set_palette_tbl[] =
     { "maxc$olors",	S_PALETTE_MAXCOLORS },
     { "gam$ma",         S_PALETTE_GAMMA },
     { "cubehelix",      S_PALETTE_CUBEHELIX },
+    { "save",           S_PALETTE_SAVE },
     { NULL, S_PALETTE_INVALID }
 };
 

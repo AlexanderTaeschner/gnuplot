@@ -419,7 +419,7 @@ boundary3d(struct surface_points *plots, int count)
 	i = (int) (plot_bounds.ytop - plot_bounds.ybot) / t->v_char - 1 - ktitle_lines;
 	if (i > key->maxrows && key->maxrows > 0)
 	    i = key->maxrows;
-	if (i == 0)
+	if (i <= 0)
 	    i = 1;
 	if (ptitl_cnt > i) {
 	    key_cols = (int) ((ptitl_cnt - 1)/ i) + 1;
@@ -2467,32 +2467,34 @@ draw_3d_graphbox(struct surface_points *plot, int plot_num, WHICHGRID whichgrid,
 		 * surface mesh(es) are also the geometrical ones of
 		 * their xy projections. This is only true for
 		 * 'explicit' surface datasets, i.e. z(x,y) */
-		for (; --plot_num >= 0; plot = plot->next_sp) {
-		    struct iso_curve *curve = plot->iso_crvs;
-		    int count;
-		    int iso;
+		if (cornerpoles) {
+		    for (; --plot_num >= 0; plot = plot->next_sp) {
+			struct iso_curve *curve = plot->iso_crvs;
+			int count;
+			int iso;
 
-		    if (plot->plot_type == NODATA || plot->plot_type == KEYENTRY)
-			continue;
-		    if (plot->plot_type == VOXELDATA)
-			continue;
-		    if (plot->plot_type == DATA3D) {
-			if (!plot->has_grid_topology)
+			if (plot->plot_type == NODATA || plot->plot_type == KEYENTRY)
 			    continue;
-			iso = plot->num_iso_read;
-		    } else
-			iso = iso_samples_2;
+			if (plot->plot_type == VOXELDATA)
+			    continue;
+			if (plot->plot_type == DATA3D) {
+			    if (!plot->has_grid_topology)
+				continue;
+			    iso = plot->num_iso_read;
+			} else
+			    iso = iso_samples_2;
 
-		    count = curve->p_count;
-		    if (count == 0)
-			continue;
+			count = curve->p_count;
+			if (count == 0)
+			    continue;
 
-		    check_corner_height(curve->points, height, depth);
-		    check_corner_height(curve->points + count - 1, height, depth);
-		    while (--iso)
-			curve = curve->next;
-		    check_corner_height(curve->points, height, depth);
-		    check_corner_height(curve->points + count - 1, height, depth);
+			check_corner_height(curve->points, height, depth);
+			check_corner_height(curve->points + count - 1, height, depth);
+			while (--iso)
+			    curve = curve->next;
+			check_corner_height(curve->points, height, depth);
+			check_corner_height(curve->points + count - 1, height, depth);
+		    }
 		}
 
 #define VERTICAL(mask,x,y,i,j,bottom,top)			\
@@ -3824,11 +3826,15 @@ plot3d_boxes(struct surface_points *plot)
 		continue;
 
 	    if (boxdepth != 0) {
-		double depth = (boxdepth > 0) ? boxdepth : boxwidth * yscaler/xscaler;
+		double depth = boxdepth;
 		if (Y_AXIS.log) {
+		    if (boxdepth < 0)
+			depth = boxwidth * yscaler/xscaler;
 		    dyl *= pow(Y_AXIS.base, -depth/2.);
 		    dyh *= pow(Y_AXIS.base, depth/2.);
 		} else {
+		    if (boxdepth < 0)
+			depth = boxwidth * (Y_AXIS.max-Y_AXIS.min)/(X_AXIS.max-X_AXIS.min);
 		    dyl -= depth / 2.;
 		    dyh += depth / 2.;
 		}

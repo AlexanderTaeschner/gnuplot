@@ -4516,6 +4516,10 @@ check_for_variable_color(struct curve_points *plot, double *colorvalue)
     } else if (plot->lp_properties.pm3d_color.type == TC_Z) {
 	set_color( cb2gray(*colorvalue) );
 	return TRUE;
+    } else if (plot->lp_properties.pm3d_color.type == TC_COLORMAP) {
+	set_rgbcolor_var( rgb_from_colormap(cb2gray(*colorvalue),
+		plot->lp_properties.colormap) );
+	return TRUE;
     } else if (plot->lp_properties.l_type == LT_COLORFROMCOLUMN) {
 	lp_style_type lptmp;
 	/* lc variable will only pick up line _style_ as opposed to _type_ */
@@ -4576,6 +4580,7 @@ process_image(void *plot, t_procimg_action action)
     double view_port_y[2];
     double view_port_z[2] = {0,0};
     t_imagecolor pixel_planes;
+    udvt_entry *private_colormap = NULL;	/* "fc palette <colormap>" */
 
     /* Detours necessary to handle 3D plots */
     TBOOLEAN project_points = FALSE;		/* True if 3D plot */
@@ -4623,6 +4628,8 @@ process_image(void *plot, t_procimg_action action)
 	return;
     }
 
+    /* Check if a special color map was provided */
+    private_colormap = ((struct surface_points *)plot)->lp_properties.colormap;
 
     /* Check if the pixel data forms a valid rectangular grid for potential image
      * matrix support.  A general grid orientation is considered.  If the grid
@@ -5142,7 +5149,13 @@ process_image(void *plot, t_procimg_action action)
 				if (isnan(points[i_image].CRD_COLOR))
 					goto skip_pixel;
 			    }
-			    set_color( cb2gray(points[i_image].CRD_COLOR) );
+			    if (private_colormap) {
+				set_rgbcolor_var(
+				    rgb_from_colormap(cb2gray(points[i_image].CRD_COLOR),
+				    private_colormap ));
+			    } else {
+				set_color( cb2gray(points[i_image].CRD_COLOR) );
+			    }
 			} else {
 			    int r = rgbscale(points[i_image].CRD_R);
 			    int g = rgbscale(points[i_image].CRD_G);
@@ -5239,6 +5252,14 @@ place_spiderplot_axes(struct curve_points *first_plot, int layer)
 	    this_axis->label.text = strdup(plot->title);
 	}
     }
+
+    /* This should never happen if there really are spiderplots,
+     * but we have left open the possibility that other plot types
+     * could be mapped onto the radial axes.
+     * That case does not yet have support in place.
+     */
+    if (n_spokes == 0 || parallel_axis_array == NULL)
+	return;
 
     /* Place the grid lines */
     if (grid_spiderweb && layer == LAYER_BACK) {
