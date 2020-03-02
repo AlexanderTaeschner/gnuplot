@@ -204,6 +204,7 @@ const struct ft_entry ft[] =
     {"cdawson", f_cdawson},	/* complex Dawson's integral */
     {"erfi", f_erfi},		/* imaginary error function */
     {"VP", f_voigtp},		/* Voigt profile */
+    {"VP_fwhm", f_VP_fwhm},	/* Voigt profile full width at half maximum */
     {"faddeeva", f_faddeeva},	/* Faddeeva rescaled complex error function "w_of_z" */
 #endif
 
@@ -233,6 +234,7 @@ const struct ft_entry ft[] =
     {"value", f_value},		/* retrieve value of variable known by name */
 
     {"hsv2rgb", f_hsv2rgb},	/* color conversion */
+    {"palette", f_palette},	/* palette color lookup */
 
 #ifdef VOXEL_GRID_SUPPORT
     {"voxel", f_voxel},		/* extract value of single voxel */

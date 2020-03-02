@@ -87,7 +87,7 @@ f_voigtp(union argument *arg)
     z = voigt(z, sigma, gamma);		/* libcerf double -> double function */
     push(Gcomplex(&a, z, 0.0));
 }
-/* The libcery routine re_w_of_z( double x, double y )
+/* The libcerf routine re_w_of_z( double x, double y )
  * is equivalent to the previously implemented gnuplot routine voigt(x,y).
  * Use it in preference to the previous one.
  */
@@ -102,7 +102,9 @@ f_voigt(union argument *arg)
     w = re_w_of_z(x, y);
     push(Gcomplex(&a, w, 0.0));
 }
-/* erfi(z) = -i * erf(iz) */
+
+/* erfi(z) = -i * erf(iz)
+ */
 void
 f_erfi(union argument *arg)
 {
@@ -112,4 +114,35 @@ f_erfi(union argument *arg)
     z = real(pop(&a));
     push(Gcomplex(&a, erfi(z), 0.0));
 }
+
+/* Full width at half maximum of the Voigt profile
+ * VP_fwhm( sigma, gamma )
+ * EXPERIMENTAL
+ *	- the libcerf function is not reliable (not available prior to version 1.11
+ *	and handles out-of-range input by printing to stderr and returning a bad
+ *      value or exiting
+ *	- the fall-back approximation is accurate onlyt to 0.02%
+ */
+void
+f_VP_fwhm(union argument *arg)
+{
+    struct value a;
+    double sigma, gamma;
+    double fwhm;
+
+    gamma = real(pop(&a));
+    sigma = real(pop(&a));
+#ifdef HAVE_VPHWHM
+    fwhm = 2. * voigt_hwhm(sigma, gamma);
+#else
+    /* This approximation claims accuracy of only 0.02% */
+    {
+    double fG = 2. * sigma * sqrt(2.*log(2.));
+    double fL = 2. * gamma;
+    fwhm = 0.5346 * fL + sqrt( 0.2166*fL*fL + fG*fG);
+    }
+#endif
+    push(Gcomplex(&a, fwhm, 0.0));
+}
+
 #endif
