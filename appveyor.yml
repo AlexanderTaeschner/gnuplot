@@ -30,3 +30,9 @@ artifacts:
   - path: config\msvc\gnuplot\$(platform)\$(configuration)
     name: gnuplot_$(platform)_$(configuration)
     type: zip
+deploy:
+  provider: GitHub
+  auth_token:
+    secure: 2Uyv3KkcTbdZTHXQMGa2O6JZS20RkoWVtItLyAXMy2pnq7K2M5MFkcb6wlHu/yqc
+  on:
+    branch: master
