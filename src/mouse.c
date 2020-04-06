@@ -163,6 +163,20 @@ static bind_t *bindings = (bind_t *) 0;
 static const int NO_KEY = -1;
 static TBOOLEAN trap_release = FALSE;
 
+/*
+ * event -> name translation for debugging
+ */
+const char* GE_evt_name(int type)
+{
+#define GE_EVT_NAME(name) case name: return #name;
+    switch(type)
+    {
+        GE_EVT_LIST(GE_EVT_NAME);
+    default: ;
+    }
+    return "GE_UNKNOWN";
+}
+
 /* forward declarations */
 static void alert(void);
 static void MousePosToGraphPosReal(int xx, int yy, double *x, double *y, double *x2, double *y2);
@@ -2361,7 +2375,7 @@ do_event(struct gp_event_t *ge)
     replot_disabled = plotted_data_from_stdin;
 
     if (ge->type) {
-	FPRINTF((stderr, "(do_event) type       = %d\n", ge->type));
+	FPRINTF((stderr, "(do_event) type       = %s\n", GE_evt_name(ge->type)));
 	FPRINTF((stderr, "           mx, my     = %d, %d\n", ge->mx, ge->my));
 	FPRINTF((stderr, "           par1, par2 = %d, %d\n", ge->par1, ge->par2));
     }

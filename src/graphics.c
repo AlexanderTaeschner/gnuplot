@@ -749,7 +749,7 @@ do_plot(struct curve_points *plots, int pcount)
     /* Sync point for epslatex text positioning */
     (term->layer)(TERM_LAYER_FRONTTEXT);
 
-    /* Draw plot title and axis labels */
+    /* Draw axis labels and timestamps */
     /* Note: As of Dec 2012 these are drawn as "front" text. */
     draw_titles();
 
@@ -937,6 +937,7 @@ do_plot(struct curve_points *plots, int pcount)
 		break;
 
 	    case FILLEDCURVES:
+	    case POLYGONS:
 		if (this_plot->filledcurves_options.closeto == FILLEDCURVES_DEFAULT) {
 		    if (this_plot->plot_type == DATA)
 			memcpy(&this_plot->filledcurves_options,
@@ -1111,6 +1112,9 @@ do_plot(struct curve_points *plots, int pcount)
 
     /* PLACE ARROWS */
     place_arrows( LAYER_FRONT );
+
+    /* PLACE TITLE LAST */
+    place_title(title_x, title_y);
 
     /* Release the palette if we have used one (PostScript only?) */
     if (is_plot_with_palette() && term->previous_palette)
@@ -4896,6 +4900,13 @@ process_image(void *plot, t_procimg_action action)
 
 		TBOOLEAN visible;
 		double x, y, z, x_low, x_high, y_low, y_high, z_low, z_high;
+
+		/* This of course should not happen, but if an improperly constructed
+		 * input file presents more data than expected, the extra data can
+		 * cause this overflow.
+		 */
+		if (i_image >= p_count || i_image < 0)
+		    int_error(NO_CARET, "Unexpected line of data in matrix encountered");
 
 		x = points[i_image].x;
 		y = points[i_image].y;

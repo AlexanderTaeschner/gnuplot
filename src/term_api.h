@@ -218,6 +218,7 @@ typedef enum termlayer {
 
 /* Options used by the terminal entry point term->waitforinput(). */
 #define TERM_ONLY_CHECK_MOUSING	1
+#define TERM_WAIT_FOR_FONTPROPS	2
 #define TERM_EVENT_POLL_TIMEOUT 0	/* select() timeout in usec */
 
 /* Options used by the terminal entry point term->hypertext(). */
@@ -503,10 +504,6 @@ int style_from_fill(struct fill_style_type *);
 void do_arc( int cx, int cy, double radius,
              double arc_start, double arc_end,
 	     int style, TBOOLEAN wedge);
-
-#ifdef LINUXVGA
-void LINUX_setup(void);
-#endif
 
 #ifdef OS2
 int PM_pause(char *);
