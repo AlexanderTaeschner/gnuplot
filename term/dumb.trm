@@ -109,12 +109,7 @@ TERM_PUBLIC void dumb_set_color(t_colorspec *);
 #include "readline.h"
 
 /* UTF-8 support */
-#ifdef HAVE_STDLIB_H
-#define DUMB_UTF8
- typedef int32_t charcell;
-#else
- typedef char charcell;
-#endif
+typedef int32_t charcell;
 
 /* matrix of characters */
 static charcell *dumb_matrix = NULL;
@@ -139,7 +134,7 @@ static int dumb_colormode = 0;
 
 static void dumb_set_pixel(int x, int y, int v);
 
-enum DUMB_id { DUMB_FEED, DUMB_NOFEED, DUMB_ENH, DUMB_NOENH, 
+enum DUMB_id { DUMB_FEED, DUMB_NOFEED, DUMB_ENH, DUMB_NOENH,
                DUMB_SIZE, DUMB_ASPECT,
                DUMB_ANSI, DUMB_ANSI256, DUMB_ANSIRGB, DUMB_NOCOLOR,
                DUMB_OTHER };
@@ -206,8 +201,10 @@ DUMB_options()
 	case DUMB_ANSIRGB:
 	    c_token++;
 	    dumb_colormode = cmd;
+#ifndef NO_DUMB_COLOR_SUPPORT
 	    term->make_palette = dumb_make_palette;
 	    term->set_color = dumb_set_color;
+#endif
 	    break;
 	case DUMB_NOCOLOR:
 	    c_token++;
@@ -261,7 +258,7 @@ dumb_set_pixel(int x, int y, int v)
     char *charpixel;
 
     if ((unsigned int) x <= dumb_xmax 	/* ie x>=0 && x<=dumb_xmax */
-    &&  (unsigned int) y <= dumb_ymax 
+    &&  (unsigned int) y <= dumb_ymax
     )  {
 	charpixel = (char *)(&dumb_matrix[dumb_xmax * y + x]);
 	/* null-terminate single ascii character (needed for UTF-8) */
@@ -281,7 +278,7 @@ DUMB_init()
 
     dumb_matrix = gp_realloc(dumb_matrix, size*sizeof(charcell), "dumb terminal");
 #ifndef NO_DUMB_COLOR_SUPPORT
-    dumb_colors = gp_realloc(dumb_colors, size*sizeof(t_colorspec), "dumb terminal");    
+    dumb_colors = gp_realloc(dumb_colors, size*sizeof(t_colorspec), "dumb terminal");
 #endif
 }
 
@@ -380,7 +377,7 @@ DUMB_rgb_color(rgb255_color rgb255)
 TERM_PUBLIC void
 DUMB_text()
 {
-    int x, y;
+    int x, y, i;
 
     putc('\f', gpoutfile);
     for (y = dumb_ymax - 1; y >= 0; y--) {
@@ -391,9 +388,8 @@ DUMB_text()
 	}
 #endif
     for (x = 0; x < dumb_xmax; x++) {
-#ifdef DUMB_UTF8
 	    char *c;
-#endif
+
 #ifndef NO_DUMB_COLOR_SUPPORT
 	    t_colorspec * color = &dumb_colors[dumb_xmax*y + x];
 	    switch (color->type) {
@@ -441,12 +437,11 @@ DUMB_text()
 		break;
 	    }
 #endif
-#ifdef DUMB_UTF8
 	    c = (char *)(&dumb_matrix[dumb_xmax*y + x]);
-	    fputs(c, gpoutfile);
-#else
-	    fputc(DUMB_PIXEL(x, y), gpoutfile);
-#endif
+	    /* The UTF-8 character might be four bytes long and so there's
+	       no guarantee that the charcell ends in a NUL. */
+	    for (i = 0; i < sizeof(charcell) && *c != NUL; i++, c++)
+		fputc(*c, gpoutfile);
 	}
 	if (dumb_feed || y > 0)
 	    putc('\n', gpoutfile);
@@ -635,17 +630,12 @@ DUMB_put_text(unsigned int x, unsigned int y, const char *str)
     if (x + length > dumb_xmax)
 	x = GPMAX(0, dumb_xmax - length);
 
-#ifdef DUMB_UTF8
     for (i = 0; i < length && x < dumb_xmax; i++, x++) {
-	utf8_copy_one( (char *)(&DUMB_PIXEL(x, y)), gp_strchrn(str,i));
+	utf8_copy_one((char *)(&DUMB_PIXEL(x, y)), gp_strchrn(str, i));
 #ifndef NO_DUMB_COLOR_SUPPORT
 	memcpy(&dumb_colors[dumb_xmax * y + x], &dumb_color, sizeof(t_colorspec));
 #endif
     }
-#else
-    for (; x < dumb_xmax && *str; x++, str++)
-	dumb_set_pixel(x, y, *str, 5);
-#endif
 }
 
 
@@ -745,7 +735,7 @@ ENHdumb_OPEN(
 	/* Start new text fragment */
 	    enhanced_cur_text = &enhanced_text[0];
 	/* Scale fractional font height to vertical units of display */
-	    ENHdumb_base = base * 2;
+	    ENHdumb_base = base * 2 / fontsize;
 	/* Keep track of whether we are supposed to show this string */
 	    ENHdumb_show = showflag;
 	/* 0/1/2  no overprint / 1st pass / 2nd pass */
@@ -772,17 +762,12 @@ ENHdumb_FLUSH()
 	/* print the string fragment, perhaps invisibly */
 	/* NB: base expresses offset from current y pos */
 	if (ENHdumb_show && y < dumb_ymax) {
-#ifdef DUMB_UTF8
 	    for (i = 0; i < len && x < dumb_xmax; i++, x++) {
 		utf8_copy_one( (char *)(&DUMB_PIXEL(x, y)), gp_strchrn(str,i));
 #ifndef NO_DUMB_COLOR_SUPPORT
 		memcpy(&dumb_colors[dumb_xmax * y + x], &dumb_color, sizeof(t_colorspec));
 #endif
 	    }
-#else
-	    for (; x < dumb_xmax && *str; x++, str++)
-		dumb_set_pixel(x, y, *str, 5);
-#endif
 	}
 
 	if (!ENHdumb_widthflag)
@@ -1028,11 +1013,11 @@ START_HELP(dumb)
 " To obtain the best color match in `ansi` mode, you should use",
 " `set colorsequence classic`.",
 " Depending on the mode, the `dumb` terminal will emit the",
-" folowing sequences (without the additional whitespace):",
+" following sequences (without the additional whitespace):",
 "",
 "       ESC [ 0 m           reset attributes to defaults",
 "       foreground color:",
-"       ESC [ 1 m           set intense/bold", 
+"       ESC [ 1 m           set intense/bold",
 "       ESC [ 22 m          intense/bold off",
 "       ESC [ <fg> m        with color code 30 <= <fg> <= 37",
 "       ESC [ 39 m          reset to default",

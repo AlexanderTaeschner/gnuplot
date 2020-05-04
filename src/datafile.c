@@ -151,7 +151,7 @@ static int df_skip_bytes(off_t nbytes);
 
 /*{{{  variables */
 
-enum COLUMN_TYPE { CT_DEFAULT, CT_STRING, CT_KEYLABEL,
+enum COLUMN_TYPE { CT_DEFAULT, CT_STRING, CT_KEYLABEL, CT_MUST_HAVE,
 		CT_XTICLABEL, CT_X2TICLABEL, CT_YTICLABEL, CT_Y2TICLABEL,
 		CT_ZTICLABEL, CT_CBTICLABEL };
 
@@ -622,7 +622,7 @@ df_gets()
 /*}}} */
 
 /*{{{  char *df_gets() */
-/* 
+/*
  * This one is shared by df_gets() and by datablock.c:datablock_command
  */
 char *
@@ -1323,7 +1323,7 @@ df_open(const char *cmd_filename, int max_using, struct curve_points *plot)
 		df_xpixels, df_ypixels));
 
 	if (set_every && df_xpixels && df_ypixels) {
-	    plot->image_properties.ncols = 1 + 
+	    plot->image_properties.ncols = 1 +
 		    ((int)(GPMIN(lastpoint,df_xpixels-1)) - firstpoint) / everypoint;
 	    plot->image_properties.nrows = 1 +
 		    ((int)(GPMIN(lastline,df_ypixels-1)) - firstline) / everyline;
@@ -1424,7 +1424,7 @@ df_open(const char *cmd_filename, int max_using, struct curve_points *plot)
 	initialize_plot_style(plot);
 
     /* If the data is in binary matrix form, read in some values
-     * to determine the nubmer of columns and rows.  If data is in
+     * to determine the number of columns and rows.  If data is in
      * ASCII matrix form, read in all the data to memory in preparation
      * for using df_readbinary() routine.
      */
@@ -1711,7 +1711,7 @@ plot_option_using(int max_using)
 	    } else {
 		int col = int_expression();
 
-		if (col == -3)	/* pseudocolumn -3 means "last column" */	
+		if (col == -3)	/* pseudocolumn -3 means "last column" */
 		    fast_columns = 0;
 		else if (col < -2)
 		    int_error(c_token, "Column must be >= -2");
@@ -1727,7 +1727,7 @@ plot_option_using(int max_using)
 
     if (df_binary_file) {
 	/* If the highest user column number is greater than number of binary
-	 * columns, set the unitialized columns binary info to that of the last
+	 * columns, set the uninitialized columns binary info to that of the last
 	 * specified column or the default.
 	 */
 	df_extend_binary_columns(no_cols);
@@ -2150,13 +2150,6 @@ df_readascii(double v[], int max)
 			if (a.type == STRING) {
 			    add_tic_user(&axis_array[axis], a.v.string_val, xpos, -1);
 			    gpfree_string(&a);
-			} else {
-			    /* Version 5: In this case do not generate a tic at all. */
-			    /* E.g. plot $FOO using 1:2:(filter(3) ? strcol(3) : NaN) */
-			    /*
-			    add_tic_user(&axis_array[axis], "", xpos, -1);
-			    int_warn(NO_CARET,"Tic label does not evaluate as string!\n");
-			     */
 			}
 		    } else {
 			char *temp_string = df_parse_string_field(df_tokens[output]);
@@ -2208,7 +2201,13 @@ df_readascii(double v[], int max)
 
 		    /* June 2018: CHANGE.  For consistency with function plots,	*/
 		    /* treat imaginary result as UNDEFINED.			*/
-		    if (undefined || (a.type == CMPLX && fabs(imag(&a)) > zero)) {
+		    if (a.type == CMPLX && fabs(imag(&a)) > zero) {
+			return_value = DF_COMPLEX_VALUE;
+			v[output] = not_a_number();
+			continue;
+		    }
+
+		    if (undefined) {
 			return_value = DF_UNDEFINED;
 			v[output] = not_a_number();
 			continue;
@@ -2338,6 +2337,14 @@ df_readascii(double v[], int max)
 		     * THIS IS A CHANGE.
 		     */
 		    } else if ((column <= df_no_cols)
+			     && (use_spec[output].expected_type == CT_MUST_HAVE)) {
+			/* This catches cases where the plot style cannot tolerate
+			 * silently missed points (e.g. stacked histograms)
+			 */
+			v[output] = not_a_number();
+			return DF_UNDEFINED;
+
+		    } else if ((column <= df_no_cols)
 			     && (df_column[column - 1].good == DF_MISSING)) {
 			v[output] = not_a_number();
 			return_value = DF_MISSING;
@@ -2403,6 +2410,7 @@ df_readascii(double v[], int max)
 	switch (return_value) {
 	case DF_MISSING:
 	case DF_UNDEFINED:
+	case DF_COMPLEX_VALUE:
 	case DF_BAD:
 			return return_value;
 			break;
@@ -2795,7 +2803,7 @@ f_columnhead(union argument *arg)
 	column_for_key_title = 0;
 
     /* Sep 2017 - It used to be that the program could be in either of two states,
-     * depending on where the call to columnheader(N) appeared. 
+     * depending on where the call to columnheader(N) appeared.
      * 1) called from a using spec;  we already read the header line
      *    This means that df_column points to a structure containing column headers
      * 2) called from 'title columnheader(N)'; we have not yet read the header line
@@ -3004,6 +3012,17 @@ expect_string(const char column)
 }
 
 /*
+ * Plotting routines can call this prior to invoking df_readline() to indicate
+ * that they cannot tolerate failing to return some value for this column,
+ * even if the input field is junk.
+ */
+void
+require_value(const char column)
+{
+    use_spec[column-1].expected_type = CT_MUST_HAVE;
+}
+
+/*
  * Load plot title used in key box from the string found earlier by df_readline.
  * Called from get_data().
  */
@@ -3061,6 +3080,8 @@ df_set_key_title_columnhead(struct curve_points *plot)
 	if (!plot) /* stats "name" option rather than plot title */
 	    column_for_key_title = use_spec[0].column;
 	else if (plot->plot_style == HISTOGRAMS)
+	    column_for_key_title = use_spec[0].column;
+	else if (plot->plot_style == PARALLELPLOT)
 	    column_for_key_title = use_spec[0].column;
 	else if (df_no_use_specs == 1)
 	    column_for_key_title = use_spec[0].column;
@@ -3471,7 +3492,7 @@ adjust_binary_use_spec(struct curve_points *plot)
     if (ps_index == sizeof(default_style_cols)/sizeof(default_style_cols[0]))
 	int_error(NO_CARET, nothing_known);
 
-    /* Matrix format is interpretted as always having three columns. */
+    /* Matrix format is interpreted as always having three columns. */
     if (df_matrix_file) {
 	if (df_no_bin_cols > 3)
 	    int_error(NO_CARET, "Matrix data contains only three columns");
@@ -3532,7 +3553,7 @@ adjust_binary_use_spec(struct curve_points *plot)
 		    df_no_use_specs = 3;
 		else {
 		    /* Command:  plot 'foo' matrix       with no using spec */
-		    /* Matix element treated as y value rather than z value */
+		    /* Matrix element treated as y value rather than z value */
 		    df_no_use_specs = 2;
 		    use_spec[1].column = 3;
 		}
@@ -4256,12 +4277,12 @@ plot_option_multivalued(df_multivalue_type type, int arg)
 		    }
 		    c_token++;
 		    break;
-		
+
 		case DF_SCAN: {
 		    /* Set the method in which data is scanned from
 		     * file.  Compare against a set number of strings.  */
 		    int i;
-		
+
 		    if (!(df_bin_record[bin_record_count].cart_dim[0]
 			|| df_bin_record[bin_record_count].scan_dim[0])
 			|| !(df_bin_record[bin_record_count].cart_dim[1]
@@ -4337,7 +4358,7 @@ plot_option_multivalued(df_multivalue_type type, int arg)
 		    memcpy(df_bin_record[bin_record_count].cart_cen_or_ori,
 			   tuple, sizeof(tuple));
 		    break;
-		
+
 		case DF_ROTATION:
 		    /* Allow user to enter angle in terms of pi or degrees. */
 		    if (equals(c_token, "pi")) {
@@ -4450,7 +4471,7 @@ df_get_read_size(int col)
 #endif
 
 /* If the column number is greater than number of binary columns, set
- * the unitialized columns binary info to that of the last specified
+ * the uninitialized columns binary info to that of the last specified
  * column or the default if none were set.  */
 void
 df_extend_binary_columns(int no_cols)
@@ -4522,7 +4543,7 @@ plot_option_binary_format(char *format_string)
 			    substr += strl;  /* Advance pointer in array to next text. */
 			    if (!ignore) {
 				int n;
-				
+
 				for (n = 0; n < field_repeat; n++) {
 				    no_fields++;
 				    df_set_skip_after(no_fields, 0);
@@ -4593,7 +4614,7 @@ df_show_binary(FILE *fp)
     else
 	fprintf(fp, "none");
 
-    fprintf(fp, "\n\t  File Endianness: %s",
+    fprintf(fp, "\n\t  File Endianess: %s",
 	    df_endian[df_bin_file_endianess_default]);
 
     fprintf(fp, "\n\t  Default binary format: %s",
@@ -4601,7 +4622,7 @@ df_show_binary(FILE *fp)
 
     for (i = 0; i < num_record; i++) {
 	int dimension = 1;
-	
+
 	fprintf(fp, "\n\t  Record %d:\n", i);
 	fprintf(fp, "\t    Dimension: ");
 	if (bin_record[i].cart_dim[0] < 0)
@@ -4699,7 +4720,7 @@ df_show_datasizes(FILE *fp)
 	 i < sizeof(df_binary_details)/sizeof(df_binary_details[0]);
 	 i++) {
 	int j;
-	
+
 	fprintf(fp,"\t  ");
 	for (j = 0; j < df_binary_details[i].no_names; j++) {
 	    fprintf(fp,"\"%s\" ",df_binary_details[i].name[j]);
@@ -4715,7 +4736,7 @@ df_show_datasizes(FILE *fp)
 	     /sizeof(df_binary_details_independent[0]);
 	 i++) {
 	int j;
-	
+
 	fprintf(fp,"\t  ");
 	for (j = 0; j < df_binary_details_independent[i].no_names; j++) {
 	    fprintf(fp,"\"%s\" ",df_binary_details_independent[i].name[j]);
@@ -4750,7 +4771,7 @@ df_swap_bytes_by_endianess(char *data, int read_order, int read_size)
 	) {
 	int j = 0;
 	int k = read_size - 1;
-	
+
 	for (; j < k; j++, k--) {
 	    char temp = data[j];
 
@@ -4762,7 +4783,7 @@ df_swap_bytes_by_endianess(char *data, int read_order, int read_size)
 #if SUPPORT_MIDDLE_ENDIAN
     if ((read_order == DF_1032) || (read_order == DF_2301)) {
 	int j= read_size - 1;
-	
+
 	for (; j > 0; j -= 2) {
 	    char temp = data[j-1];
 
@@ -4885,7 +4906,7 @@ df_readbinary(double v[], int max)
 	     * appropriate column of the rotation matrix by -1.  */
 	    for (i = 0; i < 2; i++) {
 		int j;
-		
+
 		for (j = 0; j < 2; j++) {
 		    R[i][j] *= this_record->cart_dir[i];
 		}
@@ -4925,7 +4946,7 @@ df_readbinary(double v[], int max)
 
 	    for (i = 0; i < 3; i++) {
 		int map;
-		
+
 		/* How to direct the generated coordinates in regard
 		 * to scan direction */
 		if (this_record->cart_dim[i] || this_record->scan_dim[i]) {
@@ -5298,7 +5319,7 @@ df_readbinary(double v[], int max)
 	/*{{{  copy column[] to v[] via use[] */
 	{
 	    int limit = (df_no_use_specs ? df_no_use_specs : MAXDATACOLS);
-		
+
 	    if (limit > max)
 		limit = max;
 
@@ -5308,7 +5329,7 @@ df_readbinary(double v[], int max)
 		/* if there was no using spec, column is output+1 and at=NULL */
 		if (use_spec[output].at) {
 		    struct value a;
-			
+
 		    /* no dummy values to set up prior to... */
 		    evaluate_inside_using = TRUE;
 		    evaluate_at(use_spec[output].at, &a);
@@ -5371,7 +5392,7 @@ df_readbinary(double v[], int max)
 		} else if ((column <= df_no_cols)
 			   && df_column[column - 1].good == DF_GOOD)
 		    v[output] = df_column[column - 1].datum;
-			
+
 		/* EAM - Oct 2002 Distinguish between DF_MISSING
 		 * and DF_BAD.  Previous versions would never
 		 * notify caller of either case.  Now missing data
@@ -5739,6 +5760,6 @@ df_generate_ascii_array_entry()
     } else {
 	snprintf(df_line, max_line_len-1, "%d %g %g", df_array_index, real(entry), imag(entry));
     }
-	
+
     return df_line;
 }

@@ -52,7 +52,8 @@ enum DF_STATUS {
     DF_FOUND_KEY_TITLE = -6,
     DF_KEY_TITLE_MISSING = -7,
     DF_STRINGDATA = -8,
-    DF_COLUMN_HEADERS = -9
+    DF_COLUMN_HEADERS = -9,
+    DF_COMPLEX_VALUE = -10
 };
 
 /* large file support (offsets potentially > 2GB) */
@@ -147,7 +148,8 @@ int df_3dmatrix(struct surface_points *, int);
 void df_set_key_title(struct curve_points *);
 void df_set_key_title_columnhead(struct curve_points *);
 char * df_parse_string_field(char *);
-int expect_string(const char column );
+int expect_string(const char column);
+void require_value(const char column);
 
 char *df_retrieve_columnhead(int column);
 void df_reset_after_error(void);

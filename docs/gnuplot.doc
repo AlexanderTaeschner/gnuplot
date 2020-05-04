@@ -203,6 +203,8 @@ C
 4 New plot styles and style options
 #start
 #b cubic spline smoothing of 3D lines. See `splot smooth csplines`
+#b curve smoothing using along-path cubic splines suitable for closed curves
+## or for 2D curves that are not monotonic on x. See `smooth path`.
 #end
 
 4 New commands and command options
@@ -4739,13 +4741,14 @@ Ffigure_linespoints
 2 parallelaxes
 Ffigure_parallel
 ?plotting styles parallelaxes
+?plot with parallelaxes
 ?with parallelaxes
 ?parallelaxes
 ?parallel
  Parallel axis plots can highlight correlation in a multidimensional data set.
  Individual columns of input data are each associated with a separately scaled
  vertical axis.  If all columns are drawn from a single file then each line on
- the plot represents values from a single row of data.
+ the plot represents values from a single row of data in that file.
  It is common to use some discrete categorization to assign line colors,
  allowing visual exploration of the correlation between this categorization and
  the axis dimensions.
@@ -4756,7 +4759,7 @@ Ffigure_parallel
      plot $DATA using col1{:varcol1} {at <xpos>} {<line properties}, \
           $DATA using col2, ...
 
- Note: Version 5.4 of gnuplot introduced a CHANGE in the syntax for plot style
+ CHANGE: Version 5.4 of gnuplot introduced a change in the syntax for plot style
  parallelaxes.  The revised syntax allows an unlimited number of parallel axes.
 
       gnuplot 5.2:   plot $DATA using 1:2:3:4:5 with parallelaxes
@@ -7013,12 +7016,12 @@ Ffigure_zerror
 
  Syntax:
        smooth {unique | frequency | fnormal | cumulative | cnormal | bins
-                      | kdensity {bandwidth}
-                      | csplines | acsplines | mcsplines | bezier | sbezier
-                      | unwrap | zsort}
+              | kdensity {bandwidth}
+              | csplines | acsplines | mcsplines | path | bezier | sbezier
+              | unwrap | zsort}
 
- The `unique`, `frequency`, `fnormal`, `cumulative` and `cnormal` sort the data
- on x and then plot some aspect of the distribution of x values.
+ The `unique`, `frequency`, `fnormal`, `cumulative` and `cnormal` options
+ sort the data on x and then plot some aspect of the distribution of x values.
 
  The spline and Bezier options determine coefficients describing a continuous
  curve between the endpoints of the data. This curve is then plotted in the same
@@ -7127,17 +7130,17 @@ Ffigure_zerror
  The smoothed curve always passes through the data points, so closely-spaced
  points may generate local bumps and excursions in the smoothed curve.
 
- EXPERIMENTAL:
  `splot ... smooth csplines with lines` fits splines to the x, y, and z
- coordinates of successive data points.  Unlike the 2D case, the points are not
+ coordinates of successive data points.  Unlike 2D csplines, the points are not
  sorted first so it is possible to fit splines to a trajectory containing loops.
  In the general case three separate sets of spline coefficients are generated,
  each treating one coordinate x, y, or z as a function of a shared implicit
- trajectory path parameter.  However if the curve lies in the xz, yz, or xy
- plane then only a single set of spline coefficients is generated.
- This allows you to generate a stack of smoothed curves in 3D where each one
- replicates the spline fit you would have obtained from a 2D plot of the
- coordinates in projection.
+ trajectory path parameter. This is analogous to the 2D `plot ... smooth path`.
+ 
+ In the special case that the curve lies in the xz, yz, or xy plane then only a
+ single set of spline coefficients is generated.  This allows you to generate a
+ stack of smoothed curves in 3D where each one replicates the spline fit you
+ would have obtained from a 2D plot of the coordinates in projection.
 5 mcsplines
 ?commands plot datafile smooth mcsplines
 ?plot datafile smooth mcsplines
@@ -7152,6 +7155,27 @@ Ffigure_zerror
  convexity of the original data points.  This reduces the effect of outliers.
  FN Fritsch & RE Carlson (1980) "Monotone Piecewise Cubic Interpolation",
  SIAM Journal on Numerical Analysis 17: 238–246.
+
+Ffigure_smooth_path
+5 path
+?commands path datafile smooth path
+?plot datafile smooth path
+?plot smooth path
+?smooth path
+?datafile smooth path
+?path
+ The `smooth path` option generates cubic splines to fit points in the order
+ they are presented in the input data; i.e. they are not first sorted on x.
+ This generates a smooth spline through a closed curve or along a trajectory
+ that contains loops.  As always, a separate curve is created for each set
+ of points in the input file, where a blank line separates the sets.
+ Plotting `smooth path with filledcurves closed` will guarantee that each set
+ of points creates a closed curve.  Plotting `smooth path with lines` will
+ generate a closed curve if the first and last points in the set overlap,
+ otherwise it will create an open-ended smooth path.  See 
+^ <a href="http://www.gnuplot.info/demo_5.5/smooth_path.html">
+ smooth_path.dem
+^ </a>
 5 sbezier
 ?commands plot datafile smooth sbezier
 ?plot datafile smooth sbezier
@@ -7560,12 +7584,17 @@ Ffigure_zerror
  bookkeeping values in addition to the actual data values contained in the input
  file. These are contained in "pseudocolumns".
        column(0)   The sequential order of each point within a data set.
-                   The counter starts at 0 and is reset by two sequential blank
+                   The counter starts at 0, increments on each non-blank,
+                   non-comment line, and is reset by two sequential blank
                    records.  The shorthand form $0 is available.
-       column(-1)  This counter starts at 0 and is reset by a single blank line.
+       column(-1)  This counter starts at 0, increments on a single blank line,
+                   and is reset by two sequential blank lines.
                    This corresponds to the data line in array or grid data.
-       column(-2)  The index number of the current data set within a file that
-                   contains multiple data sets.  See `index`.
+                   It can also be used to distinguish separate line segments
+                   or polygons within a data set.
+       column(-2)  Starts at 0 and increments on two sequential blank lines.
+                   This is the index number of the current data set within a
+                   file that contains multiple data sets.  See `index`.
 5 key
 ?using key
 ?plot using key
@@ -9786,7 +9815,7 @@ Ffigure_missing
  On most systems this is controlled by the environmental variables
  LC_ALL, LC_CTYPE, or LANG.  This mechanism is necessary, for example, to
  pass multibyte character encodings such as UTF-8 or EUC_JP to the wxt
- and cairopdf terminals.  This command does not affect the locale-specific
+ and pdf terminals.  This command does not affect the locale-specific
  representation of dates or numbers.
  See also `set locale` and `set decimalsign`.
 
@@ -12751,18 +12780,27 @@ Ffigure_multiple_keys
  commands except that it acts on one of the axes p1, p2, ... used in parallel
  axis plots and spiderplots.  See `parallelaxes`, `set xrange`, and `set xtics`.
  The normal options to the range and tics commands are accepted although not
- all options make sense for parallel axis plots.  Placement of the label,
- relevant only to spiderplots, can be adjusted by varying the radial offset.
+ all options make sense for parallel axis plots.
+
+ `set paxis <axisno> label <label-options>` is relevant to spiderplots but
+ ignored otherwise.  Axes of a parallel axis plot can be labeled using the
+ `title` option of the plot command, which generates an xtic label.
+ Note that this may require also `set xtics`.
+
+ The axis linetype properties are controlled using `set style parallelaxis`.
 3 pixmap
 ?pixmap
 ?set pixmap
+?unset pixmaps
+?show pixmaps
 ?commands set pixmap
  Syntax:
        set pixmap <index> "filename" at <position>
-                  {width <w> | height <h> | size <w> <h>}
+                  {width <w> | height <h> | size <w>,<h>}
                   {front|behind} {center}
        show pixmaps
        unset pixmaps
+       unset pixmap <index>
 
  The `set pixmap` command is similar to `set object` in that it defines an
  object that will appear on subsequent plots. The rectangular array of

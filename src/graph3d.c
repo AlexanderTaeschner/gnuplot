@@ -738,7 +738,8 @@ do_3dplot(
 	}
 	if (surface_rot_z == 90 || surface_rot_z == 270) {
 	    yz_plane = TRUE;
-	    base_z = ceiling_z;
+	    if (surface_rot_x == 270 || yz_projection)
+		base_z = ceiling_z;
 	}
     }
 
@@ -810,7 +811,8 @@ do_3dplot(
 
     /* Give a chance for rectangles to be behind everything else */
     place_objects( first_object, LAYER_BEHIND, 3);
-    place_pixmaps(LAYER_BEHIND, 3);
+    if (replot_mode != AXIS_ONLY_ROTATE)
+	place_pixmaps(LAYER_BEHIND, 3);
 
     term_apply_lp_properties(&border_lp);	/* border linetype */
 
@@ -4023,6 +4025,11 @@ check3d_for_variable_color(struct surface_points *plot, struct coordinate *point
     case TC_LINESTYLE:	/* color from linestyle in data column */
 	plot->lp_properties.pm3d_color.lt = (int)(point->CRD_COLOR);
 	apply_pm3dcolor(&(plot->lp_properties.pm3d_color));
+	break;
+    case TC_COLORMAP:
+	if (plot->lp_properties.colormap)
+	    set_rgbcolor_var( rgb_from_colormap( cb2gray(point->CRD_COLOR),
+					plot->lp_properties.colormap) );
 	break;
     default:
 	/* The other cases were taken care of already */

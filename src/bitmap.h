@@ -34,6 +34,7 @@
 # define GNUPLOT_BITMAP_H
 
 #include "syscfg.h"
+#include <color.h>
 
 /* allow up to 16 bit width for character array */
 typedef unsigned int char_row;
@@ -85,10 +86,12 @@ void b_charsize(unsigned int);
 void b_setvalue(unsigned int);
 
 void b_setlinetype(int);
+void b_linewidth(double linewidth);
 void b_move(unsigned int, unsigned int);
 void b_vector(unsigned int, unsigned int);
 void b_put_text(unsigned int, unsigned int, const char *);
 int b_text_angle(int);
 void b_boxfill(int, unsigned int, unsigned int, unsigned int, unsigned int);
+void b_filled_polygon(int points, gpiPoint *corners);
 
 #endif /* GNUPLOT_BITMAP_H */

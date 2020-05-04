@@ -1135,7 +1135,7 @@ void
 do_arc(
     int cx, int cy, /* Center */
     double radius, /* Radius */
-    double arc_start, double arc_end, /* Limits of arc in degress */
+    double arc_start, double arc_end, /* Limits of arc in degrees */
     int style, TBOOLEAN wedge)
 {
     gpiPoint vertex[250];
@@ -1475,7 +1475,7 @@ change_term(const char *origname, int length)
 #endif
 #ifdef HAVE_LIBGD
     /* To allow "set term sixel" as short for "set term sixelgd" */
-    if (!strncmp(origname,"sixel",5)) {
+    if (!strncmp(origname, "sixel", length)) {
 	name = "sixelgd";
 	length = 7;
     }

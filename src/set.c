@@ -2157,6 +2157,7 @@ set_pixmap()
 	    continue;
 	}
 	if ((temp = try_to_get_string())) {
+	    gp_expand_tilde(&temp);
 	    free(this_pixmap->filename);
 	    this_pixmap->filename = temp;
 	    continue;
@@ -5938,7 +5939,7 @@ set_tic_prop(struct axis *this_axis)
 /*
  * minor tics around perimeter of polar grid circle (theta).
  * This version works like other axes (parameter is # of subintervals)
- * but it might be more reasonable to simply take increment in degress.
+ * but it might be more reasonable to simply take increment in degrees.
  */
 static void
 set_mttics(struct axis *this_axis)
