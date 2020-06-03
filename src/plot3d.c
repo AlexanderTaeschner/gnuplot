@@ -41,6 +41,7 @@
 #include "datablock.h"
 #include "encoding.h"
 #include "eval.h"
+#include "getcolor.h"
 #include "graph3d.h"
 #include "hidden3d.h"
 #include "interpol.h"
@@ -1005,7 +1006,13 @@ get_3ddata(struct surface_points *this_plot)
 
 	    if (j == DF_UNDEFINED || j == DF_MISSING) {
 		cp->type = UNDEFINED;
-		goto come_here_if_undefined;
+		/* Version 5.5 - Since version 5 2D plot modes store all available
+		 * info even if one of the requested columns is missing or undefined.
+		 * Now we extend this behavior to 3D processing also.
+		 * prior to May 2020 the next line was
+		 *    goto come_here_if_undefined;
+		 */
+		j = df_no_use_specs;
 	    }
 	    if (j == DF_COMPLEX_VALUE) {
 		cp->type = UNDEFINED;
@@ -1141,6 +1148,7 @@ get_3ddata(struct surface_points *this_plot)
 		    /* j is 3 for some reason */ ;
 		} else {
 		    int varcol = 4;
+		    cp->CRD_ROTATE = this_plot->labels->rotate;
 		    cp->CRD_PTSIZE = this_plot->labels->lp_properties.p_size;
 		    cp->CRD_PTTYPE = this_plot->labels->lp_properties.p_type;
 		    if (cp->CRD_PTSIZE == PTSZ_VARIABLE)
@@ -1203,10 +1211,28 @@ get_3ddata(struct surface_points *this_plot)
 		&&  this_plot->fill_properties.border_color.value < 0) {
 		    color_from_column(TRUE);
 		    color = v[--j];
+
+		} else if (this_plot->fill_properties.border_color.type == TC_Z
+			&& j >= 4) {
+		    rgb255_color rgbcolor;
+		    unsigned int rgb;
+		    rgb255maxcolors_from_gray(cb2gray(v[--j]), &rgbcolor);
+		    rgb = (unsigned int)rgbcolor.r << 16
+			| (unsigned int)rgbcolor.g << 8
+			| (unsigned int)rgbcolor.b;
+		    color_from_column(TRUE);
+		    color = rgb;
+
+		} else if (this_plot->fill_properties.border_color.type == TC_COLORMAP
+			&& j >= 4) {
+		    double gray = map2gray(v[--j], this_plot->lp_properties.colormap);
+		    color_from_column(TRUE);
+		    color = rgb_from_colormap(gray, this_plot->lp_properties.colormap);
+
 		} else if (this_plot->lp_properties.l_type == LT_COLORFROMCOLUMN) {
 		    struct lp_style_type lptmp;
-		    color_from_column(TRUE);
 		    load_linetype(&lptmp, (int)v[--j]);
+		    color_from_column(TRUE);
 		    color = lptmp.pm3d_color.lt;
 		}
 
@@ -1486,14 +1512,14 @@ calculate_set_of_isolines(
 
 	    evaluate_at(plot_func.at, &a);
 
-	    if (fabs(imag(&a)) > zero) {
+	    if (undefined) {
 		points[i].type = UNDEFINED;
-		n_complex_values++;
 		continue;
 	    }
 
-	    if (undefined) {
+	    if (fabs(imag(&a)) > zero && !isnan(real(&a))) {
 		points[i].type = UNDEFINED;
+		n_complex_values++;
 		continue;
 	    }
 

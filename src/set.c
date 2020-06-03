@@ -166,11 +166,14 @@ static int assign_arrowstyle_tag(void);
 static void set_tic_prop(struct axis *);
 static void set_mttics(struct axis *this_axis);
 
+static void set_colormap(void);
+static void new_colormap(void);
+static void set_colormap_range(void);
+
 static void check_palette_grayscale(void);
 static int set_palette_defined(void);
 static void set_palette_file(void);
 static void set_palette_function(void);
-static void save_palette(void);
 static void parse_histogramstyle(histogram_style *hs,
 				t_histogram_type def_type, int def_gap);
 static void set_style_parallel(void);
@@ -248,6 +251,9 @@ set_command()
 	case S_COLOR:
 	    unset_monochrome();
 	    c_token++;
+	    break;
+	case S_COLORMAP:
+	    set_colormap();
 	    break;
 	case S_COLORSEQUENCE:
 	    set_colorsequence(0);
@@ -2106,6 +2112,7 @@ set_pixmap()
     t_pixmap *new_pixmap = NULL;
     t_pixmap *prev_pixmap = NULL;
     char *temp = NULL;
+    TBOOLEAN from_colormap = FALSE;
     int tag;
 
     c_token++;
@@ -2162,9 +2169,20 @@ set_pixmap()
 	    this_pixmap->filename = temp;
 	    continue;
 	}
-	if (equals(c_token, "behind") || equals(c_token, "back")) {
+	if (equals(c_token, "colormap")) {
+	    c_token++;
+	    pixmap_from_colormap(this_pixmap);
+	    from_colormap = TRUE;
+	    continue;
+	}
+	if (equals(c_token, "behind")) {
 	    c_token++;
 	    this_pixmap->layer = LAYER_BEHIND;
+	    continue;
+	}
+	if (equals(c_token, "back")) {
+	    c_token++;
+	    this_pixmap->layer = LAYER_BACK;
 	    continue;
 	}
 	if (equals(c_token, "front")) {
@@ -2181,8 +2199,11 @@ set_pixmap()
 	break;
     }
 
+    if (from_colormap)
+	return;
+
     if (!this_pixmap->filename)
-	int_error(c_token, "must give filename");
+	int_error(c_token, "must give filename or colormap");
 
     /* Enforce non-negative extents */
     if (this_pixmap->extent.x < 0)
@@ -2605,10 +2626,10 @@ set_label()
 	if (a.type == STRING) {
 	    c_token = save_token;
 	    tag = assign_label_tag();
-	    gpfree_string(&a);
 	} else {
 	    tag = (int) real(&a);
 	}
+	free_value(&a);
     }
 
     if (tag <= 0)
@@ -3735,6 +3756,7 @@ set_palette()
 		TBOOLEAN done = FALSE;
 		CHECK_TRANSFORM;
 		sm_palette.colorMode = SMPAL_COLOR_MODE_CUBEHELIX;
+		sm_palette.cmodel = C_MODEL_RGB;
 		sm_palette.cubehelix_start = 0.5;
 		sm_palette.cubehelix_cycles = -1.5;
 		sm_palette.cubehelix_saturation = 1.0;
@@ -3815,9 +3837,6 @@ set_palette()
 		--c_token;
 		continue;
 	    }
-	    case S_PALETTE_SAVE:
-		save_palette();
-		continue;
 
 	    } /* switch over palette lookup table */
 	    int_error(c_token,"invalid palette option");
@@ -3834,13 +3853,29 @@ set_palette()
 
 #undef CHECK_TRANSFORM
 
-/* 'set palette save <colormap>'
+/*
+ * V5.5 EXPERIMENTAL
+ * set colormap new <colormap-name>
+ * set colormap <colormap-name> range [min:max]
+ */
+void
+set_colormap()
+{
+    c_token++;
+    if (equals(c_token, "new")) {
+	new_colormap();
+    } else if (equals(c_token+1, "range")) {
+	set_colormap_range();
+    }
+}
+
+/* 'set colormap new <colormap>'
  * saves color mapping of current palette into an array that can later be used
  * to substitute for the main palettes, as in 
  *    splot foo with pm3d fc palette <colormap>
  */
 static void
-save_palette(void)
+new_colormap(void)
 {
     struct udvt_entry *array;
     struct value *A;
@@ -3857,16 +3892,33 @@ save_palette(void)
     free_value(&array->udv_value);
     c_token++;
 
+    /* Take size from current palette */
+    if (sm_palette.use_maxcolors > 0 && sm_palette.use_maxcolors <= 256)
+	colormap_size = sm_palette.use_maxcolors;
+
     array->udv_value.v.value_array = gp_alloc((colormap_size+1) * sizeof(t_value), "colormap");
     array->udv_value.type = ARRAY;
 
     /* Element zero of the new array is not visible but contains the size
-     * All other elements contain a 24 or 32 bit [A]RGB color value
-     * generated from the current palette.
      */
     A = array->udv_value.v.value_array;
     A[0].v.int_val = colormap_size;
     A[0].type = COLORMAP_ARRAY;
+
+    /* FIXME: Leverage the known structure of value.v as a union
+     *        to overload both the colormap value as v.int_val
+     *        and the min/max range as v.cmplx_val.imag
+     *        There is nothing wrong with this in terms of available
+     *        storage, but a new member field of the union would be cleaner.
+     * Initialize to min = max = 0, which means use current cbrange.
+     * A different min/max can be written later via set_colormap();
+     */
+    A[1].v.cmplx_val.imag = 0.0;	/* min */
+    A[2].v.cmplx_val.imag = 0.0;	/* max */
+
+    /* All other elements contain a 24 or 32 bit [A]RGB color value
+     * generated from the current palette.
+     */
     for (i = 0; i < colormap_size; i++) {
 	gray = (double)i / (colormap_size-1);
 	if (sm_palette.positive == SMPAL_NEGATIVE)
@@ -3877,6 +3929,32 @@ save_palette(void)
 	A[i+1].type = INTGR;
 	A[i+1].v.int_val = (int)rgb255.r<<16 | (int)rgb255.g<<8 | (int)rgb255.b;
     }
+}
+
+/* set colormap <colormap-name> range [min:max]
+ * FIXME: parsing the bare colormap name rather than a string works
+ *        but that means you can't put the name in a variable.
+ */
+static void
+set_colormap_range()
+{
+    struct udvt_entry *colormap = get_colormap(c_token);
+    double cm_min, cm_max;
+
+    if (!colormap)
+	int_error(c_token, "not a colormap");
+
+    if (!equals(++c_token,"range") || !equals(++c_token,"["))
+	int_error(c_token, "syntax: set colormap <name> range [min:max]");
+    c_token++;
+    cm_min = real_expression();
+    c_token++;
+    cm_max = real_expression();
+    if (!equals(c_token,"]"))
+	int_error(c_token, "syntax: set colormap <name> range [min:max]");
+    c_token++;
+    colormap->udv_value.v.value_array[1].v.cmplx_val.imag = cm_min;
+    colormap->udv_value.v.value_array[2].v.cmplx_val.imag = cm_max;
 }
 
 /* process 'set colorbox' command */
@@ -4903,20 +4981,19 @@ set_style()
 		textbox->opaque = FALSE;
 		c_token++;
 	    } else if (almost_equals(c_token,"mar$gins")) {
-		struct value a;
 		c_token++;
 		if (END_OF_COMMAND) {
 		    textbox->xmargin = 1.;
 		    textbox->ymargin = 1.;
 		    break;
 		}
-		textbox->xmargin = real(const_express(&a));
+		textbox->xmargin = real_expression();
 		if (textbox->xmargin < 0)
 		    textbox->xmargin = 0;
 		textbox->ymargin = textbox->xmargin;
 		if (equals(c_token,",")) {
 		    c_token++;
-		    textbox->ymargin = real(const_express(&a));
+		    textbox->ymargin = real_expression();
 		    if (textbox->ymargin < 0)
 			textbox->ymargin = 0;
 		}
@@ -5523,9 +5600,8 @@ set_view()
 static void
 set_zero()
 {
-    struct value a;
     c_token++;
-    zero = magnitude(const_express(&a));
+    zero = real_expression();
 }
 
 

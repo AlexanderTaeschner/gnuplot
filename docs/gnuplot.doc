@@ -216,7 +216,7 @@ C
 4 Multiple named palettes
 #start
 #b The current palette can be saved to a named colormap for future use.
-## See `set palette save`.
+## See `set colormap`.
 #b pm3d and image plots can specify a previously saved palette by name.
 ## This permits the use of multiple palettes in a single plot command.
 ## See `colorspec palette`.
@@ -3062,10 +3062,11 @@ Ffigure_newsyntax
 
  `fillcolor palette <colormap>` maps the z coordinate of a plot element onto
  a previously saved named colormap instead of using the current palette.
- See `set palette save`.
+ See `set colormap`.
  This option is EXPERIMENTAL. Details may change.
- Mapping z values into the named colormap uses cbrange; there should be some
- method for specifying a separate min/max range for each named colormap.
+ If the colormap has a separate range associated with it, that range is used
+ to map z values analous to the use of cbrange to map the standard palette.
+ If there is no separate range for this colormap then cbrange is used.
 
 4 rgbcolor variable
 ?rgbcolor variable
@@ -3169,6 +3170,8 @@ Ffigure_newsyntax
       the plot legend (`key`)
       front
  Within each layer elements are drawn in the order
+      grid, axis, and border elements
+      pixmaps in numerical order
       objects (rectangles, circles, ellipses, polygons) in numerical order
       labels in numerical order
       arrows in numerical order
@@ -3316,15 +3319,17 @@ Ffigure_newsyntax
       gnuplot -persist -e 'plot [-5:5] sinh(x)'
 
  gnuplot will open a display window, draw the plot into it, and then exit,
- leaving the display window containing the plot on the screen.  Depending on
- the terminal type, some mousing operations may still be possible in the
- persistent window.  However operations like zoom/unzoom that require redrawing
- the plot are generally not possible because the main program has already exited.
-
- You can also specify `persist` or `nopersist` at the time you set a new terminal
- type. For example
+ leaving the display window containing the plot on the screen.
+ You can also specify `persist` or `nopersist` when you set a new terminal.
 
       set term qt persist size 700,500
+
+ Depending on the terminal type, some mousing operations may still be possible
+ in the persistent window.  However operations like zoom/unzoom that require
+ redrawing the plot are not possible because the main program has exited.
+ If you want to leave a plot window open and fully mouseable after creating
+ the plot, for example when running gnuplot from a script file rather than
+ interactively, see `pause mouse close`.
 
 2 Plotting
 ?plotting
@@ -3467,13 +3472,11 @@ Ffigure_newsyntax
  the backquoted text on the command line.  Exit status of the system command
  is returned in variables GPVAL_SYSTEM_ERRNO and GPVAL_SYSTEM_ERRMSG.
 
- Carriage-return ('\r') and newline ('\n') characters are stripped from the
- input stream during substitution.  This is in distinction to the string
- returned by the system() function, which does not strip these characters.
- See `system`.
+ Note: Carriage-return ('\r') and newline ('\n') characters are not stripped
+ from the input stream during substitution.  This is a change from version 5.2.
 
  Command-line substitution can be used anywhere on the `gnuplot` command
- line, except inside strings delimited by single quotes.
+ line except inside strings delimited by single quotes.
 
  Example:
 
@@ -5352,9 +5355,10 @@ Ffigure_zerror
           print ARG2 * 4.56, @ARG2 * 4.56
           print "This plot produced by script ", ARG0
 
- Notice that ARG1 must be dereferenced as a macro, but ARG2 may be dereferenced
- either as a macro (yielding a numerical constant) or a variable (yielding that
- same numerical value after auto-promotion of the string "1.23" to a real).
+ Notice that because ARG1 is a string it must be dereferenced as a macro,
+ but ARG2 may be dereferenced either as a macro (yielding a numerical constant)
+ or a variable (yielding that same numerical value after auto-promotion of the
+ string "1.23" to a real).
 
  The same result could be obtained directly from a shell script by invoking
  gnuplot with the `-c` command line option:
@@ -6250,6 +6254,7 @@ Ffigure_zerror
  Syntax:
        pause <time> {"<string>"}
        pause mouse {<endcondition>}{, <endcondition>} {"<string>"}
+       pause mouse close
 
  <time> may be any constant or floating-point expression.  `pause -1` will wait
  until a carriage return is hit, zero (0) won't pause at all, and a positive
@@ -6296,6 +6301,25 @@ Ffigure_zerror
        while (MOUSE_KEY != 9) {
            pause mouse key
        }
+3 pause mouse close
+?commands pause mouse close
+?pause mouse close
+?pause close
+ The command `pause mouse close` is a specific example of pausing to wait for
+ an external event.  In this case the program waits for a "close" event from
+ the plot window.  Exactly how to generate such an event varies with your
+ desktop environment and configuration, but usually you can close the plot
+ window by clicking on some widget on the window border or by typing
+ a hot-key sequence such as <alt><F4> or <ctrl>q.  If you are unsure whether
+ a suitable widget or hot-key is available to the user, you may also want to
+ define a hot-key sequence using gnuplot's own mechanism. See `bind`.
+
+ The command sequence below may be useful when running gnuplot from a script
+ rather than from the command line.
+
+      plot <...whatever...>
+      bind all "alt-End" "exit gnuplot"
+      pause mouse close
 
 2 plot
 ?commands plot
@@ -8968,6 +8992,45 @@ Ffigure_smooth_path
  dot/dash pattern or linewidth to distinguish linetypes. The `set color`
  command selects the color linetypes.  See `set monochrome`, `set linetype`,
  and `set colorsequence`.
+
+3 Colormap
+?commands set colormap
+?set colormap
+?colormap
+?show colormap
+=alpha channel
+=transparency
+=palette
+ Syntax:
+
+      set colormap new <colormap-name>
+      set colormap <colormap-name> range [<min>:<max>]
+      show colormaps
+
+ `set colormap new <name>` creates a colormap array <name> and loads it from
+ the current palette settings. This saved colormap can be further manipulated
+ as an array of 32-bit ARGB color values and used by name in subsequent plots.
+
+ Here is an example that creates a palette running from dark red to white,
+ saves it to a colormap array named 'Reds', and makes all entries in the
+ colormap partially transparent.  This named colormap is then used later
+ to color a pm3d surface.
+ Note that the alpha channel value in a named colormap follows the convention
+ for ARGB line properties; i.e 0 is opaque 0xff is fully transparent.
+
+      set palette defined (0 "dark-red", 1 "white")
+      set colormap new Reds
+      do for [i=1:|Reds|] { Reds[i] = Reds[i] | 0x3F000000 }
+      splot func(x,y) with pm3d fillcolor palette Reds
+
+ The mapping of z values onto the colormap can be tuned by setting minimum and
+ maximum z values that correspond to the end points.  For example
+
+      set colormap Reds range [0:10]
+
+ If no range is set, or if min and max are the same, then the mapping uses the
+ current limits of cbrange. See `set cbrange`.  
+
 3 colorsequence
 ?commands set colorsequence
 ?set colorsequence
@@ -12394,7 +12457,6 @@ Ffigure_multiple_keys
                   { nops_allcF | ps_allcF }
                   { maxcolors <maxcolors> }
                 }
-      set palette save <colormap name>
 
  `set palette` (i.e. without options) restores the default values.
  Otherwise, the options can be given in any order.
@@ -12402,9 +12464,6 @@ Ffigure_multiple_keys
  `show palette` lists the current palette properties.
 
  `test palette` displays the current palette on the screen.
-
- `set palette save <name>` creates a colormap for the current palette and saves
- it into a named colormap array for later use.
 
  The following options determine the coloring properties.
 
@@ -12696,29 +12755,6 @@ Ffigure_multiple_keys
      awk -f pm3dCompress.awk thefile.ps >smallerfile.ps
      awk -f pm3dConvertToImage.awk thefile.ps >smallerfile.ps
 
-4 save <colormap>
-?set palette save
-?palette save
-?colormap
-=alpha channel
-=transparency
-
- `set palette save <name>` creates a colormap array <name> and loads it from
- the current palette settings. This saved colormap can be further manipulated
- as an array of 32-bit ARGB color values and used by name in subsequent plots.
-
- This example creates a palette running from dark red to white, saves it to
- a colormap array named 'Reds', and makes all entries in the colormap
- partially transparent.  This named colormap is then used later to color
- a pm3d surface.  Note that the alpha channel value in a named colormap
- follows the convention for ARGB line properties; i.e 0 is opaque 0xff is
- fully transparent.
-
-      set palette defined (0 "dark-red", 1 "white")
-      set palette save Reds
-      do for [i=1:|Reds|] { Reds[i] = Reds[i] | 0x3F000000 }
-      splot func(x,y) with pm3d fillcolor palette Reds
-
 3 parametric
 ?commands set parametric
 ?commands unset parametric
@@ -12795,9 +12831,10 @@ Ffigure_multiple_keys
 ?show pixmaps
 ?commands set pixmap
  Syntax:
-       set pixmap <index> "filename" at <position>
+       set pixmap <index> {"filename" | colormap <name>}
+                  at <position>
                   {width <w> | height <h> | size <w>,<h>}
-                  {front|behind} {center}
+                  {front|back|behind} {center}
        show pixmaps
        unset pixmaps
        unset pixmap <index>
@@ -12838,6 +12875,14 @@ Ffigure_multiple_keys
        # but will always face forward and remain upright
        set pixmap 3 "image.png" at my_x, my_y, f(my_x,my_y) width screen .05
        splot f(x,y)
+4 pixmap from colormap
+?pixmap colormap
+?set pixmap colormap
+ Another use of pixmaps is to create a colorbox for a named palette,
+ separate from the colorbox that is automatically generated for the active
+ main palette
+
+      set pixmap <index> colormap <name> at <position> size <width>, <height>
 3 pm3d
 ?commands set pm3d
 ?commands show pm3d
@@ -13702,7 +13747,8 @@ Ffigure_multiple_keys
  The `set style fill` command is used to set the default style of the plot
  elements in plots with boxes, histograms, candlesticks and filledcurves.
  This default can be superseded by fillstyles attached to individual plots.
- See also 'set style rectangle'.
+ Note that there is a separate default fill style for rectangles created by
+ `set obj`. See `set style rectangle`.
 
  Syntax:
        set style fill {empty
@@ -16713,7 +16759,7 @@ Ffigure_walls
  Qt terminal: 3D rotation of polygons and surfaces can be slow;
  this is strongly affected by the Qt rendering mode (see Qt documentation).
 
- The `raise` and `lower` functions are unreliable.
+ The `raise` and `lower` commands are unreliable.
 
 2 External libraries
 ?bugs external_libraries
@@ -16724,8 +16770,8 @@ Ffigure_walls
 =pdf
  External library GD (used by PNG/JPEG/GIF/sixelgd terminals, pixmap):
  Versions of libgd through 2.0.33 had various bugs in mapping the characters
- of Adobe's Symbol font.  Also it was possible to trigger a library segfault if
- an anti-aliased line crosses an upper corner of the canvas.
+ of Adobe's Symbol font.
+ Dot-dash patterns are not supported for these terminals.
 
  External library PDFlib (used by PDF terminal, but not by pdfcairo):
  Gnuplot can be linked against libpdf versions 4, 5, or 6. However, these

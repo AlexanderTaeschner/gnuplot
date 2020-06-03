@@ -876,7 +876,7 @@ get_data(struct curve_points *current_plot)
 	     *            {tc|lc variable}
 	     */
 	    int var = 3;	/* column number for next variable spec */
-	    coordval var_rotation = 0.0;
+	    coordval var_rotation = current_plot->labels->rotate;
 	    coordval var_ps = current_plot->labels->lp_properties.p_size;
 	    coordval var_pt = current_plot->labels->lp_properties.p_type;
 
@@ -1617,10 +1617,14 @@ boxplot_range_fiddling(struct curve_points *plot)
     if (plot->points[0].type == UNDEFINED)
 	int_error(NO_CARET,"boxplot has undefined x coordinate");
 
-    /* If outliers were processed, that has taken care of autoscaling. */
-    /* If not we need to calculate the whisker bar ends to determine yrange */
-    if (!boxplot_opts.outliers)
-	autoscale_boxplot(plot);
+    /* If outliers were processed, that has taken care of autoscaling on y.
+     * If not, we need to calculate the whisker bar ends to determine yrange.
+     */
+    if (boxplot_opts.outliers)
+	restore_autoscaled_ranges(&axis_array[plot->x_axis], NULL);
+    else
+	restore_autoscaled_ranges(&axis_array[plot->x_axis], &axis_array[plot->y_axis]);
+    autoscale_boxplot(plot);
 
     extra_width = plot->points[0].xhigh - plot->points[0].xlow;
     if (extra_width == 0)
@@ -3319,7 +3323,7 @@ eval_plots()
 			}
 
 			/* Imaginary values are treated as UNDEFINED */
-			if ((fabs(imag(&a)) > zero)) {
+			if (fabs(imag(&a)) > zero && !isnan(real(&a))) {
 			    this_plot->points[i].type = UNDEFINED;
 			    n_complex_values++;
 			    continue;
@@ -3854,7 +3858,7 @@ reevaluate_plot_title(struct curve_points *this_plot)
 	evaluate_inside_using = TRUE;
 	evaluate_at(df_plot_title_at, &a);
 	evaluate_inside_using = FALSE;
-	if (a.type == STRING) {
+	if (!undefined && a.type == STRING) {
 	    free(this_plot->title);
 	    this_plot->title = a.v.string_val;
 	    /* Special case where the "title" is used as a tic label */

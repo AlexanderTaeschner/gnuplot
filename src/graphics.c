@@ -391,7 +391,11 @@ place_pixmaps(int layer, int dimensions)
 	corner[3].x = term->xmax;
 	corner[3].y = 0;
 
-	term->image(pixmap->ncols, pixmap->nrows, pixmap->image_data, corner, IC_RGBA);
+	/* Check for horizontal named palette colorbox */
+	if (!pixmap->filename && dx > dy*2)
+	    term->image(pixmap->nrows, pixmap->ncols, pixmap->image_data, corner, IC_RGBA);
+	else
+	    term->image(pixmap->ncols, pixmap->nrows, pixmap->image_data, corner, IC_RGBA);
     }
 }
 
@@ -704,9 +708,9 @@ do_plot(struct curve_points *plots, int pcount)
     if (is_plot_with_palette())
 	make_palette();
 
-    /* Give a chance for rectangles to be behind everything else */
-    place_objects( first_object, LAYER_BEHIND, 2);
+    /* Give a chance for background items to be behind everything else */
     place_pixmaps(LAYER_BEHIND, 2);
+    place_objects( first_object, LAYER_BEHIND, 2);
 
     screen_ok = FALSE;
 
@@ -736,6 +740,9 @@ do_plot(struct curve_points *plots, int pcount)
     /* Add back colorbox if appropriate */
     if (is_plot_with_colorbox() && color_box.layer == LAYER_BACK)
 	    draw_color_smooth_box(MODE_PLOT);
+
+    /* Pixmaps before objects */
+    place_pixmaps(LAYER_BACK, 2);
 
     /* Fixed objects */
     place_objects( first_object, LAYER_BACK, 2);
@@ -1098,11 +1105,11 @@ do_plot(struct curve_points *plots, int pcount)
     if (is_plot_with_colorbox() && color_box.layer == LAYER_FRONT)
 	    draw_color_smooth_box(MODE_PLOT);
 
+    /* pixmaps in behind rectangles to enable rectangle as border */
+    place_pixmaps( LAYER_FRONT, 2);
+
     /* And rectangles */
     place_objects( first_object, LAYER_FRONT, 2);
-
-    /* pixmaps in front of rectangles, OK? */
-    place_pixmaps( LAYER_FRONT, 2);
 
     /* PLACE LABELS */
     place_labels( first_label, LAYER_FRONT, FALSE );
@@ -4540,8 +4547,8 @@ check_for_variable_color(struct curve_points *plot, double *colorvalue)
 	set_color( cb2gray(*colorvalue) );
 	return TRUE;
     } else if (plot->lp_properties.pm3d_color.type == TC_COLORMAP) {
-	set_rgbcolor_var( rgb_from_colormap(cb2gray(*colorvalue),
-		plot->lp_properties.colormap) );
+	double gray = map2gray(*colorvalue, plot->lp_properties.colormap);
+	set_rgbcolor_var( rgb_from_colormap(gray, plot->lp_properties.colormap) );
 	return TRUE;
     } else if (plot->lp_properties.l_type == LT_COLORFROMCOLUMN) {
 	lp_style_type lptmp;
@@ -5169,52 +5176,53 @@ process_image(void *plot, t_procimg_action action)
 			 */
 		    }
 
-		    if (N_corners > 0) {
-			if (pixel_planes == IC_PALETTE) {
-			    if ((points[i_image].type == UNDEFINED)
-			    ||  (isnan(points[i_image].CRD_COLOR))) {
-				/* EAM April 2012 Distinguish +/-Inf from NaN */
-			    	FPRINTF((stderr,"undefined pixel value %g\n",
-					points[i_image].CRD_COLOR));
-				if (isnan(points[i_image].CRD_COLOR))
-					goto skip_pixel;
-			    }
-			    if (private_colormap) {
-				set_rgbcolor_var(
-				    rgb_from_colormap(cb2gray(points[i_image].CRD_COLOR),
-				    private_colormap ));
-			    } else {
-				set_color( cb2gray(points[i_image].CRD_COLOR) );
-			    }
-			} else {
-			    int r = rgbscale(points[i_image].CRD_R);
-			    int g = rgbscale(points[i_image].CRD_G);
-			    int b = rgbscale(points[i_image].CRD_B);
-			    int rgblt = (r << 16) + (g << 8) + b;
-			    set_rgbcolor_var(rgblt);
-			}
-			if (pixel_planes == IC_RGBA) {
-			    int alpha = rgbscale(points[i_image].CRD_A) * 100./255.;
-			    if (alpha <= 0)
-				goto skip_pixel;
-			    if (alpha > 100)
-				alpha = 100;
-			    if (term->flags & TERM_ALPHA_CHANNEL)
-				corners[0].style = FS_TRANSPARENT_SOLID + (alpha<<4);
-			}
+		    if (N_corners <= 0)
+			continue;
 
-			if (rectangular_image && term->fillbox
-			&&  !(term->flags & TERM_POLYGON_PIXELS)) {
-			    /* Some terminals (canvas) can do filled rectangles */
-			    /* more efficiently than filled polygons. */
-			    (*term->fillbox)( corners[0].style,
-				GPMIN(corners[0].x, corners[2].x),
-				GPMIN(corners[0].y, corners[2].y),
-				abs(corners[2].x - corners[0].x),
-				abs(corners[2].y - corners[0].y));
-			} else {
-			    (*term->filled_polygon) (N_corners, corners);
+		    if (pixel_planes == IC_PALETTE) {
+			if ((points[i_image].type == UNDEFINED)
+			||  (isnan(points[i_image].CRD_COLOR))) {
+			    /* EAM April 2012 Distinguish +/-Inf from NaN */
+			    FPRINTF((stderr,"undefined pixel value %g\n",
+				    points[i_image].CRD_COLOR));
+			    if (isnan(points[i_image].CRD_COLOR))
+				    goto skip_pixel;
 			}
+			if (private_colormap) {
+			    double gray = map2gray(points[i_image].CRD_COLOR,
+							     private_colormap);
+			    set_rgbcolor_var(rgb_from_colormap(gray, private_colormap));
+			} else {
+			    set_color( cb2gray(points[i_image].CRD_COLOR) );
+			}
+		    } else {
+			int r = rgbscale(points[i_image].CRD_R);
+			int g = rgbscale(points[i_image].CRD_G);
+			int b = rgbscale(points[i_image].CRD_B);
+			int rgblt = (r << 16) + (g << 8) + b;
+			set_rgbcolor_var(rgblt);
+		    }
+		    if (pixel_planes == IC_RGBA) {
+			int alpha = rgbscale(points[i_image].CRD_A) * 100./255.;
+			if (alpha <= 0)
+			    goto skip_pixel;
+			if (alpha > 100)
+			    alpha = 100;
+			if (term->flags & TERM_ALPHA_CHANNEL)
+			    corners[0].style = FS_TRANSPARENT_SOLID + (alpha<<4);
+		    }
+
+		    if (rectangular_image && term->fillbox
+		    &&  !(term->flags & TERM_POLYGON_PIXELS)) {
+			/* Some terminals (canvas) can do filled rectangles */
+			/* more efficiently than filled polygons. */
+			(*term->fillbox)( corners[0].style,
+			    GPMIN(corners[0].x, corners[2].x),
+			    GPMIN(corners[0].y, corners[2].y),
+			    abs(corners[2].x - corners[0].x),
+			    abs(corners[2].y - corners[0].y));
+		    } else {
+			(*term->filled_polygon) (N_corners, corners);
 		    }
 		}
 skip_pixel:

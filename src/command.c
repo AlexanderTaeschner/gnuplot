@@ -804,9 +804,11 @@ array_command()
     }
 
     /* Element zero can also hold an indicator that this is a colormap */
+    /* FIXME: more sanity checks?  e.g. all entries INTGR */
     if (equals(c_token, "colormap")) {
 	c_token++;
-	A[0].type = COLORMAP_ARRAY;
+	if (nsize >= 2)	/* Need at least 2 entries to calculate range */
+	    A[0].type = COLORMAP_ARRAY;
     }
 
     /* Initializer syntax:   array A[10] = [x,y,z,,"foo",] */
@@ -2035,7 +2037,6 @@ print_command()
 		len = strappend(&dataline, &size, len, a.v.string_val);
 	    else
 		fputs(a.v.string_val, print_out);
-	    gpfree_string(&a);
 	    need_space = FALSE;
 	} else {
 	    if (need_space) {
@@ -2050,6 +2051,7 @@ print_command()
 		disp_value(print_out, &a, FALSE);
 	    need_space = TRUE;
 	}
+	free_value(&a);
 
     } while (!END_OF_COMMAND && equals(c_token, ","));
 

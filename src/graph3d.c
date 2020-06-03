@@ -913,6 +913,9 @@ do_3dplot(
     /* Grid walls */
     place_objects(grid_wall, LAYER_BACK, 3);
 
+    /* pixmaps before objects so that a rectangle can be used as a border */
+    place_pixmaps(LAYER_BACK, 3);
+
     /* Add 'back' rectangles */
     place_objects(first_object, LAYER_BACK, 3);
 
@@ -1515,8 +1518,8 @@ do_3dplot(
 	draw_color_smooth_box(MODE_SPLOT);
 
     /* Add 'front' rectangles */
-    place_objects(first_object, LAYER_FRONT, 3);
     place_pixmaps(LAYER_FRONT, 3);
+    place_objects(first_object, LAYER_FRONT, 3);
 
     /* Grid walls */
     place_objects(grid_wall, LAYER_FRONT, 3);
@@ -4027,9 +4030,10 @@ check3d_for_variable_color(struct surface_points *plot, struct coordinate *point
 	apply_pm3dcolor(&(plot->lp_properties.pm3d_color));
 	break;
     case TC_COLORMAP:
-	if (plot->lp_properties.colormap)
-	    set_rgbcolor_var( rgb_from_colormap( cb2gray(point->CRD_COLOR),
-					plot->lp_properties.colormap) );
+	if (plot->lp_properties.colormap) {
+	    double gray = map2gray(point->CRD_COLOR, plot->lp_properties.colormap);
+	    set_rgbcolor_var( rgb_from_colormap(gray, plot->lp_properties.colormap) );
+	    }
 	break;
     default:
 	/* The other cases were taken care of already */
