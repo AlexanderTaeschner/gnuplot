@@ -635,9 +635,9 @@ void wxtFrame::OnExport( wxCommandEvent& WXUNUSED( event ) )
 
 		RECT rect;
 		rect.left = rect.top = 0;
-		unsigned dpi = GetDPI();
-		rect.right  = MulDiv(panel->plot.device_xmax, dpi, 10);
-		rect.bottom = MulDiv(panel->plot.device_ymax, dpi, 10);
+		wxSize dpi = GetDPI();
+		rect.right  = MulDiv(panel->plot.device_xmax, dpi.GetX(), 10);
+		rect.bottom = MulDiv(panel->plot.device_ymax, dpi.GetY(), 10);
 		HDC hmf = CreateEnhMetaFileW(NULL, fullpathFilename.wc_str(), &rect, NULL);
 		// The win32_printing surface makes an effort to use the GDI API wherever possible,
 		// which should reduce the file size in many cases.
@@ -703,12 +703,15 @@ void wxtFrame::OnPrint( wxCommandEvent& WXUNUSED( event ) )
 		panel->plot.cr = cairo_create(surface);
 		// scale the plot according to the ratio of printer and screen dpi
 		wxSize ppi = wxdc->GetPPI();
-		unsigned dpi = 96;
+		unsigned dpix = 96;
+		unsigned dpiy = 96;
 #ifdef _WIN32
-		dpi = GetDPI();
+		wxSize dpi = GetDPI();
+		dpix = dpi.GetX();
+		dpiy = dpi.GetY();
 #endif
-		double scaleX = ppi.GetWidth() / (double) dpi;
-		double scaleY = ppi.GetHeight() / (double) dpi;
+		double scaleX = ppi.GetWidth() / (double) dpix;
+		double scaleY = ppi.GetHeight() / (double) dpiy;
 		cairo_surface_set_fallback_resolution(surface, ppi.GetWidth(), ppi.GetHeight());
 		cairo_scale(panel->plot.cr,
 			scaleX / panel->plot.oversampling_scale,
