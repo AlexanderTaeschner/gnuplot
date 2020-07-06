@@ -1142,16 +1142,16 @@ get_data(struct curve_points *current_plot)
 
 	case ELLIPSES:
 	{   /* x y
-	     * x y major_diam
+	     * x y diam  (used for both major and minor axis)
 	     * x y major_diam minor_diam
 	     * x y major_diam minor_diam orientation
 	     */
 	    coordval x = v[0];
 	    coordval y = v[1];
-	    coordval major_axis = (j >= 3) ? fabs(v[2]) : 0.0;
-	    coordval minor_axis = (j >= 4) ? fabs(v[3]) : (j >= 3) ? fabs(v[2]) : 0.0;
+	    coordval major_axis = (j >= 3) ? v[2] : 0.0;
+	    coordval minor_axis = (j >= 4) ? v[3] : (j >= 3) ? v[2] : 0.0;
 	    coordval orientation = (j >= 5) ? v[4] : 0.0;
-	    coordval flag = (major_axis > 0 && minor_axis > 0) ? 0.0 : DEFAULT_RADIUS;
+	    coordval flag = (major_axis < 0 || minor_axis < 0) ?  DEFAULT_RADIUS : 0;
 
 	    if (j == 2)	/* FIXME: why not also for j == 3 or 4? */
 		orientation = default_ellipse.o.ellipse.orientation;
@@ -3582,12 +3582,14 @@ eval_plots()
 	axis_check_range(SECOND_Y_AXIS);
     } else {
 	assert(uses_axis[FIRST_Y_AXIS]);
+#if (0)	/* causes problems if y2 is set to logscale but never used */
 	if (axis_array[SECOND_Y_AXIS].autoscale & AUTOSCALE_MIN)
 	    axis_array[SECOND_Y_AXIS].min = axis_array[FIRST_Y_AXIS].min;
 	if (axis_array[SECOND_Y_AXIS].autoscale & AUTOSCALE_MAX)
 	    axis_array[SECOND_Y_AXIS].max = axis_array[FIRST_Y_AXIS].max;
 	if (! axis_array[SECOND_Y_AXIS].autoscale)
 	    axis_check_range(SECOND_Y_AXIS);
+#endif
     }
 
     /* This call cannot be in boundary(), called from do_plot(), because
@@ -3770,8 +3772,7 @@ parse_plot_title(struct curve_points *this_plot, char *xtitle, char *ytitle, TBO
 
 	/* This ugliness is because columnheader can be either a keyword */
 	/* or a function name.  Yes, the design could have been better. */
-	if (almost_equals(c_token,"col$umnheader")
-	&& !(equals(c_token,"columnhead") && equals(c_token+1,"(")) ) {
+	if (almost_equals(c_token,"col$umnheader") && !equals(c_token+1,"(")) {
 	    df_set_key_title_columnhead(this_plot);
 	} else if (equals(c_token,"at")) {
 	    *set_title = FALSE;

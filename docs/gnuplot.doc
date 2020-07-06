@@ -3472,8 +3472,8 @@ Ffigure_newsyntax
  the backquoted text on the command line.  Exit status of the system command
  is returned in variables GPVAL_SYSTEM_ERRNO and GPVAL_SYSTEM_ERRMSG.
 
- Note: Carriage-return ('\r') and newline ('\n') characters are not stripped
- from the input stream during substitution.  This is a change from version 5.2.
+ Note: Internal carriage-return ('\r') and newline ('\n') characters are not
+ stripped from the substituted string.  This is a change from version 5.2.
 
  Command-line substitution can be used anywhere on the `gnuplot` command
  line except inside strings delimited by single quotes.
@@ -4131,7 +4131,7 @@ Ffigure_ellipses
  and the x axis.
 
       2 columns: x y
-      3 columns: x y major_diam
+      3 columns: x y diam  (used for both major and minor axes)
       4 columns: x y major_diam minor_diam
       5 columns: x y major_diam minor_diam angle
 
@@ -4140,10 +4140,15 @@ Ffigure_ellipses
  (see `set style ellipse`).  The orientation of the ellipse, which is
  defined as the angle between the major diameter and the plot's x axis,
  is taken from the default ellipse style (see `set style ellipse`).
+
  If three input columns are provided, the third column is used for both
  diameters.  The orientation angle defaults to zero.
+
  If four columns are present, they are interpreted as x, y, major diameter,
  minor diameter.  Note that these are diameters, not radii.
+ If either diameter is negative, both diameters will be taken from the
+ default set by `set style ellipse`.
+
  An optional 5th column may specify the orientation angle in degrees.
  The ellipses will also be drawn with their default extent if either of the
  supplied diameters in the 3-4-5 column form is negative.
@@ -9734,14 +9739,9 @@ Ffigure_missing
  splines". It does not take additional parameters.
 
  The `qnorm` algorithm calculates a weighted average of the input data at
- each grid point. Each data point is weighted inversely by its distance from
- the grid point raised to the norm power.  (Actually, the weights are given
- by the inverse of dx^norm + dy^norm, where dx and dy are the components of
- the separation of the grid point from each data point.  For some norms
- that are powers of two, specifically 4, 8, and 16, the computation is
- optimized by using the Euclidean distance in the weight calculation,
- (dx^2+dy^2)^norm/2.  However, any non-negative integer can be used.)
- The power of the norm can be specified as a single optional parameter.
+ each grid point. Each data point is weighted by the inverse of its distance
+ from the grid point raised to some power. The power is specified as an
+ optional integer parameter that defaults to 1.
  This algorithm is the default.
 
  Finally, several smoothing kernels are available to calculate weighted
@@ -12016,17 +12016,25 @@ Ffigure_multiple_keys
  two linked axes is visible.  The hidden axis remains linear. Coordinates along
  the visible axis are mapped by applying g(x) to hidden axis coordinates.
  f(x) maps the visible axis coordinates back onto the hidden linear axis.
+ You must provide both the forward and inverse expressions.
 
- Example:
+ To illustrate how this works, consider the case of a log-scale x2 axis.
 
-       set xrange [1:1000]
-       set nonlinear x via log10(x) inverse 10**x
+       set x2ange [1:1000]
+       set nonlinear x2 via log10(x) inverse 10**x
 
- This example establishes a log-scaled x axis. It is an alternative way of
- achieving the effect of `set log x`.  The hidden axis in this case has range
- [0:3], obtained by calculating [log10(xmin):log10(xmax)].  You must provide
- both the forward and inverse expressions.
+ This achieves the same effect as `set log x2`.  The hidden axis in this case
+ has range [0:3], obtained by calculating [log10(xmin):log10(xmax)].
 
+ The transformation functions f() and g() must be defined using a
+ dummy variable appropriate to the nonlinear axis:
+     axis: x x2   dummy variable x
+     axis: y y2   dummy variable y
+     axis: z cb   dummy variable z
+     axis: r      dummy variable r
+
+?set nonlinear examples
+?nonlinear examples
  Example:
 
        set xrange [-3:3]

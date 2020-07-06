@@ -626,6 +626,14 @@ undefine_command()
 	else if (*key == '$')
 	    copy_str(&key[1], ++c_token, MAX_ID_LEN-1);
 
+	/* Other strange stuff on command line */
+	else if (!isletter(c_token))
+	    int_error(c_token, "Not a variable name");
+
+	/* This command cannot deal with array elements or functions */
+	if (equals(c_token+1, "[") || equals(c_token+1, "("))
+	    int_error(c_token, "Cannot undefine function or array element");
+
 	/* ignore internal variables */
 	if (strncmp(key, "GPVAL_", 6) && strncmp(key, "MOUSE_", 6))
 	    del_udv_by_name( key, wildcard );
@@ -1947,20 +1955,15 @@ print_set_output(char *name, TBOOLEAN datablock, TBOOLEAN append_p)
 	}
     } else {
 	print_out_var = add_udv_by_name(name);
-	if (print_out_var == NULL) {
-	    fprintf(stderr, "Error allocating datablock \"%s\"\n", name);
-	    return;
-	}
-	if (print_out_var->udv_value.type != NOTDEFINED) {
-	    gpfree_string(&print_out_var->udv_value);
-	    if (!append_p)
-		gpfree_datablock(&print_out_var->udv_value);
-	    if (print_out_var->udv_value.type != DATABLOCK)
-		print_out_var->udv_value.v.data_array = NULL;
-	} else {
+	if (!append_p)
+	    gpfree_datablock(&print_out_var->udv_value);
+	/* If this is not an existing datablock to be appended */
+	/* then make it a new empty datablock */
+	if (print_out_var->udv_value.type != DATABLOCK) {
+	    free_value(&print_out_var->udv_value);
+	    print_out_var->udv_value.type = DATABLOCK;
 	    print_out_var->udv_value.v.data_array = NULL;
 	}
-	print_out_var->udv_value.type = DATABLOCK;
     }
 
     print_out_name = name;
@@ -2132,8 +2135,10 @@ refresh_request()
 
 	if (this_axis->linked_to_secondary)
 	    clone_linked_axes(this_axis, this_axis->linked_to_secondary);
-	else if (this_axis->linked_to_primary)
+	else if (this_axis->linked_to_primary) {
+	    if (this_axis->linked_to_primary->autoscale != AUTOSCALE_BOTH)
 	    clone_linked_axes(this_axis, this_axis->linked_to_primary);
+	}
     }
 
     if (refresh_ok == E_REFRESH_OK_2D) {

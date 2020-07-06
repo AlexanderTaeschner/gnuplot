@@ -141,6 +141,7 @@ const struct ft_entry ft[] =
     {"stringcolumn",  f_stringcolumn},	/* for using specs */
     {"strcol",  f_stringcolumn},	/* shorthand form */
     {"columnhead",  f_columnhead},
+    {"columnheader",  f_columnhead},
     {"valid",  f_valid},
     {"timecolumn",  f_timecolumn},
 
@@ -413,6 +414,7 @@ free_value(struct value *a)
     gpfree_string(a);
     gpfree_datablock(a);
     gpfree_array(a);
+    a->type = NOTDEFINED;
 }
 
 /* It is always safe to call gpfree_string with a->type is INTGR or CMPLX.
