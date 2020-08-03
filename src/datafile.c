@@ -118,6 +118,7 @@
 #include "breaders.h"
 #include "tabulate.h" /* For sanity check inblock != outblock */
 #include "variable.h" /* For locale handling */
+#include "voxelgrid.h"
 
 /* test to see if the end of an inline datafile is reached */
 #define is_EOF(c) ((c) == 'e' || (c) == 'E')
@@ -396,6 +397,8 @@ static df_byte_read_order_type byte_read_order(df_endianess_type);
 /* Logical variables indicating information about data file. */
 TBOOLEAN df_binary_file;
 TBOOLEAN df_matrix_file;
+TBOOLEAN df_voxelgrid;
+
 
 static int df_M_count;
 static int df_N_count;
@@ -1118,6 +1121,8 @@ df_open(const char *cmd_filename, int max_using, struct curve_points *plot)
     df_ypixels = 0;
     df_transpose = FALSE;
 
+    df_voxelgrid = FALSE;
+
     df_eof = 0;
 
     /* Save for use by df_readline(). */
@@ -1149,6 +1154,10 @@ df_open(const char *cmd_filename, int max_using, struct curve_points *plot)
 	    if (df_array->udv_value.type != ARRAY)
 		int_error(c_token-1, "Array %s invalid", df_arrayname);
 	}
+    } else if (cmd_filename[0] == '$' && get_vgrid_by_name(cmd_filename)) {
+	/* The rest of the df_open() processing is not relevant */
+	df_voxelgrid = TRUE;
+	return(1);
     } else {
 	free(df_filename);
 	df_filename = gp_strdup(cmd_filename);
@@ -1399,19 +1408,35 @@ df_open(const char *cmd_filename, int max_using, struct curve_points *plot)
 
 	/* filename cannot be static array! */
 	gp_expand_tilde(&df_filename);
+
+	/* Open failure generates a warning rather than an immediate fatal error.
+	 * We assume success (GPVAL_ERRNO == 0) and let the caller change this to
+	 * something else if it considers DF_EOF a serious error.
+	 */
+	fill_gpval_integer("GPVAL_ERRNO", 0);
+
 #ifdef HAVE_SYS_STAT_H
 	{
 	    struct stat statbuf;
 	    if ((stat(df_filename, &statbuf) > -1) &&
 		S_ISDIR(statbuf.st_mode)) {
-		os_error(name_token, "\"%s\" is a directory",
-			df_filename);
+		char *errmsg = gp_alloc(32 + strlen(df_filename), "errmsg");
+		sprintf(errmsg, "\"%s\" is a directory", df_filename);
+		int_warn(name_token, errmsg);
+		fill_gpval_string("GPVAL_ERRMSG", errmsg);
+		free(errmsg);
+		df_eof = 1;
+		return DF_EOF;
 	    }
 	}
 #endif /* HAVE_SYS_STAT_H */
 
 	if ((data_fp = loadpath_fopen(df_filename, df_binary_file ? "rb" : "r")) == NULL) {
-	    int_warn(NO_CARET, "Cannot find or open file \"%s\"", df_filename);
+	    char *errmsg = gp_alloc(32 + strlen(df_filename), "errmsg");
+	    sprintf(errmsg, "Cannot find or open file \"%s\"", df_filename);
+	    int_warn(NO_CARET, errmsg);
+	    fill_gpval_string("GPVAL_ERRMSG", errmsg);
+	    free(errmsg);
 	    df_eof = 1;
 	    return DF_EOF;
 	}
@@ -4440,35 +4465,6 @@ df_set_read_type(int col, df_data_type type)
     df_column_bininfo[col-1].column.read_size
 	= df_binary_details[type].type.read_size;
 }
-
-#if (0)	/* UNUSED??? */
-
-/* Get the column data type. */
-df_data_type
-df_get_read_type(int col)
-{
-    assert(col > 0);
-    /* Check if we have room at least col columns */
-    if (col < df_max_bininfo_cols)
-	return(df_column_bininfo[col].column.read_type);
-    else
-	return -1;
-}
-
-
-/* Get the binary column data size. */
-int
-df_get_read_size(int col)
-{
-    assert(col > 0);
-    /* Check if we have room at least col columns */
-    if (col < df_max_bininfo_cols)
-	return(df_column_bininfo[col].column.read_size);
-    else
-	return -1;
-}
-
-#endif
 
 /* If the column number is greater than number of binary columns, set
  * the uninitialized columns binary info to that of the last specified

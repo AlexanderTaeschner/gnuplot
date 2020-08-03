@@ -75,6 +75,7 @@ static void impulse_range_fiddling(struct curve_points *plot);
 static void parallel_range_fiddling(struct curve_points *plot);
 static int check_or_add_boxplot_factor(struct curve_points *plot, char* string, double x);
 static void add_tics_boxplot_factors(struct curve_points *plot);
+static void parse_kdensity_options(struct curve_points *this_plot);
 
 /* internal and external variables */
 
@@ -2328,11 +2329,7 @@ eval_plots()
 			this_plot->plot_smooth = found_token;
 			break;
 		    case SMOOTH_KDENSITY:
-			this_plot->smooth_parameter = -1; /* Default */
-			if (almost_equals(c_token,"band$width")) {
-			    c_token++;
-			    this_plot->smooth_parameter = real_expression();
-			}
+			parse_kdensity_options(this_plot);
 			/* Fall through */
 		    case SMOOTH_ACSPLINES:
 		    case SMOOTH_BEZIER:
@@ -3582,14 +3579,6 @@ eval_plots()
 	axis_check_range(SECOND_Y_AXIS);
     } else {
 	assert(uses_axis[FIRST_Y_AXIS]);
-#if (0)	/* causes problems if y2 is set to logscale but never used */
-	if (axis_array[SECOND_Y_AXIS].autoscale & AUTOSCALE_MIN)
-	    axis_array[SECOND_Y_AXIS].min = axis_array[FIRST_Y_AXIS].min;
-	if (axis_array[SECOND_Y_AXIS].autoscale & AUTOSCALE_MAX)
-	    axis_array[SECOND_Y_AXIS].max = axis_array[FIRST_Y_AXIS].max;
-	if (! axis_array[SECOND_Y_AXIS].autoscale)
-	    axis_check_range(SECOND_Y_AXIS);
-#endif
     }
 
     /* This call cannot be in boundary(), called from do_plot(), because
@@ -3734,6 +3723,29 @@ parametric_fixup(struct curve_points *start_plot, int *plot_num)
     *last_pointer = free_list;
 }
 
+
+/*
+ * handle keyword options for "smooth kdensity {bandwidth <val>} {period <val>}
+ */
+static void
+parse_kdensity_options(struct curve_points *this_plot)
+{
+    TBOOLEAN done = FALSE;
+    this_plot->smooth_parameter = -1; /* Default */
+    this_plot->smooth_period = 0;
+
+    while (!done) {
+	if (almost_equals(c_token,"band$width")) {
+	    c_token++;
+	    this_plot->smooth_parameter = real_expression();
+	} else if (almost_equals(c_token,"period")) {
+	    c_token++;
+	    this_plot->smooth_period = real_expression();
+	} else
+	    done = TRUE;
+    }
+}
+
 /*
  * Shared by plot and splot
  */
@@ -3772,7 +3784,8 @@ parse_plot_title(struct curve_points *this_plot, char *xtitle, char *ytitle, TBO
 
 	/* This ugliness is because columnheader can be either a keyword */
 	/* or a function name.  Yes, the design could have been better. */
-	if (almost_equals(c_token,"col$umnheader") && !equals(c_token+1,"(")) {
+	if (almost_equals(c_token,"col$umnheader")
+	&& !(almost_equals(c_token,"columnhead$er") && equals(c_token+1,"(")) ) {
 	    df_set_key_title_columnhead(this_plot);
 	} else if (equals(c_token,"at")) {
 	    *set_title = FALSE;

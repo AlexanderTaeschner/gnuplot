@@ -39,6 +39,7 @@
 #include "matrix.h"   /* For vector allocation */
 #include "scanner.h"  /* To check for legal prefixes */
 #include "variable.h" /* For locale handling */
+#include "voxelgrid.h"
 
 #include "stats.h"
 
@@ -896,7 +897,8 @@ statsrequest(void)
 	columns = df_open(file_name, 2, NULL);	/* up to 2 using specs allowed */
 
 	if (columns < 0) {
-	    int_warn(NO_CARET, "Can't read data file");
+	    /* This allows the user to test for failure */
+	    fill_gpval_integer("GPVAL_ERRNO", 1);
 	    while (!END_OF_COMMAND)
 		c_token++;
 	    goto stats_cleanup;
@@ -946,6 +948,26 @@ statsrequest(void)
 	/* Clear any previous variables STATS_* so that if we exit early */
 	/* they cannot be mistaken as resulting from the current analysis. */
 	clear_stats_variables(prefix ? prefix : "STATS");
+
+	/* Special case for voxel grid stats: "stats $vgrid {name <prefix>} */
+	if (df_voxelgrid) {
+	    vgrid *vgrid = get_vgrid_by_name(file_name)->udv_value.v.vgrid;
+	    int N, nonzero;
+
+	    vgrid_stats(vgrid);
+	    N = vgrid->size;
+	    nonzero = N*N*N - vgrid->nzero;
+
+	    if (!prefix)
+		prefix = gp_strdup("STATS");
+	    create_and_set_var( vgrid->mean_value, prefix, "_mean",   "" );
+	    create_and_set_var( vgrid->stddev, prefix, "_stddev", "" );
+	    create_and_set_var( vgrid->sum, prefix, "_sum", "" );
+	    create_and_set_var( vgrid->min_value, prefix, "_min", "" );
+	    create_and_set_var( vgrid->max_value, prefix, "_max", "" );
+	    create_and_set_var( nonzero, prefix, "_nonzero", "" );
+	    goto stats_cleanup;
+	}
 
 	/* If the user has set an explicit locale for numeric input, apply it */
 	/* here so that it affects data fields read from the input file. */

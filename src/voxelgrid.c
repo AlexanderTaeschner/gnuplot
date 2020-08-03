@@ -113,7 +113,6 @@ struct isosurface_opt isosurface_options;
 static void vfill( t_voxel *grid );
 static void modify_voxels( t_voxel *grid, double x, double y, double z,
 			    double radius, struct at_type *function );
-static void vgrid_stats( vgrid *vgrid );
 
 /* Purely local bookkeeping */
 static int nvoxels_modified;
@@ -315,8 +314,9 @@ show_vgrid()
  * run through the whole grid
  * accumulate min/max, mean, and standard deviation of non-zero voxels
  * TODO: median
+ * TODO: only count voxels in range on x y and z
  */
-static void
+void
 vgrid_stats(vgrid *vgrid)
 {
     double min = VERYLARGE;
@@ -356,6 +356,7 @@ vgrid_stats(vgrid *vgrid)
     vgrid->min_value = min;
     vgrid->max_value = max;
     vgrid->nzero = nzero;
+    vgrid->sum = sum;
     if (num < 2) {
 	vgrid->mean_value = vgrid->stddev = not_a_number();
     } else {
@@ -371,9 +372,9 @@ vgrid_stats(vgrid *vgrid)
 }
 
 udvt_entry *
-get_vgrid_by_name(char *name)
+get_vgrid_by_name(const char *name)
 {
-    struct udvt_entry *vgrid = get_udv_by_name(name);
+    struct udvt_entry *vgrid = get_udv_by_name((char *)name);
 
     if (!vgrid || vgrid->udv_value.type != VOXELGRID)
 	return NULL;
@@ -808,6 +809,7 @@ modify_voxels( t_voxel *grid, double x, double y, double z,
     int ix, iy, iz;
     int ivx, ivy, ivz;
     int nvx, nvy, nvz;
+    TBOOLEAN save_fpe_trap;
     double vx, vy, vz, distance;
     t_voxel *voxel;
     int N;
@@ -833,6 +835,13 @@ modify_voxels( t_voxel *grid, double x, double y, double z,
     if (nvoxels_modified == 0)
 	fprintf(stderr, "\tvoxel cube defined by radius %g: %d x %d x %d\n",
 		radius, nvx, nvy, nvz);
+
+    /* This can be a HUGE iteration, in which case resetting the
+     * FPE trap handler on every voxel evaluateion can be a
+     * significant performance bottleneck (why??).
+     */
+    save_fpe_trap = df_nofpe_trap;
+    df_nofpe_trap = TRUE;
 
     /* The iteration covers a cube rather than a sphere */
     evaluate_inside_using = TRUE;
@@ -874,6 +883,8 @@ modify_voxels( t_voxel *grid, double x, double y, double z,
 	    }
 	}
     }
+
+    df_nofpe_trap = save_fpe_trap;
     evaluate_inside_using = FALSE;
 
     return;

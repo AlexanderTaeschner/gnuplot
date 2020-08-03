@@ -152,18 +152,27 @@ C
 ?faq
 ?FAQ
 ?seeking-assistance
- The canonical gnuplot web page can be found at
+ The canonical gnuplot home page can be found at
 ^ <a href="http://www.gnuplot.info">
            http://www.gnuplot.info
 ^ </a>
 
- Before seeking help, please check file FAQ.pdf or the above website for
+ Before seeking help, please check file FAQ.pdf or the above website for a
 ^ <a href="http://www.gnuplot.info/faq/">
            FAQ (Frequently Asked Questions) list.
 ^ </a>
 
- If you need help as a gnuplot user, please use the newsgroup
-           comp.graphics.apps.gnuplot
+ Another resource for help with specific plotting problems (not bugs) is
+           https://stackoverflow.com/questions/tagged/gnuplot
+
+ Bug reports and feature requests should be uploaded to the trackers at
+           http://sourceforge.net/projects/gnuplot/support
+ Please check previous reports to see if the bug you want to report has
+ already been fixed in a newer version.
+
+ When reporting a bug or posting a question, please include full details
+ of the gnuplot version, the terminal type, and the operating system.
+ A short self-contained script demonstrating the problem is very helpful.
 
  Instructions for subscribing to gnuplot mailing lists may be
  found via the gnuplot development website on SourceForge
@@ -171,27 +180,17 @@ C
            http://sourceforge.net/projects/gnuplot
 ^ </a>
 
- Please note that before you write to any of the gnuplot mailing lists,
- you have to subscribe to the list first.  This is necessary to keep the
- spam level down.
+ Please note that before you write to any of the gnuplot mailing lists you
+ must first subscribe to the list.  This helps reduce the amount of spam.
 
  The address for mailing to list members is:
            gnuplot-info@lists.sourceforge.net
 
- Bug reports and code contributions should be uploaded to the trackers at
-           http://sourceforge.net/projects/gnuplot/support
- Please check previous bug reports if the bug you want to report has not been
- already fixed in a newer version.
-
- A mailing list for those interested in development version of gnuplot is:
+ A mailing list for those interested in the development version of gnuplot is:
            gnuplot-beta@lists.sourceforge.net
 
- When posting a question, please include full details of the gnuplot version,
- the terminal type, and the operating system you are using.  A short
- self-contained script demonstrating the problem is often helpful.
-
 2 New features
-?new features
+?new version_5.5
 ?new
 3 Development version
 ?development version
@@ -201,19 +200,24 @@ C
  release until version 5.6.  Details may change before that.
 
 4 New plot styles and style options
+?new plot_styles
 #start
 #b cubic spline smoothing of 3D lines. See `splot smooth csplines`
 #b curve smoothing using along-path cubic splines suitable for closed curves
 ## or for 2D curves that are not monotonic on x. See `smooth path`.
+#b new keyword `period` for smoothing periodic data. See `smooth kdensity`.
 #end
 
 4 New commands and command options
 ?new commands
 #start
-#b `palette(z)` returns the RGB palette color mapping z into cbrange. 
+#b `stats <non-existant file>` yields a testable value. See `stats test`.
+#b `stats $vgrid` finds min/max/mean/stddev of voxels in grid
+#b `if ... else if ... else ...`
 #end
 
 4 Multiple named palettes
+?new multiple_palettes
 #start
 #b The current palette can be saved to a named colormap for future use.
 ## See `set colormap`.
@@ -226,7 +230,11 @@ C
 #end
 
 4 Other new features
+?new other
 #start
+#b Function `palette(z)` returns the RGB palette color for z in cbrange. 
+#b Function VP_fwhm(sigma,gamma) returns the full width at half maximum
+## of the Voigt profile. See `VP`, `VP_fwhm`, `libcerf`.
 #b Support XSG base directory for gnuplotrc configuration preferences.
 ## See `environment`.
 #end
@@ -234,6 +242,7 @@ C
 3 Features introduced in version 5.4
 ?new version_5.4
 4 Support for 64-bit integer arithmetic
+ New features in 5.4
 #start
 #b All evaluation of expressions and functions uses 64-integer arithmetic if
 ## supported by the platform.
@@ -264,7 +273,6 @@ C
 #end
 
 4 New plot styles and style options
-?new plot styles
 #start
 #b 3D plot style `with polygons` reads polygon faces from a data file.
 ## This can be used to create a surface or to construct a solid object.
@@ -292,7 +300,6 @@ C
 #end
 
 4 New data pre-processing filters
-?new filters
 #start
 #b `smooth zsort` sorts 2D points on values in a 3rd column. See `smooth zsort`.
 #end
@@ -421,7 +428,7 @@ C
 ## nonlinear axis where the paired functions are log(x) and exp(x).
 #end
 4 New commands and command options
-?new commands in 5.2
+?new version_5.2
 #start
 #b Inside the bracketed clause of an iteration, `continue` jumps immediately
 ## to the next iteration, `break` immediately exits from the iteration
@@ -2136,6 +2143,13 @@ C marker below is used to signal this to doc2html:
  `(1-(k*sin(p))**2)**(-0.5)/(1-n*sin(p)**2)`.  The parameter `n` must be less
  than 1, while `k` must lie between -1 and 1 (exclusive).  Note that by
  definition EllipticPi(0,k) == EllipticK(k) for all possible values of `k`.
+4 Special functions provided by libcerf
+?libcerf
+ Some special functions are only provided if your copy of gnuplot was configured
+ to use the external libcerf library (https://jugit.fz-juelich.de/mlz/libcerf).
+ These include the complex error function cerf(z), the imaginary error function
+ erfi(x), a complex extension of Dawson's integral cdawson(z), and complex
+ versions of the Faddeeva function and the Voigt profile VP(x, sigma, gamma).
 4 Random number generator
 ?expressions random
 ?random
@@ -6120,26 +6134,29 @@ Ffigure_zerror
 2 if
 ?commands if
 ?if
- New syntax:
+ Syntax:
        if (<condition>) { <commands>;
               <commands>
+              <commands>
+       } else if (<condition>) {
               <commands>
        } else {
               <commands>
        }
- Old syntax:
-       if (<condition>) <command-line> [; else if (<condition>) ...; else ...]
 
  This version of gnuplot supports block-structured if/else statements. If the
  keyword `if` or `else` is immediately followed by an opening "{", then
  conditional execution applies to all statements, possibly on multiple input
  lines, until a matching "}" terminates the block.  If commands may be nested.
 
- The old single-line if/else syntax is still supported, but can not be
- mixed with the new block-structured syntax.  See `if-old`.
+ The old pre-version 5 single-line if/else syntax is still supported,
+ but can not be mixed with the new block-structured syntax.  See `if-old`.
 3 if-old
 ?if if-old
 ?if-old
+ Old syntax:
+       if (<condition>) <command-line> [; else if (<condition>) ...; else ...]
+
  Through gnuplot version 4.4, the scope of the if/else commands was limited to
  a single input line. Now a multi-line clause may be enclosed in curly brackets.
  The old syntax is still honored but cannot be used inside a bracketed clause.
@@ -6163,7 +6180,7 @@ Ffigure_zerror
  else:
        v=0
        v=v+1; if (v%2) print "2" ; else if (v%3) print "3"; else print "fred"
- (repeat the last line repeatedly!)
+
 2 for
 ?for
  The `plot`, `splot`, `set` and `unset` commands may optionally contain an
@@ -7045,7 +7062,7 @@ Ffigure_zerror
 
  Syntax:
        smooth {unique | frequency | fnormal | cumulative | cnormal | bins
-              | kdensity {bandwidth}
+              | kdensity {bandwidth} {period}
               | csplines | acsplines | mcsplines | path | bezier | sbezier
               | unwrap | zsort}
 
@@ -7334,19 +7351,30 @@ Ffigure_smooth_path
 ?plot kdensity
 ?smooth kdensity
 ?kdensity
- The `smooth kdensity` option is a way to plot a kernel density estimate
- (a smooth histogram) for a random collection of points, using Gaussian kernels.
- A Gaussian is placed at the location of each point in the first column and
- the sum of all these Gaussians is plotted as a function. The value in the
- second column is taken as weight of the Gaussian. To obtain a normalized
- histogram, this should be 1/number-of-points. By default gnuplot calculates
- and uses the bandwidth which would be optimal for normally distributed data.
+ The `smooth kdensity` option generates and plots a kernel density estimate
+ using Gaussian kernels for the distribution from which a set of values was
+ drawn.  Values are taken from the first data column, optional weights are
+ taken from the second column.  A Gaussian is placed at the location of each
+ point and the sum of all these Gaussians is plotted as a function.
+ To obtain a normalized histogram, each weight should be 1/number-of-points.
+ 
+ Bandwidth:
+ By default gnuplot calculates and uses the bandwidth which would be optimal
+ for normally distributed data values.
       default_bandwidth = sigma * (4/3N) ** (0.2)
  This will usually be a very conservative, i.e. broad bandwidth.
  Alternatively, you can provide an explicit bandwidth.
       plot $DATA smooth kdensity bandwidth <value> with boxes
- The bandwidth used in the previous plot is stored in variable
- GPVAL_KDENSITY_BANDWIDTH.
+ The bandwidth used in the previous plot is stored in GPVAL_KDENSITY_BANDWIDTH.
+
+ Period:
+ For periodic data individual Gaussian components should be treated as repeating
+ at intervals of one period.  One example is data measured as a function of
+ angle, where the period is 2pi.  Another example is data indexed by day-of-year
+ and measured over multiple years, where the period is 365.
+ In such cases the period should be provided in the plot command:
+      plot $ANGULAR_DAT smooth kdensity period 2*pi with lines
+
 5 zsort
 ?commands plot datafile smooth zsort
 ?plot datafile smooth zsort
@@ -14780,11 +14808,18 @@ Ffigure_multiple_keys
  Syntax:
       set view projection {xy|xz|yz}
  Rotates the view angles of a 3D plot so that one of the primary planes
- xy, xz, or yz lies in the plane of the plot.  Axis labels and tics positioning
+ xy, xz, or yz lies in the plane of the plot.  Axis label and tic positioning
  is adjusted accordingly;  tics and labels on the third axis are disabled.
  The plot is scaled up to approximately match the size that 'plot' would
  generate for the same axis ranges.
  `set view projection xy` is equivalent to `set view map`.
+
+ When the x and y coordinates used to specify objects, labels, arrows and other
+ elements are both provided as "graph" coordinates, then in projection views
+ they are interpreted as "horizontal/vertical" rather than "x/y".
+
+     set key top right at graph 0.95, graph 0.95     # works in any projection
+ 
 3 vrange
 ?commands set vrange
 ?commands show vrange
@@ -16353,6 +16388,7 @@ Ffigure_walls
 =filter
  Syntax:
       stats {<ranges>} 'filename' {matrix | using N{:M}} {name 'prefix'} {{no}output}
+      stats $voxelgridname {name 'prefix'}
 
  This command prepares a statistical summary of the data in one or two columns
  of a file. The using specifier is interpreted in the same way as for plot
@@ -16361,6 +16397,10 @@ Ffigure_walls
  analysis. See `set xrange`. The summary is printed to the screen by default.
  Output can be redirected to a file by prior use of the command `set print`,
  or suppressed altogether using the `nooutput` option.
+
+ If the file cannot be found or cannot be read, a non-fatal warning is issued.
+ This can be used to test for the existance of a file without generating a
+ program error. See `stats test`.
 
  In addition to printed output, the program stores the individual statistics
  into three sets of variables.
@@ -16552,6 +16592,53 @@ Ffigure_walls
  or function `columnheader(N)` can be used to generate the name from whatever
  string is found in that column in the first row of the data file:
       do for [COL=5:8] { stats 'datafile' using COL name columnheader }
+3 test for existence of a file
+?stats test
+?statistics test
+ Trying to plot a nonexistent or unreadable file will generate an error that
+ halts the progress of a script or iteration.  The stats command can be used
+ to avoid this as in the example below
+      do for [i=first:last] {
+          filename = sprintf("file%02d.dat", i)
+          stats filename nooutput
+          if (GPVAL_ERRNO) {
+              print GPVAL_ERRMSG
+              continue
+          }
+          plot filename title filename
+      }
+3 voxelgrid
+?stats voxelgrid
+?statistics voxelgrid
+      stats $vgridname {name "prefix"}
+ The stats command can be used to interrogate the content of a voxel grid.
+ It yields the same information as `show vgrid` but saves it in variables
+ accessible for use in a script.
+
+@start table
+      STATS_min               # minimum non-zero value over all voxels in grid
+      STATS_max               # maximum value over all voxels in grid
+      STATS_mean              # mean value of non-zero voxels in grid
+      STATS_stderr            # standard deviation of non-zero voxel values
+      STATS_sum               # sum over all values in grid
+      STATS_nonzero           # number of non-zero voxels
+#\begin{tabular}{|lll|} \hline
+#\verb@STATS_min@ &   &  minimum non-zero value over all voxels in grid \\
+#\verb@STATS_max@       &   &  maximum value over all voxels in grid \\
+#\verb@STATS_mean@   &   &  mean value of non-zero voxels in grid \\
+#\verb@STATS_stddev@   &   &  standard deviation of non-zero voxel values \\
+#\verb@STATS_ssum@   &   &  sum over all values in grid \\
+#\verb@STATS_nonzero@ &   &  number of non-zero voxels \\
+%l l .
+%Variable@Description
+%_
+%STATS_min@minimum non-zero value over all voxels in grid
+%STATS_max@maximum value over all voxels in grid
+%STATS_mean@mean value of non-zero voxels in grid
+%STATS_stddev@standard deviation of non-zero voxel values
+%STATS_sum@sum over all values in grid
+%STATS_nonzero@number of non-zero voxels
+@end table
 
 2 system
 ?commands system
@@ -16718,7 +16805,8 @@ Ffigure_walls
  decreases with its distance from the data point.
 
  Note that `vfill` always increments existing values in the current voxel grid.
- To reset them to zero, use `vclear`.
+ To reset a single voxel to zero, use `voxel(x,y,z) = 0`.
+ To reset the entire grid to zero, use `vclear`.
 2 While
 ?while
 ?commands while
