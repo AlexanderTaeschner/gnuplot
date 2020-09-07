@@ -518,6 +518,7 @@ get_data(struct curve_points *current_plot)
 	break;
 
     case IMPULSES:	/* 2 + possible variable color */
+    case POLYGONS:
     case LINES:
     case DOTS:
 	min_cols = 1;
@@ -953,9 +954,11 @@ get_data(struct curve_points *current_plot)
 
 	case BOXERROR:
 	{   /* 3 columns:  x y ydelta
-	     * 4 columns:  x y ydelta xdelta   (boxwidth != -2)
+	     * 4 columns:  x y ydelta xdelta     (if xdelta <=0 use boxwidth)
+	     * 5 columns:  x y ylow yhigh xdelta (if xdelta <=0 use boxwidth)
+	     * ==========
+	     * DEPRECATED
 	     * 4 columns:  x y ylow yhigh      (boxwidth == -2)
-	     * 5 columns:  x y ylow yhigh xdelta
 	     */
 	    coordval xlow, xhigh, ylow, yhigh, width;
 	    if (j == 3) {
@@ -965,12 +968,16 @@ get_data(struct curve_points *current_plot)
 		yhigh = v[1] + v[2];
 		width = -1.0;
 	    } else if (j == 4) {
+		if (v[3] <= 0)
+		    v[3] = boxwidth;
 		xlow  = (boxwidth == -2) ? v[0] : v[0] - v[3]/2.;
 		xhigh = (boxwidth == -2) ? v[0] : v[0] + v[3]/2.;
 		ylow  = (boxwidth == -2) ? v[2] : v[1] - v[2];
 		yhigh = (boxwidth == -2) ? v[3] : v[1] + v[2];
 		width = (boxwidth == -2) ? -1.0 : 0.0;
 	    } else {
+		if (v[4] <= 0)
+		    v[4] = boxwidth;
 		xlow  = v[0] - v[4]/2.;
 		xhigh = v[0] + v[4]/2.;
 		ylow  = v[2];
@@ -1041,7 +1048,8 @@ get_data(struct curve_points *current_plot)
 	    coordval y2;
 	    coordval w = 0.0;	/* only needed for SMOOTH_ACSPLINES) */
 	    if (j==2) {
-		if (current_plot->filledcurves_options.closeto == FILLEDCURVES_CLOSED)
+		if (current_plot->filledcurves_options.closeto == FILLEDCURVES_CLOSED
+		||  current_plot->filledcurves_options.closeto == FILLEDCURVES_DEFAULT)
 		    y2 = y1;
 		else
 		    y2 = current_plot->filledcurves_options.at;
@@ -2196,7 +2204,7 @@ eval_plots()
 		this_plot->plot_type = DATA;
 		this_plot->plot_style = data_style;
 		this_plot->plot_smooth = SMOOTH_NONE;
-		this_plot->filledcurves_options.closeto = FILLEDCURVES_DEFAULT;
+		this_plot->filledcurves_options = filledcurves_opts_data;
 
 		/* Only relevant to "with table" */
 		free_at(table_filter_at);
@@ -2259,7 +2267,7 @@ eval_plots()
 		}
 		this_plot->plot_type = FUNC;
 		this_plot->plot_style = func_style;
-		this_plot->filledcurves_options.closeto = FILLEDCURVES_DEFAULT;
+		this_plot->filledcurves_options = filledcurves_opts_func;
 		end_token = c_token - 1;
 	    }                   /* end of IS THIS A FILE OR A FUNC block */
 
