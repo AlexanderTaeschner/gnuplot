@@ -1398,7 +1398,7 @@ df_open(const char *cmd_filename, int max_using, struct curve_points *plot)
 	df_datablock = TRUE;
 	df_datablock_line = get_datablock(df_filename);
 	/* Better safe than sorry. Check for inblock != outblock */
-	if (table_var && table_var->udv_value.v.data_array == df_datablock_line)
+	if (plot && table_var && table_var->udv_value.v.data_array == df_datablock_line)
 	    int_error(NO_CARET,"input and output datablock are the same");
     } else if (!strcmp(df_filename, "@@") && df_array) {
 	/* df_array was set in string_or_express() */
@@ -1423,9 +1423,9 @@ df_open(const char *cmd_filename, int max_using, struct curve_points *plot)
 		S_ISDIR(statbuf.st_mode)) {
 		char *errmsg = gp_alloc(32 + strlen(df_filename), "errmsg");
 		sprintf(errmsg, "\"%s\" is a directory", df_filename);
-		int_warn(name_token, errmsg);
 		fill_gpval_string("GPVAL_ERRMSG", errmsg);
 		free(errmsg);
+		int_warn(name_token, "\"%s\" is a directory", df_filename);
 		df_eof = 1;
 		return DF_EOF;
 	    }
@@ -1435,9 +1435,9 @@ df_open(const char *cmd_filename, int max_using, struct curve_points *plot)
 	if ((data_fp = loadpath_fopen(df_filename, df_binary_file ? "rb" : "r")) == NULL) {
 	    char *errmsg = gp_alloc(32 + strlen(df_filename), "errmsg");
 	    sprintf(errmsg, "Cannot find or open file \"%s\"", df_filename);
-	    int_warn(NO_CARET, errmsg);
 	    fill_gpval_string("GPVAL_ERRMSG", errmsg);
 	    free(errmsg);
+	    int_warn(NO_CARET, "Cannot find or open file \"%s\"", df_filename);
 	    df_eof = 1;
 	    return DF_EOF;
 	}
@@ -2957,7 +2957,7 @@ valid_format(const char *format)
 	/* Found a % to check --- scan past option specifiers: */
 	do {
 	    format++;
-	} while (strchr("+-#0123456789.", *format));
+	} while (*format && strchr("+-#0123456789.", *format));
 
 	/* Now at format modifier */
 	switch (*format) {
@@ -3468,7 +3468,7 @@ df_bin_default_columns default_style_cols[] = {
 static void
 adjust_binary_use_spec(struct curve_points *plot)
 {
-    char *nothing_known = "No default columns known for that plot style";
+    char *nothing_known = "a 'using' specifier is required for that binary plot style";
     unsigned int ps_index;
     enum PLOT_STYLE plot_style = plot ? plot->plot_style : LINES;
 
@@ -3483,7 +3483,11 @@ adjust_binary_use_spec(struct curve_points *plot)
 	if (default_style_cols[ps_index].plot_style == plot_style)
 	    break;
     }
-    if (ps_index == sizeof(default_style_cols)/sizeof(default_style_cols[0]))
+    /* A known default is all very well, but if there was an actual using spec
+     * that's all we need.
+     */
+    if (ps_index == sizeof(default_style_cols)/sizeof(default_style_cols[0])
+    &&  !df_no_use_specs)
 	int_error(NO_CARET, nothing_known);
 
     /* Matrix format is interpreted as always having three columns. */
@@ -5431,7 +5435,7 @@ df_readbinary(double v[], int max)
 		evaluate_at(use_spec[i].at, &a);
 		evaluate_inside_using = FALSE;
 		if (a.type == STRING) {
-		    axcol = axcol_for_ticlabel( use_spec[output].expected_type, &axis );
+		    axcol = axcol_for_ticlabel( use_spec[i].expected_type, &axis );
 		    add_tic_user(&axis_array[axis], a.v.string_val, v[axcol], -1);
 		    gpfree_string(&a);
 		}
