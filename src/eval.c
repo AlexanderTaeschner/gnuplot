@@ -34,6 +34,8 @@
 
 #include "syscfg.h"
 #include "alloc.h"
+#include "amos_airy.h"	/* Airy functions from AMOS */
+#include "complexfun.h"
 #include "datafile.h"
 #include "datablock.h"
 #include "external.h"	/* for f_calle */
@@ -54,6 +56,7 @@ static RETSIGTYPE fpe(int an_int);
 
 /* Global variables exported by this module */
 struct udvt_entry udv_pi = { NULL, "pi", {INTGR, {0} } };
+struct udvt_entry *udv_I;
 struct udvt_entry *udv_NaN;
 /* first in linked list */
 struct udvt_entry *first_udv = &udv_pi;
@@ -149,6 +152,7 @@ const struct ft_entry ft[] =
     {"real",  f_real},
     {"imag",  f_imag},
     {"arg",  f_arg},
+    {"conj",  f_conjg},
     {"conjg",  f_conjg},
     {"sin",  f_sin},
     {"cos",  f_cos},
@@ -172,6 +176,7 @@ const struct ft_entry ft[] =
     {"log",  f_log},
     {"besi0",  f_besi0},
     {"besi1",  f_besi1},
+    {"besin",  f_besin},
     {"besj0",  f_besj0},
     {"besj1",  f_besj1},
     {"besjn",  f_besjn},
@@ -184,21 +189,44 @@ const struct ft_entry ft[] =
     {"lgamma",  f_lgamma},
     {"ibeta",  f_ibeta},
     {"voigt",  f_voigt},
-    {"igamma",  f_igamma},
     {"rand",  f_rand},
     {"floor",  f_floor},
     {"ceil",  f_ceil},
 
-    {"norm",  f_normal},	/* XXX-JG */
-    {"inverf",  f_inverse_erf},	/* XXX-JG */
-    {"invnorm",  f_inverse_normal},	/* XXX-JG */
+    {"norm",  f_normal},
+    {"inverf",  f_inverse_erf},
+    {"invnorm",  f_inverse_normal},
+    {"invigamma", f_inverse_igamma},
+    {"invibeta", f_inverse_ibeta},
     {"asinh",  f_asinh},
     {"acosh",  f_acosh},
     {"atanh",  f_atanh},
-    {"lambertw",  f_lambertw}, /* HBB, from G.Kuhnle 20001107 */
-    {"airy",  f_airy},         /* janert, 20090905 */
-    {"expint",  f_expint},     /* Jim Van Zandt, 20101010 */
-    {"besin",  f_besin},
+    {"lambertw",  f_lambertw},	/* HBB, from G.Kuhnle 20001107 */
+    {"airy",  f_airy},		/* cephes library version */
+#ifdef HAVE_AMOS
+    {"Ai", f_amos_Ai},		/* Amos version from libopenspecfun */
+    {"Bi", f_amos_Bi},		/* Amos version from libopenspecfun */
+    {"BesselI", f_amos_BesselI},/* Amos version from libopenspecfun */
+    {"BesselJ", f_amos_BesselJ},/* Amos version from libopenspecfun */
+    {"BesselK", f_amos_BesselK},/* Amos version from libopenspecfun */
+    {"BesselY", f_amos_BesselY},/* Amos version from libopenspecfun */
+    {"Hankel1", f_Hankel1},	/* Amos version from libopenspecfun */
+    {"Hankel2", f_Hankel2},	/* Amos version from libopenspecfun */
+#endif
+#ifdef HAVE_CEXINT
+    {"expint",  f_amos_cexint},	/* Amos algorithm 683 from libamos */
+#else
+    {"expint",  f_expint},	/* Jim Van Zandt, 20101010 */
+#endif
+
+#ifdef HAVE_COMPLEX_FUNCS
+    {"igamma", f_Igamma},	/* Complex igamma(a,z) */
+    {"LambertW", f_LambertW},	/* Complex W(z,k) */
+    {"lnGamma", f_lnGamma},	/* Complex lnGamma(z) */
+    {"Sign", f_Sign},		/* Complex sign function */
+#else
+    {"igamma",  f_igamma},	/* Jos van der Woude 1992 */
+#endif
 
 #ifdef HAVE_LIBCERF
     {"cerf", f_cerf},		/* complex error function */
@@ -207,16 +235,20 @@ const struct ft_entry ft[] =
     {"VP", f_voigtp},		/* Voigt profile */
     {"VP_fwhm", f_VP_fwhm},	/* Voigt profile full width at half maximum */
     {"faddeeva", f_faddeeva},	/* Faddeeva rescaled complex error function "w_of_z" */
+    {"FresnelC", f_FresnelC},	/* Fresnel integral cosine term calculated from cerf */
+    {"FresnelS", f_FresnelS},	/* Fresnel integral sine term calculated from cerf */
 #endif
+
+    {"SynchrotronF", f_SynchrotronF},	/* Synchrotron F */
 
     {"tm_sec",  f_tmsec},	/* for timeseries */
     {"tm_min",  f_tmmin},	/* for timeseries */
-    {"tm_hour",  f_tmhour},	/* for timeseries */
-    {"tm_mday",  f_tmmday},	/* for timeseries */
+    {"tm_hour", f_tmhour},	/* for timeseries */
+    {"tm_mday", f_tmmday},	/* for timeseries */
     {"tm_mon",  f_tmmon},	/* for timeseries */
-    {"tm_year",  f_tmyear},	/* for timeseries */
-    {"tm_wday",  f_tmwday},	/* for timeseries */
-    {"tm_yday",  f_tmyday},	/* for timeseries */
+    {"tm_year", f_tmyear},	/* for timeseries */
+    {"tm_wday", f_tmwday},	/* for timeseries */
+    {"tm_yday", f_tmyday},	/* for timeseries */
 
     {"sprintf",  f_sprintf},	/* for string variables only */
     {"gprintf",  f_gprintf},	/* for string variables only */

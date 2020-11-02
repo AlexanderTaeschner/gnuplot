@@ -953,6 +953,20 @@ show_version(FILE *fp)
 		"";
 #endif
 
+	    const char *have_cexint =
+#ifdef HAVE_CEXINT
+		"+CEXINT  ";
+#else
+		"";
+#endif
+
+	    const char *complexfunc =
+#ifdef HAVE_COMPLEX_FUNCS
+		"+COMPLEX_FUNCS  ";
+#else
+		"";
+#endif
+
 	    const char *libgd =
 #ifdef HAVE_LIBGD
 # ifdef HAVE_GD_PNG
@@ -1021,9 +1035,10 @@ show_version(FILE *fp)
 		"";
 #endif
 
-	    sprintf(compile_options, "    %s%s\n    %s%s\n    %s%s%s\n    %s%s%s%s\n",
+	    sprintf(compile_options, "    %s%s\n    %s%s\n    %s%s%s%s\n    %s\n    %s%s%s%s\n",
 		    rdline, gnu_rdline, unicodebuild, plotoptions,
-		    libcerf, libamos, libgd,
+		    complexfunc, libcerf, libamos, have_cexint,
+		    libgd,
 		    nocwdrc, x11, use_mouse, hiddenline
 		    );
 	}
@@ -1089,12 +1104,6 @@ show_version(FILE *fp)
 	c_token++;
 	fprintf(stderr, "\nCompile options:\n%s", compile_options);
 	fprintf(stderr, "    %d-bit integer arithmetic\n",(int)sizeof(intgr_t)*8);
-	fprintf(stderr, "   %s complex function library support\n\n",
-#ifdef HAVE_COMPLEX_FUNCS
-		"");
-#else
-		" no");
-#endif
 
 #ifdef X11
 	{
@@ -2431,10 +2440,19 @@ show_palette()
 	fputs(" color positions for discrete palette terminals\n", stderr);
 	fputs( "\tColor-Model: ", stderr );
 	switch( sm_palette.cmodel ) {
-	default:
-	case C_MODEL_RGB: fputs( "RGB\n", stderr ); break;
-	case C_MODEL_HSV: fputs( "HSV\n", stderr ); break;
-	case C_MODEL_CMY: fputs( "CMY\n", stderr ); break;
+	    default:
+	    case C_MODEL_RGB:
+		fputs( "RGB\n", stderr );
+		break;
+	    case C_MODEL_CMY:
+		fputs( "CMY\n", stderr );
+		break;
+	    case C_MODEL_HSV:
+		if (sm_palette.HSV_offset != 0)
+		    fprintf(stderr,"HSV start %.2f\n",sm_palette.HSV_offset);
+		else
+		    fputs( "HSV\n", stderr );
+		break;
 	}
 	fprintf(stderr,"\tgamma is %.4g\n", sm_palette.gamma );
 	return;

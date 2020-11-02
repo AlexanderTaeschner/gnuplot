@@ -258,8 +258,22 @@ print "********************** file complex_trig.dem *********************"
 load "complex_trig.dem"
 reset
 
-print "********************** file cerf.dem *************************"
+print "********************** libcerf routines *************************"
 load "cerf.dem"
+load "Dawson.dem"
+load "Fresnel.dem"
+reset
+
+print "********************** libamos routines *************************"
+load "complex_airy.dem"
+load "BesselK.dem"
+reset
+
+print "********************** special functions *************************"
+load "elliptic.dem"
+load "ibeta.dem"
+load "lambert.dem"
+load "synchrotron.dem"
 reset
 
 print "********************** file heatmaps.dem *********************"

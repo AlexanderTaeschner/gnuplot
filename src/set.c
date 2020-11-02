@@ -3815,6 +3815,12 @@ set_palette()
 		if (model == C_MODEL_XYZ)
 		    int_warn(c_token,"CIE/XYZ not supported");
 		sm_palette.cmodel = model;
+		if (model == C_MODEL_HSV && equals(c_token+1,"start")) {
+		    c_token += 2;
+		    sm_palette.HSV_offset = real_expression();
+		    sm_palette.HSV_offset = clip_to_01(sm_palette.HSV_offset);
+		    c_token--;
+		}
 		continue;
 	    }
 	    /* ps_allcF: write all rgb formulae into PS file? */
@@ -4132,9 +4138,9 @@ set_pm3d()
 	    case S_PM3D_CLIP_4IN: /* "clip4$in" */
 		pm3d.clip = PM3D_CLIP_4IN;
 		continue;
-	    case S_PM3D_CLIP_Z: /* "clip z" */
+	    case S_PM3D_CLIP_Z: /* "clip" */
 		pm3d.clip = PM3D_CLIP_Z;
-		if (equals(c_token+1, "z"))
+		if (equals(c_token+1, "z")) /* DEPRECATED */
 		    c_token++;
 		continue;
 	    case S_PM3D_CLIPCB:

@@ -1334,6 +1334,12 @@ set_plot_with_palette(int plot_num, int plot_mode)
     struct object *this_object;
 
     plot_has_palette = TRUE;
+
+    /* diagnose palette gradient type */
+    if (sm_palette.gradient_type == SMPAL_GRADIENT_TYPE_NONE) {
+        check_palette_gradient_type();
+    }
+
     /* Is pm3d switched on globally? */
     if (pm3d.implicit == PM3D_IMPLICIT)
 	return;
@@ -1601,14 +1607,15 @@ filled_polygon(gpdPoint *corners, int fillstyle, int nv)
      * have a small number of vertices, usually 4.
      * However generalized polygons like cartographic areas could have a
      * vastly larger number of vertices, so we allow for dynamic reallocation.
-     * TODO: cleanup.
      */
     static int max_vertices = 0;
     static gpiPoint *icorners = NULL;
+    static gpiPoint *ocorners = NULL;
     static gpdPoint *clipcorners = NULL;
     if (nv > max_vertices) {
 	max_vertices = nv;
 	icorners = gp_realloc( icorners, (2*max_vertices) * sizeof(gpiPoint), "filled_polygon");
+	ocorners = gp_realloc( ocorners, (2*max_vertices) * sizeof(gpiPoint), "filled_polygon");
 	clipcorners = gp_realloc( clipcorners, (2*max_vertices) * sizeof(gpdPoint), "filled_polygon");
     }
 
@@ -1627,6 +1634,13 @@ filled_polygon(gpdPoint *corners, int fillstyle, int nv)
 	map3d_xy_double(corners[i].x, corners[i].y, corners[i].z, &x, &y);
 	icorners[i].x = x;
 	icorners[i].y = y;
+    }
+
+    /* Clip to x/y only in 2D projection.  */
+    if (splot_map && (pm3d.clip == PM3D_CLIP_Z)) {
+	for (i=0; i<nv; i++)
+	    ocorners[i] = icorners[i];
+	clip_polygon( ocorners, icorners, nv, &nv );
     }
 
     if (fillstyle)

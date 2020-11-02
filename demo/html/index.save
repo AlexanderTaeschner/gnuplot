@@ -46,6 +46,8 @@ Here are samples of PNG output from some of the demos.
     <ul>
     <li><a href="approximate.html">approximation</a></li>
     <li><a href="complex_trig.html">complex trig functions</a></li>
+    <li><a href="complex_airy.html">complex Airy functions</a></li>
+    <li><a href="BesselK.html">complex Bessel functions</a></li>
     <li><a href="cerf.html">complex error function</a></li>
     <li><a href="prob2.html">probability</a></li>
     <li><a href="prob.html">probability (more)</a></li>
@@ -180,6 +182,7 @@ Here are samples of PNG output from some of the demos.
     <li><a href="walls.html">walls</a></li>
     <li><a href="rectangle.html">rectangles</a></li>
     <li><a href="custom_key.html">customized key</a></li>
+    <li><a href="keyentry.html">extra key entries</a></li>
     </ul>
 
     <h4>Styles</h4>
@@ -217,7 +220,7 @@ Here are samples of PNG output from some of the demos.
 <tbody><tr valign="top">
 
     <td>
-    <i>This page generated April 2020</i>
+    <i>This page generated October 2020</i>
     </td>
 
     <td>

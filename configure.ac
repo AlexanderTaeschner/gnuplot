@@ -102,6 +102,35 @@ if test "${with_libcerf}" = yes ; then
   )
 fi
 
+AC_ARG_WITH(amos,dnl
+[  --with-amos[=DIR]           location of libamos or libopenspecfun (complex functions)],,
+  with_amos=yes)
+
+if test -d "$with_amos"; then
+  LIBAMOS_LDFLAGS=-L$with_amos
+fi
+
+if test "${with_amos}" != no ; then
+  _ldflags="$LDFLAGS"
+  LDFLAGS="$LDFLAGS $LIBAMOS_LDFLAGS"
+  AC_MSG_CHECKING( for amos libraries using LDFLAGS: $LDFLAGS )
+
+  dnl The Amos routines (D. E. Amos, Sandia National Laboratories) calculate
+  dnl Bessel and related functions with complex argument and nonnegative order.
+  dnl These routines exist in various library packages including libopenspecfun.
+  AC_SEARCH_LIBS([zairy_], [amos openspecfun],
+      [AC_DEFINE([HAVE_AMOS], 1, [define if you have a library of Amos special functions])
+      have_amoslibrary=yes]
+  )
+  dnl The Amos routine cexint (Complex exponential integral) is not in the general
+  dnl collection of Bessel functions so it may or may not be present in the same
+  dnl library as the others.
+  AC_SEARCH_LIBS([cexint_], [amos openspecfun],
+      [AC_DEFINE([HAVE_CEXINT], 1, [define if you have Amos function cexint])
+      have_cexint=yes && LIBS="$LIBS -L/home/local/lib64"]
+  )
+fi
+
 dnl Various programs
 dnl X/Emacs for building .texi version of docs
 test x"$EMACS" = xt && EMACS=
@@ -179,8 +208,6 @@ fi
 AM_CONDITIONAL(BUILD_GNUPLOT_X11, test "$no_x" != yes)
 
 dnl Operating systems.
-dnl FIXME AC_DEFINE(ISC22)
-dnl FIXME AC_DEFINE(KSR)
 dnl Check for MSDOS and djgpp, Apple MacOsX, BeOS
 GP_MSDOS
 GP_APPLE
@@ -192,9 +219,6 @@ dnl _instead_ of -lm ...
 AC_CHECK_FUNC(sin,,[AC_CHECK_LIB(m,sin)])
 
 dnl Header files. ANSI first
-dnl We prefer that the absense of a macro is the norm, so in syscfg.h
-dnl configure's HAVE_XXXX defines are translated into NO_XXXX for ANSI
-dnl headers and functions
 AC_HEADER_STDC
 
 dnl Header files
@@ -283,6 +307,13 @@ AC_CHECK_DECLS([signgam],,,
 #include <math.h>
 #endif
 ])
+
+dnl check for C99 complex types
+dnl and minimal set of complex math functions
+AC_CHECK_HEADERS(complex.h)
+AC_CHECK_FUNCS(csqrt cexp cabs clog)
+dnl check for C99 floating point exception handling
+AC_CHECK_HEADERS(fenv.h)
 
 dnl check, if we have sigsetjmp and siglongjmp.
 dnl a trivial AC_CHECK_FUNCS(sigsetjmp) won't do
@@ -1365,6 +1396,17 @@ if test "$have_libcerf" = yes; then
   AC_MSG_RESULT([  cerf() and other special functions from libcerf: yes])
 else
   AC_MSG_RESULT([  cerf() and other special functions: no (libcerf not found)])
+fi
+
+if test "$have_amoslibrary" = yes; then
+  AC_MSG_RESULT([  Airy and Bessel functions from libopenspecfun or libamos: yes])
+else
+  AC_MSG_RESULT([  Library containing Amos routines for complex functions not found])
+fi
+if test "$have_cexint" = yes; then
+  AC_MSG_RESULT([  Complex exponential integral cexint from libamos: yes])
+else
+  AC_MSG_RESULT([  Complex exponential integral cexint from libamos: no])
 fi
 
 if test "$have_external_functions" = yes; then

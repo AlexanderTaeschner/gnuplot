@@ -192,12 +192,51 @@ C
 2 New features
 ?new version_5.5
 ?new
-3 Development version
-?development version
- Version 5.5 is the current development version, built from a snapshot of
- the source files in the master branch of the git repository.
- New features introduced here will generally not appear in a supported
- release until version 5.6.  Details may change before that.
+ Version 5.5 is the current development version, built from a snapshot of the
+ source files in the master branch of the git repository. New features
+ introduced here will generally not appear in a supported release until
+ version 5.6.  Details may change before that.
+
+4 Special and complex-valued functions
+ This version of gnuplot provides a larger set of complex-valued functions and
+ updated versions of some functions that were present in earlier versions.
+#start
+#b Updated incomplete gamma function with improved domain and precision.
+## Complex arguments accepted.
+## See `igamma`.
+#b Updated incomplete beta function with improved domain and precision.
+## See `ibeta`.
+#b New function for the inverse incomplete gamma function.
+## See `invigamma`.
+#b New function for the inverse incomplete beta function.
+## See `invibeta`.
+#b New complex function LambertW(z,k) returns the kth branch of multivalued
+## function W_k(z).
+## Note that the older function lambertw(x) = real(LambertW( real(z), 0 )).
+## See `LambertW`.
+#b New complex function lnGamma(z).
+## Note that existing function lgamma(x) = real(lnGamma(real(z)).
+## See `lnGamma`.
+#b Complex function conj(z) returns the complex conjugate of z.
+#b Synchrotron function F(x), see `SynchrotronF`.
+#b acosh(z) domain extended to cover negative real axis.
+#b asin(z) asinh(z) improved precision for complex arguments.
+#b Predefined variable I = sqrt(-1) = {0,1} for convenience.
+## This is useful because gnuplot does not accept {a,b} as a valid complex
+## constant but does accept (a + b*I) as a valid complex expression.
+#end
+
+ Additional special functions are supported if a suitable external
+ library is found at build time.  See `special_functions`.
+#start
+#b Complex Bessel functions Iν(z), Jν(z), Kν(z), Yν(z) of order ν (real)
+## with complex argument z. See `BesselK`.
+#b Complex Hankel functions H1ν(z), H2ν(z) of order ν with complex z.
+## See `BesselH1`.
+#b Complex Airy functions Ai(z), Bi(z).
+#b Complex exponential integral of order n. See `expint`.
+#b Fresnel integrals C(x) and S(x). See `FresnelC`.
+#end
 
 4 New plot styles and style options
 ?new plot_styles
@@ -206,7 +245,7 @@ C
 #b curve smoothing using along-path cubic splines suitable for closed curves
 ## or for 2D curves that are not monotonic on x. See `smooth path`.
 #b new keyword `period` for smoothing periodic data. See `smooth kdensity`.
-#b `set colorbox cbtics <linestyle>` distinguishes cbtics from other tics.
+#b `set colorbox cbtics <linestyle>` affects cbtics but not other tics.
 #end
 
 4 New commands and command options
@@ -234,10 +273,11 @@ C
 ?new other
 #start
 #b Function `palette(z)` returns the RGB palette color for z in cbrange. 
-#b Function `rgbcolor("name")` returns a 32bit ARGB value for a named color.
+#b Function `rgbcolor("name")` returns the 32bit ARGB value for a named color.
 #b Function VP_fwhm(sigma,gamma) returns the full width at half maximum
 ## of the Voigt profile. See `VP`, `VP_fwhm`, `libcerf`.
-#b Support XSG base directory for gnuplotrc configuration preferences.
+#b Support XDG base directory for gnuplotrc configuration preferences.
+## Reads initialization commands from $HOME/.config/gnuplot/gnuplotrc if present.
 ## See `environment`.
 #end
 
@@ -267,11 +307,12 @@ C
 #b `vgfill` is a variant of `vfill` that uses grid coordinates rather than
 ## user coordinates.
 #b `vclear $gridname` resets an existing voxel grid to contain all zero values.
-#b the current contents of one or more voxel grids can be referenced by
+#b The current contents of one or more voxel grids can be referenced by
 ## `splot` commands to assign colors or other properties of plot elements
 ## by using the `voxel` function in using specifiers.
 ## See demo `voxel.dem`.
-#b voxel grids can also be plotted by name in `splot` commands with plot styles
+#b `show vgrid` reports basic statistics about all currently defined voxel grids.
+#b Voxel grids can also be plotted by name in `splot` commands with plot styles
 ## `dots`, `points`, or `isosurface`.
 ## See demo `vplot.dem`.
 #end
@@ -305,7 +346,9 @@ C
 
 4 New data pre-processing filters
 #start
-#b `smooth zsort` sorts 2D points on values in a 3rd column. See `smooth zsort`.
+#b `smooth zsort` sorts 2D points on values in a third column. See `smooth zsort`.
+## This is useful to bring a small number of salient points in a very large data
+## set to the front so that they are not occluded.
 #end
 
 4 New commands and command options
@@ -329,7 +372,7 @@ C
 #b User-specified translation of mouse coordinates (EXPERIMENTAL).
 ##See map_projection demo.
 #b The `load` command can input commands from a datablock as an alternative to
-## reading them from a file (EXPERIMENTAL).
+## reading them from a file.
 #b `set datafile columnheaders` causes first line of input to be read as strings
 ## rather than as data values.  Equivalent to `set key autotitle columnheader`
 ## except that it does not affect generation of key entries.  If this option is
@@ -386,8 +429,9 @@ C
 #b The `set fontpath` command is deprecated. The search path for fonts to be
 ## embedded in output from the postscript terminal has been revised.
 #end
+
 3 Features introduced in version 5.2
-?Features introduced in version 5.2
+?new version_5.2
 4 New plot styles and style options
 #start
 #b 3D plot style `with zerrorfill`. See `zerrorfill`, `fenceplots` and
@@ -432,7 +476,6 @@ C
 ## nonlinear axis where the paired functions are log(x) and exp(x).
 #end
 4 New commands and command options
-?new version_5.2
 #start
 #b Inside the bracketed clause of an iteration, `continue` jumps immediately
 ## to the next iteration, `break` immediately exits from the iteration
@@ -1203,22 +1246,41 @@ C  need @ in table, so end and restart the table !
  The syntax "string"[beg:end] is exactly equivalent to calling the built-in
  string-valued function substr("string",beg,end), except that you cannot
  omit either beg or end from the function call.
-3 Complex arithmetic
-?complex arithmetic
+3 Complex values
+?complex values
 ?complex
  Arithmetic operations and most built-in functions support the use of complex
  arguments.  Complex constants are expressed as {<real>,<imag>}, where <real>
  and <imag> must be numerical constants.  Thus {0,1} represents 'i'.
- The real and imaginary components of complex value x can be extracted as
- real(x) and imag(x). The modulus is given by abs(x).
+ The program predefines a variable I = {0,1} on entry that can be used to
+ generate complex values in terms of other variables. 
+ Thus `x + y*I` is a valid expression but `{x,y}` is not.
+ The real and imaginary components of complex value z can be extracted as
+ real(z) and imag(z). The modulus is given by abs(z).
+ The phase angle is given by arg(z).
 
- Gnuplot's standard 2D and 3D plot styles can plot only real values; if you
- need to plot a complex-valued function f(x) with non-zero imaginary components
- you must choose between plotting real(f(x)) or abs(f(x)).  For examples of
- representing complex values using color, see the
-^ <a href="http://www.gnuplot.info/demo/complex_trig.html">
- complex trigonometric function demos (complex_trig.dem)
-^ </a>
+Ffigure_E0
+ Gnuplot's 2D and 3D plot styles expect real values; to plot a complex-valued
+ function f(z) with non-zero imaginary components you must plot the real or
+ imaginary component, or the modulus or phase.
+ For example to represent the modulus and phase of a function f(z) with
+ complex argument and complex result it is possible to use the height of the
+ surface to represent modulus and use the color to represent the phase.
+ It is convenient to use a color palette in HSV space with component H (hue),
+ running from 0 to 1, mapped to the range of the phase returned by arg(z),
+ [-π:π], so that the color wraps when the phase angle does.  By default this
+ would be at H = 0 (red).  You can change this with the `start` keyword in
+ `set palette` so that some other value of H is mapped to 0.
+ The example shown starts and wraps at H = 0.3 (green).
+ See `set palette defined`, `arg`, `set angles`.
+
+      set palette model HSV start 0.3 defined (0 0 1 1, 1 1 1 1)
+      set cbrange [-pi:pi]
+      set cbtics ("-π" -pi, "π" pi)
+      set pm3d corners2color c1
+      E0(z) = exp(-z)/z
+      I = {0;1}
+      splot '++' using 1:2:(abs(E0(x+I*y))):(arg(E0(x+I*y))) with pm3d
 
 3 Constants
 ?constants
@@ -1233,8 +1295,12 @@ C  need @ in table, so end and restart the table !
  Floating point constants are interpreted via the C library routine atof().
 
  Complex constants are expressed as {<real>,<imag>}, where <real> and <imag>
- must be numerical constants.  For example, {3,2} represents 3 + 2i; {0,1}
- represents 'i' itself.  The curly braces are explicitly required here.
+ must be numerical constants.  For example, {0,1} represents 'i' itself;
+ {3,2} represents 3 + 2i.  The curly braces are explicitly required here.
+ The program predefines a variable I = {0,1} on entry that can be used to
+ avoid typing the explicit form.  For example `3 + 2*I` is the same as `{3,2}`,
+ with the advantage that it can be used with variable coefficient for the
+ imaginary component.  Thus `x + y*I` is a valid expression but `{x,y}` is not.
 
  String constants consist of any sequence of characters enclosed either in
  single quotes or double quotes. The distinction between single and double
@@ -1261,36 +1327,37 @@ C  need @ in table, so end and restart the table !
 ^  <col align="left">
 ^</colgroup>
 ^<thead>
-^<tr>   <th colspan="3"> Math library functions </th></tr>
+^<tr>   <th colspan="3"> Math library and built-in functions </th></tr>
 ^<tr>    <th>Function</th>    <th>Arguments</th>    <th>Returns</th></tr>
 ^</thead>
 ^<tbody>
-^<tr>    <td>abs(x)</td>    <td>any</td>    <td>|<i>x</i>|, absolute value of <i>x</i>; same type</td></tr>
+^<tr>    <td>abs(x)</td>    <td>int or real</td>    <td>|<i>x</i>|, absolute value of <i>x</i>; same type</td></tr>
 ^<tr>    <td>abs(x)</td>    <td>complex</td>    <td>length of <i>x</i>, &radic;( Re(<i>x</i>)<sup>2</sup> + Im(<i>x</i>)<sup>2</sup> )</td></tr>
 ^<tr>    <td>acos(x)</td>    <td>any</td>    <td>cos<sup>-1</sup> <i>x</i> (inverse cosine)</td></tr>
 ^<tr>    <td>acosh(x)</td>    <td>any</td>    <td>cosh<sup>-1</sup> <i>x</i> (inverse hyperbolic cosine) in radians</td></tr>
-^<tr>    <td>airy(x)</td>    <td>any</td>    <td>Airy function Ai(<i>x</i>)</td></tr>
+^<tr>    <td>airy(x)</td>    <td>real</td>    <td>Airy function Ai(<i>x</i>) for real x</td></tr>
 ^<tr>    <td>arg(x)</td>    <td>complex</td>    <td>the phase of <i>x</i></td></tr>
 ^<tr>    <td>asin(x)</td>    <td>any</td>    <td>sin<sup>-1</sup> <i>x</i> (inverse sin)</td></tr>
 ^<tr>    <td>asinh(x)</td>    <td>any</td>    <td>sinh<sup>-1</sup> <i>x</i> (inverse hyperbolic sin) in radians</td></tr>
 ^<tr>    <td>atan(x)</td>    <td>any</td>    <td>tan<sup>-1</sup> <i>x</i> (inverse tangent)</td></tr>
 ^<tr>    <td>atan2(y,x)</td>    <td>int or real</td>    <td>tan<sup>-1</sup>(<i>y/x</i>) (inverse tangent)</td></tr>
 ^<tr>    <td>atanh(x)</td>    <td>any</td>    <td>tanh<sup>-1</sup> <i>x</i> (inverse hyperbolic tangent) in radians</td></tr>
-^<tr>    <td>EllipticK(k)</td>    <td>real k in (-1:1)</td>    <td><i>K(k)</i> complete elliptic integral of the first kind</td></tr>
-^<tr>    <td>EllipticE(k)</td>    <td>real k in [-1:1]</td>    <td><i>E(k)</i> complete elliptic integral of the second kind</td></tr>
-^<tr>    <td>EllipticPi(n,k)</td>    <td> real n&lt;1, real k in (-1:1)</td>    <td> &Pi;(<i>n,k</i>) complete elliptic integral of the third kind</td></tr>
-^<tr>    <td>besj0(x)</td>    <td>int or real</td>    <td><i>J</i><sub>0</sub> Bessel function of <i>x</i> in radians</td></tr>
-^<tr>    <td>besj1(x)</td>    <td>int or real</td>    <td><i>J</i><sub>1</sub> Bessel function of <i>x</i> in radians</td></tr>
+^<tr>    <td>besj0(x)</td>    <td>real</td>    <td><i>J</i><sub>0</sub> Bessel function of <i>x</i> in radians</td></tr>
+^<tr>    <td>besj1(x)</td>    <td>real</td>    <td><i>J</i><sub>1</sub> Bessel function of <i>x</i> in radians</td></tr>
 ^<tr>    <td>besjn(n,x)</td>    <td>int,real</td>    <td><i>J</i><sub>n</sub> Bessel function of <i>x</i> in radians</td></tr>
-^<tr>    <td>besy0(x)</td>    <td>int or real</td>    <td><i>Y</i><sub>0</sub> Bessel function of <i>x</i> in radians</td></tr>
-^<tr>    <td>besy1(x)</td>    <td>int or real</td>    <td><i>Y</i><sub>1</sub> Bessel function of <i>x</i> in radians</td></tr>
+^<tr>    <td>besy0(x)</td>    <td>real</td>    <td><i>Y</i><sub>0</sub> Bessel function of <i>x</i> in radians</td></tr>
+^<tr>    <td>besy1(x)</td>    <td>real</td>    <td><i>Y</i><sub>1</sub> Bessel function of <i>x</i> in radians</td></tr>
 ^<tr>    <td>besyn(n,x)</td>   <td>int,real</td>    <td><i>Y</i><sub>n</sub> Bessel function of <i>x</i> in radians</td></tr>
 ^<tr>    <td>besi0(x)</td>   <td>real</td>    <td>Modified Bessel function of order 0, <i>x</i> in radians</td></tr>
 ^<tr>    <td>besi1(x)</td>   <td>real</td>    <td>Modified Bessel function of order 1, <i>x</i> in radians</td></tr>
 ^<tr>    <td>besin(n,x)</td>   <td>int,real</td><td>Modified Bessel function of order n, <i>x</i> in radians</td></tr>
 ^<tr>    <td>ceil(x)</td>    <td>any</td>    <td>&lceil;<i>x</i>&rceil;, smallest integer not less than <i>x</i> (real part)</td></tr>
+^<tr>    <td>conj(x)</td>    <td>complex</td>    <td>complex conjugate of <i>x</i></td>
 ^<tr>    <td>cos(x)</td>    <td>radians</td>    <td>cos <i>x</i>, cosine of <i>x</i></td></tr>
 ^<tr>    <td>cosh(x)</td>    <td>any</td>    <td>cosh <i>x</i>, hyperbolic cosine of <i>x</i> in radians</td></tr>
+^<tr>    <td>EllipticK(k)</td>    <td>real k in (-1:1)</td>    <td><i>K(k)</i> complete elliptic integral of the first kind</td></tr>
+^<tr>    <td>EllipticE(k)</td>    <td>real k in [-1:1]</td>    <td><i>E(k)</i> complete elliptic integral of the second kind</td></tr>
+^<tr>    <td>EllipticPi(n,k)</td>    <td> real n&lt;1, real k in (-1:1)</td>    <td> &Pi;(<i>n,k</i>) complete elliptic integral of the third kind</td></tr>
 ^<tr>    <td>erf(x)</td>    <td>any</td>    <td>erf(Re(<i>x</i>)), error function of real(<i>x</i>)</td></tr>
 ^<tr>    <td>erfc(x)</td>    <td>any</td>    <td>erfc(Re(<i>x</i>)), 1.0 - error function of real(<i>x</i>)</td></tr>
 ^<tr>    <td>exp(x)</td>    <td>any</td>    <td><i>e<sup>x</sup></i>, exponential function of <i>x</i></td></tr>
@@ -1299,21 +1366,27 @@ C  need @ in table, so end and restart the table !
 ^<tr>    <td>gamma(x)</td>    <td>any</td>    <td>&Gamma;(Re(<i>x</i>)), gamma function of real(<i>x</i>)</td></tr>
 ^<tr>    <td>ibeta(p,q,x)</td>    <td>any</td>    <td>ibeta(Re(<i>p,q,x</i>)), ibeta function of real(<i>p</i>,<i>q</i>,<i>x</i>)</td></tr>
 ^<tr>    <td>inverf(x)</td>    <td>any</td>    <td>inverse error function real(<i>x</i>)</td></tr>
-^<tr>    <td>igamma(a,x)</td>    <td>any</td>    <td>igamma(Re(<i>a,x</i>)), igamma function of real(<a>a</a>,<i>x</i>)</td></tr>
+^<tr>    <td>igamma(a,z)</td>    <td>real</td>    <td>igamma(<i>a>0,z</i>), igamma function of complex <a>a>0</a>,<i>z</i>)</td></tr>
 ^<tr>    <td>imag(x)</td>    <td>complex</td>    <td>Im(<i>x</i>), imaginary part of <i>x</i> as a real number</td></tr>
-^<tr>    <td>invnorm(x)</td>    <td>any</td>    <td>inverse normal distribution function real(<i>x</i>)</td></tr>
 ^<tr>    <td>int(x)</td>    <td>real</td>    <td>integer part of <i>x</i>, truncated toward zero</td></tr>
-^<tr>    <td>lambertw(x)</td>    <td>real</td>    <td>Lambert <i>W</i> function</td></tr>
-^<tr>    <td>lgamma(x)</td>    <td>any</td>    <td>lgamma(Re(<i>x</i>)), lgamma function of real(<i>x</i>)</td></tr>
+^<tr>    <td>invibeta(a,b,p)</td>    <td>0<p<1</td>    <td>inverse incomplete beta function</td></tr>
+^<tr>    <td>invigamma(a,p)</td>    <td>0<p<1</td>    <td>inverse incomplete gamma function</td></tr>
+^<tr>    <td>invnorm(x)</td>    <td>any</td>    <td>inverse normal distribution function real(<i>x</i>)</td></tr>
+^<tr>    <td>LambertW(z,k)</td> <td>complex, int</td> <td>kth branch of complex Lambert W function</td></tr>
+^<tr>    <td>lambertw(x)</td>    <td>real</td>    <td>principal branch (k=0) of Lambert <i>W</i> function</td></tr>
+^<tr>    <td>lgamma(x)</td>    <td>real</td>    <td>lgamma(Re(<i>x</i>)), lgamma function of real(<i>x</i>)</td></tr>
+^<tr>    <td>lnGamma(x)</td>    <td>complex</td>    <td>lnGamma(x) valid over entire complex plane</td></tr>
 ^<tr>    <td>log(x)</td>    <td>any</td>    <td>ln <i>x</i>, natural logarithm (base <i>e</i>) of <i>x</i></td></tr>
 ^<tr>    <td>log10(x)</td>    <td>any</td>    <td>log<sub>10</sub> <i>x</i>, logarithm (base 10) of <i>x</i></td></tr>
 ^<tr>    <td>norm(x)</td>    <td>any</td>    <td>norm(<i>x</i>), normal distribution function of real(<i>x</i>)</td></tr>
 ^<tr>    <td>rand(x)</td>    <td>int</td>    <td>pseudo random number in the interval (0:1)</td></tr>
 ^<tr>    <td>real(x)</td>    <td>any</td>    <td>Re(<i>x</i>), real part of <i>x</i></td></tr>
 ^<tr>    <td>sgn(x)</td>    <td>any</td>    <td>1 if <i>x</i> &gt; 0,  -1 if <i>x</i> &lt; 0,  0 if <i>x</i> = 0. &image;(<i>x</i>) ignored</td></tr>
+^<tr>    <td>Sign(x)</td>    <td>complex</td>    <td> 0 if <i>x</i> = 0, otherwise <i>x</i>/|<i>x></i>|</td></tr>
 ^<tr>    <td>sin(x)</td>    <td>any</td>    <td>sin <i>x</i>, sine of <i>x</i></td></tr>
 ^<tr>    <td>sinh(x)</td>    <td>any</td>    <td>sinh <i>x</i>, hyperbolic sine of <i>x</i> in radians</td></tr>
 ^<tr>    <td>sqrt(x)</td>    <td>any</td>    <td>&radic;<i>x</i>, square root of <i>x</i></td></tr>
+^<tr>    <td>SynchrotronF(x)</td> <td>real</td> <td> Synchtrotron function F</td></tr>
 ^<tr>    <td>tan(x)</td>    <td>any</td>    <td>tan <i>x</i>, tangent of <i>x</i></td></tr>
 ^<tr>    <td>tanh(x)</td>    <td>any</td>    <td>tanh <i>x</i>, hyperbolic tangent of <i>x</i> in radians</td></tr>
 ^<tr>    <td>voigt(x,y)</td>    <td>real</td>    <td>convolution of Gaussian and Lorentzian</td></tr>
@@ -1337,6 +1410,8 @@ C  need @ in table, so end and restart the table !
 ^<tr>    <td>cdawson(z)</td>    <td>complex</td>    <td>complex Dawson's integral</td></tr>
 ^<tr>    <td>faddeeva(z)</td>    <td>complex</td>    <td>rescaled complex error function <i>w</i>(<i>z</i>) = exp(-<i>z</i>²) × erfc(-i<i>z</i>)</td></tr>
 ^<tr>    <td>erfi(x)</td>    <td>real</td>    <td>imaginary error function erfi(<i>x</i>) = -i × erf(i<i>x</i>)</td></tr>
+^<tr>    <td>FresnelC(x)</td>    <td>real</td>    <td> cosine (real) component of Fresnel integral </td></tr>
+^<tr>    <td>FresnelS(x)</td>    <td>real</td>    <td> sine (imaginary) component of Fresnel integral </td></tr>
 ^<tr>    <td>VP(x,sigma,gamma)</td>    <td>real</td>    <td>Voigt profile</td></tr>
 ^<tr>    <td>VP_fwhm(sigma,gamma)</td>    <td>real</td>    <td>Voigt profile full width at half max</td></tr>
 
@@ -1410,9 +1485,9 @@ C For the HTML help we want both, table and sections, so the magic
 C marker below is used to signal this to doc2html:
 ^<!-- INCLUDE_NEXT_TABLE -->
 @start table
-#\begin{longtable}{|ccl|} \hline
-#\multicolumn{3}{|c|}{Math library functions} \\ \hline \hline
-#Function & Arguments & Returns \\ \hline
+#\begin{longtable}{@{\extracolsep{\fill}}|lcrl|@{}} \hline
+#\multicolumn{4}{|c|}{Math library and built-in functions} \\ \hline \hline
+#Function & Arguments & ~ & Returns ({\gpCX } indicates complex result) \\ \hline
 #\endhead \hline \endfoot
 %c c l .
 %Function@Arguments@Returns
@@ -1420,10 +1495,10 @@ C marker below is used to signal this to doc2html:
 4 abs
 ?expressions functions abs
 ?abs
-#abs(x) & any  &  absolute value of $x$, $|x|$; same type \\
-#abs(x) & complex &  length of $x$, $\sqrt{{\mbox{real}(x)^{2} +
+#abs(x) & int or real & ~ &  absolute value of $x$, $|x|$ \\
+#abs(x) & complex & ~ &  length of $x$, $\sqrt{{\mbox{real}(x)^{2} +
 #\mbox{imag}(x)^{2}}}$ \\
-%abs(x)@any@absolute value of $x$, $|x|$; same type
+%abs(x)@int or real@absolute value of $x$, $|x|$
 %abs(x)@complex@length of $x$, $sqrt{roman real (x) sup 2 + roman imag (x) sup 2}$
  The `abs(x)` function returns the absolute value of its argument.  The
  returned value is of the same type as the argument.
@@ -1436,23 +1511,23 @@ C marker below is used to signal this to doc2html:
 4 acos
 ?expressions functions acos
 ?acos
-#acos(x) & any  & $\cos^{-1} x$ (inverse cosine) \\
-%acos(x)@any@$cos sup -1 x$ (inverse cosine)
+#acos(x) &  ~~   & \gpCX & $\cos^{-1} x$ (inverse cosine) \\
+%acos(x)@ ~~ @$cos sup -1 x$ (inverse cosine)
  The `acos(x)` function returns the arc cosine (inverse cosine) of its
  argument.  `acos` returns its argument in radians or degrees, as selected by
  `set angles`.
 4 acosh
 ?expressions functions acosh
 ?acosh
-#acosh(x) & any  & $\cosh^{-1} x$ (inverse hyperbolic cosine) in radians \\
-%acosh(x)@any@$cosh sup -1 x$ (inverse hyperbolic cosine) in radians
+#acosh(x) &  ~~   & \gpCX & $\cosh^{-1} x$ (inverse hyperbolic cosine) in radians \\
+%acosh(x)@ ~~ @$cosh sup -1 x$ (inverse hyperbolic cosine) in radians
  The `acosh(x)` function returns the inverse hyperbolic cosine of its argument
  in radians.
 4 airy
 ?expressions functions airy
 ?airy
-#airy(x) & any  & Airy function Ai(x) \\
-%airy(x)@any@Airy function Ai(x)
+#airy(x) &  real   & ~ & Airy function Ai(x) for real x\\
+%airy(x)@ real @Airy function Ai(x) for real x
  The `airy(x)` function returns the value of the Airy function Ai(x) of its
  argument. The function Ai(x) is that solution of the equation y'' - x y = 0
  which is everywhere finite. If the argument is complex, its imaginary part
@@ -1460,37 +1535,37 @@ C marker below is used to signal this to doc2html:
 4 arg
 ?expressions functions arg
 ?arg
-#arg(x) & complex & the phase of $x$ \\
+#arg(x) & complex & ~ & the phase of $x$, $-\pi\leq$arg($x$)$\leq\pi$ \\
 %arg(x)@complex@the phase of $x$
  The `arg(x)` function returns the phase of a complex number in radians or
  degrees, as selected by `set angles`.
 4 asin
 ?expressions functions asin
 ?asin
-#asin(x) & any  & $\sin^{-1} x$ (inverse sin) \\
-%asin(x)@any@$sin sup -1 x$ (inverse sin)
+#asin(x) &  ~~   & \gpCX & $\sin^{-1} x$ (inverse sin) \\
+%asin(x)@ ~~ @$sin sup -1 x$ (inverse sin)
  The `asin(x)` function returns the arc sin (inverse sin) of its argument.
  `asin` returns its argument in radians or degrees, as selected by `set
  angles`.
 4 asinh
 ?expressions functions asinh
 ?asinh
-#asinh(x) & any  & $\sinh^{-1} x$ (inverse hyperbolic sin) in radians \\
-%asinh(x)@any@$sinh sup -1 x$ (inverse hyperbolic sin) in radians
+#asinh(x) &  ~~   & \gpCX & $\sinh^{-1} x$ (inverse hyperbolic sin) in radians \\
+%asinh(x)@ ~~ @$sinh sup -1 x$ (inverse hyperbolic sin) in radians
  The `asinh(x)` function returns the inverse hyperbolic sin of its argument in
  radians.
 4 atan
 ?expressions functions atan
 ?atan
-#atan(x) & any  & $\tan^{-1} x$ (inverse tangent) \\
-%atan(x)@any@$tan sup -1 x$ (inverse tangent)
+#atan(x) &  ~~   & \gpCX & $\tan^{-1} x$ (inverse tangent) \\
+%atan(x)@ ~~ @$tan sup -1 x$ (inverse tangent)
  The `atan(x)` function returns the arc tangent (inverse tangent) of its
  argument.  `atan` returns its argument in radians or degrees, as selected by
  `set angles`.
 4 atan2
 ?expressions functions atan2
 ?atan2
-#atan2(y,x) & int or real & $\tan^{-1} (y/x)$ (inverse tangent) \\
+#atan2(y,x) & int or real & ~ & $\tan^{-1} (y/x)$ (inverse tangent) \\
 %atan2(y,x)@int or real@$tan sup -1 (y/x)$ (inverse tangent)
  The `atan2(y,x)` function returns the arc tangent (inverse tangent) of the
  ratio of the real parts of its arguments.  `atan2` returns its argument in
@@ -1498,325 +1573,342 @@ C marker below is used to signal this to doc2html:
 4 atanh
 ?expressions functions atanh
 ?atanh
-#atanh(x) & any  & $\tanh^{-1} x$ (inverse hyperbolic tangent) in radians \\
-%atanh(x)@any@$tanh sup -1 x$ (inverse hyperbolic tangent) in radians
+#atanh(x) &  ~~   & \gpCX & $\tanh^{-1} x$ (inverse hyperbolic tangent) in radians \\
+%atanh(x)@ ~~ @$tanh sup -1 x$ (inverse hyperbolic tangent) in radians
  The `atanh(x)` function returns the inverse hyperbolic tangent of its
  argument in radians.
-?expressions functions EllipticK
-?EllipticK
-4 EllipticK
-#EllipticK(k) & real k $\in$ (-1:1) & $K(k)$ complete elliptic integral of the first kind \\
-%EllipticK(k)@real k in (-1:1)@$K ( k )$ complete elliptic integral of the first kind
- The `EllipticK(k)` function returns the complete elliptic integral of the
- first kind. See `elliptic integrals` for more details.
-?expressions functions EllipticE
-?EllipticE
-4 EllipticE
-#EllipticE(k) & real k $\in$ [-1:1] & $E(k)$ complete elliptic integral of the second kind \\
-%EllipticE(k)@real k in [-1:1]@ $E ( k )$ complete elliptic integral of the second kind
- The `EllipticE(k)` function returns the complete elliptic integral of the
- second kind. See `elliptic integrals` for more details.
-?expressions functions EllipticPi
-?EllipticPi
-4 EllipticPi
-#EllipticPi(n,k) & real n$<$1, real k $\in$ (-1:1) & $\Pi(n,k)$ complete elliptic integral of the third kind \\
-%EllipticPi(n,k)@ real n<1, real k in (-1:1)@ $Pi ( n,k )$ complete elliptic integral of the third kind
- The `EllipticPi(n,k)` function returns the complete elliptic integral of the
- third kind. See `elliptic integrals` for more details.
 4 besj0
 ?expressions functions besj0
 ?besj0
-# besj0(x) & int or real &  $J_{0}$ Bessel function of $x$ in radians \\
-%besj0(x)@int or real@$J sub 0$ Bessel function of $x$ in radians
+# besj0(x) & real & ~ &  $J_{0}$ Bessel function of $x$ in radians \\
+%besj0(x)@real@$J sub 0$ Bessel function of $x$ in radians
  The `besj0(x)` function returns the J0th Bessel function of its argument.
  `besj0` expects its argument to be in radians.
 4 besj1
 ?expressions functions besj1
 ?besj1
-# besj1(x) & int or real & $J_{1}$ Bessel function of $x$ in radians \\
-%besj1(x)@int or real@$J sub 1$ Bessel function of $x$ in radians
+# besj1(x) & real & ~ & $J_{1}$ Bessel function of $x$ in radians \\
+%besj1(x)@real@$J sub 1$ Bessel function of $x$ in radians
  The `besj1(x)` function returns the J1st Bessel function of its argument.
  `besj1` expects its argument to be in radians.
 4 besjn
 ?expressions functions besjn
 ?besjn
-# besjn(n,x) & int, real & $J_{n}$ Bessel function of $x$ in radians \\
+# besjn(n,x) & int, real & ~ & $J_{n}$ Bessel function of $x$ in radians \\
 %besjn(n,x)@int,real@$J sub n$ Bessel function of $x$ in radians
  The `besjn(n,x)` functions returns the Jn Bessel function of x in radians.
 4 besy0
 ?expressions functions besy0
 ?besy0
-# besy0(x) & int or real & $Y_{0}$ Bessel function of $x$ in radians \\
-%besy0(x)@int or real@$Y sub 0$ Bessel function of $x$ in radians
+# besy0(x) & real & ~ & $Y_{0}$ Bessel function of $x$ in radians \\
+%besy0(x)@real@$Y sub 0$ Bessel function of $x$ in radians
  The `besy0(x)` function returns the Y0th Bessel function of its argument.
  `besy0` expects its argument to be in radians.
 4 besy1
 ?expressions functions besy1
 ?besy1
-# besy1(x) & int or real & $Y_{1}$ Bessel function of $x$ in radians \\
-%besy1(x)@int or real@$Y sub 1$ Bessel function of $x$ in radians
+# besy1(x) & real & ~ & $Y_{1}$ Bessel function of $x$ in radians \\
+%besy1(x)@real@$Y sub 1$ Bessel function of $x$ in radians
  The `besy1(x)` function returns the Y1st Bessel function of its argument.
  `besy1` expects its argument to be in radians.
 4 besyn
 ?expressions functions besyn
 ?besyn
-# besyn(n,x) & int, real & $Y_{n}$ Bessel function of $x$ in radians \\
+# besyn(n,x) & int, real & ~ & $Y_{n}$ Bessel function of $x$ in radians \\
 %besyn(n,x)@int,real@$Y sub n$ Bessel function of $x$ in radians
  The `besyn(n,x)` functions returns the Yn Bessel function of x in radians.
 4 besi0
 ?expressions functions besi0
 ?besi0
-# besi0(x) &real & Modified Bessel function of order 0, $x$ in radians \\
+# besi0(x) &real & ~ & Modified Bessel function of order 0, $x$ in radians \\
 %besi0(x)@real@ Modified Bessel function of order 0, $x$ in radians
  The `besi0(x)` function is the modified Bessel function or order 0.
  `besi0` expects its argument to be in radians.
 4 besi1
 ?expressions functions besi1
 ?besi1
-# besi1(x) &real & Modified Bessel function of order 1, $x$ in radians \\
+# besi1(x) &real & ~ & Modified Bessel function of order 1, $x$ in radians \\
 %besi1(x)@real@ Modified Bessel function of order 1, $x$ in radians
  The `besi1(x)` function is the modified Bessel function or order 1.
  `besi1` expects its argument to be in radians.
 4 besin
 ?expressions functions besin
 ?besin
-# besin(n,x) &int, real & Modified Bessel function of order n, $x$ in radians \\
+# besin(n,x) &int, real & ~ & Modified Bessel function of order n, $x$ in radians \\
 %besin(x)@int,real@ Modified Bessel function of order n, $x$ in radians
  `besin(n,x)` is the modified Bessel function or order n for integer n and
  x in radians.
 4 ceil
 ?expressions functions ceil
 ?ceil
-#ceil(x) & any & $\lceil x \rceil$, smallest integer not less than $x$
+#ceil(x) &  ~~  & ~ & $\lceil x \rceil$, smallest integer not less than $x$
 #(real part) \\
-%ceil(x)@any@$left ceiling x right ceiling$, smallest integer not less than $x$ (real part)
+%ceil(x)@ ~~ @$left ceiling x right ceiling$, smallest integer not less than $x$ (real part)
  The `ceil(x)` function returns the smallest integer that is not less than its
  argument.  For complex numbers, `ceil` returns the smallest integer not less
  than the real part of its argument.
+4 conj
+?expressions functions conj
+?conj
+#conj(x) & complex & \gpCX & complex conjugate of $x$ \\
+%conj(x)@complex@complex conjugate of $x$
+ The `conj(x)` function returns the complex conjugate x.
+ conj( {r, i} ) = {r, -i}
 4 cos
 ?expressions functions cos
 ?cos
-#cos(x) & any & $\cos x$, cosine of $x$ \\
+#cos(x) &  ~~  & \gpCX & $\cos x$, cosine of $x$ \\
 %cos(x)@radians@$cos~x$, cosine of $x$
  The `cos(x)` function returns the cosine of its argument.  `cos` accepts its
  argument in radians or degrees, as selected by `set angles`.
 4 cosh
 ?expressions functions cosh
 ?cosh
-#cosh(x) & any & $\cosh x$, hyperbolic cosine of $x$ in radians \\
-%cosh(x)@any@$cosh~x$, hyperbolic cosine of $x$ in radians
+#cosh(x) &  ~~  & \gpCX & $\cosh x$, hyperbolic cosine of $x$ in radians \\
+%cosh(x)@ ~~ @$cosh~x$, hyperbolic cosine of $x$ in radians
  The `cosh(x)` function returns the hyperbolic cosine of its argument.  `cosh`
  expects its argument to be in radians.
+?expressions functions EllipticK
+?EllipticK
+4 EllipticK
+#EllipticK(k) & real k $\in$ (-1:1) & ~ & $K(k)$ complete elliptic integral of the first kind \\
+%EllipticK(k)@real k in (-1:1)@$K ( k )$ complete elliptic integral of the first kind
+ The `EllipticK(k)` function returns the complete elliptic integral of the
+ first kind. See `elliptic integrals` for more details.
+?expressions functions EllipticE
+?EllipticE
+4 EllipticE
+#EllipticE(k) & real k $\in$ [-1:1] & ~ & $E(k)$ complete elliptic integral of the second kind \\
+%EllipticE(k)@real k in [-1:1]@ $E ( k )$ complete elliptic integral of the second kind
+ The `EllipticE(k)` function returns the complete elliptic integral of the
+ second kind. See `elliptic integrals` for more details.
+?expressions functions EllipticPi
+?EllipticPi
+4 EllipticPi
+#EllipticPi(n,k) & real n$<$1, real k $\in$ (-1:1) & ~ & $\Pi(n,k)$ complete elliptic integral of the third kind \\
+%EllipticPi(n,k)@ real n<1, real k in (-1:1)@ $Pi ( n,k )$ complete elliptic integral of the third kind
+ The `EllipticPi(n,k)` function returns the complete elliptic integral of the
+ third kind. See `elliptic integrals` for more details.
 4 erf
 ?expressions functions erf
 ?erf
-#erf(x) & any & $\mbox{erf}(\mbox{real}(x))$,  error function of real($x$) \\
-%erf(x)@any@$erf ( roman real (x))$, error function of real ($x$)
+#erf(x) &  ~~  & ~ & $\mbox{erf}(\mbox{real}(x))$,  error function of real($x$) \\
+%erf(x)@ ~~ @$erf ( roman real (x))$, error function of real ($x$)
  The `erf(x)` function returns the error function of the real part of its
  argument.  If the argument is a complex value, the imaginary component is
  ignored.  See `erfc`, `inverf`, and `norm`.
 4 erfc
 ?expressions functions erfc
 ?erfc
-#erfc(x) & any & $\mbox{erfc}(\mbox{real}(x))$,  1.0 - error function of real($x$) \\
-%erfc(x)@any@$erfc ( roman real (x))$, 1.0 - error function of real ($x$)
+#erfc(x) &  ~~  & ~ & $\mbox{erfc}(\mbox{real}(x))$,  1.0 - error function of real($x$) \\
+%erfc(x)@ ~~ @$erfc ( roman real (x))$, 1.0 - error function of real ($x$)
  The `erfc(x)` function returns 1.0 - the error function of the real part of
  its argument.  If the argument is a complex value, the imaginary component is
  ignored.  See `erf`, `inverf`, and `norm`.
 4 exp
 ?expressions functions exp
 ?exp
-#exp(x) & any & $e^{x}$,  exponential function of $x$ \\
-%exp(x)@any@$e sup x$, exponential function of $x$
+#exp(x) &  ~~  & \gpCX & $e^{x}$,  exponential function of $x$ \\
+%exp(x)@ ~~ @$e sup x$, exponential function of $x$
  The `exp(x)` function returns `e` raised to the power of x, which can be
  an integer, real, or complex value.
 4 expint
-?expressions functions expint
-?expint
-#expint(n,x) & int $n\ge0$, real $x\ge0$ & $E_n(x)=\int_1^\infty t^{-n} e^{-xt}\,dt$,  exponential integral of $x$ \\
-%expint(n,x)@any@$E sub n (x)$, exponential integral function of $x$
- The `expint(n,x)` function returns the exponential integral of the real
- part of its argument: integral from 1 to infinity of t^(-n) e^(-tx) dt.
- n must be a nonnegative integer, x>=0, and either x>0 or n>1.
+#expint(n,x) & int $n\ge0$, real $x\ge0$ & ~ & $E_n(x)=\int_1^\infty t^{-n} e^{-xt}\,dt$,  exponential integral of $x$ \\
+%expint(n,x)@ ~~ @$E sub n (x)$, exponential integral function of $x$
 4 floor
 ?expressions functions floor
 ?floor
-#floor(x) & any & $\lfloor x \rfloor$,  largest integer not greater
+#floor(x) &  ~~  & ~ & $\lfloor x \rfloor$,  largest integer not greater
 #than $x$ (real part) \\
-%floor(x)@any@$left floor x right floor$, largest integer not greater than $x$ (real part)
+%floor(x)@ ~~ @$left floor x right floor$, largest integer not greater than $x$ (real part)
  The `floor(x)` function returns the largest integer not greater than its
  argument.  For complex numbers, `floor` returns the largest integer not
  greater than the real part of its argument.
 4 gamma
 ?expressions functions gamma
-?gamma
-#gamma(x) & any & $\mbox{gamma}(\mbox{real}(x))$,  gamma function of real($x$) \\
-%gamma(x)@any@$GAMMA ( roman real (x))$, gamma function of real ($x$)
+#gamma(x) &  ~~  & ~ & $\Gamma(x)$, gamma function of real($x$) \\
+%gamma(x)@ ~~ @$GAMMA ( roman real (x))$, gamma function of real ($x$)
  The `gamma(x)` function returns the gamma function of the real part of its
  argument.  For integer n, gamma(n+1) = n!.  If the argument is a complex
- value, the imaginary component is ignored.
+ value, the imaginary component is ignored. For complex arguments see `lnGamma`.
 4 ibeta
-?expressions functions ibeta
-?ibeta
-#ibeta(p,q,x) & any & $\mbox{ibeta}(\mbox{real}(p,q,x))$,  ibeta function of real($p$,$q$,$x$) \\
-%ibeta(p,q,x)@any@$ibeta ( roman real (p,q,x))$, ibeta function of real ($p$,$q$,$x$)
- The `ibeta(p,q,x)` function returns the incomplete beta function of the real
- parts of its arguments. p, q > 0 and x in [0:1].  If the arguments are
- complex, the imaginary components are ignored.  The function is approximated by
- the method of continued fractions (Abramowitz and Stegun, 1964).
- The approximation is only accurate in the region x < (p-1)/(p+q-2).
+#ibeta(a,b,x) & $a,b>0$, $x \in [0:1]$ & ~ & $B(a,b,x)=\frac{\Gamma(a+b)}{\Gamma(a)\Gamma(b)}\intop_{0}^{x}t^{a-1}(1-t)^{b-1}dt$, incomplete beta \\
+%ibeta(a,b,x)@ ~~ @$ibeta ( roman real (a,b,x))$, ibeta function of real ($a$,$b$,$x$)
 4 inverf
 ?expressions functions inverf
 ?inverf
-#inverf(x) & any &  inverse error function of real($x$)  \\
-%inverf(x)@any@inverse error function real($x$)
+#inverf(x) &  ~~  & ~ &  inverse error function of real($x$)  \\
+%inverf(x)@ ~~ @inverse error function real($x$)
  The `inverf(x)` function returns the inverse error function of the real part
  of its argument.   See `erf` and `invnorm`.
 4 igamma
-?expressions functions igamma
-?igamma
-#igamma(a,x) & any & $\mbox{igamma}(\mbox{real}(a,x))$,  igamma function of real($a$,$x$) \\
-%igamma(a,x)@any@$igamma ( roman real (a,x))$, igamma function of real ($a$,$x$)
- The `igamma(a,x)` function returns the normalized incomplete gamma
- function of the real parts of its arguments, where a > 0 and x >= 0.
- The standard notation is P(a,x), e.g. Abramowitz and Stegun (6.5.1),
- with limiting value of 1 as x approaches infinity.  If the arguments
- are complex, the imaginary components are ignored.
+#igamma(a,z) & complex, $\Re(a)>0$ & \gpCX & incompete gamma function $P(a,z)=\frac{1}{\Gamma(z)}\intop_{0}^{z}t^{a-1}e^{-t}dt$ \\
+%igamma(a,z)@ ~~ @$igamma (a,z)$, lower incomplete gamma function of ($a$,$z$)
 4 imag
 ?expressions functions imag
 ?imag
-#imag(x) & complex &  imaginary part of $x$ as a real number \\
+#imag(x) & complex & ~ &  imaginary part of $x$ as a real number \\
 %imag(x)@complex@imaginary part of $x$ as a real number
  The `imag(x)` function returns the imaginary part of its argument as a real
  number.
-4 invnorm
-?expressions functions invnorm
-?invnorm
-#invnorm(x) & any &  inverse normal distribution function of real($x$)  \\
-%invnorm(x)@any@inverse normal distribution function real($x$)
- The `invnorm(x)` function returns the inverse cumulative normal (Gaussian)
- distribution function of the real part of its argument.  See `norm`.
 4 int
 ?expressions functions int
 ?int
-#int(x) & real &  integer part of $x$, truncated toward zero \\
+#int(x) & real & ~ &  integer part of $x$, truncated toward zero \\
 %int(x)@real@integer part of $x$, truncated toward zero
  The `int(x)` function returns the integer part of its argument, truncated
  toward zero.
+4 invnorm
+?expressions functions invnorm
+?invnorm
+#invnorm(x) &  ~~  & ~ &  inverse normal distribution function of real($x$)  \\
+%invnorm(x)@ ~~ @inverse normal distribution function real($x$)
+ The `invnorm(x)` function returns the inverse cumulative normal (Gaussian)
+ distribution function of the real part of its argument.  See `norm`.
+
+4 invibeta
+#invibeta(a,b,p) & real & ~ &  inverse incomplete beta function  \\
+%invibeta(a,b,p)@ real @inverse incomplete beta function
+
+4 invigamma
+#invigamma(a,p) & real & ~ &  inverse incomplete gamma function  \\
+%invigamma(a,p)@ real @inverse incomplete gamma function
+
+#LambertW(z,k) & complex, int & \gpCX & kth branch of complex Lambert W function \\
+%LambertW(z,k) & complex, int & $k$th branch of complex Lambert W function
+
 4 lambertw
 ?expressions functions lambertw
 ?lambertw
-#lambertw(x) & real & Lambert W function \\
-%lambertw(x)@real@Lambert W function
- The `lambertw(x)` function returns the value of the principal branch of
- Lambert's W function, which is defined by the equation (W(x)*exp(W(x))=x.
+#lambertw(x) & real & ~ & principal branch (k=0) of Lambert W function \\
+%lambertw(x)@real@principal branch (k=0) of Lambert W function
+ The `lambertw(x)` function returns the value of the principal branch (k=0)
+ of Lambert's W function, which is defined by the equation (W(x)*exp(W(x))=x.
  x must be a real number with x >= -exp(-1).
 4 lgamma
 ?expressions functions lgamma
 ?lgamma
-#lgamma(x) & any & $\mbox{lgamma}(\mbox{real}(x))$,  lgamma function of real($x$) \\
-%lgamma(x)@any@$lgamma ( roman real (x))$, lgamma function of real ($x$)
+#lgamma(x) & real & ~ & $\ln\Gamma(x)$  for real $x$  \\
+%lgamma(x)@real@$lgamma function of real  $x$
  The `lgamma(x)` function returns the natural logarithm of the gamma function
  of the real part of its argument.  If the argument is a complex value, the
- imaginary component is ignored.
+ imaginary component is ignored.  For complex values use lnGamma(z).
+4 lngamma
+#lnGamma(x) & complex & \gpCX & $\ln\Gamma(x)$ valid over entire complex plane \\
+%lnGamma(x)@complex@$lgamma function valid over entire complex plane
+ The `lnGamma(x)` function returns the natural logarithm of the gamma function.
+ This implementation uses a Lanczos approximation valid over the entire complex
+ plane. The imaginary component of the result is phase-shifted to yield a
+ continuous surface everywhere except the negative real axis.
 4 log
 ?expressions functions log
 ?log
-#log(x) & any & $\log_{e} x$,  natural logarithm (base $e$) of $x$ \\
-%log(x)@any@$ln~x$, natural logarithm (base $e$) of $x$
+#log(x) &  ~~  & \gpCX & $\log_{e} x$,  natural logarithm (base $e$) of $x$ \\
+%log(x)@ ~~ @$ln~x$, natural logarithm (base $e$) of $x$
  The `log(x)` function returns the natural logarithm (base `e`) of its
  argument.  See `log10`.
 4 log10
 ?expressions functions log10
 ?log10
-#log10(x) & any & $\log_{10} x$,  logarithm (base $10$) of $x$ \\
-%log10(x)@any@${log sub 10}~x$, logarithm (base $10$) of $x$
+#log10(x) &  ~~  & \gpCX & $\log_{10} x$,  logarithm (base $10$) of $x$ \\
+%log10(x)@ ~~ @${log sub 10}~x$, logarithm (base $10$) of $x$
  The `log10(x)` function returns the logarithm (base 10) of its argument.
 4 norm
 ?expressions functions norm
 ?norm
-#norm(x) & any & normal distribution (Gaussian) function of real($x$) \\
-%norm(x)@any@$norm(x)$, normal distribution function of real($x$)
+#norm(x) &  ~~  & ~ & normal distribution (Gaussian) function of real($x$) \\
+%norm(x)@ ~~ @$norm(x)$, normal distribution function of real($x$)
  The `norm(x)` function returns the cumulative normal (Gaussian) distribution
  function of the real part of its argument.   See `invnorm`, `erf` and `erfc`.
 4 rand
 ?expressions functions rand
 ?rand
-#rand(x) & int & pseudo random number in the open interval (0:1) \\
+#rand(x) & int & ~ & pseudo random number in the open interval (0:1) \\
 %rand(x)@int@pseudo random number in the open interval (0:1)
  The `rand(x)` function returns a pseudo random number in the interval (0:1).
  See `random` for more details.
 4 real
 ?expressions functions real
 ?real
-#real(x) & any &  real part of $x$ \\
-%real(x)@any@real part of $x$
+#real(x) &  ~~  & ~ &  real part of $x$ \\
+%real(x)@ ~~ @real part of $x$
  The `real(x)` function returns the real part of its argument.
 4 sgn
 ?expressions functions sgn
 ?sgn
-#sgn(x) & any & 1 if $x>0$, -1 if $x<0$, 0 if $x=0$. imag($x$) ignored \\
-%sgn(x)@any@1 if $x > 0$, -1 if $x < 0$, 0 if $x = 0$. $roman imag (x)$ ignored
+#sgn(x) &  ~~  & ~ & 1 if $x>0$, -1 if $x<0$, 0 if $x=0$. imag($x$) ignored \\
+%sgn(x)@ ~~ @1 if $x > 0$, -1 if $x < 0$, 0 if $x = 0$. $roman imag (x)$ ignored
  The `sgn(x)` function returns 1 if its argument is positive, -1 if its
  argument is negative, and 0 if its argument is 0.  If the argument is a
  complex value, the imaginary component is ignored.
+4 Sign
+#Sign(x) & complex & \gpCX & 0 if $x = 0$, otherwise $x/|x|$ \\
+%Sign(x)@complex@0 if $x = 0$, otherwise $x/|x|$
+ The `Sign(x)` function returns 0 if its argument is zero, otherwise it returns
+ the complex value Sign(x) = x/|x|.
 4 sin
 ?expressions functions sin
 ?sin
-#sin(x) & any & $\sin x$, sine of $x$ \\
-%sin(x)@any@$sin~x$, sine of $x$
+#sin(x) &  ~~  & \gpCX & $\sin x$, sine of $x$ \\
+%sin(x)@ ~~ @$sin~x$, sine of $x$
  The `sin(x)` function returns the sine of its argument.  `sin` expects its
  argument to be in radians or degrees, as selected by `set angles`.
 4 sinh
 ?expressions functions sinh
 ?sinh
-#sinh(x) & any & $\sinh x$, hyperbolic sine of $x$ in radians \\
-%sinh(x)@any@$sinh~x$, hyperbolic sine of $x$ in radians
+#sinh(x) &  ~~  & \gpCX & $\sinh x$, hyperbolic sine of $x$ in radians \\
+%sinh(x)@ ~~ @$sinh~x$, hyperbolic sine of $x$ in radians
  The `sinh(x)` function returns the hyperbolic sine of its argument.  `sinh`
  expects its argument to be in radians.
 4 sqrt
 ?expressions functions sqrt
 ?sqrt
-#sqrt(x) & any & $\sqrt{x}$,  square root of $x$ \\
-%sqrt(x)@any@$sqrt x $, square root of $x$
+#sqrt(x) &  ~~  & \gpCX & $\sqrt{x}$,  square root of $x$ \\
+%sqrt(x)@ ~~ @$sqrt x $, square root of $x$
  The `sqrt(x)` function returns the square root of its argument. If the
  x is a complex value, this always returns the root with positive real
  part.
+4 SynchrotronF
+?expressions functions SynchrotronF
+#SynchrotronF(x) & real & ~ & $F(x) = x\intop_{x}^{\infty}K_{\frac{5}{3}}(\nu)~d\nu$ \\
+%SynchrotronF(x)@ ~~ @ Synchrotron function F%
 4 tan
 ?expressions functions tan
 ?tan
-#tan(x) & any & $\tan x$,  tangent of $x$ \\
-%tan(x)@any@$tan~x$, tangent of $x$
+#tan(x) &  ~~  & \gpCX & $\tan x$,  tangent of $x$ \\
+%tan(x)@ ~~ @$tan~x$, tangent of $x$
  The `tan(x)` function returns the tangent of its argument.  `tan` expects
  its argument to be in radians or degrees, as selected by `set angles`.
 4 tanh
 ?expressions functions tanh
 ?tanh
-#tanh(x) & any & $\tanh x$, hyperbolic tangent of $x$ in radians\\
-%tanh(x)@any@$tanh~x$, hyperbolic tangent of $x$ in radians
+#tanh(x) &  ~~  & \gpCX & $\tanh x$, hyperbolic tangent of $x$ in radians\\
+%tanh(x)@ ~~ @$tanh~x$, hyperbolic tangent of $x$ in radians
  The `tanh(x)` function returns the hyperbolic tangent of its argument.  `tanh`
  expects its argument to be in radians.
 4 voigt
 ?expressions functions voigt
 ?voigt
-#voigt(x,y) & real & Voigt/Faddeeva function $\frac{y}{\pi} \int{\frac{exp(-t^2)}{(x-t)^2+y^2}}dt$ \\
-#           &       & Note: voigt$(x,y)$ = $real($faddeeva$(x+iy))$ \\
+#voigt(x,y) & real & ~ & Voigt/Faddeeva function $\frac{y}{\pi} \int{\frac{exp(-t^2)}{(x-t)^2+y^2}}dt$ \\
+#           &       & ~ & Note: voigt$(x,y)$ = $real($faddeeva$(x+iy))$ \\
 %voigt(x,y)@real@convolution of Gaussian and Lorentzian
  The function `voigt(x,y)` returns an approximation to the Voigt/Faddeeva
  function used in spectral analysis. The approximation is accurate to
- one part in 10^4.  If the libcerf routines are available, the re_w_of_z()
+ one part in 10^4.  If the libcerf library is available, the re_w_of_z()
  routine is used to provide a more accurate value.
  Note that voigt(x,y) = real(faddeeva( x + y*{0,1} )).
 #\hline \end{longtable}
 #%% begin dummy tabular because the @end processing wants to end one
-#\begin{tabular}{|ccl|}
+#\begin{tabular}{|lcl|}
 @end table
 
 ^<!-- INCLUDE_NEXT_TABLE -->
 @start table
-#\begin{longtable}{|ccl|} \hline
-#\multicolumn{3}{|c|}{Special functions from libcerf (only if available)} \\ \hline \hline
-#Function & Arguments & Returns \\ \hline
+#\setlength\LTleft{0pt}
+#\setlength\LTright{0pt}
+#\begin{longtable}{@{\extracolsep{\fill}}|lcrl|@{}} \hline
+#\multicolumn{4}{|c|}{Special functions from libcerf (only if available)} \\ \hline \hline
+#Function ~~~~~~~~~~~~~~~~~ & Arguments & ~ & Returns ({\gpCX } indicates complex result)\\ \hline
 #\endhead \hline \endfoot
 %c c l .
 %Function@Arguments@Returns
@@ -1824,31 +1916,42 @@ C marker below is used to signal this to doc2html:
 4 cerf
 ?expressions functions cerf
 ?cerf
-#cerf(z) & complex &  complex error function \\
+#cerf(z) & complex & \gpCX &  complex error function \\
 %cerf(z)@complex@complex error function
  `cerf(z)` is the complex version of the error function erf(x)
+ Requires external library libcerf.
 4 cdawson
 ?expressions functions cdawson
 ?cdawson
-=dawson
+=Dawson's integral
+?Dawson's integral
 %cdawson(z)@complex@complex Dawson's integral
-#cdawson(z)&complex&complex extension of Dawson's integral $D(z)={\frac{\sqrt{\pi}}{2}e^{-z^2} erfi(z)} $ \\
+#cdawson(z)&complex& \gpCX &complex extension of Dawson's integral $D(z)={\frac{\sqrt{\pi}}{2}e^{-z^2} erfi(z)} $ \\
  `cdawson(z)` returns Dawson's Integral evaluated for the complex argument z.
  cdawson(z) = sqrt(pi)/2 * exp(-z^2) * erfi(z)
+ Requires external library libcerf.
 4 faddeeva
 ?expressions functions faddeeva
 ?faddeeva
 %faddeeva(z)@complex@rescaled complex error function w(z) = exp(-z^2) * erfc(-i*z)
-#faddeeva(z)&complex&rescaled complex error function $w(z) = e^{-z^2}~ erfc(-iz) $ \\
+#faddeeva(z)&complex& \gpCX &rescaled complex error function $w(z) = e^{-z^2}~ erfc(-iz) $ \\
  The `faddeeva(z)` function returns the rescaled complex error function
  faddeeva(z) = exp(-z^2) * erfc(-i*z)
  This corresponds to Eqs 7.1.3 and 7.1.4 of Abramowitz and Stegun.
+ Requires external library libcerf.
 4 erfi
 ?expressions functions erfi
 ?erfi
 %erfi(x)@real@imaginary error function erfi(x) = -i * erf(ix)
-#erfi(x)&real&imaginary error function $erf(x) = -i * erf(ix)$ \\
+#erfi(x)&real&~&imaginary error function $erf(x) = -i * erf(ix)$ \\
  Imaginary error function erfi(x) = -i * erf(ix)
+ Requires external library libcerf.
+4 FresnelC
+%FresnelC(x)@real@ C(x) = integral[0;x] cos(pi/2 t^2)dt
+#FresnelC(x)&real&~&Fresnel integral $C(x)=\int^{x}_{0} cos(\frac{\pi}{2}t^2)dt$ \\
+4 FresnelS
+%FresnelS(x)@real@ S(x) = integral[0;x] sin(pi/2 t^2)dt
+#FresnelS(x)&real&~&Fresnel integral $S(x)=\int^{x}_{0} sin(\frac{\pi}{2}t^2)dt$ \\
 4 Voigt Profile
 ?expressions functions VP
 ?expressions functions VP_fwhm
@@ -1856,20 +1959,54 @@ C marker below is used to signal this to doc2html:
 ?VP_fwhm
 %VP(x,sigma,gamma)@real@Voigt profile
 %VP_fwhm(sigma,gamma)@real@Voigt profile full width at half maximum
-#VP(x,$\sigma$,$\gamma$)&real& Voigt profile $ VP(x,\sigma,\gamma) = {\int^{\infty}_{-\infty}{G(x^\prime;\sigma) L(x-x^\prime;\gamma) dx^\prime }} $ \\
-#VP\_fwhm($\sigma$,$\gamma$)&real& Voigt profile full width at half maximum value\\
+#VP(x,$\sigma$,$\gamma$)&real& ~ & Voigt profile $ VP(x,\sigma,\gamma) = {\int^{\infty}_{-\infty}{G(x^\prime;\sigma) L(x-x^\prime;\gamma) dx^\prime }} $ \\
+#VP\_fwhm($\sigma$,$\gamma$)&real& ~ & Voigt profile full width at half maximum value\\
  `VP(x,sigma,gamma)` corresponds to the Voigt profile defined by convolution of
  a Gaussian G(x;sigma) with a Lorentzian L(x;gamma).
  `VP_fwhm(sigma,gamma)` gives the full width at half maximum value of this function.
 
 #\hline \end{longtable}
 #%% begin dummy tabular because the @end processing wants to end one
-#\begin{tabular}{|ccl|}
+#\begin{tabular}{|lcl|}
 @end table
 
 ^<!-- INCLUDE_NEXT_TABLE -->
 @start table
-#\begin{tabular}{|ccl|} \hline
+#\setlength\LTleft{0pt}
+#\setlength\LTright{0pt}
+#\begin{longtable}{@{\extracolsep{\fill}}|lcrl|@{}} \hline
+#\multicolumn{4}{|c|}{Complex special functions from Amos library (only if available)} \\ \hline \hline
+#Function ~~~~~~~~~~~~~~~~~ & Arguments & ~ & Returns ({\gpCX } indicates complex result)\\ \hline
+#\endhead \hline \endfoot
+%c c l .
+%Function@Arguments@Returns
+%_
+# ~ & ~ & ~ & \hspace{9cm} \\
+
+#Ai(z) & complex & \gpCX &  complex Airy function $Ai(z)$\\
+%Ai(z)@complex@complex error function
+#Bi(z) & complex & \gpCX &  complex Airy function $Bi(z)$\\
+%Bi(z)@complex@complex error function
+#BesselH1(nu,z) & real, complex & \gpCX & $H^{(1)}_{\nu}(z)$ Hankel function of the first kind\\
+#BesselH2(nu,z) & real, complex & \gpCX & $H^{(2)}_{\nu}(z)$ Hankel function of the second kind\\
+#BesselJ(nu,z) & real, complex & \gpCX & $J_{\nu}(z)$ Bessel function of the first kind\\
+%BesselJ(nu,z) @ real, complex @ Bessel function J_nu of the first kind
+#BesselY(nu,z) & real, complex & \gpCX & $Y_{\nu}(z)$ Bessel function of the second kind\\
+%BesselY(nu,z) @ real, complex @ Bessel function Y_nu of the second kind
+#BesselI(nu,z) & real, complex & \gpCX & $I_{\nu}(z)$ modified Bessel function of the first kind\\
+%BesselI(nu,z) @ real, complex @ modified Bessel function I_nu of the first kind
+#BesselK(nu,z) & real, complex & \gpCX & $K_{\nu}(z)$ modified Bessel function of the second kind\\
+%BesselK(nu,z) @ real, complex @ modified Bessel function K_nu of the second kind
+#expint(n,z) & int $n\geq0$, complex $z$ & \gpCX & $E_n(z)=\int_1^\infty t^{-n} e^{-zt}\,dt$,  exponential integral\\
+%expint(n,z)@ int n>=0, complex @$E sub n (z)$, complex exponential integral function
+#\hline \end{longtable}
+#%% begin dummy tabular because the @end processing wants to end one
+#\begin{tabular}{|lcl|}
+@end table
+
+^<!-- INCLUDE_NEXT_TABLE -->
+@start table
+#\begin{longtable}{@{\extracolsep{\fill}}|lcl|@{}} \hline
 #\multicolumn{3}{|c|}{String functions} \\ \hline \hline
 #Function & Arguments & Returns \\ \hline
 %c c l .
@@ -1971,11 +2108,14 @@ C marker below is used to signal this to doc2html:
 %words("string")@string@returns the number of words in "string"
  `words("string")` returns the number of words in string. For example,
  `words(" a b c d")` returns 4.
+#\hline \end{longtable}
+#%% begin dummy tabular because the @end processing wants to end one
+#\begin{tabular}{|lcl|}
 @end table
 
 ^<!-- INCLUDE_NEXT_TABLE -->
 @start table
-#\begin{tabular}{|ccl|} \hline
+#\begin{tabular}{|lcl|} \hline
 #\multicolumn{3}{|c|}{other {\bf gnuplot} functions} \\ \hline \hline
 #Function & Arguments & Returns \\ \hline
 %c c l .
@@ -2149,29 +2289,196 @@ C marker below is used to signal this to doc2html:
  E.g. voxel(x,y,z) = 0.0
  See `splot voxel-grids`, `vgrid`.
 @end table
+
 4 elliptic integrals
 ?elliptic integrals
 =elliptic integrals
  The `EllipticK(k)` function returns the complete elliptic integral of the first
  kind, i.e. the definite integral between 0 and pi/2 of the function
- `(1-(k*sin(p))**2)**(-0.5)`.  The domain of `k` is -1 to 1 (exclusive).
+ `(1 - k^2*sin^2(p))^(-0.5)`.  The domain of `k` is -1 to 1 (exclusive).
+
+#TeX \quad\quad EllipticK$(k)=\int_0^{\pi/2} {\sqrt{1-k^2sin^2\theta}~}^{-1}~d\theta$
 
  The `EllipticE(k)` function returns the complete elliptic integral of the
  second kind, i.e. the definite integral between 0 and pi/2 of the function
- `(1-(k*sin(p))**2)**0.5`.  The domain of `k` is -1 to 1 (inclusive).
+ `(1 - k^2*sin^2(p))^0.5`.  The domain of `k` is -1 to 1 (inclusive).
+
+#TeX \quad\quad EllipticE$(k)=\int_0^{\pi/2} {\sqrt{1-k^2sin^2\theta}}~d\theta$
 
  The `EllipticPi(n,k)` function returns the complete elliptic integral of the
  third kind, i.e. the definite integral between 0 and pi/2 of the function
- `(1-(k*sin(p))**2)**(-0.5)/(1-n*sin(p)**2)`.  The parameter `n` must be less
+ `(1 - k^2*sin^2(p))^(-0.5) / (1  - n*sin^2(p))`.  The parameter `n` must be less
  than 1, while `k` must lie between -1 and 1 (exclusive).  Note that by
  definition EllipticPi(0,k) == EllipticK(k) for all possible values of `k`.
-4 Special functions provided by libcerf
-?libcerf
- Some special functions are only provided if your copy of gnuplot was configured
- to use the external libcerf library (https://jugit.fz-juelich.de/mlz/libcerf).
- These include the complex error function cerf(z), the imaginary error function
- erfi(x), a complex extension of Dawson's integral cdawson(z), and complex
- versions of the Faddeeva function and the Voigt profile VP(x, sigma, gamma).
+
+#TeX \quad\quad EllipticPi$(n,k)=\int_0^{\pi/2} {\big[(1-nsin^2\theta)\sqrt{1-k^2sin^2\theta}~\big]}^{-1}d\theta$
+
+4 Complex Airy functions
+?expressions functions Ai
+?Ai
+?expressions functions Bi
+?Bi
+ `Ai(z)` and `Bi(z)` are the Airy functions of complex argument.
+ Supported via an external library containing routines by Donald E. Amos,
+ Sandia National Laboratoris, SAND85-1018 (1985).
+
+4 Complex Bessel functions
+?expressions functions BesselJ
+?BesselJ
+ `BesselJ(nu,z)` is the Bessel function of the first kind J_nu
+ for real argument nu and complex argument z.
+ Supported via external library containing routines by Donald E. Amos,
+ Sandia National Laboratoris, SAND85-1018 (1985).
+
+?expressions functions BesselY
+?BesselY
+ `BesselY(nu,z)` is the Bessel function of the second kind Y_nu
+ for real argument nu and complex argument z.
+ Supported via external library containing routines by Donald E. Amos,
+ Sandia National Laboratoris, SAND85-1018 (1985).
+
+?expressions functions BesselI
+?BesselI
+ `BesselI(nu,z)` is the modified Bessel function of the first kind I_nu
+ for real argument nu and complex argument z.
+ Supported via external library containing routines by Donald E. Amos,
+ Sandia National Laboratoris, SAND85-1018 (1985).
+
+?expressions functions BesselK
+?BesselK
+ `BesselK(nu,z)` is the modified Bessel function of the second kind K_nu
+ for real argument nu and complex argument z.
+ Supported via external library containing routines by Donald E. Amos,
+ Sandia National Laboratoris, SAND85-1018 (1985).
+
+?expressions functions BesselH1
+?expressions functions BesselH2
+?expressions functions Hankel
+?BesselH1
+?BesselH2
+?Hankel
+ `BesselH1(nu,z)` and `BesselH2(nu,z)` are the Hankel functions of the first and
+ second kind
+     H1(nu,z) = J(nu,z) + iY(nu,z)
+     H2(nu,z) = J(nu,z) - iY(nu,z)
+ for real argument nu and complex argument z.
+ Supported via external library containing routines by Donald E. Amos,
+ Sandia National Laboratoris, SAND85-1018 (1985).
+
+4 Expint
+?expressions functions expint
+?expint
+ `expint(n,z)` returns the exponential integral of order n, where n is an
+ integer >= 0.  This is the integral from 1 to infinity of t^(-n) e^(-tz) dt.
+
+#TeX \quad\quad $E_n(x)=\int_1^\infty t^{-n} e^{-xt}\,dt$
+
+ If your copy of gnuplot was built with support for complex functions from
+ the Amos library, then for n>0 the evaluation uses Amos routine cexint
+ [Amos 1990 Algorithm 683, ACM Trans Math Software 16:178].
+ In this case z may be any complex number with -pi < arg(z) <= pi.
+ expint(0,z) is calculated as exp(-z)/z.
+
+ If Amos library support is not present, z is limited to real values z >= 0.
+
+4 Fresnel integrals FresnelC(x) and FresnelS(x)
+?expressions functions FresnelC
+?expressions functions FresnelS
+?FresnelC
+?FresnelS
+ The cosine and sine Fresnel integrals are calculated using their relationship
+ to the complex error function erf(z).  Due to dependence on erf(z),
+ these functions are only available if libcerf library support is present.
+
+#TeX \quad\quad $C(x) = \int^{x}_{0} cos(\frac{\pi}{2} t^2)dt$ \quad $S(x) = \int^{x}_{0} sin(\frac{\pi}{2} t^2)dt$
+
+#TeX \quad\quad $C(x)+iS(x)=\frac{1+i}{2} erf(z)$ where $z = \frac{\sqrt{\pi}}{2}(1-i)x$
+
+4 Gamma
+?gamma
+ `gamma(x)` returns the gamma function of the real part of its argument.
+ For integer n, gamma(n+1) = n!.  If the argument is a complex value,
+ the imaginary component is ignored. For complex arguments see `lnGamma`.
+
+4 Igamma
+?expressions functions igamma
+?igamma
+ `igamma(a, z)` returns the lower incomplete gamma function P(a, z),
+ [Abramowitz and Stegun (6.5.1)].  If complex function support is present
+ a and z may be complex values; real(a) > 0;
+
+#TeX \quad\quad igamma$(a,z)=P(a,z) = z^a\gamma^*(a,z)$
+#TeX $=\frac{1}{\Gamma(z)}\intop_{0}^{z}t^{a-1}e^{-t}dt$
+
+ One of four algorithms is used depending on a and z.
+#TeX \\
+ Case (1) When a is large (>100) and (z-a)/a is small (<0.2) use
+ Gauss-Legendre quadrature with coefficients from Numerical Recipes 3rd
+ Edition section 6.2, Press et al (2007).
+#TeX \\
+ Case (2) When z > 1 and z > (a+2) use a continued fraction following
+ Shea (1988) J. Royal Stat. Soc. Series C (Applied Statistics) 37:466-473.
+#TeX \\
+ Case (3) When z < 0 and a < 75 and imag(a) == 0 use the series from
+ Abramowitz & Stegun (6.5.29).
+#TeX \\
+ Otherwise (Case 4) use Pearson's series expansion.
+
+ Note that convergence is poor in some regions of the full domain.
+ If the chosen algorithm does not converge to within 1.E-14 the function
+ returns NaN and prints a warning.
+
+ If no complex function support is present the domain is limited to
+ real arguments a > 0, z >= 0.
+
+4 Invigamma
+?expressions functions invigamma
+?invigamma
+ The inverse incomplete gamma function `invigamma(a,p)` returns the value
+ z such that p = igamma(a,z).
+ p is limited to (0;1]. a must be a positive real number.
+ The implementation in gnuplot has relative accuracy that ranges from 
+ 1.e-16 for a<1 to 5.e-6 for a = 1.e10.  Convergence may fail for a < 0.005.
+
+4 Ibeta
+?expressions functions ibeta
+?ibeta
+ `ibeta(a,b,x)` returns the normalized lower incomplete beta integral of
+ real arguments a,b > 0,  x in [0:1].
+
+#TeX \quad\quad ibeta$(a,b,x)=\frac{\Gamma(a+b)}{\Gamma(a)\Gamma(b)}\intop_{0}^{x}t^{a-1}(1-t)^{b-1}dt$
+
+ If the arguments are complex, the imaginary components are ignored.
+ The implementation in gnuplot 5.5 uses code from the Cephes library
+ [Moshier 1989, "Methods and Programs for Mathematical Functions", Prentice-Hall].
+
+4 Invibeta
+?expressions functions invibeta
+?invibeta
+ The inverse incomplete beta function `invibeta(a,b,p)` returns the value
+ z such that p = ibeta(a,b,z).  a, b are limited to positive real values
+ and p is in the interval [0,1].  Note that as a, b approach zero
+#TeX ($\lessapprox 0.05$)
+ invibeta() approaches 1.0 and its relative accuracy is limited by
+ floating point precision.
+
+4 LambertW
+?expressions functions LambertW
+?LambertW
+ Lambert W function with complex domain and range.
+ LambertW( z, k ) returns the kth branch of the function W defined by
+ the equation W(z) * exp(z) = z.
+ The complex value is obtained using Halley's method as described by
+ Corless et al [1996], Adv. Comp. Math 5:329.
+ The nominal precision is 1.E-13 but convergence can be poor very close to
+ discontinuities, e.g. branch points.
+4 lnGamma
+?expressions functions lnGamma
+?lnGamma
+ lnGamma(z) returns the natural log of the gamma function with complex domain
+ and range.  Implemented using 15 term approximation following Lanczos [1964],
+ SIAM JNA 1:86-96.  The imaginary component of the result is phase-shifted to
+ yield a continuous surface everywhere except the negative real axis.
 4 Random number generator
 ?expressions random
 ?random
@@ -2189,6 +2496,46 @@ C marker below is used to signal this to doc2html:
                    to x.
        rand({x,y}) for integer 0 < x,y < 2^31-1 sets seed1 to x and
                    seed2 to y.
+4 Special functions with complex arguments
+?expressions functions special
+?expressions functions complex
+?special_functions
+?libcerf
+?Amos
+?libopenspecfun
+
+ Some special functions with complex domain are provided through external
+ libraries. If your copy of gnuplot was not configured to link against these
+ libraries then it will support only the real domain or will not provide
+ the function at all.
+
+ Functions requiring libcerf (http://apps.jcns.fz-juelich.de/libcerf) depend
+ on configuration option `--with-libcerf`.  This is the default.
+ See `cerf`, `cdawson`, `faddeeva`, `erfi`, `VP`, and `VP_fwhm`.
+
+ Complex Airy, Bessel, and Hankel functions of real order nu and complex
+ arguments require a library containing routines implemented by Douglas E. Amos,
+ Sandia National Laboratories, SAND85-1018 (1985).
+ These routines may be found in netlib (http://netlib.sandia.gov) or in
+ libopenspecfun (https://github.com/JuliaLang/openspecfun).
+ The corresponding configuration option is `--with-amos=<library directory>`.
+ See `Ai`, `Bi`, `BesselJ`, `BesselY`, `BesselI`, `BesselK`, `Hankel`.
+ The complex exponential integral is provided by netlib or libamos but not by
+ libopenspecfun.  See `expint`.
+
+4 Synchrotron function
+?SynchrotronF
+?functions SynchrotronF
+ The synchrotron function SynchrotronF(x) describes the power distribution
+ spectrum of synchrotron radiation as a function of x given in units of the
+ critical photon energy (i.e. critical frequency vc).
+
+#TeX \quad\quad $F(x) = x\intop_{x}^{\infty}K_{\frac{5}{3}}(\nu)~d\nu$
+#TeX where $K_{\frac{5}{3}}$ is a modified Bessel function of the second kind.
+
+ Chebyshev coefficients for approximation accurate to 1.E-15 are taken from
+ MacLead (2000) NuclInstMethPhysRes A443:540-545.
+
 4 value
 ?expressions functions value
 ?value
@@ -2262,7 +2609,7 @@ C marker below is used to signal this to doc2html:
 =one's complement
 =operator precedence
 =cardinality
-#\begin{tabular}{|ccl|} \hline
+#\begin{tabular}{|lcl|} \hline
 #\multicolumn{3}{|c|}{Unary Operators}\\ \hline \hline
 #Symbol & Example & Explanation \\ \hline
 #\verb@-@ & \verb@-a@ & unary minus \\
@@ -2330,7 +2677,7 @@ C ... and restart the table:
  for larger values of N.
 
 ?cardinality
- This operator returns the number of elements |A| when applied to array A.
+ The cardinality operator |...| returns the number of elements |A| in array A.
  It returns the number of data lines |$DATA| when applied to datablock $DATA.
 4 Binary
 ?expressions operators binary
@@ -2367,7 +2714,7 @@ C ... and restart the table:
 =string operators
 =modulo
 =exponentiation
-#\begin{tabular}{|ccl|} \hline
+#\begin{tabular}{|lcl|} \hline
 #\multicolumn{3}{|c|}{Binary Operators} \\ \hline \hline
 #Symbol & Example & Explanation \\ \hline
 #\verb~**~ & \verb~a**b~ & exponentiation\\
@@ -2480,7 +2827,7 @@ C ... and restart the table:
 @start table - first is interactive cleartext form
      Symbol       Example      Explanation
        ?:          a?b:c     ternary operation
-#\begin{tabular}{|ccl|} \hline
+#\begin{tabular}{|lcl|} \hline
 #\multicolumn{3}{|c|}{Ternary Operator} \\ \hline \hline
 #Symbol & Example & Explanation \\ \hline
 #\verb~?:~ & \verb~a?b:c~ & ternary operation\\
@@ -2812,8 +3159,7 @@ C ... and restart the table:
  some of these terms are used.
 
  A "page" or "screen" or "canvas" is the entire area addressable by `gnuplot`.
- On a desktop it is a full window; on a plotter, it is a single sheet of paper;
- in svga mode it is the full monitor screen.
+ On a desktop it is a full window; on a plotter, it is a single sheet of paper.
 
  A screen may contain one or more "plots".  A plot is defined by an abscissa
  and an ordinate, although these need not actually appear on it, as well as
@@ -3094,8 +3440,8 @@ Ffigure_newsyntax
 
  `palette` and `palette z` both map the z coordinate of the plot element being
  colored onto the current palette.  If z is outside cbrange it is by default
- mapped to palette fraction 0 or palette franction 1.  If the option 
- `set pm3d noclipcb` is set, then quadrangles in a pm3d plot whose z values 
+ mapped to palette fraction 0 or palette franction 1.  If the option
+ `set pm3d noclipcb` is set, then quadrangles in a pm3d plot whose z values
  are out of range will not be drawn at all.
 
  `fillcolor palette <colormap>` maps the z coordinate of a plot element onto
@@ -3242,7 +3588,7 @@ Ffigure_newsyntax
  bindings, except that <space> and 'q' cannot normally be rebound. For an
  exception, see `bind space`.
 
- Only mouse button 1 can be bound, and only for 2D plots.
+ Mouse button bindings are only active in 2D plots.
 
  You get the list of all hotkeys by typing `show bind` or `bind` or by typing
  the hotkey 'h' in the graph window.
@@ -3311,9 +3657,10 @@ Ffigure_newsyntax
 ?commands bind space
 ?bind space
  If gnuplot was built with configuration option --enable-raise-console, then
- typing <space> in the plot window raises gnuplot's command window. This hotkey
- can be changed to ctrl-space by starting gnuplot as 'gnuplot -ctrlq', or by
- setting the XResource 'gnuplot*ctrlq'.  See `x11 command-line-options`.
+ typing <space> in the plot window raises gnuplot's command window. Maybe.
+ In practice this is highly system-dependent.  This hotkey can be changed to
+ ctrl-space by starting gnuplot as 'gnuplot -ctrlq', or by setting the
+ XResource 'gnuplot*ctrlq'.
 3 Mouse variables
 ?mouse variables
  When `mousing` is active, clicking in the active window will set several user
@@ -3490,6 +3837,7 @@ Ffigure_newsyntax
  Gnuplot's built-in string manipulation functions are sensitive to utf-8
  encoding (see `set encoding`). For example
 
+  set encoding utf8
   utf8string = "αβγ"
   strlen(utf8string) returns 3 (number of characters, not number of bytes)
   utf8string[2:2] evaluates to "β"
@@ -4199,20 +4547,16 @@ Ffigure_ellipses
  In all of the above cases, optional variable color data may be given in an
  additional last (3th, 4th, 5th or 6th) column. See `colorspec`.
 
- By default, the major diameter is interpreted in the units of the plot's
- horizontal axis (x or x2) while the minor diameter in that of the vertical
- (y or y2).  If the x and y axis scales are not equal, the major/minor diameter
- ratio will no longer be correct after rotation.
- This can be changed with the `units` keyword, however.
-
- There are three alternatives:
- if `units xy` is included in the plot specification, the axes will be scaled
- as described above. `units xx` ensures that both diameters are interpreted
- in units of the x axis, while `units yy` means that both diameters are
- interpreted in units of the y axis. In the latter two cases the ellipses
- will have the correct aspect ratio, even if the plot is resized.
- If `units` is omitted from the plot command, the setting from
- `set style ellipse` will be used.
+ `units keyword:` If `units xy` is included in the plot specification,
+ the major diameter is interpreted in the units of the plot's horizontal axis
+ (x or x2) while the minor diameter in that of the vertical axis (y or y2).
+ If the x and y axis scales are not equal, the major/minor diameter ratio will
+ no longer be correct after rotation.
+ `units xx` interprets both diameters in units of the x axis.
+ `units yy` interprets both diameters in units of the y axis.
+ In the latter two cases the ellipses will have the correct aspect ratio even
+ if the plot is resized.  If `units` is omitted from the plot command,
+ the setting from `set style ellipse` will be used.
 
  Example (draws ellipses, cycling through the available line types):
 
@@ -5076,34 +5420,6 @@ Ffigure_xyerrorbars
  An additional input column (5th or 7th) may be used to provide variable
  (per-datapoint) color information.
 
-#TeX \newpage
-2 yerrorbars
-?plotting styles yerrorbars
-?plotting styles errorbars
-?style yerrorbars
-?with yerrorbars
-?style errorbars
-?with errorbars
-?yerrorbars
-Ffigure_yerrorbars
- The `yerrorbars` (or `errorbars`) style is only relevant to 2D data plots.
- `yerrorbars` is like `points`, except that a vertical error bar is also drawn.
- At each point (x,y), a line is drawn from (x,y-ydelta) to (x,y+ydelta) or
- from (x,ylow) to (x,yhigh), depending on how many data columns are provided.
- The appearance of the tic mark at the ends of the bar is controlled by
- `set errorbars`.
-
-      2 columns:  [implicit x] y ydelta
-      3 columns:  x  y  ydelta
-      4 columns:  x  y  ylow  yhigh
-
- An additional input column (4th or 5th) may be used to provide information
- such as variable point color.
-
- See also
-^ <a href="http://www.gnuplot.info/demo/mgr.html">
- errorbar demo.
-^ </a>
 2 xerrorlines
 ?plotting styles xerrorlines
 ?style xerrorlines
@@ -5123,6 +5439,7 @@ Ffigure_xerrorlines
  An additional input column (4th or 5th) may be used to provide information
  such as variable point color.
 
+#TeX \newpage
 2 xyerrorlines
 ?plotting styles xyerrorlines
 ?style xyerrorlines
@@ -5150,6 +5467,36 @@ Ffigure_xyerrorlines
  An additional input column (5th or 7th) may be used to provide variable
  (per-datapoint) color information.
 
+2 yerrorbars
+?plotting styles yerrorbars
+?plotting styles errorbars
+?style yerrorbars
+?with yerrorbars
+?style errorbars
+?with errorbars
+?yerrorbars
+=errorbars
+Ffigure_yerrorbars
+ The `yerrorbars` (or `errorbars`) style is only relevant to 2D data plots.
+ `yerrorbars` is like `points`, except that a vertical error bar is also drawn.
+ At each point (x,y), a line is drawn from (x,y-ydelta) to (x,y+ydelta) or
+ from (x,ylow) to (x,yhigh), depending on how many data columns are provided.
+ The appearance of the tic mark at the ends of the bar is controlled by
+ `set errorbars`.
+
+      2 columns:  [implicit x] y ydelta
+      3 columns:  x  y  ydelta
+      4 columns:  x  y  ylow  yhigh
+
+ An additional input column (4th or 5th) may be used to provide information
+ such as variable point color.
+
+ See also
+^ <a href="http://www.gnuplot.info/demo/mgr.html">
+ errorbar demo.
+^ </a>
+
+#TeX \newpage
 2 yerrorlines
 ?plotting styles yerrorlines
 ?plotting styles errorlines
@@ -5158,6 +5505,7 @@ Ffigure_xyerrorlines
 ?style errorlines
 ?with errorlines
 ?yerrorlines
+?errorlines
 Ffigure_yerrorlines
  The `yerrorlines` (or `errorlines`) style is only relevant to 2D data
  plots. `yerrorlines` is like `linespoints`, except that a vertical error line
@@ -5218,7 +5566,7 @@ Ffigure_pm3dsolid
  solid color surface or to specify distinct solid colors for the top and bottom
  surfaces as in the figure shown here.  See `pm3d fillcolor`.
  Unlike the line-trimming in hidden3d mode, pm3d surfaces can be smoothly
- clipped to the current zrange.  See `set pm3d clip z`.
+ clipped to the current zrange.  See `set pm3d clipping`.
 
 #TeX \newpage
 2 Fence plots
@@ -5416,7 +5764,7 @@ Ffigure_zerror
 3 old-style
 ?commands call old-style
 ?call old-style
- This describes the deprecated call mechanism used by old versions of gnuplot.
+ [DEPRECATED] This describes the call mechanism used by old versions of gnuplot.
 
        call "<input-file>" <param-0> <param-1> ... <param-9>
 
@@ -6206,14 +6554,10 @@ Ffigure_zerror
        if (1==2) print "Never see this"; print "Or this either"
  will not display anything.
 
- else:
-       v=0
-       v=v+1; if (v%2) print "2" ; else if (v%3) print "3"; else print "fred"
-
 2 for
 ?for
  The `plot`, `splot`, `set` and `unset` commands may optionally contain an
- iteration for clause.  This has the effect of executing the basic command
+ iteration clause.  This has the effect of executing the basic command
  multiple times, each time re-evaluating any expressions that make use of the
  iteration control variable.  Iteration of arbitrary command sequences can be
  requested using the `do` command.
@@ -6267,8 +6611,7 @@ Ffigure_zerror
  had been typed in interactively.  Files created by the `save` command can
  later be `load`ed.  Any text file containing valid commands can be created
  and then executed by the `load` command.  Files being `load`ed may themselves
- contain `load` or `call` commands.  See `comments` for information about
- comments in commands.  To `load` with arguments, see `call`.
+ contain `load` or `call` commands.  To `load` with arguments, see `call`.
  EXPERIMENTAL: Commands can be read from a datablock rather than a file.
 
  Syntax:
@@ -7123,9 +7466,12 @@ Ffigure_zerror
  The `smooth` options have no effect on function plots.
 
  Smoothing in 3D plots (splot) is currently limited to generating a natural
- cubic spline to pass through a set of 3D points.  E.g.
+ cubic spline to pass through a set of 3D points.  In the general case the
+ the splines are generated along a trajectory (`smooth path`).  For a 2D
+ projection of 3D data `smooth csplines` acts as it does in 2D.
+ Either keyword is accepted in an `splot` command.
 
-      splot $DATA using 1:2:3 smooth csplines with lines
+      splot $DATA using 1:2:3 smooth path with lines
 
 5 acsplines
 ?commands plot datafile smooth acsplines
@@ -7209,7 +7555,8 @@ Ffigure_zerror
  sorted first so it is possible to fit splines to a trajectory containing loops.
  In the general case three separate sets of spline coefficients are generated,
  each treating one coordinate x, y, or z as a function of a shared implicit
- trajectory path parameter. This is analogous to the 2D `plot ... smooth path`.
+ trajectory path parameter. This is equivalent to the 2D `plot ... smooth path`
+ option.
  
  In the special case that the curve lies in the xz, yz, or xy plane then only a
  single set of spline coefficients is generated.  This allows you to generate a
@@ -7241,7 +7588,8 @@ Ffigure_smooth_path
  The `smooth path` option generates cubic splines to fit points in the order
  they are presented in the input data; i.e. they are not first sorted on x.
  This generates a smooth spline through a closed curve or along a trajectory
- that contains loops.  As always, a separate curve is created for each set
+ that contains loops. This smoothing mode is supported for both 2D and 3D
+ plot commands.  As always, a separate curve is created for each set
  of points in the input file, where a blank line separates the sets.
  Plotting `smooth path with filledcurves closed` will guarantee that each set
  of points creates a closed curve.  Plotting `smooth path with lines` will
@@ -7759,101 +8107,6 @@ Ffigure_smooth_path
  read from the input stream or file may not be available for re-reading.
  This tells the program to use `refresh` rather than `replot` commands whenever
  possible.  See `refresh`.
-3 errorbars
-?commands plot errorbars
-?commands splot errorbars
-?plot errorbars
-?splot errorbars
-=errorbars
- Error bars are supported for 2D data file plots by reading one to four
- additional columns (or `using` entries); these additional values are used in
- different ways by the various errorbar styles.
-
- In the default situation, `gnuplot` expects to see three, four, or six
- numbers on each line of the data file---either
-
-       (x, y, ydelta),
-       (x, y, ylow, yhigh),
-       (x, y, xdelta),
-       (x, y, xlow, xhigh),
-       (x, y, xdelta, ydelta), or
-       (x, y, xlow, xhigh, ylow, yhigh).
-
- The x coordinate must be specified.  The order of the numbers must be
- exactly as given above, though the `using` qualifier can manipulate the order
- and provide values for missing columns.  For example,
-
-       plot 'file' with errorbars
-       plot 'file' using 1:2:(sqrt($1)) with xerrorbars
-       plot 'file' using 1:2:($1-$3):($1+$3):4:5 with xyerrorbars
-
- The last example is for a file containing an unsupported combination of
- relative x and absolute y errors.  The `using` entry generates absolute x min
- and max from the relative error.
-
- The y error bar is a vertical line plotted from (x, ylow) to (x,
- yhigh). If ydelta is specified instead of ylow and yhigh, ylow = y -
- ydelta and yhigh = y + ydelta are derived. If there are only two
- numbers on the record, yhigh and ylow are both set to y. The x error
- bar is a horizontal line computed in the same fashion. To get lines
- plotted between the data points, `plot` the data file twice, once with
- errorbars and once with lines (but remember to use the `notitle`
- option on one to avoid two entries in the key). Alternately, use the
- errorlines command (see `errorlines`).
-
- The tic marks at the ends of the bar are controlled by `set errorbars`.
-
- If autoscaling is on, the ranges will be adjusted to include the error bars.
-
- See also
-^ <a href="http://www.gnuplot.info/demo/mgr.html">
- errorbar demos.
-^ </a>
-
- See `plot using`, `plot with`, and `set style` for more information.
-3 errorlines
-?commands plot errorlines
-?commands splot errorlines
-?plot errorlines
-?splot errorlines
-?errorlines
- Lines with error bars are supported for 2D data file plots by reading
- one to four additional columns (or `using` entries); these additional
- values are used in different ways by the various errorlines styles.
-
- In the default situation, `gnuplot` expects to see three, four, or six
- numbers on each line of the data file---either
-
-       (x, y, ydelta),
-       (x, y, ylow, yhigh),
-       (x, y, xdelta),
-       (x, y, xlow, xhigh),
-       (x, y, xdelta, ydelta), or
-       (x, y, xlow, xhigh, ylow, yhigh).
-
- The x coordinate must be specified. The order of the numbers must be
- exactly as given above, though the `using` qualifier can manipulate
- the order and provide values for missing columns. For example,
-
-       plot 'file' with errorlines
-       plot 'file' using 1:2:(sqrt($1)) with xerrorlines
-       plot 'file' using 1:2:($1-$3):($1+$3):4:5 with xyerrorlines
-
- The last example is for a file containing an unsupported combination
- of relative x and absolute y errors. The `using` entry generates
- absolute x min and max from the relative error.
-
- The y error bar is a vertical line plotted from (x, ylow) to (x,
- yhigh). If ydelta is specified instead of ylow and yhigh, ylow = y -
- ydelta and yhigh = y + ydelta are derived. If there are only two
- numbers on the record, yhigh and ylow are both set to y. The x error
- bar is a horizontal line computed in the same fashion.
-
- The tic marks at the ends of the bar are controlled by `set errorbars`.
-
- If autoscaling is on, the ranges will be adjusted to include the error bars.
-
- See `plot using`, `plot with`, and `set style` for more information.
 3 functions
 ?commands plot functions
 ?plot functions
@@ -8236,10 +8489,10 @@ Ffigure_smooth_path
  <line_width> and <point_size>, which are specified relative to the default
  values for each terminal.  The pointsize may also be altered
  globally---see `set pointsize` for details.  But note that both <point_size>
- as set here and  as set by `set pointsize` multiply the default point
- size---their effects are  not cumulative.  That is,
- `set pointsize 2; plot x w p ps 3` will use points three times default size,
- not six.
+ as set here and as set by `set pointsize` multiply the default point
+ size; their effects are  not cumulative.  That is,
+ `set pointsize 2; plot x with points ps 3` will use points three times the
+ default size, not six.
 
  It is also possible to specify `pointsize variable` either as part of a
  line style or for an individual plot. In this case one extra column of input
@@ -8355,9 +8608,7 @@ Ffigure_smooth_path
 2 quit
 ?commands quit
 ?quit
- The `exit` and `quit` commands and END-OF-FILE character will exit `gnuplot`.
- Each of these commands will clear the output device (as does the `clear`
- command) before exiting.
+ `quit` is a synonym for the `exit` command. See `exit`.
 2 raise
 ?commands raise
 ?commands lower
@@ -8412,7 +8663,7 @@ Ffigure_smooth_path
  to plot a function against the second axes if the previous command was `plot`
  but not if it was `splot`.
 
- N.B.---use of
+ Note:
 
        plot '-' ; ... ; replot
 
@@ -8622,8 +8873,8 @@ Ffigure_smooth_path
  <tag> is an integer that identifies the arrow.  If no tag is given, the
  lowest unused tag value is assigned automatically.  The tag can be used to
  delete or change a specific arrow.  To change any attribute of an existing
- arrow, use the `set arrow` command with the appropriate tag and specify the
- parts of the arrow to be changed.
+ arrow, use `set arrow` with the appropriate tag and specify the attributes
+ to be changed.
 
  The position of the first end point of the arrow is always specified by "from".
  The other end point can be specified using any of three different mechanisms.
@@ -8705,8 +8956,8 @@ Ffigure_smooth_path
 ?noautoscale
  Autoscaling may be set individually on the x, y or z axis or globally on all
  axes. The default is to autoscale all axes.  If you want to autoscale based on
- a subset of the plots in the figure, you can mark the other ones with the flag
- `noautoscale`.  See `datafile`.
+ a subset of the plots in the figure, you can mark the ones to be omitted with
+ the flag `noautoscale` in the plot command.  See `datafile`.
 
  Syntax:
        set autoscale {<axes>{|min|max|fixmin|fixmax|fix} | fix | keepfix}
@@ -8714,7 +8965,7 @@ Ffigure_smooth_path
        unset autoscale {<axes>}
        show autoscale
 
- where <axes> is either `x`, `y`, `z`, `cb`, `x2`, `y2`, `xy`, or `paxis {n}`.
+ where <axes> is either `x`, `y`, `z`, `cb`, `x2`, `y2`, `xy`, or `paxis <p>`.
  A keyword with `min` or `max` appended (this cannot be done with `xy`) tells
  `gnuplot` to autoscale just the minimum or maximum of that axis.
  If no keyword is given, all axes are autoscaled.
@@ -8723,16 +8974,13 @@ Ffigure_smooth_path
  axis (y for a `plot` and z for `splot`) is scaled to include the range of the
  function or data being plotted.
 
+ Autoscaling the independent axes (x for `plot` and x,y for `splot`) is a
+ request to set the range for these axes to match the data being plotted.
+ If the plot contains only functions (no input data), autoscaling these axes
+ has no effect.
+
  If autoscaling of the dependent axis (y or z) is not set, the current y or z
- range is used.
-
- Autoscaling the independent variables (x for `plot` and x,y for `splot`) is a
- request to set the domain to match any data file being plotted.  If there are
- no data files, autoscaling an independent variable has no effect.  In other
- words, in the absence of a data file, functions alone do not affect the x
- range (or the y range if plotting z = f(x,y)).
-
- Please see `set xrange` for additional information about ranges.
+ range is used. Please see `set xrange` for additional information about ranges.
 
  The behavior of autoscaling remains consistent in parametric mode, (see
  `set parametric`).  However, there are more dependent variables and hence more
@@ -9014,19 +9262,11 @@ Ffigure_smooth_path
  some experimentation may be required to find a useful value of boxwidth.
 
  The default is superseded by explicit width information taken from an extra
- data column in styles `boxes` or `boxerrorbars`.  In a four-column data set,
- the fourth column will be interpreted as the box width unless the width is set
- to -2.0, in which case the width will be calculated automatically.
+ data column in styles `boxes` or `boxerrorbars`.
  See `style boxes` and `style boxerrorbars` for more details.
 
  To set the box width to automatic use the command
        set boxwidth
-
- or, for four-column data,
-       set boxwidth -2
-
- The same effect can be achieved with the `using` keyword in `plot`:
-       plot 'file' using 1:2:3:4:(-2)
 
  To set the box width to half of the automatic size use
        set boxwidth 0.5 relative
@@ -9047,13 +9287,13 @@ Ffigure_smooth_path
 3 color
 ?commands set color
 ?set color
- Gnuplot supports two alternative sets of linetypes. The default set uses a
- different color for each linetype, although it also allows you to draw dotted
- or dashed lines in that color.  The alternative monochrome set uses only
- dot/dash pattern or linewidth to distinguish linetypes. The `set color`
- command selects the color linetypes.  See `set monochrome`, `set linetype`,
- and `set colorsequence`.
-
+ Gnuplot assigns each element of a `plot` or `splot` command a new set of line
+ properties taken from a predefined sequence.  The default is to distinguish
+ successive lines by a change in color.  The alternative selected by 
+ `set monochrome` uses a sequence of black lines distinguishd by linewidth or
+ dot/dash pattern.  The `set color` command exits this alternative monochrome
+ mode and restores the previous set of default color lines.
+ See `set monochrome`, `set linetype`, and `set colorsequence`.
 3 Colormap
 ?commands set colormap
 ?set colormap
@@ -9170,8 +9410,8 @@ Ffigure_smooth_path
  `linespoints`, `points`, `arrows`, and `vectors`.
 
  * Clipping of colored quadrangles drawn for pm3d surfaces and other solid
- objects is controlled `set pm3d clip`. The default is smooth clipping against
- the current zrange.
+ objects is controlled `set pm3d clipping`. The default is smooth clipping
+ against the current zrange.
 
  * Object clipping is controlled by the `clip` or `noclip` property of the
  individual object.
@@ -9417,7 +9657,7 @@ Ffigure_smooth_path
  `unset colorbox` resets the default parameters for the colorbox and switches
  the colorbox off.
 
- See also help for `set pm3d`, `set palette`, `x11 pm3d`, and `set style line`.
+ See also help for `set pm3d`, `set palette`, and `set style line`.
 3 colornames
 ?colornames
  Gnuplot knows a limited number of color names. You can use these to define
@@ -9516,9 +9756,6 @@ Ffigure_smooth_path
       set linetype 5 dt 5        # always use this dash pattern with linetype 5
       set dashtype 66 "..-"      # define a new dashtype using a string
  See also `dashtype`.
-3 data style
-?set data style
- This form of the command is deprecated. Please see `set style data`.
 3 datafile
 ?set datafile
 ?show datafile
@@ -9941,8 +10178,8 @@ Ffigure_missing
  representation of dates or numbers.
  See also `set locale` and `set decimalsign`.
 
- Generally you must set the encoding before setting the terminal type, as it
- may affect the choice of appropriate fonts.
+ Generally you should set the encoding before setting the terminal type,
+ as it may affect the selection of fonts.
 3 errorbars
 ?commands set errorbars
 ?commands show errorbars
@@ -10310,7 +10547,11 @@ Ffigure_missing
 ?set time_specifiers
 ?date_specifiers
 ?time_specifiers
- In time/date mode, the acceptable formats are:
+ There are two groups of time format specifiers: time/date and relative time.
+ These may be used to generate axis tic labels or to encode time in a string.
+ See `set xtics time`, `strftime`, `strptime`.
+
+ The time/date formats are
 
 @start table - first is interactive cleartext form
        Format       Explanation
@@ -10444,13 +10685,12 @@ Ffigure_missing
 ^</tbody>
 ^</table>
 
- Numerical formats may be preceded by a "0" ("zero") to pad the field with
- leading zeroes, and preceded by a positive digit to define the minimum field
- width.  The %S, and %t formats also accept a precision specifier so that
- fractional hours/minutes/seconds can be written.
+ The relative time formats express the length of a time interval on either
+ side of a zero time point.  The relative time formats are
 
 @start table - first is interactive cleartext form
        Format       Explanation
+       %tD          +/- days relative to time=0
        %tH          +/- hours relative to time=0 (does not wrap at 24)
        %tM          +/- minutes relative to time=0
        %tS          +/- seconds associated with previous tH or tM field
@@ -10458,12 +10698,14 @@ Ffigure_missing
 #\multicolumn{2}{|c|}{Time Specifiers}\\
 #\hline \hline
 #Format & Explanation \\ \hline
+#\verb@%tD@ & +/- days relative to time=0 \\
 #\verb@%tH@ & +/- hours relative to time=0 (does not wrap at 24) \\
 #\verb@%tM@ & +/- minutes relative to time=0 \\
 #\verb@%tS@ & +/- seconds associated with previous tH or tM field \\
 %c l .
 %Format@Explanation
 %_
+%%tH@+/- days relative to time=0
 %%tH@+/- hours relative to time=0 (does not wrap at 24)
 %%tM@+/- minutes relative to time=0
 %%tS@+/- seconds associated with previous tH or tM field
@@ -10479,11 +10721,17 @@ Ffigure_missing
 ^<tr>    <th>Time Format</th>    <th>Explanation</th></tr>
 ^</thead>
 ^<tbody>
+^<tr>    <td><tt>%tD</tt></td>    <td>+/- days relative to time=0</td></tr>
 ^<tr>    <td><tt>%tH</tt></td>    <td>+/- hours relative to time=0 (does not wrap at 24)</td></tr>
 ^<tr>    <td><tt>%tM</tt></td>    <td>+/- minutes relative to time=0</td></tr>
 ^<tr>    <td><tt>%tS</tt></td>    <td>+/- seconds associated with previous tH or tM field</td></tr>
 ^</tbody>
 ^</table>
+
+ Numerical formats may be preceded by a "0" ("zero") to pad the field with
+ leading zeroes, and preceded by a positive digit to define the minimum field
+ width.  The %S, and %t formats also accept a precision specifier so that
+ fractional hours/minutes/seconds can be written.
 
 5 Examples
 ?commands set format date_specifiers examples
@@ -10517,9 +10765,6 @@ Ffigure_missing
        set format x "%.2tH hours"   # "-1.02 hours"
        set format x "%tM:%.2tS"     # "-61:12.50"
 
-3 function style
-?set function style
- This form of the command is deprecated. Please use `set style function`.
 3 grid
 ?commands set grid
 ?commands unset grid
@@ -12519,7 +12764,7 @@ Ffigure_multiple_keys
                     | functions <R>,<G>,<B>
                   }
                   { cubehelix {start <val>} {cycles <val>} {saturation <val>} }
-                  { model { RGB | HSV | CMY } }
+                  { model { RGB | CMY | HSV {start <radians>} } }
                   { positive | negative }
                   { nops_allcF | ps_allcF }
                   { maxcolors <maxcolors> }
@@ -12670,6 +12915,10 @@ Ffigure_multiple_keys
        set palette model HSV
        set palette defined ( 0 0 1 1, 1 1 1 1 )
        set palette defined ( 0 0 1 0, 1 0 1 1, 6 0.8333 1 1, 7 0.8333 0 1)
+
+ Full color HSV spectrum wrapping at some hue other than red
+       set palette model HSV start 0.15
+       set palette defined ( 0 0 1 1, 1 1 1 1 )
 
  Approximate the default palette used by MATLAB:
        set pal defined (1 '#00008f', 8 '#0000ff', 24 '#00ffff', \
@@ -13161,22 +13410,24 @@ Ffigure_multiple_keys
 ?pm3d clipping
 ?set pm3d clipping
 ?clipcb
+?clip1in
+?clip4in
 ?pm3d clipcb
 ?noclipcb
 ?pm3d noclipcb
-?set pm3d clip z
-?set pm3d clip1in
-?set pm3d clip4in
  Syntax:
-      set pm3d {clip {z} | clip1in | clip4in}
+      set pm3d {clip | clip1in | clip4in}
       set pm3d {no}clipcb
 
  The component quadrangles of a pm3d surface or other 3D object are by default
  smoothly clipped against the current zrange.  This is a change from earlier
- gnuplot versions.
+ gnuplot versions.  In 2D projection (`set view map`) this mode also clips
+ against xrange and yrange.
+
  Alternatively, surfaces can be clipped by rendering whole quadrangles but only
  those with all 4 corners in-range on x, y, and z (`set pm3d clip4in`), or only
  those with at least one corner in-range on x, y, and z (`set pm3d clip1in`).
+ The options `clip`, `clip1in`, and `clip4in` are mutually exclusive.
 
  Separate from clipping based on spatial x, y, and z coordinates, quadrangles
  can be rendered or not based on extreme palette color values.
@@ -15446,6 +15697,8 @@ Ffigure_walls
 4 xtics timedata
 ?set xtics timedata
 ?xtics timedata tics
+?set xtics time
+?xtics time
 ?timedata tics
  Times and dates are stored internally as a number of seconds.
 
@@ -16907,19 +17160,12 @@ Ffigure_walls
 2 External libraries
 ?bugs external_libraries
 =libgd
-=svgalib
 =locale
 =internationalization
-=pdf
  External library GD (used by PNG/JPEG/GIF/sixelgd terminals, pixmap):
  Versions of libgd through 2.0.33 had various bugs in mapping the characters
  of Adobe's Symbol font.
  Dot-dash patterns are not supported for these terminals.
-
- External library PDFlib (used by PDF terminal, but not by pdfcairo):
- Gnuplot can be linked against libpdf versions 4, 5, or 6. However, these
- versions differ in their handling of piped I/O.  Therefore gnuplot scripts
- using piped output to PDF may work only for some versions of PDFlib.
 
  Internationalization (locale settings):
  Gnuplot uses the C runtime library routine setlocale() to control

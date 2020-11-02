@@ -1,5 +1,61 @@
 /* GNUPLOT - specfun.c */
 
+/*
+ * FILE CONTENTS
+ *
+ * -	Gnuplot license (but note that many of the routines retain
+ *	their original license also)
+ * -	Attribution and source for routines from the cephes library
+ *
+ * -	mtherr, polevl, p1levl
+ *		utility routines from cephes library
+ * -	ISNAN ISFINITE lngamma
+ *		#ifndef LGAMMA     (system does not provide a log gamma)
+ * - 	humlik
+ *		fallback implementation of Faddeeva/Voigt function
+ *		if not available from libcerf or other library
+ * -	ibeta confrac
+ *		incomplete beta function using continued fraction approximation
+ *		#ifdef IBETA
+ * -	igamma igamma_GL chisq_cdf
+ *		incomplete gamma function (positive real domain only)
+ *		#ifndef HAVE_COMPLEX_FUNCS
+ * -	ranf
+ *		random number generator
+ *		L'Ecuyer et al (1991) ACM/TOMS 17:98-111
+ * -	inverse_normal_func
+ *		inverse normal distribution function (cephes)
+ * -	erf erfc
+ *		complementary error function (fallback from cephes)
+ *		if not available from libcerf or other library
+ * -	inverse_error_function
+ *		NIST (2002) Ethan Merritt (2003)
+ * -	inverse_incomplete_gamma
+ *		Ethan Merritt (2020)
+ * -	inverse_incomplete_beta
+ *		Ethan Merritt (2020)
+ * -	lambertw
+ *		Lambert W function (real domain only)
+ *		gnuplot implementation by Gunter Kuhnle based on
+ *		algorithm by Keith Briggs
+ * -	airy
+ *		Airy functions Ai Bi (cephes)
+ * -	expint
+ *		exponential integral
+ *		gnuplot implementation James R Van Zandt 2010
+ * -	besin iv iv_asymptotic ikv_asymptotic_uniform
+ *		Modified Bessel function of order n (Boost/cephes)
+ * -	temme_ik_series CF1_ik CF2_ik ikv_temme
+ *		Modified Bessel functions of the first and second kind
+ *		of fractional order (adapted from Boost library)
+ * -	incbet incbd incbcf pseries
+ *		Normalized incomplete beta function (cephes)
+ *		#ifdef IBETA
+ * -	synchrotron function F
+ *		Chebyshev approximation coefficients from
+ *		MacLeod (2000) NuclInstMethPhysRes A443:540-545.
+ */
+
 /*[
  * Copyright 1986 - 1993, 1998, 2004   Thomas Williams, Colin Kelley
  *
@@ -31,57 +87,69 @@
 ]*/
 
 /*
- * AUTHORS
- *
- *   Original Software:
- *   Jos van der Woude, jvdwoude@hut.nl
- *
- */
-
-/* FIXME:
- * plain comparisons of floating point numbers!
+ * The original source for routines from the cephes library is distributed
+ * via http://www.netlib.org/cephes/
+ * Although these files do not contain licensing information, the author
+ * has agreed to their use and distribution under terms of the standard
+ * BSD license.
+ * The primary documentation for the cephes library functions is the book
+ * "Methods and Programs for Mathematical Functions", Prentice-Hall, 1989
+ * by Stephen Moshier.
  */
 
 #include "specfun.h"
+#include "complexfun.h"
 #include "stdfn.h"
 #include "util.h"
 
-#define ITMAX   200
+/*
+ * Compile options
+ */
+#define INCBET	/* Cephes library implementation of ibeta() */
+#undef  IBETA	/* Jos van der Woude implementation of ibeta() */
 
-#ifdef FLT_EPSILON
-# define MACHEPS FLT_EPSILON	/* 1.0E-08 */
-#else
-# define MACHEPS 1.0E-08
+#ifdef  INCBET
+static double incbet( double a, double b, double z );
+#define ibeta(a,b,z) incbet(a,b,z)
+#endif
+#ifdef IBETA
+static double ibeta(double a, double b, double x);
 #endif
 
-#ifndef E_MINEXP
-/* AS239 value, e^-88 = 2^-127 */
-#define E_MINEXP  (-88.0)
-#endif
-#ifndef E_MAXEXP
-#define E_MAXEXP (-E_MINEXP)
-#endif
+/*
+ * EAM Oct 2019:
+ * ITMAX, MACHEPS, and OFLOW limit convergence of the iterative approximations
+ * in ibeta() confrac() and igamma().  Originally (1988) these were set to
+ * ITMAX=200  MACHEPS=FLT_EPSILON (~1.E-08)  OFLOW = FLT_MAX  XBIG = 1.E+08
+ * I suppose this corresponded to contemporary hardware limitations.
+ * With these limits, igamma(a,x) convergence fails for large a.
+ * Temporary fix:  increase ITMAX and ask for higher precision
+ *   Replace MACHEPS with IGAMMA_PRECISION = 1.E-14
+ *   Replace OFLOW with IGAMMA_OVERFLOW = FLT_MAX
+ *   Convergence fails at about a=1.e08 with ITMAX=20000
+ * Development plan:
+ *   Why limit to x>0 a>0?   E.g. A&S Fig 6.3 p261 shows full plane
+ *   Complex values?
+ */
+#define IGAMMA_PRECISION 1.E-14
+#define IGAMMA_OVERFLOW  FLT_MAX
+#define ITMAX            2000
+#define XBIG             1.0E+08 /* AS239 value for igamma(a,x>=XBIG) = 1.0 */
 
 #ifdef FLT_MAX
-# define OFLOW   FLT_MAX		/* 1.0E+37 */
+# define OFLOW FLT_MAX
 #else
-# define OFLOW   1.0E+37
+# define OFLOW 1.0E+37
 #endif
-
-/* AS239 value for igamma(a,x>=XBIG) = 1.0 */
-#define XBIG    1.0E+08
 
 /*
  * Mathematical constants
  */
-#define LNPI 1.14472988584940016
-#define LNSQRT2PI 0.9189385332046727
 #ifdef PI
 # undef PI
 #endif
 #define PI 3.14159265358979323846
-#define PNT68 0.6796875
-#define SQRT_TWO 1.41421356237309504880168872420969809	/* JG */
+#define SQRT_TWO 1.41421356237309504880168872420969809
 
 /* Because of a historical screwup in naming, the C language "gamma" function
  * was really ln(gamma).  Linux chose to provide this as "lgamma", but kept
@@ -122,21 +190,20 @@ extern int signgam;		/* this is not always declared in math.h */
 static int mtherr(char *, int);
 static double polevl(double x, const double coef[], int N);
 static double p1evl(double x, const double coef[], int N);
-static double confrac(double a, double b, double x);
-static double ibeta(double a, double b, double x);
-static double igamma(double a, double x);
 static double ranf(struct value * init);
 static double inverse_error_func(double p);
 static double inverse_normal_func(double p);
+static double inverse_incomplete_gamma(double a, double p);
+static double inverse_incomplete_beta(double a, double b, double p);
 static double lambertw(double x);
-#if (0)	/* Only used by low-precision Airy version */
-static double airy_neg( double x );
-static double airy_pos(double x);
+static double expint(double n, double x);
+#ifndef HAVE_COMPLEX_FUNCS
+static double igamma(double a, double x);
+static double igamma_GL(double a, double x);
 #endif
 #ifndef HAVE_LIBCERF
 static double humlik(double x, double y);
 #endif
-static double expint(double n, double x);
 #ifndef LGAMMA
 static int ISNAN(double x);
 static int ISFINITE(double x);
@@ -604,6 +671,10 @@ f_erfc(union argument *arg)
     push(Gcomplex(&a, x, 0.0));
 }
 
+#ifdef IBETA	/* Original gnuplot ibeta() by Jos van der Woude */
+
+static double confrac(double a, double b, double x);
+
 void
 f_ibeta(union argument *arg)
 {
@@ -624,7 +695,12 @@ f_ibeta(union argument *arg)
     } else
 	push(Gcomplex(&a, x, 0.0));
 }
+#endif /* IBETA */
 
+#ifndef HAVE_COMPLEX_FUNCS
+/*
+ * igamma( a, x )
+ */
 void f_igamma(union argument *arg)
 {
     struct value a;
@@ -632,8 +708,18 @@ void f_igamma(union argument *arg)
     double arg1;
 
     (void) arg;				/* avoid -Wunused warning */
-    x = real(pop(&a));
-    arg1 = real(pop(&a));
+
+    pop(&a);
+    if (a.type == CMPLX && a.v.cmplx_val.imag != 0)
+	int_error(NO_CARET, "this copy of gnuplot does not support complex arguments to igamma");
+    else
+	x = real(&a);
+
+    pop(&a);
+    if (a.type == CMPLX && a.v.cmplx_val.imag != 0)
+	int_error(NO_CARET, "this copy of gnuplot does not support complex arguments to igamma");
+    else
+	arg1 = real(&a);
 
     x = igamma(arg1, x);
     if (x == -1.0) {
@@ -642,6 +728,7 @@ void f_igamma(union argument *arg)
     } else
 	push(Gcomplex(&a, x, 0.0));
 }
+#endif /* no HAVE_COMPLEX_FUNCS */
 
 void f_gamma(union argument *arg)
 {
@@ -860,6 +947,8 @@ static double humlik(double x, double y)
 }
 #endif /* libcerf not available */
 
+#ifdef IBETA	/* Original gnuplot ibeta() by Jos van der Woude */
+
 /* ** ibeta.c
  *
  *   DESCRIBE  Approximate the incomplete beta function Ix(a, b).
@@ -954,20 +1043,22 @@ confrac(double a, double b, double x)
 	Ahi = Bod * Alo + Aod * Ahi;
 	Bhi = Bod * Blo + Aod * Bhi;
 
-	if (fabs(Bhi) < MACHEPS)
+	if (fabs(Bhi) < IGAMMA_PRECISION)
 	    Bhi = 0.0;
 
 	if (Bhi != 0.0) {
 	    fold = f;
 	    f = Ahi / Bhi;
-	    if (fabs(f - fold) < fabs(f) * MACHEPS)
+	    if (fabs(f - fold) < fabs(f) * IGAMMA_PRECISION)
 		return f;
 	}
     }
 
     return -1.0;
 }
+#endif /* IBETA */
 
+#ifndef HAVE_COMPLEX_FUNCS
 /* ** igamma.c
  *
  *   DESCRIBE  Approximate the incomplete gamma function P(a, x).
@@ -991,15 +1082,19 @@ confrac(double a, double b, double x)
  *   BUGS      Values 0 <= x <= 1 may lead to inaccurate results.
  *
  *   REFERENCE ALGORITHM AS239  APPL. STATIST. (1988) VOL. 37, NO. 3
+ *   B. L. Shea "Chi-Squared and Incomplete Gamma Integral"
  *
  * Copyright (c) 1992 Jos van der Woude, jvdwoude@hut.nl
  *
  * Note: this function was translated from the Public Domain Fortran
  *       version available from http://lib.stat.cmu.edu/apstat/239
  *
+ * EAM 2020 modified to use Gauss-Legendre quadrature when a and x
+ * are both large.
+ *
  */
 
-double
+static double
 igamma(double a, double x)
 {
     double arg;
@@ -1015,12 +1110,20 @@ igamma(double a, double x)
     /* Deal with special cases */
     if (x == 0.0)
 	return 0.0;
-    if (x > XBIG)
-	return 1.0;
 
     /* Check value of factor arg */
     arg = a * log(x) - x - LGAMMA(a + 1.0);
     arg = gp_exp(arg);
+
+    /* EAM 2020: For large values of a convergence fails.
+     * Use Gauss-Legendre quadrature instead.
+     */
+    if ((a > 100.) && (fabs(x-a)/a < 0.2))
+	return igamma_GL( a, x );
+
+    /* FIXME: This can be relaxed */
+    if (x > XBIG)
+	return 1.0;
 
     /* Choose infinite series or continued fraction. */
 
@@ -1050,7 +1153,7 @@ igamma(double a, double x)
 	    if (pn6 != 0.0) {
 
 		rn = pn5 / pn6;
-		if (fabs(rnold - rn) <= GPMIN(MACHEPS, MACHEPS * rn))
+		if (fabs(rnold - rn) <= GPMIN(IGAMMA_PRECISION, IGAMMA_PRECISION * rn))
 		    return 1.0 - arg * rn * a;
 
 		rnold = rn;
@@ -1061,12 +1164,12 @@ igamma(double a, double x)
 	    pn4 = pn6;
 
 	    /* Re-scale terms in continued fraction if terms are large */
-	    if (fabs(pn5) >= OFLOW) {
+	    if (fabs(pn5) >= IGAMMA_OVERFLOW) {
 
-		pn1 /= OFLOW;
-		pn2 /= OFLOW;
-		pn3 /= OFLOW;
-		pn4 /= OFLOW;
+		pn1 /= IGAMMA_OVERFLOW;
+		pn2 /= IGAMMA_OVERFLOW;
+		pn3 /= IGAMMA_OVERFLOW;
+		pn4 /= IGAMMA_OVERFLOW;
 	    }
 	}
     } else {
@@ -1077,16 +1180,67 @@ igamma(double a, double x)
 	    aa++;
 	    an *= x / aa;
 	    b += an;
-	    if (an < b * MACHEPS)
+	    if (an < b * IGAMMA_PRECISION)
 		return arg * b;
 	}
     }
+
+    /* Convergence failed */
     return -1.0;
 }
 
+/* icomplete gamma function evaluated by Gauss-Legendre quadrature
+ * as recommended for large values of a by Numerical Recipes (Sec 6.2).
+ */
+static double
+igamma_GL( double a, double x )
+{
+    static const double y[18] = {
+    0.0021695375159141994,
+    0.011413521097787704,0.027972308950302116,0.051727015600492421,
+    0.082502225484340941, 0.12007019910960293,0.16415283300752470,
+    0.21442376986779355, 0.27051082840644336, 0.33199876341447887,
+    0.39843234186401943, 0.46931971407375483, 0.54413605556657973,
+    0.62232745288031077, 0.70331500465597174, 0.78649910768313447,
+    0.87126389619061517, 0.95698180152629142 };
+
+    static const double w[18] = {
+    0.0055657196642445571,
+    0.012915947284065419,0.020181515297735382,0.027298621498568734,
+    0.034213810770299537,0.040875750923643261,0.047235083490265582,
+    0.053244713977759692,0.058860144245324798,0.064039797355015485,
+    0.068745323835736408,0.072941885005653087,0.076598410645870640,
+    0.079687828912071670,0.082187266704339706,0.084078218979661945,
+    0.085346685739338721,0.085983275670394821 };
+
+    double xu, t, ans;
+    double a1 = a - 1.0;
+    double lna1 = log(a1);
+    double sqrta1 = sqrt(a1);
+    double sum = 0.0;
+    int j;
+
+    if (x > a - 1.0)
+	xu = GPMAX( a1 + 11.5 * sqrta1,  x + 6.0 * sqrta1 );
+    else
+	xu = GPMIN( a1 - 7.5 * sqrta1, x - 5.0 * sqrta1 );
+    if (xu < 0)
+	xu = 0.0;
+
+    for (j=0; j<18; j++) {
+	t = x + (xu - x) * y[j];
+	sum += w[j] * exp( -(t-a1) + a1 * (log(t) - lna1));
+    }
+
+    ans = sum * (xu-x) * exp( a1 * (lna1-1.) - LGAMMA(a) );
+
+    return (x > a1) ? 1.0 - ans : -ans;
+}
+#endif /* no HAVE_COMPLEX_FUNCS */
 
 /* ----------------------------------------------------------------
     Cumulative distribution function of the ChiSquare distribution
+    (called internally from fit.c)
    ---------------------------------------------------------------- */
 double
 chisq_cdf(int dof, double chisqr)
@@ -1228,7 +1382,6 @@ f_inverse_normal(union argument *arg)
 	push(Gcomplex(&a, inverse_normal_func(x), 0.0));
     }
 }
-
 
 void
 f_inverse_erf(union argument *arg)
@@ -2097,6 +2250,211 @@ inverse_error_func(double y)
     return (x);
 }
 
+/*
+ *   invgamma(a, p) returns z such that igamma(a, z) = p
+ */
+void
+f_inverse_igamma(union argument *arg)
+{
+    struct value ret;
+    double a, p;
+    double z;
+
+    (void) arg;
+    p = real(pop(&ret));
+    a = real(pop(&ret));
+
+    if (a <= 0) {
+	undefined = TRUE;
+	push(Gcomplex(&ret, not_a_number(), 0.0));
+	int_warn(NO_CARET, "invigamma: a<=0 invalid");
+
+    } else if (p < 0 || p > 1) {
+	undefined = TRUE;
+	push(Gcomplex(&ret, not_a_number(), 0.0));
+	int_warn(NO_CARET, "invigamma: p invalid");
+
+    } else if (p == 1.) {
+	z = GPMAX( 100., a + 100.*sqrt(a) );
+	push(Gcomplex(&ret, z, 0.0));
+
+    } else if (p == 0) {
+	push(Gcomplex(&ret, 0.0, 0.0));
+
+    /* The normal case */
+    } else {
+	z = inverse_incomplete_gamma(a,p);
+	push(Gcomplex(&ret, z, 0.0));
+    }
+}
+
+/* Inverse normalized incomplete gamma function
+ *   invigamma(a, p) returns z such that igamma(a, z) = p
+ * Following the logic of Numerical Recipes (6.2.1) we
+ * use Halley's method to improve an initial guess at z
+ * Ethan A Merritt - April 2020
+ */
+static double
+inverse_incomplete_gamma( double a, double p )
+{
+    double t, u, z;
+    double err;
+    double lngamma_a = LGAMMA(a);
+    double afac = exp( (a-1) * (log(a-1)-1.) - lngamma_a);
+    int j;
+    const double EPS = sqrt(MACHEP);
+
+    /* Initial guess based on Abramovitz & Stegun 26.2.22, 26.4.17 */
+    if (a > 1.) {
+	double pp = (p < 0.5) ? p : (1.-p);
+	/* Abramowitz & Stegun 26.2.22 */
+	t = sqrt(-2.*log(pp));
+	z = t - (2.30753 + 0.27061*t) / (1. + 0.99229*t + 0.04481*t*t);
+	if (p < 0.5) z = -z;
+	/* Abramowitz & Stegun 26.4.17 */
+	z = a * pow( (1. - 2./(9.*a) + z*sqrt(2./(9.*a))), 3 );
+
+    /* Initial guess based on NR 6.2.8 6.2.9 */
+    } else {
+	t = 1. - a * (0.253 + a * 0.12);
+	if (p < t)
+	    z = pow( p/t, 1./a);
+	else
+	    z = 1. - log(1. - (p-t)/(1.-t));
+    }
+
+    /* Halley's method */
+    for (j=0; j<12; j++) {
+	if (z <= 0)
+	    return 0;
+	err = igamma(a,z) - p;
+	if (a > 1.)
+	    t = afac * exp( -(z-(a-1)) + (a-1)*(log(z)-log(a-1)));
+	else
+	    t = exp( -z + (a-1)*log(z) - lngamma_a);
+	u = err/t;
+	t = u / (1. - 0.5*GPMIN( 1., u * ((a-1)/z - 1.)));
+	/* FIXME: underflow OK? */
+	if (errno) {
+	    int_warn(NO_CARET, "inverse_incomplete_gamma: %s\nt = %g u = %g z = %g\n",
+			strerror(errno), t, u, z);
+	    z = not_a_number();
+	    break;
+	}
+	z -= t;
+	if (z <= 0)
+	    z = 0.5*(z+t);
+	if (fabs(t) < z * EPS)
+	    break;
+    }
+
+    return z;
+}
+
+/*
+ *   invibeta(a, b, p) returns z such that ibeta(a, b, z) = p
+ *   a, b > 0    0 <= p <= 1
+ */
+void
+f_inverse_ibeta(union argument *arg)
+{
+    struct value ret;
+    double a, b, p;
+    double z;
+
+    (void) arg;
+    p = real(pop(&ret));
+    b = real(pop(&ret));
+    a = real(pop(&ret));
+
+    if (p < 0.0 || p > 1.0)
+	int_warn(NO_CARET, "f_inverse_ibeta: p %g not in domain", p);
+
+    if (a <= 0.0 || b <= 0.0) {
+	push(Gcomplex(&ret, not_a_number(), 0.0));
+    } else if (p <= 0) {
+	push(Gcomplex(&ret, 0.0, 0.0));
+    } else if (fabs(1. - p) < IGAMMA_PRECISION)  {
+	push(Gcomplex(&ret, 1.0, 0.0));
+
+    /* The normal case */
+    } else {
+	z = inverse_incomplete_beta(a,b,p);
+	push(Gcomplex(&ret, z, 0.0));
+    }
+}
+
+
+/* Inverse normalized incomplete beta function
+ *   invibeta(a, b, p) returns z such that ibeta(a, b, z) = p
+ * Following the logic of Numerical Recipes (6.4) we
+ * use Halley's method to improve an initial guess at z
+ * Ethan A Merritt - April 2020
+ */
+static double
+inverse_incomplete_beta( double a, double b, double p )
+{
+    double err, t, u, w, z;
+    int j;
+
+    double afac = LGAMMA(a+b) - LGAMMA(a) - LGAMMA(b);
+
+    /* Initial guess from Abramowitz & Stegun 26.2.22, 26.5.22 */
+    if (a >= 1. && b >= 1.) {
+	double lambda, h;
+	double pp = (p < 0.5) ? p : (1.-p);
+	/* Abramowitz & Stegun 26.2.22 */
+	t = sqrt(-2.*log(pp));
+	z = t - (2.30753 + 0.27061*t) / (1. + 0.99229*t + 0.04481*t*t);
+	if (p < 0.5) z = -z;
+	/* Abramowitz & Stegun 26.5.22 */
+	lambda = (sqrt(z) - 3.) / 6.;
+	h = 2. / ( 1./(2.*a-1.) + 1./(2.*b-1) );
+	w = (z * sqrt(h + lambda) / h)
+	  - (1./(2.*b-1.) - 1./(2.*a-1.)) * (lambda + 5./6. - 2./(3.*h));
+	z = a / (a + b * exp(2.*w));
+
+    /* Initial guess based on NR 6.4.8 */
+    } else {
+	double lna = log( a / (a+b) );
+	double lnb = log( b / (a+b) );
+	t = exp(a * lna) / a;
+	u = exp(b * lnb) / b;
+	w = t + u;
+	if (p < t/w)
+	    z = pow( a*w*p, 1./a );
+	else
+	    z = 1. - pow( b*w*(1.-p), 1./b);
+    }
+
+    /* underflow above yields z ~ 1, which is OK, but errno is set */
+    if (fabs(1.-z) < IGAMMA_PRECISION)
+	errno = 0;
+
+    /* Not sure this can ever happen */
+    if (isnan(z) || errno)
+	return not_a_number();
+
+    /* Halley's method */
+    for (j=0; j<12; j++) {
+	if (z == 0. || z == 1.)
+	    return z;
+	err = ibeta(a,b,z) - p;
+	t = exp( (a-1.)*log(z) + (b-1.)*log(1.-z) + afac );
+	u = err / t;
+	t = u / (1. - 0.5*GPMIN( 1., u*((a-1.)/z - (b-1.)/(1.-z)) ));
+	z -= t;
+	if (z <= 0)
+	    z = 0.5 * (z + t);
+	if (z >= 1)
+	    z = 0.5 * (z + t + 1.);
+	if (fabs(t) <= MACHEP && j > 1)
+	    break;
+    }
+
+    return z;
+}
+
 
 /* Implementation of Lamberts W-function which is defined as
  * w(x)*e^(w(x))=x
@@ -2112,7 +2470,7 @@ lambertw(double x)
     double p, e, t, w, eps;
     int i;
 
-    eps = MACHEPS;
+    eps = FLT_EPSILON;
 
     if (x < -exp(-1))
 	return -1;              /* error, value undefined */
@@ -2158,71 +2516,6 @@ f_lambertw(union argument *arg)
     push(Gcomplex(&a, x, 0.0));
 }
 
-#if (0)	/* This approximation of the airy function saves 2200 bytes relative
-		 * to the one from Cephes, but has low precision (2% relative error)
-		 */
-/* ------------------------------------------------------------
-   Airy Function Ai(x)
-
-   After:
-   "Two-Point Quasi-Fractional Approximations to the Airy Function Ai(x)"
-   by Pablo Martin, Ricardo Perez, Antonio L. Guerrero
-   Journal of Computational Physics 99, 337-340 (1992)
-
-   Beware of a misprint in equation (5) in this paper: The second term in
-   parentheses must be multiplied by "x", as is clear from equation (3)
-   and by comparison with equation (6). The implementation in this file
-   uses the CORRECT formula (with the "x").
-
-   This is not a very high accuracy approximation, but sufficient for
-   plotting and similar applications. Higher accuracy formulas are
-   available, but are much more complicated (typically requiring iteration).
-
-   Added: janert (PKJ) 2009-09-05
-   ------------------------------------------------------------ */
-
-static double
-airy_neg( double x ) {
-  double z = sqrt( 0.37 + pow( fabs(x), 3.0 ) );
-  double t = (2.0/3.0)*pow( fabs(x), 1.5 );
-  double y = 0;
-
-  y += ( -0.043883564 + 0.3989422*z )*cos(t)/pow( z, 7.0/6.0 );
-  y += x*( -0.013883003 - 0.3989422*z )*sin(t)/( pow( z, 5.0/6.0 ) * 1.5 * t );
-
-  return y;
-}
-
-static double
-airy_pos( double x ) {
-  double z = sqrt( 0.0425 + pow( fabs(x), 3.0 ) );
-  double y = 0;
-
-  y += (-0.002800908 + 0.326662423*z )/pow( z, 7.0/6.0 );
-  y += x * ( -0.007232251 - 0.044567423*z )/pow( z, 11.0/6.0 );
-  y *= exp(-(2.0/3.0)*z );
-
-  return y;
-}
-
-void
-f_airy(union argument *arg)
-{
-    struct value a;
-    double x;
-
-    (void) arg;                        /* avoid -Wunused warning */
-    x = real(pop(&a));
-
-    if( x < 0 ) {
-      x = airy_neg(x);
-    } else {
-      x = airy_pos(x);
-    }
-
-    push(Gcomplex(&a, x, 0.0));
-}
-#else	/* Airy function from the Cephes library */
 /*							airy.c
  *
  *	Airy function
@@ -3182,7 +3475,6 @@ f_airy(union argument *arg)
     push(Gcomplex(&a, ai, 0.0));
 }
 
-#endif	/* End choice of low- or high-precision airy function */
 
 /* ** expint.c
  *
@@ -3211,7 +3503,7 @@ f_airy(union argument *arg)
  * Copyright (c) 2010 James R. Van Zandt, jrvz@comcast.net
  */
 
-static double
+double
 expint(double n, double z)
 {
     double y; /* the answer */
@@ -3306,9 +3598,19 @@ f_expint(union argument *arg)
     struct value a;
     double n, x;
 
-    (void) arg;                        /* avoid -Wunused warning */
-    x = real(pop(&a));
-    n = real(pop(&a));
+    (void) arg;		/* avoid -Wunused warning */
+
+    /* Domain limited to real x >= 0 */
+    pop(&a);
+    if (a.type == CMPLX && a.v.cmplx_val.imag != 0.0)
+	int_error(NO_CARET, "this copy of gnuplot does not support complex expint");
+    x = real(&a);
+
+    /* n must be nonnegative integer */
+    pop(&a);
+    if (a.type != INTGR)
+	int_error(NO_CARET, "order of expint must be nonnegative integer");
+    n = a.v.int_val;
 
     x = expint(n, x);
     if (x <= -1)
@@ -3320,8 +3622,8 @@ f_expint(union argument *arg)
 
 /*
  * ===================== BESIN =====================
- * The remainder of this file implements besin(n,x)
- * the modified Bessel function of order n.
+ * Start implementation of besin(n,x), the modified
+ * Bessel function of order n.
  * This feature can be disabled by undefining BESIN.
  */
 #define BESIN
@@ -4001,3 +4303,544 @@ static void ikv_temme(double v, double x, double *Iv_p, double *Kv_p)
  * End of code supporting besin(n,x)
  * ===================== BESIN =====================
  */
+
+
+
+/*
+ * ==================== INCBET =====================
+ * Start implementation of incbet(a,b, z)
+ * the normalized incomplete beta function
+ * adapted from Cephes library release 2.8
+ * This feature can be disabled by undefining INCBET.
+ */
+
+#ifdef INCBET
+
+/*
+ * begin wrapper/adaptation for use in gnuplot
+ */
+
+/* NB: these are log(2**127) and log (2**-128)
+ *      but this is very conservative for IEEE math
+ */
+#define MAXLOG  8.8029691931113054295988
+#define MINLOG -8.872283911167299960540
+
+static double incbd( double a, double b, double x );
+static double incbcf( double a, double b, double x );
+static double pseries( double a, double b, double x );
+
+void
+f_ibeta(union argument *arg)
+{
+    struct value a;
+    double x;
+    double arg1;
+    double arg2;
+
+    (void) arg;                         /* avoid -Wunused warning */
+    x = real(pop(&a));
+    arg2 = real(pop(&a));
+    arg1 = real(pop(&a));
+
+    x = incbet(arg1, arg2, x);
+    if (x == -1.0) {
+        undefined = TRUE;
+        push(Gcomplex(&a, not_a_number(), 0.0));
+    } else
+        push(Gcomplex(&a, x, 0.0));
+}
+
+
+/*
+ *	Incomplete beta integral
+ *	cephes library routine incbet.c
+ *
+ * DESCRIPTION:
+ *
+ * Computes the normalized lower incomplete beta integral Βx(a,b)
+ * The function is defined as
+ *
+ *     _           x
+ *    | (a+b)      ⌠   a-1     b-1
+ *  ___________    |  t   (1-t)   dt.
+ *   _     _       ⌡
+ *  | (a) | (b)    0
+ *
+ * The domain of definition is 0 <= x <= 1.  In this
+ * implementation a and b are restricted to positive values.
+ * The integral from x to 1 may be obtained by the symmetry
+ * relation
+ *
+ *    1 - incbet( a, b, x )  =  incbet( b, a, 1-x ).
+ *
+ * The integral is evaluated by a continued fraction expansion
+ * or, when b*x is small, by a power series.
+ *
+ * ACCURACY:
+ *
+ * Tested at uniformly distributed random points (a,b,x) with a and b
+ * in "domain" and x between 0 and 1.
+ *                                        Relative error
+ * arithmetic   domain     # trials      peak         rms
+ *    IEEE      0,5         10000       6.9e-15     4.5e-16
+ *    IEEE      0,85       250000       2.2e-13     1.7e-14
+ *    IEEE      0,1000      30000       5.3e-12     6.3e-13
+ *    IEEE      0,10000    250000       9.3e-11     7.1e-12
+ *    IEEE      0,100000    10000       8.7e-10     4.8e-11
+ * Outputs smaller than the IEEE gradual underflow threshold
+ * were excluded from these statistics.
+ *
+ * ERROR MESSAGES:
+ *   message         condition      value returned
+ * incbet domain      x<0, x>1          NaN
+ * incbet underflow                     0.0
+ */
+
+/*
+ * Cephes Math Library, Release 2.8:  June, 2000
+ * Copyright 1984, 1995, 2000 by Stephen L. Moshier
+ * file: incbet.c
+ */
+
+#define MAXGAM 171.624376956302725
+
+static double big = 4.503599627370496e15;
+static double biginv =  2.22044604925031308085e-16;
+
+
+double
+incbet( double aa, double bb, double xx )
+{
+    double a, b, t, x, xc, w, y;
+    TBOOLEAN reflection = FALSE;
+
+    if ( aa <= 0.0 || bb <= 0.0 )
+	return -1.0;
+
+    if ( (xx <= 0.0) || ( xx >= 1.0) ) {
+	if ( xx == 0.0 )
+	    return 0.0;
+	if ( xx == 1.0 )
+	    return 1.0;
+	return -1.0;
+    }
+
+    if ( (bb * xx) <= 1.0 && xx <= 0.95) {
+	t = pseries(aa, bb, xx);
+	goto done;
+    }
+
+    w = 1.0 - xx;
+
+    /* Reverse a and b if x is greater than the mean. */
+    if ( xx > (aa/(aa+bb))) {
+	reflection = TRUE;
+	a = bb;
+	b = aa;
+	xc = xx;
+	x = w;
+    } else {
+	a = aa;
+	b = bb;
+	xc = w;
+	x = xx;
+    }
+
+    if ( reflection && (b * x) <= 1.0 && x <= 0.95) {
+	t = pseries(a, b, x);
+	goto done;
+    }
+
+    /* Choose expansion for better convergence. */
+    y = x * (a+b-2.0) - (a-1.0);
+    if ( y < 0.0 )
+	w = incbcf( a, b, x );
+    else
+	w = incbd( a, b, x ) / xc;
+
+    /* Multiply w by the factor
+     *  x^a  (1-x)^b  gamma(a+b) / ( a * gamma(a) * gamma(b) )
+     */
+
+    y = a * log(x);
+    t = b * log(xc);
+    if ( (a+b) < MAXGAM && fabs(y) < MAXLOG && fabs(t) < MAXLOG ) {
+	t = pow(xc,b);
+	t *= pow(x,a);
+	t /= a;
+	t *= w;
+	t *= TGAMMA(a+b) / (TGAMMA(a) * TGAMMA(b));
+	goto done;
+    }
+
+    /* Resort to logarithms.  */
+    y += t + LGAMMA(a+b) - LGAMMA(a) - LGAMMA(b);
+    y += log(w/a);
+    if ( y < MINLOG )
+	t = 0.0;
+    else
+	t = exp(y);
+
+done:
+
+    if ( reflection )
+	t = (t <= MACHEP) ?  1.0 - MACHEP :  1.0 - t;
+
+    return t;
+}
+
+/* Continued fraction expansion #1
+ * for incomplete beta integral
+ */
+
+static double
+incbcf( double a, double b, double x )
+{
+    double xk, pk, pkm1, pkm2, qk, qkm1, qkm2;
+    double k1, k2, k3, k4, k5, k6, k7, k8;
+    double r, t, ans, thresh;
+    int n;
+
+    k1 = a;
+    k2 = a + b;
+    k3 = a;
+    k4 = a + 1.0;
+    k5 = 1.0;
+    k6 = b - 1.0;
+    k7 = k4;
+    k8 = a + 2.0;
+
+    pkm2 = 0.0;
+    qkm2 = 1.0;
+    pkm1 = 1.0;
+    qkm1 = 1.0;
+    ans = 1.0;
+    r = 1.0;
+    n = 0;
+    thresh = 3.0 * MACHEP;
+
+    do {
+	xk = -( x * k1 * k2 )/( k3 * k4 );
+	pk = pkm1 +  pkm2 * xk;
+	qk = qkm1 +  qkm2 * xk;
+	pkm2 = pkm1;
+	pkm1 = pk;
+	qkm2 = qkm1;
+	qkm1 = qk;
+
+	xk = ( x * k5 * k6 )/( k7 * k8 );
+	pk = pkm1 +  pkm2 * xk;
+	qk = qkm1 +  qkm2 * xk;
+	pkm2 = pkm1;
+	pkm1 = pk;
+	qkm2 = qkm1;
+	qkm1 = qk;
+
+	if ( qk != 0 )
+	    r = pk/qk;
+	if ( r != 0 ) {
+	    t = fabs( (ans - r)/r );
+	    ans = r;
+	} else {
+	    t = 1.0;
+	}
+
+	if ( t < thresh )
+	    return ans;
+
+	k1 += 1.0;
+	k2 += 1.0;
+	k3 += 2.0;
+	k4 += 2.0;
+	k5 += 1.0;
+	k6 -= 1.0;
+	k7 += 2.0;
+	k8 += 2.0;
+
+	if ( (fabs(qk) + fabs(pk)) > big ) {
+	    pkm2 *= biginv;
+	    pkm1 *= biginv;
+	    qkm2 *= biginv;
+	    qkm1 *= biginv;
+	}
+	if ( (fabs(qk) < biginv) || (fabs(pk) < biginv) ) {
+	    pkm2 *= big;
+	    pkm1 *= big;
+	    qkm2 *= big;
+	    qkm1 *= big;
+	}
+
+    } while ( ++n < 300 );
+
+    return ans;
+}
+
+
+/* Continued fraction expansion #2
+ * for incomplete beta integral
+ */
+
+static double
+incbd( double a, double b, double x )
+{
+    double xk, pk, pkm1, pkm2, qk, qkm1, qkm2;
+    double k1, k2, k3, k4, k5, k6, k7, k8;
+    double r, t, ans, z, thresh;
+    int n;
+
+    k1 = a;
+    k2 = b - 1.0;
+    k3 = a;
+    k4 = a + 1.0;
+    k5 = 1.0;
+    k6 = a + b;
+    k7 = a + 1.0;;
+    k8 = a + 2.0;
+
+    pkm2 = 0.0;
+    qkm2 = 1.0;
+    pkm1 = 1.0;
+    qkm1 = 1.0;
+    z = x / (1.0-x);
+    ans = 1.0;
+    r = 1.0;
+    n = 0;
+    thresh = 3.0 * MACHEP;
+
+    do {
+	xk = -( z * k1 * k2 )/( k3 * k4 );
+	pk = pkm1 +  pkm2 * xk;
+	qk = qkm1 +  qkm2 * xk;
+	pkm2 = pkm1;
+	pkm1 = pk;
+	qkm2 = qkm1;
+	qkm1 = qk;
+
+	xk = ( z * k5 * k6 )/( k7 * k8 );
+	pk = pkm1 +  pkm2 * xk;
+	qk = qkm1 +  qkm2 * xk;
+	pkm2 = pkm1;
+	pkm1 = pk;
+	qkm2 = qkm1;
+	qkm1 = qk;
+
+	if ( qk != 0 )
+	    r = pk/qk;
+	if ( r != 0 ) {
+	    t = fabs( (ans - r)/r );
+	    ans = r;
+	} else {
+	    t = 1.0;
+	}
+
+	if ( t < thresh )
+	    return ans;
+
+	k1 += 1.0;
+	k2 -= 1.0;
+	k3 += 2.0;
+	k4 += 2.0;
+	k5 += 1.0;
+	k6 += 1.0;
+	k7 += 2.0;
+	k8 += 2.0;
+
+	if ( (fabs(qk) + fabs(pk)) > big ) {
+	    pkm2 *= biginv;
+	    pkm1 *= biginv;
+	    qkm2 *= biginv;
+	    qkm1 *= biginv;
+	}
+	if ( (fabs(qk) < biginv) || (fabs(pk) < biginv) ) {
+	    pkm2 *= big;
+	    pkm1 *= big;
+	    qkm2 *= big;
+	    qkm1 *= big;
+	}
+
+    } while ( ++n < 300 );
+
+    return(ans);
+}
+
+/* Power series for incomplete beta integral.
+ * Use when b*x is small and x not too close to 1.
+ */
+
+static double
+pseries( double a, double b, double x )
+{
+    double s, t, u, v, n, t1, z, ai;
+
+    ai = 1.0 / a;
+    u = (1.0 - b) * x;
+    v = u / (a + 1.0);
+    t1 = v;
+    t = u;
+    n = 2.0;
+    s = 0.0;
+    z = MACHEP * ai;
+
+    while ( fabs(v) > z ) {
+	u = (n - b) * x / n;
+	t *= u;
+	v = t / (a + n);
+	s += v;
+	n += 1.0;
+    }
+    s += t1;
+    s += ai;
+
+    u = a * log(x);
+    if ( (a+b) < MAXGAM && fabs(u) < MAXLOG ) {
+	t = TGAMMA(a+b)/(TGAMMA(a)*TGAMMA(b));
+	s = s * t * pow(x,a);
+    } else {
+	t = LGAMMA(a+b) - LGAMMA(a) - LGAMMA(b) + u + log(s);
+	if ( t < MINLOG )
+	    s = 0.0;
+	else
+	    s = exp(t);
+    }
+
+    return s;
+}
+
+#endif	/* INCBET */
+/*
+ * End of code supporting incbet(a,b,x)
+ * ==================== INCBET =====================
+ */
+
+
+/*
+ * Chebyshev coefficients fit to synchrotron function
+ *              ∞
+ *     F(x) = x∫ K(5/3) y dy    where x is frequency in units of
+ *              x               critical frequence v_c
+ *
+ * MacLeod (2000) NucInstMethPhysRes A443:540-545.
+ * The domain is split into 3 regions delimited by L = 27/64  U = 2197/512
+ *
+ * x < L	F(t) = pi/sqrt(3) (t^(1/3)f1(t) - t^(11/3)f2(t) - t)
+ *
+ * L <= x <= U	F(t) = pi/sqrt(3) t^(1/3) etp(-t^(2/3))f3(t)
+
+ * U < x	F(t) = sqrt(pi*t/2) etp(-t)f4(t)
+ *
+ * In each case the argument t to the Chebyshev polynomials f1 f2 f3 f4
+ * is a transform of x.  The claimed accuracy is 16 significant digits.
+ */
+
+static double f1_c[6] = {
+  2.4105383531095902 ,
+  0.0203052715485175 ,
+  0.0001333568543455 ,
+  0.0000002309772357 ,
+  0.0000000001998684 ,
+  0.0000000000001047
+};
+
+static double f2_c[5] = {
+  0.1577621017755018 ,
+  0.0003758515021084 ,
+  0.0000003988488202 ,
+  0.0000000002436560 ,
+  0.0000000000000971
+}; 
+
+static double f3_c[19] = {
+  1.3216565315966927 ,
+ -0.5065739548627054 ,
+  0.0183439310952146 ,
+  0.0253507299516339 ,
+ -0.0047005797257551 ,
+ -0.0002534396748095 ,
+  0.0001725150548613 ,
+ -0.0000147584170505 ,
+ -0.0000019684687917 ,
+  0.0000004832573584 ,
+ -0.0000000174479076 ,
+ -0.0000000052436671 ,
+  0.0000000007070160 ,
+ -0.0000000000011112 ,
+ -0.0000000000074073 ,
+  0.0000000000006102 ,
+  0.0000000000000189 ,
+ -0.0000000000000065 ,
+  0.0000000000000003
+};
+
+static double f4_c[23] = {
+  2.1496191117235133 ,
+  0.0707950115291429 ,
+ -0.0036549721782930 ,
+  0.0003175929093108 ,
+ -0.0000361428956832 ,
+  0.0000049140690366 ,
+ -0.0000007612313048 ,
+  0.0000001305499914 ,
+ -0.0000000243177802 ,
+  0.0000000048537057 ,
+ -0.0000000010276744 ,
+  0.0000000002290392 ,
+ -0.0000000000534048 ,
+  0.0000000000129634 ,
+ -0.0000000000032626 ,
+  0.0000000000008485 ,
+ -0.0000000000002273 ,
+  0.0000000000000626 ,
+ -0.0000000000000177 ,
+  0.0000000000000051 ,
+ -0.0000000000000015 ,
+  0.0000000000000005 ,
+ -0.0000000000000001
+};
+
+static double
+expand_cheby( double t, double *coef, int n )
+{
+    double u0 = 0.0;
+    double u1 = 0.0;
+    double u2 = 0.0;
+
+    while (--n >= 0) {
+	u2 = u1;
+	u1 = u0;
+	u0 = coef[n] + 2 * t * u1 - u2;
+    }
+
+    return (u0 - u2) / 2.0;
+}
+
+void
+f_SynchrotronF (union argument *arg)
+{
+    struct value a;
+    double t, F;
+    double x = real(pop(&a));
+
+    /* Domain error */
+    if (x < 0) {
+	F = not_a_number();
+    } else if (x > 745.) {
+	F = 0.0; /* Calculation will underflow */
+
+    } else if (x < 27./64.) {
+	t = x*x * 8192./729. - 1.0;
+	F = pow(x,1./3.) * expand_cheby(t, f1_c, 6)
+	  - pow(x,11./3.) * expand_cheby(t, f2_c, 5)
+	  - x;
+	F *= M_PI/sqrt(3.);
+    } else if (x <= 2197./512.) {
+	t = (128.*pow(x,2./3.) - 205.) / 133.;
+	F = pow(x,1./3.) * exp(-pow(x,2./3.)) * expand_cheby(t, f3_c, 19);
+	F *= M_PI/sqrt(3.);
+    } else {
+	t = 2197./(256.*x) - 1.0;
+	F = sqrt(M_PI*x/2.) * exp(-x) * expand_cheby(t, f4_c, 23);
+    }
+
+    push(Gcomplex ( &a, F, 0.0 ));
+}

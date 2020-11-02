@@ -33,36 +33,36 @@
 #ifndef GNUPLOT_SPECFUN_H
 # define GNUPLOT_SPECFUN_H
 
-/* #if... / #include / #define collection: */
-
 #include "syscfg.h"
 #include "eval.h"
 
-/* Type definitions */
-
-/* Variables of specfun.c needed by other modules: */
-
-/* Prototypes of functions exported by specfun.c */
-double chisq_cdf(int dof, double chisqr);
 
 /* These are the more 'special' functions built into the stack machine. */
 void f_erf(union argument *x);
 void f_erfc(union argument *x);
 void f_ibeta(union argument *x);
-void f_igamma(union argument *x);
 void f_gamma(union argument *x);
 void f_lgamma(union argument *x);
 void f_rand(union argument *x);
 void f_normal(union argument *x);
 void f_inverse_normal(union argument *x);
 void f_inverse_erf(union argument *x);
+void f_inverse_igamma(union argument *x);
+void f_inverse_ibeta(union argument *x);
 void f_lambertw(union argument *x);
 void f_airy(union argument *x);
 void f_expint(union argument *x);
 void f_besin(union argument *x);
 
+#ifndef HAVE_COMPLEX_FUNCS
+void f_igamma(union argument *x);
+#endif
+double chisq_cdf(int dof, double chisqr);
+
 #ifndef HAVE_LIBCERF
 void f_voigt(union argument *x);
 #endif
+
+void f_SynchrotronF(union argument *x);
 
 #endif /* GNUPLOT_SPECFUN_H */

@@ -42,16 +42,17 @@ GNUPLOT_X11 = `echo gnuplot_x11 | sed '$(transform)'`$(EXEEXT)
 
 AM_CPPFLAGS = -I../term -I$(top_srcdir)/term -DBINDIR=\"$(bindir)\" -DX11_DRIVER_DIR=\"$(X11_DRIVER_DIR)\" -DQT_DRIVER_DIR=\"$(QT_DRIVER_DIR)\" -DGNUPLOT_SHARE_DIR=\"$(GNUPLOT_SHARE_DIR)\" -DGNUPLOT_PS_DIR=\"$(GNUPLOT_PS_DIR)\" -DGNUPLOT_JS_DIR=\"$(GNUPLOT_JS_DIR)\" -DGNUPLOT_LUA_DIR=\"$(GNUPLOT_LUA_DIR)\"  -DCONTACT=\"$(EMAIL)\" -DHELPFILE=\"$(HELPFILE)\" -DGNUPLOT_X11=\"$(GNUPLOT_X11)\" -DXAPPLRESDIR=\"$(XAPPLRESDIR)\"
 
-gnuplot_SOURCES = alloc.c alloc.h axis.c axis.h breaders.c breaders.h bitmap.h \
-boundary.c boundary.h color.c color.h command.c command.h contour.c contour.h \
-datablock.c datablock.h datafile.c datafile.h dynarray.c dynarray.h \
+gnuplot_SOURCES = alloc.c alloc.h amos_airy.c amos_airy.h axis.c axis.h \
+breaders.c breaders.h bitmap.h  boundary.c boundary.h \
+color.c color.h command.c command.h contour.c contour.h \
+complexfun.c datablock.c datablock.h datafile.c datafile.h dynarray.c dynarray.h \
 encoding.c encoding.h eval.c eval.h external.c external.h fit.c fit.h \
 gadgets.c gadgets.h getcolor.c getcolor.h gp_hist.h gp_time.h \
 gp_types.h gplt_x11.h graph3d.c graph3d.h graphics.c graphics.h \
 help.c help.h hidden3d.c hidden3d.h history.c internal.c internal.h \
 interpol.c interpol.h jitter.c jitter.h libcerf.c libcerf.h \
 matrix.c matrix.h misc.c misc.h mouse.c mouse.h mousecmn.h \
-multiplot.c multiplot.h national.h parse.c parse.h plot.c plot.h plot2d.c plot2d.h \
+multiplot.c multiplot.h parse.c parse.h plot.c plot.h plot2d.c plot2d.h \
 plot3d.c plot3d.h pm3d.c pm3d.h qt_table.h readline.c readline.h save.c \
 save.h scanner.c scanner.h set.c setshow.h show.c specfun.c specfun.h \
 standard.c standard.h stats.h stats.c stdfn.c stdfn.h syscfg.h tables.c tables.h \
@@ -83,7 +84,7 @@ endif
 
 SUBDIRS = $(d_beos) wxterminal qtterminal
 
-EXTRA_gnuplot_SOURCES = strftime.c vms.c vms.h
+EXTRA_gnuplot_SOURCES = vms.c vms.h
 
 EXTRA_DIST = GNUmakefile Makefile.maint \
 genopt.com gnuplot.opt x11.opt linkopt.vms \
