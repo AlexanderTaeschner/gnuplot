@@ -3142,7 +3142,8 @@ set_mouse()
     PM_update_menu_items();
 #endif
 #else /* USE_MOUSE */
-    c_token++;
+    while (!END_OF_COMMAND)
+	c_token++;
     int_warn(NO_CARET, "this copy of gnuplot has no mouse support");
 #endif /* USE_MOUSE */
 }
@@ -5189,6 +5190,18 @@ set_terminal()
 	fprintf(stderr,"Options are '%s'\n",term_options);
     if ((term->flags & TERM_MONOCHROME))
 	init_monochrome();
+
+    /* Sanity check:
+     * The most common failure mode found by fuzzing is a divide-by-zero
+     * caused by initializing the basic unit of the current terminal character
+     * size to zero.  I keep patching the individual terminals, but a generic
+     * sanity check may at least prevent a crash due to mistyping.
+     */
+    if (term->h_char <= 0 || term->v_char <= 0) {
+	int_warn(NO_CARET, "invalid terminal font size");
+	term->h_char = 10;
+	term->v_char = 10;
+    }
 }
 
 

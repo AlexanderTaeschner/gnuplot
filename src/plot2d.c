@@ -693,6 +693,10 @@ get_data(struct curve_points *current_plot)
 		current_plot->points[i].type = UNDEFINED;
 		i++;
 	    }
+	    if (current_plot->plot_style == TABLESTYLE) {
+		j = df_no_use_specs;
+		break;
+	    }
 	    continue;
 
 	case DF_FIRST_BLANK:
@@ -2582,8 +2586,7 @@ eval_plots()
 			    set_lpstyle = TRUE;
 			    if (new_lt)
 				this_plot->base_linetype = new_lt - 1;
-			    if (this_plot->lp_properties.p_type != PT_CHARACTER)
-				continue;
+			    continue;
 			}
 		    }
 		}
@@ -2615,11 +2618,6 @@ eval_plots()
 			    set_labelstyle = TRUE;
 			    continue;
 			}
-		    } else if (this_plot->lp_properties.p_type == PT_CHARACTER) {
-			if (equals(c_token, ","))
-			    break;
-			else
-			    continue;
 		    }
 		}
 

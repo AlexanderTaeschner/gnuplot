@@ -82,6 +82,10 @@ AC_CHECK_MEMBERS([struct tm.tm_gmtoff, struct tm.__tm_gmtoff],,,[
 #include <sys/types.h>
 #include <time.h>])
 
+dnl explicit call to PKG_PROG_PKG_CONFIG because the first call to
+dnl PKG_CHECK_MODULES{,_NOFAIL} may not happen
+PKG_PROG_PKG_CONFIG
+
 AC_ARG_WITH(libcerf,dnl
 [  --without-libcerf       build without special functions from libcerf (default enabled)],,
   [test -z "${with_libcerf}" && with_libcerf=yes])
@@ -554,14 +558,15 @@ please add path to zlib.h to CPPFLAGS in Makefile])])],
 
 dnl check presence of gd library
 dnl we don't check for libfreetype and libjpeg locations - if gd requires
-dnl them, the gdlib-config scipt contains all the required information
+dnl them, the gdlib-config script or the gdlibc.pc contains all the required information
 AC_ARG_WITH(gd,dnl
 [  --with-gd[=DIR]           location of gd library (png jpeg gif terminals)],,
   with_gd=yes)
 
 if test "$with_gd" != no; then
+  PKG_CHECK_MODULES_NOFAIL(libgd, [gdlib])
   AC_PATH_PROG([GDLIB_CONFIG], [gdlib-config])
-  if test -n "$GDLIB_CONFIG"; then
+  if test $pkg_failed == no && test -n "$GDLIB_CONFIG"; then
     libgd_CPPFLAGS=`$GDLIB_CONFIG --cflags`
     libgd_LDFLAGS=`$GDLIB_CONFIG --ldflags`
     libgd_LIBS=`$GDLIB_CONFIG --libs`
@@ -800,10 +805,6 @@ if test ! -f src/graphics.c ; then
   cp ${srcdir}/tutorial/eg3.dat tutorial
 fi
 
-dnl explicit call to PKG_PROG_PKG_CONFIG because the first call to
-dnl PKG_CHECK_MODULES may not happen
-PKG_PROG_PKG_CONFIG
-
 dnl  wxWidgets terminal
 
 dnl wxWidgets terminal needs C++
@@ -995,6 +996,19 @@ if test "${with_cairo}" = yes; then
 fi
 
 AM_CONDITIONAL(BUILD_GPCAIRO, test "${build_gpcairo}" = yes)
+
+dnl webp terminal
+if test "${with_cairo}" = yes; then
+  with_webp=yes
+  PKG_CHECK_MODULES_NOFAIL(WEBP, [libwebp libwebpmux],
+      [
+      CPPFLAGS="$CPPFLAGS $WEBP_CFLAGS"
+      LDFLAGS="$LDFLAGS $WEBP_LIBS"
+      AC_DEFINE(HAVE_WEBP,1, [ Define to build the webp terminal. ])
+      ],
+      with_webp=no
+  )
+fi
 
 dnl Enable subsystem to generate statistical summary of file contents
 AC_ARG_ENABLE(stats,dnl
@@ -1304,6 +1318,12 @@ if test "$with_cairo" = yes; then
   AC_MSG_RESULT([  cairo-based pdf and png terminals: yes ])
 else
   AC_MSG_RESULT([  cairo-based terminals: no (requires cairo>=1.2, pango>=1.22, glib>=2.28)])
+fi
+
+if test "$with_webp" = yes; then
+  AC_MSG_RESULT([  webp terminal: yes ])
+else
+  AC_MSG_RESULT([  webp terminal: no (requires cairo, pango, libwebp, libwebpmux)])
 fi
 
 if test "$with_lua" = yes; then

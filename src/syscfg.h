@@ -265,6 +265,7 @@ FILE * win_popen(const char *filename, const char *mode);
  */
 
 #ifdef HAVE_INTTYPES_H
+#define GNUPLOT_INT64_SUPPORT
 				/* NB: inttypes.h includes stdint.h */
 #include <inttypes.h>		/* C99 type definitions */
 typedef int64_t intgr_t;	/* Allows evaluation with 64-bit integer arithmetic */
@@ -273,6 +274,7 @@ typedef uint64_t uintgr_t;	/* Allows evaluation with 64-bit integer arithmetic *
 #define INTGR_MAX INT64_MAX
 #define INTGR_MIN INT64_MIN
 #define LARGEST_GUARANTEED_NONOVERFLOW 9.22337203685477478e+18
+#define LARGEST_EXACT_INT 9007199254740992.	/* IEEE 754 double 53-bit mantissa  2^53 */
 #else
 typedef int intgr_t;		/* no C99 types available */
 typedef unsigned uintgr_t;	/* no C99 types available */
@@ -280,6 +282,7 @@ typedef unsigned uintgr_t;	/* no C99 types available */
 #define INTGR_MAX INT_MAX
 #define INTGR_MIN INT_MIN
 #define LARGEST_GUARANTEED_NONOVERFLOW (double)(INT_MAX)
+#define LARGEST_EXACT_INT 9007199254740992.	/* IEEE 754 double 53-bit mantissa  2^53*/
 #endif
 
 /*
