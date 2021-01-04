@@ -172,8 +172,8 @@ int inline_num;			/* input line number */
 struct udft_entry *dummy_func;
 
 /* support for replot command */
-char *replot_line;
-int plot_token;			/* start of 'plot' command */
+char *replot_line = NULL;
+int plot_token = 0;		/* start of 'plot' command */
 
 /* flag to disable `replot` when some data are sent through stdin;
  * used by mouse/hotkey capable terminals */
@@ -2443,6 +2443,7 @@ $PALETTE u 1:2 t 'red' w l lt 1 lc rgb 'red',\
      * for our temporary testing plot.
      */
     save_set(f);
+    save_pixmaps(f);
 
     /* execute all commands from the temporary file */
     rewind(f);

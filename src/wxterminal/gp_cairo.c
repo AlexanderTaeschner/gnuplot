@@ -337,6 +337,12 @@ void gp_cairo_set_font(plot_struct *plot, const char *name, float fontsize)
 	free(fname);
 }
 
+/* work-around for "bold font gets stuck" bug */
+void gp_cairo_clear_bold_font(plot_struct *plot)
+{
+	plot->fontweight = PANGO_WEIGHT_NORMAL;
+	plot->fontstyle = PANGO_STYLE_NORMAL;
+}
 
 void gp_cairo_set_linewidth(plot_struct *plot, double linewidth)
 {
@@ -806,6 +812,11 @@ gp_cairo_create_layout(cairo_t *cr)
     return pango_cairo_create_layout(cr);
 }
 #endif
+
+void gp_cairo_set_resolution(int dpi)
+{
+	pango_cairo_font_map_set_resolution(PANGO_CAIRO_FONT_MAP(pango_cairo_font_map_get_default()), dpi);
+}
 
 void gp_cairo_draw_text(plot_struct *plot, int x1, int y1, const char* string,
 		    int *width, int *height)

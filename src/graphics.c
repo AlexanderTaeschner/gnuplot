@@ -806,6 +806,7 @@ do_plot(struct curve_points *plots, int pcount)
 	&&  previous_plot_style == HISTOGRAMS
 	&&  this_plot->histogram_sequence == 0 && !at_left_of_key()) {
 	    key_count++;
+	    advance_key(TRUE);	/* correct for inverted key */
 	    advance_key(0);
 	}
 
@@ -3196,7 +3197,8 @@ plot_spiderplot(struct curve_points *plot)
 
 	/* Draw filled area */
 	if (out_length > 1 && plot->fill_properties.fillstyle != FS_EMPTY) {
-	    term->filled_polygon(out_length, clpcorn);
+	    if (term->filled_polygon)
+		term->filled_polygon(out_length, clpcorn);
 	}
 
 	/* Draw perimeter */

@@ -1242,7 +1242,7 @@ get_3ddata(struct surface_points *this_plot)
 		    struct lp_style_type lptmp;
 		    load_linetype(&lptmp, (int)v[--j]);
 		    color_from_column(TRUE);
-		    color = lptmp.pm3d_color.lt;
+		    color = rgb_from_colorspec( &lptmp.pm3d_color );
 		}
 
 		if (j >= 4) {
@@ -1289,6 +1289,21 @@ get_3ddata(struct surface_points *this_plot)
 		    weight = v[3];	/* spline weights */
 		else
 		    weight = 1.0;	/* default weight */
+
+	    } else if (this_plot->plot_style == POLYGONS) {
+		if (j >= 4) {
+		    if (this_plot->lp_properties.l_type == LT_COLORFROMCOLUMN) {
+			struct lp_style_type lptmp;
+			load_linetype(&lptmp, (int)(v[3]));
+			color = rgb_from_colorspec( &lptmp.pm3d_color );
+			color_from_column(TRUE);
+		    }
+		    if (this_plot->fill_properties.border_color.type == TC_RGB
+		    &&  this_plot->fill_properties.border_color.value < 0) {
+			color = v[3];
+			color_from_column(TRUE);
+		    }
+		}
 
 	    } else {	/* all other plot styles */
 		if (j >= 4) {
@@ -1368,7 +1383,7 @@ get_3ddata(struct surface_points *this_plot)
 				this_plot->noautoscale, {});
 		    }
 		    /* We converted linetype colors (lc variable) to RGB colors on input.
-		     * Other plot style do not do this.
+		     * Most plot styles do not do this.
 		     * When we later call check3d_for_variable_color it needs to know this.
 		     */
 		    if (this_plot->lp_properties.l_type == LT_COLORFROMCOLUMN) {
@@ -2359,10 +2374,6 @@ eval_3dplots()
 			}
 		    }
 
-		    if (this_plot != first_dataset)
-			/* copy (explicit) "with pm3d at ..." option from the first dataset in the file */
-			strcpy(this_plot->pm3d_where, first_dataset->pm3d_where);
-
 		    /* okay, we have read a surface */
 		    plot_num++;
 		    tp_3d_ptr = &(this_plot->next_sp);
@@ -2398,6 +2409,7 @@ eval_3dplots()
 			*(this_plot->labels) = *(first_dataset->labels);
 			this_plot->labels->next = NULL;
 		    }
+		    strcpy(this_plot->pm3d_where, first_dataset->pm3d_where);
 		} while (df_return != DF_EOF);
 
 		df_close();

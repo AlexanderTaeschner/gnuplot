@@ -957,8 +957,7 @@ do_3dplot(
 	/* In two-pass mode, we blank out the key area after the graph	*/
 	/* is drawn and then redo the key in the blank area.		*/
 	if (key_pass && t->fillbox && !(t->flags & TERM_NULL_SET_COLOR)) {
-	    t_colorspec background_fill = BACKGROUND_COLORSPEC;
-	    (*t->set_color)(&background_fill);
+	    (*t->set_color)(&key->fillcolor);
 	    (*t->fillbox)(FS_OPAQUE, key->bounds.xleft, key->bounds.ybot,
 		    key->bounds.xright - key->bounds.xleft,
 		    key->bounds.ytop - key->bounds.ybot);
@@ -3456,7 +3455,7 @@ key_text(int xl, int yl, char *text)
     legend_key *key = &keyT;
 
     (term->layer)(TERM_LAYER_BEGIN_KEYSAMPLE);
-    if (key->just == GPKEY_LEFT && key->region != GPKEY_USER_PLACEMENT) {
+    if (key->just == GPKEY_LEFT) {
 	write_multiline(xl + key_text_left, yl, text, LEFT, JUST_TOP, 0, key->font);
     } else {
 	if ((*term->justify_text) (RIGHT)) {
@@ -4024,7 +4023,10 @@ plot3d_polygons(struct surface_points *plot)
 	    continue;
 
 	/* Coloring piggybacks on options for isosurface */
-	quad[0].c = plot->fill_properties.border_color.lt;
+	if (plot->pm3d_color_from_column && !isnan(points[0].CRD_COLOR))
+	    quad[0].c = points[0].CRD_COLOR;
+	else
+	    quad[0].c = plot->fill_properties.border_color.lt;
 	quad[1].c = style;
 	pm3d_add_polygon( plot, quad, nv );
     }

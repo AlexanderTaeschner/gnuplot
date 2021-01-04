@@ -100,6 +100,7 @@ save_all(FILE *fp)
 	save_functions__sub(fp);
 	save_variables__sub(fp);
 	save_colormaps(fp);
+	save_pixmaps(fp);
 	if (df_filename)
 	    fprintf(fp, "## Last datafile plotted: \"%s\"\n", df_filename);
 	fprintf(fp, "%s\n", replot_line);
@@ -557,7 +558,16 @@ save_set_all(FILE *fp)
 		key->swidth, key->vert_factor, key->width_fix, key->height_fix);
     fprintf(fp, "\nset key maxcolumns %d maxrows %d",key->maxcols,key->maxrows);
     fputc('\n', fp);
-    fprintf(fp, "set key %sopaque\n", key->front ? "" : "no");
+    if (key->front) {
+	fprintf(fp, "set key opaque");
+	if (key->fillcolor.lt != LT_BACKGROUND) {
+	    fprintf(fp, " lc ");
+	    save_pm3dcolor(fp, &key->fillcolor);
+	}
+	fprintf(fp, "\n");
+    } else {
+	fprintf(fp, "set key noopaque\n");
+    }
 
     if (!(key->visible))
 	fputs("unset key\n", fp);
@@ -671,8 +681,6 @@ save_set_all(FILE *fp)
 
     fprintf(fp, "set style histogram ");
     save_histogram_opts(fp);
-
-    save_pixmaps(fp);
 
     fprintf(fp, "unset object\n");
     save_object(fp, 0);
@@ -1736,8 +1744,12 @@ save_pixmaps(FILE *fp)
 {
     t_pixmap *pixmap;
     for (pixmap = pixmap_listhead; pixmap; pixmap = pixmap->next) {
-	fprintf(fp, "set pixmap %d '%s' # (%d x %d pixmap)\n",
+	if (pixmap->filename)
+	    fprintf(fp, "set pixmap %d '%s' # (%d x %d pixmap)\n",
 		pixmap->tag, pixmap->filename, pixmap->ncols, pixmap->nrows);
+	if (pixmap->colormapname)
+	    fprintf(fp, "set pixmap %d colormap %s # (%d x %d pixmap)\n",
+		pixmap->tag, pixmap->colormapname, pixmap->ncols, pixmap->nrows);
 	fprintf(fp, "set pixmap %d at ", pixmap->tag);
 	save_position(fp,&pixmap->pin, 3, FALSE);
 	fprintf(fp, "  size ");

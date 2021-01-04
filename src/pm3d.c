@@ -1222,7 +1222,8 @@ pm3d_add_polygon(struct surface_points *plot, gpdPoint corners[4], int vertices)
 	}
 	q->fillstyle = corners[1].c;
 
-    } else if (plot->pm3d_color_from_column) {
+    } else if (plot->pm3d_color_from_column
+		&& !(plot->plot_style == POLYGONS)) {
 	/* FIXME: color_from_rgbvar need only be set once per plot */
 	/* This is the usual path for 'splot with boxes' */
 	color_from_rgbvar = TRUE;
@@ -1612,6 +1613,10 @@ filled_polygon(gpdPoint *corners, int fillstyle, int nv)
     static gpiPoint *icorners = NULL;
     static gpiPoint *ocorners = NULL;
     static gpdPoint *clipcorners = NULL;
+
+    if (!(term->filled_polygon))
+	return;
+
     if (nv > max_vertices) {
 	max_vertices = nv;
 	icorners = gp_realloc( icorners, (2*max_vertices) * sizeof(gpiPoint), "filled_polygon");

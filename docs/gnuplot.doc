@@ -1676,7 +1676,7 @@ C marker below is used to signal this to doc2html:
  `besin(n,x)` is the modified Bessel function or order n for integer n and
  x in radians.
 C 4 ceil
-?expressions functions ceil
+C ?expressions functions ceil
 #ceil(x) &  ~~  & ~ & $\lceil x \rceil$, smallest integer not less than the real part of $x$ \\
 %ceil(x)@ ~~ @$left ceiling x right ceiling$, smallest integer not less than $x$ (real part)
  `ceil(x)` returns the smallest integer not less than the real part of x.
@@ -1750,7 +1750,7 @@ C 4 expint
 #expint(n,x) & int $n\ge0$, real $x\ge0$ & ~ & $E_n(x)=\int_1^\infty t^{-n} e^{-xt}\,dt$,  exponential integral of $x$ \\
 %expint(n,x)@ ~~ @$E sub n (x)$, exponential integral function of $x$
 C 4 floor
-?expressions functions floor
+C ?expressions functions floor
 #floor(x) &  ~~  & ~ & $\lfloor x \rfloor$,  largest integer not greater
 #than the real part of $x$ \\
 %floor(x)@ ~~ @$left floor x right floor$, largest integer not greater than $x$ (real part)
@@ -1784,7 +1784,7 @@ C 4 igamma
  The `imag(x)` function returns the imaginary part of its argument as a real
  number.
 C 4 int
-?expressions functions int
+C ?expressions functions int
 #int(x) & real & ~ &  integer part of $x$, truncated toward zero \\
 %int(x)@real@integer part of $x$, truncated toward zero
  int(x) returns the integer part of its argument, truncated toward zero.
@@ -1864,7 +1864,7 @@ C 4 invigamma
 %real(x)@ ~~ @real part of $x$
  The `real(x)` function returns the real part of its argument.
 C 4 round
-?expressions functions round
+C ?expressions functions round
 #round(x) &  ~~  & ~ & $\lfloor x \rceil$,  integer nearest to the real part of $x$ \\
 %round(x)@ ~~ @ integer nearest to the real part of $x$
  `round(x)` returns the integer nearest to the real part of x.
@@ -1905,7 +1905,7 @@ C 4 round
  x is a complex value, this always returns the root with positive real
  part.
 C 4 SynchrotronF
-?expressions functions SynchrotronF
+C ?expressions functions SynchrotronF
 #SynchrotronF(x) & real & ~ & $F(x) = x\intop_{x}^{\infty}K_{\frac{5}{3}}(\nu)~d\nu$ \\
 %SynchrotronF(x)@ ~~ @ Synchrotron function F%
 4 tan
@@ -2283,7 +2283,7 @@ C 4 FresnelS
 #tm\_yday(x) & int & the day of the year \\
 %tm_yday(x)@int@the day of the year
  The `tm_yday(x)` function interprets its argument as a time, in seconds from
- 1 Jan 1970.  It returns the day of the year (an integer in the range 1--366)
+ 1 Jan 1970.  It returns the day of the year (an integer in the range 0--365)
  as a real.
 4 tm_year
 ?expressions functions tm_year
@@ -3293,7 +3293,9 @@ C ... and restart the table:
 2 inline data and datablocks
 ?inline data
 ?inline
+?data inline
 ?datablocks
+?data datablocks
  There are two mechanisms for embedding data into a stream of gnuplot commands.
  If the special filename '-' appears in a plot command, then the lines
  immediately following the plot command are interpreted as inline data.
@@ -5328,13 +5330,22 @@ Ffigure_points
 ?style polygons
 ?with polygons
 ?polygons
+ 2D plots:
+
       plot DATA {using 1:2} with polygons
 
- `plot with polygons` is currently treated as `plot with filledcurves closed`
+ `plot with polygons` is currently treated as `plot with filledcurves closed`.
+ Each polygon may be assigned a separate color by providing a third using
+ specifier and the keywords `lc variable` (value is interpreted as a linetype)
+ or `lc rgb variable` (value is interpreted as a 24-bit RGB color).
+ Only the color value from the first vertex of the polygon is used.
+
+ 3D plots:
 
       splot DATA {using x:y:z} with polygons
             {fillstyle <fillstyle spec>}
             {fillcolor <colorspec>}
+
  `splot with polygons` uses pm3d to render individual triangles, quadrangles,
  and larger polygons in 3D.  These may be facets of a 3D surface or isolated
  shapes. The code assumes that the vertices lie in a plane.
@@ -5345,6 +5356,11 @@ Ffigure_points
  global fillstyle from `set style fill` is used.  Due to limitations in the
  pm3d code, a single border line style from `set pm3d border` is applied to all
  polygons.  This restriction may be removed in a later gnuplot version.
+
+ Each polygon may be assigned a separate RGB color by providing a fourth using
+ specifier and the keywords `lc variable` (value is interpreted as a linetype)
+ or `lc rgb variable` (value is interpreted as a 24-bit RGB color).
+ Only the color value from the first vertex of the polygon is used.
 
  pm3d sort order and lighting are applied to the faces. It is probably always
  desirable to use `set pm3d depthorder`.
@@ -7180,8 +7196,10 @@ Ffigure_zerror
 ?datafile
 ?data
 ?file
- Discrete data contained in a file can be displayed by specifying the name of
- the data file (enclosed in single or double quotes) on the `plot` command line.
+ Data provided in a file can be plotted by giving the name of the file
+ (enclosed in single or double quotes) on the `plot` command line.
+ Data may also come from an input stream that is not a file.
+ See `special-filenames`, `piped-data`, `datablocks`.
 
  Syntax:
        plot '<file_name>' {binary <binary list>}
@@ -7868,6 +7886,7 @@ Ffigure_smooth_path
 ?plot datafile special-filenames
 ?plot special-filenames
 ?datafile special-filenames
+?data special-filenames
 ?special-filenames ++
 ?special-filenames +
 ?+
@@ -7946,6 +7965,8 @@ Ffigure_smooth_path
 4 piped-data
 ?commands plot datafile piped-data
 ?plot datafile piped-data
+?datafile piped-data
+?data piped-data
 ?plot piped-data
 ?piped-data
 ?pipes
@@ -7988,11 +8009,6 @@ Ffigure_smooth_path
 
  Syntax:
        plot 'file' using <entry> {:<entry> {:<entry> ...}} {'format'}
-
- If a format is specified, it is used to read in each datafile record using the
- C library 'scanf' function.  Otherwise the record is interpreted as consisting
- of columns (fields) of data separated by whitespace (spaces and/or tabs),
- but see `datafile separator`.
 
  Each <entry> may be a simple column number that selects the value from one
  field of the input file, a string that matches a column label in the first
@@ -8037,15 +8053,21 @@ Ffigure_smooth_path
  If the `using` list has two entries, these will be used for x and y.
  See `set style` and `fit` for details about plotting styles that make use of
  data from additional columns of input.
+5 format
+?using format
+?plot using format
+ If a format is specified, it is used to read in each datafile record using the
+ C library 'scanf' function.  Otherwise the record is interpreted as consisting
+ of columns (fields) of data separated by whitespace (spaces and/or tabs),
+ but see `datafile separator`.
 
- 'scanf' accepts several numerical specifications but `gnuplot`
- requires all inputs to be double-precision floating-point variables,
- so "%lf" is essentially the only permissible specifier.
- A format string given by the user must contain at least one such
- input specifier, and no more than seven of them.
- 'scanf' expects to see white space---a blank, tab
- ("\t"), newline ("\n"), or formfeed ("\f")---between numbers; anything else
- in the input stream must be explicitly skipped.
+ 'scanf' itself accepts several numerical specifications but `gnuplot` requires
+ all inputs to be double-precision floating-point variables, so "%lf" is
+ essentially the only permissible specifier.  The format string must contain at
+ least one such input specifier and no more than seven of them.
+ 'scanf' expects to see white space -- a blank, tab ("\t"), newline ("\n"),
+ or formfeed ("\f") -- between numbers; anything else in the input stream must
+ be explicitly skipped.
 
  Note that the use of "\t", "\n", or "\f" requires use of double-quotes
  rather than single-quotes.
@@ -9414,7 +9436,7 @@ Ffigure_smooth_path
  colormap partially transparent.  This named colormap is then used later
  to color a pm3d surface.
  Note that the alpha channel value in a named colormap follows the convention
- for ARGB line properties; i.e 0 is opaque 0xff is fully transparent.
+ for ARGB line properties; i.e 0 is opaque, 0xff is fully transparent.
 
       set palette defined (0 "dark-red", 1 "white")
       set colormap new Reds
@@ -9427,7 +9449,10 @@ Ffigure_smooth_path
       set colormap Reds range [0:10]
 
  If no range is set, or if min and max are the same, then the mapping uses the
- current limits of cbrange. See `set cbrange`.  
+ current limits of cbrange. See `set cbrange`.
+
+ A colormap can be used to gradient-fill a rectangular area.
+ See `pixmap colormap`.
 
 3 colorsequence
 ?commands set colorsequence
@@ -11192,7 +11217,7 @@ Ffigure_missing
              {left | right | center} {top | bottom | center}
              {vertical | horizontal} {Left | Right}
              {{no}enhanced}
-             {{no}opaque}
+             {{no}opaque {fc <colorspec>}}
              {{no}reverse} {{no}invert}
              {samplen <sample_length>} {spacing <line_spacing>}
              {width <width_increment>} {height <height_increment>}
@@ -11234,8 +11259,8 @@ Ffigure_missing
  title are drawn at the same time as the corresponding plot.  That means newer
  plots may sometimes place elements on top of the key.  `set key opaque` causes
  the key to be generated after all the plots.  In this case the key area is
- filled with background color and then the key symbols and titles are written.
- Therefore the key itself may obscure portions of some plot elements.
+ filled with background color or the requested fill color and then the key
+ symbols and titles are written.
  The default can be restored by `set key noopaque`.
 
  By default the first plot label is at the top of the key and successive labels
@@ -12860,6 +12885,7 @@ Ffigure_multiple_keys
                   {   rgbformulae <r>,<g>,<b>
                     | defined { ( <gray1> <color1> {, <grayN> <colorN>}... ) }
                     | file '<filename>' {datafile-modifiers}
+                    | colormap <colormap-name> 
                     | functions <R>,<G>,<B>
                   }
                   { cubehelix {start <val>} {cycles <val>} {saturation <val>} }
@@ -13080,19 +13106,24 @@ Ffigure_multiple_keys
  The default values are
        set palette cubehelix start 0.5 cycles -1.5 saturation 1
        set palette gamma 1.5
-
+4 colormap
+?commands set palette colormap
+?palette colormap
+ `set palette colormap <name>` loads a defined gradient that was previously
+ saved to a colormap. Alpha channel information in the colormap, if any, 
+ will be lost when the color values are copied into the palette definition.
+ See `colormap`.
 4 file
 ?commands set palette file
 ?set palette file
 ?palette file
  `set palette file` is basically a `set palette defined (<gradient>)` where
- <gradient> is read from a datafile.  Either 4 columns (gray,R,G,B) or
- just three columns (R,G,B) have to be selected via the `using` data file
- modifier.  In the three column case, the line number will be used as gray.
+ <gradient> is read from a datafile.  Select four columns (gray,R,G,B) or
+ three columns (R,G,B) via the `using` specifier.
+ In the three column case, the line number will be used as gray.
  The gray range is automatically rescaled to [0,1].  The file is read as a
  normal data file, so all datafile modifiers can be used.
- Please note, that `R` might actually be e.g. `H` if HSV color space is
- selected.
+ Please note that `R` might actually be `H` if HSV color space is selected.
 
  As usual <filename> may be `'-'` which means that the data follow the command
  inline and are terminated by a single `e` on a line of its own.
@@ -13115,7 +13146,6 @@ Ffigure_multiple_keys
  Binary palette files are supported as well, see `binary general`. Example:
  put 64 triplets of R,G,B doubles into file palette.bin and load it by
        set palette file "palette.bin" binary record=64 using 1:2:3
-
 
 4 gamma correction
 ?commands set palette gamma-correction

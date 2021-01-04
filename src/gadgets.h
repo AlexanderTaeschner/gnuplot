@@ -213,6 +213,7 @@ typedef struct t_pixmap {
     int layer;			/* front/back/behind */
     TBOOLEAN center;		/* position is center rather than lower left */
     char *filename;		/* where to read the pixmap pixmap */
+    char *colormapname;		/* the colormap this was taken from */
     coordval *image_data;	/* pixel array RGBARGBA... */
 } t_pixmap;
 
@@ -368,6 +369,7 @@ typedef struct {
     struct lp_style_type box;	/* linetype of box around key:  */
     char *font;			/* Will be used for both key title and plot titles */
     struct t_colorspec textcolor;	/* Will be used for both key title and plot titles */
+    struct t_colorspec fillcolor;	/* only used if "set key front" */
     BoundingBox bounds;
     int maxcols;		/* maximum no of columns for horizontal keys */
     int maxrows;		/* maximum no of rows for vertical keys */
@@ -391,6 +393,7 @@ extern legend_key keyT;
 		FALSE, FALSE, FALSE, TRUE, \
 		DEFAULT_KEYBOX_LP, \
 		NULL, {TC_LT, LT_BLACK, 0.0}, \
+		BACKGROUND_COLORSPEC, \
 		{0,0,0,0}, 0, 0, \
 		EMPTY_LABELSTRUCT}
 

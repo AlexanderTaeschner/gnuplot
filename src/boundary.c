@@ -1437,8 +1437,7 @@ draw_key(legend_key *key, TBOOLEAN key_pass)
     /* In two-pass mode (set key opaque) we blank out the key box after	*/
     /* the graph is drawn and then redo the key in the blank area.	*/
     if (key_pass && t->fillbox && !(t->flags & TERM_NULL_SET_COLOR)) {
-	t_colorspec background_fill = BACKGROUND_COLORSPEC;
-	(*t->set_color)(&background_fill);
+	(*t->set_color)(&key->fillcolor);
 	(*t->fillbox)(FS_OPAQUE, key->bounds.xleft, key->bounds.ybot,
 		key_width, key_height);
     }
@@ -1562,15 +1561,15 @@ advance_key(TBOOLEAN only_invert)
     legend_key *key = &keyT;
 
     if (key->invert)
-        yl = key->bounds.ybot + yl_ref + key_entry_height/2 - yl;
+	yl = key->bounds.ybot + yl_ref + key_entry_height/2 - yl;
     if (only_invert)
 	return;
     if (key_count >= key_rows) {
-        yl = yl_ref;
-        xl += key_col_wth;
-        key_count = 0;
+	yl = yl_ref;
+	xl += key_col_wth;
+	key_count = 0;
     } else
-        yl = yl - key_entry_height;
+	yl = yl - key_entry_height;
 }
 
 /* stupid test used in only one place but it refers to our local variables */

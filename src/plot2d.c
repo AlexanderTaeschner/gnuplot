@@ -1164,7 +1164,7 @@ get_data(struct curve_points *current_plot)
 	    coordval major_axis = (j >= 3) ? v[2] : 0.0;
 	    coordval minor_axis = (j >= 4) ? v[3] : (j >= 3) ? v[2] : 0.0;
 	    coordval orientation = (j >= 5) ? v[4] : 0.0;
-	    coordval flag = (major_axis < 0 || minor_axis < 0) ?  DEFAULT_RADIUS : 0;
+	    coordval flag = (major_axis <= 0 || minor_axis <= 0) ?  DEFAULT_RADIUS : 0;
 
 	    if (j == 2)	/* FIXME: why not also for j == 3 or 4? */
 		orientation = default_ellipse.o.ellipse.orientation;
@@ -3804,6 +3804,16 @@ parse_plot_title(struct curve_points *this_plot, char *xtitle, char *ytitle, TBO
 		char *skip = try_to_get_string();
 		free(skip);
 
+	    /* In the very common case of a string constant, use it as-is. */
+	    /* This guarantees that the title is only entered in the key once per
+	     * data file rather than once per data set within the file.
+	     */
+	    } else if (isstring(c_token) && !equals(c_token+1,".")) {
+		free_at(df_plot_title_at);
+		df_plot_title_at = NULL;
+		free(this_plot->title);
+		this_plot->title = try_to_get_string();
+
 	    /* Create an action table that can generate the title later */
 	    } else { 
 		free_at(df_plot_title_at);
@@ -3869,6 +3879,14 @@ parse_plot_title(struct curve_points *this_plot, char *xtitle, char *ytitle, TBO
 
 }
 
+/*
+ * If a plot component title (key entry) was provided as a string expression
+ * rather than a simple string constant, we saved the expression to evaluate
+ * after the corresponding data has been input. This routine is called once
+ * for each data set in the input data stream, which would potentially generate
+ * a separate key entry for each data set.  We can short-circuit this by
+ * clearing the saved string expression after generating the first title.
+ */
 void
 reevaluate_plot_title(struct curve_points *this_plot)
 {
@@ -3881,11 +3899,20 @@ reevaluate_plot_title(struct curve_points *this_plot)
 	if (!undefined && a.type == STRING) {
 	    free(this_plot->title);
 	    this_plot->title = a.v.string_val;
+
 	    /* Special case where the "title" is used as a tic label */
 	    if (this_plot->plot_style == HISTOGRAMS
 	    &&  histogram_opts.type == HT_STACKED_IN_TOWERS) {
 		double xpos = this_plot->histogram_sequence + this_plot->histogram->start;
 		add_tic_user(&axis_array[FIRST_X_AXIS], this_plot->title, xpos, -1);
+	    }
+
+	    /* FIXME:  good or bad to suppress all but the first generated title
+	     *         for a file containing multiple data sets?
+	     */
+	    else {
+		free_at(df_plot_title_at);
+		df_plot_title_at = NULL;
 	    }
 	}
     }

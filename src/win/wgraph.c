@@ -223,7 +223,7 @@ static void	StorePen(LPGW lpgw, int i, COLORREF ref, int colorstyle, int monosty
 static void	MakePens(LPGW lpgw, HDC hdc);
 static void	DestroyPens(LPGW lpgw);
 static void	Wnd_GetTextSize(HDC hdc, LPCSTR str, size_t len, int *cx, int *cy);
-static void	GetPlotRect(LPGW lpgw, LPRECT rect);
+static BOOL	GetPlotRect(LPGW lpgw, LPRECT rect);
 static void	MakeFonts(LPGW lpgw, LPRECT lprect, HDC hdc);
 static void	DestroyFonts(LPGW lpgw);
 static void	SelFont(LPGW lpgw);
@@ -673,6 +673,11 @@ GraphInit(LPGW lpgw)
 		GetClientRect(lpgw->hWndGraph, &rect);
 		lpgw->Decoration.x = wrect.right - wrect.left + rect.left - rect.right;
 		lpgw->Decoration.y = wrect.bottom - wrect.top + rect.top - rect.bottom + lpgw->ToolbarHeight + lpgw->StatusHeight;
+		/* 2020-10-07 shige: get real value of Size.{x,y} for CW_USEDEFAULT */
+		if (lpgw->Size.x == CW_USEDEFAULT || lpgw->Size.y == CW_USEDEFAULT) {
+			lpgw->Size.x = wrect.right - wrect.left;
+			lpgw->Size.y = wrect.bottom - wrect.top;
+		}
 	}
 
 	/* resize to match requested canvas size */
@@ -969,10 +974,10 @@ Wnd_GetTextSize(HDC hdc, LPCSTR str, size_t len, int *cx, int *cy)
 }
 
 
-static void
+static BOOL
 GetPlotRect(LPGW lpgw, LPRECT rect)
 {
-	GetClientRect(lpgw->hGraph, rect);
+	return GetClientRect(lpgw->hGraph, rect);
 }
 
 
@@ -3661,6 +3666,8 @@ ReadGraphIni(LPGW lpgw)
 	if ((lpgw->Size.x != CW_USEDEFAULT) && (lpgw->Size.y != CW_USEDEFAULT)) {
 		lpgw->Canvas.x = lpgw->Size.x;
 		lpgw->Canvas.y = lpgw->Size.y;
+	} else { /* 2020-10-07 shige: Initialize of Canvas.{x,y} */
+		lpgw->Canvas.x = lpgw->Canvas.y = 0;
 	}
 
 	if (bOKINI)
@@ -4324,6 +4331,12 @@ WndGraphParentProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 				lpgw->Size.x = LOWORD(lParam);
 				lpgw->Size.y = HIWORD(lParam);
 			}
+			break;
+		}
+		case WM_MOVE: {
+			GetWindowRect(hwnd, &rect);
+			lpgw->Origin.x = rect.left;
+			lpgw->Origin.y = rect.top;
 			break;
 		}
 		case WM_SYSCOMMAND:
@@ -5032,15 +5045,16 @@ WndGraphProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 			return 0;
 		}
 		case WM_SIZE:
-			GetPlotRect(lpgw, &rect);
-			if (lpgw->Canvas.x != 0) {
-				lpgw->Canvas.x = rect.right - rect.left;
-				lpgw->Canvas.y = rect.bottom - rect.top;
-			}
+			if (GetPlotRect(lpgw, &rect)) {
+				if (lpgw->Canvas.x != 0) {
+					lpgw->Canvas.x = rect.right - rect.left;
+					lpgw->Canvas.y = rect.bottom - rect.top;
+				}
 #ifdef HAVE_D2D
-			if (lpgw->d2d)
-				d2dResize(lpgw, rect);
+				if (lpgw->d2d)
+					d2dResize(lpgw, rect);
 #endif
+			}
 			break;
 #ifndef WGP_CONSOLE
 		case WM_DROPFILES:

@@ -1101,6 +1101,8 @@ DJSVGA_enhanced_open(
 	/* widthflag FALSE means do not update text position after printing */
 	dj_enhanced_widthflag = widthflag;
 	/* Select font */
+	// FIMXE: why not simply call set_font() here?
+	// DJSVGA_set_font(fontname);
 	if ((fontname != NULL) && (strlen(fontname) > 0)) {
 	    DJSVGA_trim_font_string(fontname, filename, sizeof(filename));
 	    if (filename[0] == NUL)
@@ -1118,7 +1120,22 @@ DJSVGA_enhanced_open(
 		font = DJSVGA_LoadFont(DJSVGA_default_fontname);
 	    }
 	}
-	DJSVGA_TextOption.txo_font = (font != NULL) ? font : grx_default_font();
+	if (font == NULL) {
+	    font = grx_default_font();
+	    /* handle fontscale for the GRX/MGRX default font */
+	    if (dj_fontscale != 1.) {
+		GrFont * scaled;
+		int w, h;
+
+		w = font->h.width * dj_fontscale;
+		h = font->h.height * dj_fontscale;
+		scaled = GrBuildConvertedFont(font, GR_FONTCVT_RESIZE, w, h, 0, 0);
+		font = scaled;
+		if (DJSVGA_default_font == grx_default_font())
+		    DJSVGA_default_font = scaled;
+	    }
+	}
+	DJSVGA_TextOption.txo_font = font;
 	{ /* update hchar / vchar */
 	    const char text[] = "0123456789";
 	    int len = strlen(text);
@@ -1326,7 +1343,11 @@ static GrPattern *
 DJSVGA_pattern(int pattern, int style)
 {
     pattern %= dj_fill_pattern_num;
+#if defined(MGRX_VERSION_API) && (MGRX_VERSION_API >= 0x0134)
+    dj_pattern.gp_ptype = GR_PTYPE_BITMAP;
+#else
     dj_pattern.gp_ispixmap = 0;
+#endif
     dj_pattern.gp_bmp_height = 8;
     dj_pattern.gp_bmp_fgcolor = dj_color;
     if (style == FS_TRANSPARENT_PATTERN)
@@ -1509,6 +1530,7 @@ DJSVGA_image(unsigned int M, unsigned int N, coordval *image,
 	  gpiPoint *corner, t_imagecolor color_mode)
 {
     GrContext ctxt;
+    // FIXME: GrImage is deprecated as of MGRX 1.3.4.
     GrImage * im = NULL;
 
     switch (color_mode) {
