@@ -539,7 +539,7 @@ gp_opendir(const char *name)
 	    free(mbname);
 
 	    if ((dir->name != NULL) &&
-		((dir->handle = (long) _wfindfirst(dir->name, &dir->info)) != -1)) {
+		((dir->handle = _wfindfirst(dir->name, &dir->info)) != -1)) {
 		dir->result.d_name = NULL;
 	    } else { /* rollback */
 		free(dir->name);

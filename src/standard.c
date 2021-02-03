@@ -33,7 +33,6 @@
 #include "standard.h"
 
 #include "gadgets.h"		/* for 'ang2rad' and 'zero' */
-#include "gp_time.h"		/* needed by f_tmsec() and friendsa */
 #include "util.h"		/* for int_error() */
 
 static double carlson_elliptic_rc(double x,double y);
@@ -1519,32 +1518,6 @@ f_besyn(union argument *arg)
 	push(Gcomplex(&a, yn(n.v.int_val, real(&a)), 0.0));
     }
 }
-
-
-/* functions for accessing fields from tm structure, for time series
- * they are all the same, so define a macro
- */
-#define TIMEFUNC(name, field)					\
-void								\
-name(union argument *arg)					\
-{								\
-    struct value a;						\
-    struct tm tm;						\
-								\
-    (void) arg;			/* avoid -Wunused warning */	\
-    (void) pop(&a);						\
-    ggmtime(&tm, real(&a));					\
-    push(Gcomplex(&a, (double)tm.field, 0.0));			\
-}
-
-TIMEFUNC( f_tmsec, tm_sec)
-TIMEFUNC( f_tmmin, tm_min)
-TIMEFUNC( f_tmhour, tm_hour)
-TIMEFUNC( f_tmmday, tm_mday)
-TIMEFUNC( f_tmmon, tm_mon)
-TIMEFUNC( f_tmyear, tm_year)
-TIMEFUNC( f_tmwday, tm_wday)
-TIMEFUNC( f_tmyday, tm_yday)
 
 
 /*****************************************************************************/

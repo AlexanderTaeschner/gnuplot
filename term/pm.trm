@@ -3,7 +3,7 @@
 /* GNUPLOT - pm.trm */
 
 /*[
- * Copyright 1992, 1993, 1998, 2004
+ * Copyright 1992, 1993, 1998, 2004, 2019, 2021
  *
  * Permission to use, copy, and distribute this software and its
  * documentation for any purpose with or without fee is hereby granted,
@@ -67,6 +67,7 @@ TERM_PUBLIC void PM_put_text(unsigned int x, unsigned int y, const char *str);
 TERM_PUBLIC int PM_justify_text(enum JUSTIFY mode);
 TERM_PUBLIC int PM_set_font(const char *font);
 TERM_PUBLIC void PM_point(unsigned int x, unsigned int y, int number);
+TERM_PUBLIC void PM_pointsize(double size);
 TERM_PUBLIC void PM_fillbox(int style, unsigned int x, unsigned int y, unsigned int w, unsigned int h);
 TERM_PUBLIC void PM_linewidth(double linewidth);
 #ifdef USE_MOUSE
@@ -129,6 +130,9 @@ static TBOOLEAN PM_enhanced = TRUE;
 static int PM_plot_number = 0;
 static char PM_term_title[128] = "";
 static char PM_def_font[128] = "";
+static double PM_linewidth_scale = 1.; /* scale factor for linewidth */
+static double PM_fontscale = 1.;
+static double PM_pointscale = 1.;
 
 static char PM_opts[256] = "";
 static TBOOLEAN PM_optargs = FALSE;
@@ -298,6 +302,7 @@ PM_make_servername(char *str)
 
 enum PM_id { PM_DEFAULT,
 	     PM_TITLE, PM_FONT,
+	     PM_LINEWIDTH, PM_POINTSCALE, PM_FONTSCALE,
 	     PM_SERVER, PM_NOSERVER,
 	     PM_PERSIST, PM_NOPERSIST,
 	     PM_WIDELINES, PM_NOWIDELINES,
@@ -317,6 +322,12 @@ static struct gen_table PM_opt_table[] =
     { "noe$nhanced", PM_NOENHANCED },
     { "ti$tle", PM_TITLE },
     { "font", PM_FONT },
+    { "linew$idth", PM_LINEWIDTH },
+    { "lw", PM_LINEWIDTH },
+    { "fonts$cale", PM_FONTSCALE },
+    { "fs", PM_FONTSCALE },
+    { "pointscale", PM_POINTSCALE },
+    { "ps", PM_POINTSCALE },
     { NULL, PM_OTHER }
 };
 
@@ -362,6 +373,21 @@ PM_options()
 	case PM_NOWIDELINES:
 	    c_token++;
 	    PM_widelines = FALSE;
+	    break;
+	case PM_LINEWIDTH:
+	    c_token++;
+	    PM_linewidth_scale = real_expression();
+	    if (PM_linewidth_scale <= 0) PM_linewidth_scale = 1.;
+	    break;
+	case PM_FONTSCALE:
+	    c_token++;
+	    PM_fontscale = real_expression();
+	    if (PM_fontscale <= 0) PM_fontscale = 1.;
+	    break;
+	case PM_POINTSCALE:
+	    c_token++;
+	    PM_pointscale = real_expression();
+	    if (PM_pointscale <= 0) PM_pointscale = 1.;
 	    break;
 	case PM_ENHANCED:
 	    c_token++;
@@ -451,10 +477,16 @@ PM_options()
 	PM_widelines? "" : "no",
 	PM_persist  ? "" : "no",
 	PM_enhanced ? "" : "no");
+    if (PM_def_font[0] != NUL)
+	sprintf(term_options + strlen(term_options), " font \"%s\"", PM_def_font);
+    if (PM_linewidth_scale != 1.)
+	sprintf(term_options + strlen(term_options), " linewidth %.1f", PM_linewidth_scale);
+    if (PM_pointscale != 1.)
+	sprintf(term_options + strlen(term_options), " pointscale %.1f", PM_pointscale);
+    if (PM_fontscale != 1.)
+	sprintf(term_options + strlen(term_options), " fontscale %.1f", PM_fontscale);
     if (PM_plot_number > 0)
 	sprintf(term_options + strlen(term_options), " server %d", PM_plot_number);
-    if (PM_def_font[0] != NUL)
-	sprintf(term_options + strlen(term_options), " font  %s", PM_def_font);
     if (PM_term_title[0])
 	sprintf(term_options + strlen(term_options), " title \"%s\"", PM_term_title);
 
@@ -551,8 +583,8 @@ PM_text()
 	putc(SET_TEXT, PM_pipe);
 	fflush(PM_pipe);
 #if 0
-        keep_term_initialised = term_initialised ;
-        term_initialised = FALSE ; /* need to force init */
+	keep_term_initialised = term_initialised ;
+	term_initialised = FALSE ; /* need to force init */
 #endif
     }
 
@@ -576,6 +608,13 @@ PM_graphics()
 #ifdef USE_MOUSE
     PM_update_menu_items();
 #endif
+    {
+	unsigned int fontscale = PM_fontscale * 100;
+	putc(SET_SPECIAL, PM_pipe);
+	putc(SET_SPECIAL_FONTSCALE, PM_pipe); /* set fontscale */
+	fwrite(&fontscale, sizeof(int), 1, PM_pipe);
+	fflush(PM_pipe);
+    }
     if (encoding != last_encoding) {
 	int cp;
 	/* A complete list of codepages can be found at
@@ -601,7 +640,7 @@ PM_graphics()
 	                          cp = 0; break;
 	};
 	putc(SET_SPECIAL, PM_pipe);
-	putc(SET_SPECIAL_CODEPAGE, PM_pipe); /*  set codepage */
+	putc(SET_SPECIAL_CODEPAGE, PM_pipe); /* set codepage */
 	fwrite(&cp, sizeof(int), 1, PM_pipe);
 	fflush(PM_pipe);
 	last_encoding = encoding;
@@ -609,9 +648,8 @@ PM_graphics()
     if (PM_def_font[0] != NUL) {
 	int len;
 
-	fprintf(stderr, "Setting default font: %s\n", PM_def_font);
 	putc(SET_SPECIAL, PM_pipe);
-	putc(SET_SPECIAL_FONT, PM_pipe); /*  set default font */
+	putc(SET_SPECIAL_FONT, PM_pipe); /* set default font */
 	len = strlen(PM_def_font) + 1;
 	fwrite(&len, sizeof(int), 1, PM_pipe);
 	fwrite(PM_def_font, 1, len, PM_pipe);
@@ -784,22 +822,24 @@ PM_set_font(const char *ifont)
 static void
 PM_query_font(void)
 {
-    unsigned int len, fontsize;
-    char *newfont;
+    unsigned int len;
+    char *newfont, *s;
     ULONG cbR, rc;
 
     putc(GR_QUERY_FONT, PM_pipe);
     fflush(PM_pipe);
 
-    free( PM_font );
+    free(PM_font);
     rc = DosRead(fileno(PM_pipe), &len, sizeof(int), &cbR);
-    newfont = (char *)malloc( len + 1 );
-    rc = DosRead(fileno(PM_pipe), newfont, len*sizeof(char), &cbR);
+    newfont = (char *) malloc(len + 1);
+    rc = DosRead(fileno(PM_pipe), newfont, len * sizeof(char), &cbR);
     newfont[len] = NUL;
 
-    PM_font = (char *)malloc( len + 1 );
-    sscanf( newfont, "%i.%s", &fontsize, PM_font );
-    PM_fontsize = (double)fontsize;
+    PM_font = (char *) malloc(len + 1);
+    s = strchr(newfont, '.');
+    PM_fontsize = atoi(newfont);
+    if (s != NULL)
+      strcpy(PM_font, s + 1);
     free(newfont);
 
     (void) rc;
@@ -823,6 +863,13 @@ PM_point(unsigned int x, unsigned int y, int number)
     mode = 0;
     putc(SET_POINTMODE, PM_pipe);
     fwrite(&mode, sizeof(int), 1, PM_pipe);
+}
+
+
+TERM_PUBLIC void
+PM_pointsize(double size)
+{
+    term_pointsize = size * PM_pointscale;
 }
 
 
@@ -888,7 +935,7 @@ TERM_PUBLIC void
 PM_linewidth(double linewidth)
 {
     int lw;
-    lw = linewidth * 100;
+    lw = PM_linewidth_scale * linewidth * 100;
     putc(SET_LINEWIDTH, PM_pipe);
     fwrite(&lw, sizeof(int), 1, PM_pipe);
 }
@@ -1053,24 +1100,22 @@ PM_image(unsigned int M, unsigned int N, coordval *image, gpiPoint *corner, t_im
     unsigned int image_size;
     unsigned int pad_bytes;
 
-    /* IC_PALETTE and IC_RGB images are converted to a 24bit RGB format
+    /* Images are converted to a 24bit RGB format
        suitable for OS/2's presentation manager:
         - sequence of lines is reversed
         - each line starts at a 4 byte boundary
     */
-
-    /* fprintf(stderr, "PM_image: %i x %i, mode=%s\n", M, N, color_mode==IC_RGB?"IC_RGB":"IC_PALETTE" ); */
     pad_bytes = (4 - (3 * M) % 4) % 4; /* scan lines start on ULONG boundaries */
     image_size = (M + pad_bytes ) * N * 3;
     rgb_image = (PBYTE) gp_alloc(image_size, "PM RGB image");
 
     if (color_mode == IC_PALETTE) {
-    	unsigned int x, y;
+	unsigned int x, y;
 
 	rgb_image += N * (3 * M + pad_bytes);
-	for (y=0; y<N; y++) {
+	for (y = 0; y < N; y++) {
 	    rgb_image -= 3 * M + pad_bytes;
-	    for(x=0; x<M; x++) {
+	    for (x = 0; x < M; x++) {
 		rgb255_color rgb255;
 		rgb255maxcolors_from_gray(*image++, &rgb255);
 		*(rgb_image++) = rgb255.b;
@@ -1079,17 +1124,19 @@ PM_image(unsigned int M, unsigned int N, coordval *image, gpiPoint *corner, t_im
 	    }
 	    rgb_image -= 3 * M;
 	}
-    } else if (color_mode == IC_RGB) {
-    	unsigned int x, y;
+    } else if (color_mode == IC_RGB || color_mode == IC_RGBA) {
+	unsigned int x, y;
 
 	rgb_image += N * (3 * M + pad_bytes);
-	for (y=0; y<N; y++) {
+	for (y = 0; y < N; y++) {
 	    rgb_image -= 3 * M + pad_bytes;
-	    for(x=0; x<M; x++) {
+	    for (x = 0; x < M; x++) {
 		rgb255_color rgb255;
 		rgb255.r = (BYTE) (*image++ * 255 + 0.5);
 		rgb255.g = (BYTE) (*image++ * 255 + 0.5);
 		rgb255.b = (BYTE) (*image++ * 255 + 0.5);
+		/* Note: We just ignore the alpha channel. */
+		if (color_mode == IC_RGBA) image++;
 		*(rgb_image++) = rgb255.b;
 		*(rgb_image++) = rgb255.g;
 		*(rgb_image++) = rgb255.r;
@@ -1098,7 +1145,7 @@ PM_image(unsigned int M, unsigned int N, coordval *image, gpiPoint *corner, t_im
 	}
     }
 
-    if ((color_mode == IC_PALETTE) || (color_mode == IC_RGB)) {
+    if (color_mode == IC_PALETTE || color_mode == IC_RGB  || color_mode == IC_RGBA) {
 	unsigned int i;
 
 	/* transfer data to gnupmdrv */
@@ -1309,7 +1356,7 @@ PM_enhanced_put_text(unsigned int x, unsigned int y, const char *str)
 	ENHpm_sizeonly = TRUE;
     }
 
-    for (pass=1; pass <= num_passes; pass++) {
+    for (pass = 1; pass <= num_passes; pass++) {
 
 	/* This will restore the default font
 	   and update PM_font and PM_fontsize */
@@ -1332,7 +1379,7 @@ PM_enhanced_put_text(unsigned int x, unsigned int y, const char *str)
 	    enh_err_check(str);
 
 	    if (!*++str)
-	    	break; /* end of string */
+		break; /* end of string */
 
 	    /* else carry on and process the rest of the string */
 	}
@@ -1388,7 +1435,7 @@ TERM_TABLE_START(PM_driver)
 #endif
     PM_text_angle,
     PM_justify_text, PM_point, do_arrow, PM_set_font,
-    0 /*pointsize */ ,
+    PM_pointsize,
     TERM_CAN_MULTIPLOT | TERM_NO_OUTPUTFILE | TERM_ENHANCED_TEXT,
     PM_suspend, PM_resume,
     PM_fillbox, PM_linewidth,
@@ -1440,6 +1487,9 @@ START_HELP(pm)
 "                            {enhanced | noenhanced}",
 "                            {font <fontspec>}",
 "                            {nowidelines | widelines}",
+"                            {fontscale <scale>}",
+"                            {linewidth <scale>}",
+"                            {pointscale <scale>}",
 "                            {{title} \"title\"}",
 "",
 " If `persist` is specified, each graph appears in its own window and all",
@@ -1454,6 +1504,9 @@ START_HELP(pm)
 " (see `enhanced text` for details).  Font names for the core PostScript fonts",
 " may be abbreviated to a single letter ",
 " (T/H/C/S for Times/Helvetica/Courier/Symbol).",
+"",
+" `linewidth`, `fontscale`, `pointscale` can be used to scale the width of",
+" lines, the size of text, or the size of the point symbols.",
 "",
 " If `title` is specified, it will be used as the title of the plot window.",
 " It will also be used as the name of the server instance, and will override",

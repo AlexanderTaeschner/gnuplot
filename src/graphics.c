@@ -45,7 +45,6 @@
 #include "axis.h"
 #include "command.h"
 #include "misc.h"
-#include "gp_time.h"
 #include "gadgets.h"
 #include "jitter.h"
 #include "plot2d.h"		/* for boxwidth */
@@ -1393,8 +1392,10 @@ finish_filled_curve(
     if (filledcurves_options->oneside < 0 && side > 0)
 	return;
 
-    /* EAM Apr 2013 - Use new polygon clipping code */
-    clipcorners = gp_realloc( clipcorners, 2*points*sizeof(gpiPoint), "filledcurve verticess");
+    /* The polygon clipping code does not deal well with 1- or 2- vertex "polygons" */
+    if (points < 3)
+	return;
+    clipcorners = gp_realloc(clipcorners, 2*points*sizeof(gpiPoint), "filledcurve vertices");
     clip_polygon(corners, clipcorners, points, &clippoints);
     clipcorners->style = style_from_fill(&plot->fill_properties);
     if (clippoints > 0)
@@ -5141,7 +5142,8 @@ process_image(void *plot, t_procimg_action action)
 		if (corners_in_view > 0 || view_in_pixel) {
 
 		    int N_corners = 0;    /* Number of corners. */
-		    gpiPoint corners[5];  /* At most 5 corners. */
+		    gpiPoint corners[8];  /* At most 5 corners. */
+		    gpiPoint clipped[8];  /* used during clipping */
 
 		    corners[0].style = FS_DEFAULT;
 
@@ -5214,6 +5216,13 @@ process_image(void *plot, t_procimg_action action)
 			    alpha = 100;
 			if (term->flags & TERM_ALPHA_CHANNEL)
 			    corners[0].style = FS_TRANSPARENT_SOLID + (alpha<<4);
+		    }
+
+		    /* Clip to x/y in 2D projection */
+		    if (!project_points || splot_map) {
+			for (k=0; k<N_corners; k++)
+			    clipped[k] = corners[k];
+			clip_polygon(clipped, corners, N_corners, &N_corners);
 		    }
 
 		    if (rectangular_image && term->fillbox

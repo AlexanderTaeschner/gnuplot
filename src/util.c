@@ -868,7 +868,11 @@ gprintf_value(
 		    /* -18 -> 0, 0 -> 6, +18 -> 12, ... */
 		    /* HBB 20010121: avoid division of -ve ints! */
 		    power = (power + 24) / 3;
-		    snprintf(dest, remaining_space, temp, "yzafpnum kMGTPEZY"[power]);
+		    if (power == 8) { /* add no extra space */
+		        snprintf(dest, remaining_space, temp, '\0');
+		    } else {
+		        snprintf(dest, remaining_space, temp, "yzafpnum kMGTPEZY"[power]);
+		    }
 
 		    /* Replace u with micro character */
 		    if (use_micro && power == 6)

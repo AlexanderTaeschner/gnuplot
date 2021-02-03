@@ -39,6 +39,7 @@
 
 
 #include "gp_time.h"
+#include "eval.h"
 
 #include "util.h"
 #include "variable.h"
@@ -275,7 +276,7 @@ gstrptime(char *s, char *fmt, struct tm *tm, double *usec, double *reltime)
 		 * e.g.  -00:12:34
 		 */
 		if (*reltime == 0) {
-		    while (isspace(*s)) s++;
+		    while (isspace((unsigned char) *s)) s++;
 		    if (*s == '-')
 			leading_minus_sign = TRUE;
 		}
@@ -306,14 +307,14 @@ gstrptime(char *s, char *fmt, struct tm *tm, double *usec, double *reltime)
 
 	case 'a':		/* weekday name (ignored) */
 	case 'A':		/* weekday name (ignored) */
-	    while (isalpha(*s))
+	    while (isalpha((unsigned char) *s))
 		s++;
 	    break;
 	case 'w':		/* one or two digit weekday number (ignored) */
 	case 'W':		/* one or two digit week number (ignored) */
-	    if (isdigit(*s))
+	    if (isdigit((unsigned char) *s))
 		s++;
-	    if (isdigit(*s))
+	    if (isdigit((unsigned char) *s))
 		s++;
 	    break;
 
@@ -342,7 +343,7 @@ gstrptime(char *s, char *fmt, struct tm *tm, double *usec, double *reltime)
 	        break;
 	    }
 	case 'Z':		/* timezone name (ignored) */
-	    while (*s && !isspace(*s))
+	    while (*s && !isspace((unsigned char) *s))
 		s++;
 	    break;
 #endif
@@ -721,56 +722,24 @@ xstrftime(
 		    break;
 		}
 
-	    case 'W':		/* mon 1 day of week */
+	    case 'W':		/* Mon..Sun is day 0..6 */
+		/* CHANGE Jan 2021
+		 * Follow ISO 8601 standard week date convention.
+		 */
 		{
-		    int week;
-		    if (tm->tm_yday <= tm->tm_wday) {
-			week = 1;
-
-			if ((tm->tm_mday - tm->tm_yday) > 4) {
-			    week = 52;
-			}
-			if (tm->tm_yday == tm->tm_wday && tm->tm_wday == 0)
-			    week = 52;
-
-		    } else {
-
-			/* sun prev week */
-			int bw = tm->tm_yday - tm->tm_wday;
-
-			if (tm->tm_wday > 0)
-			    bw += 7;	/* sun end of week */
-
-			week = (int) bw / 7;
-
-			if ((bw % 7) > 2)	/* jan 1 is before friday */
-			    week++;
-		    }
-		    FORMAT_STRING(1, 2, week);	/* %02d */
-		    break;
+		int week = tmweek(fulltime, 0);
+		FORMAT_STRING(1, 2, week);	/* %02d */
+		break;
 		}
 
-	    case 'U':		/* sun 1 day of week */
+	    case 'U':		/* Sun..Sat is day 0..6 */
+		/* CHANGE Jan 2021
+		 * Follow CDC/MMWR "epi week" convention
+		 */
 		{
-		    int week, bw;
-
-		    if (tm->tm_yday <= tm->tm_wday) {
-			week = 1;
-			if ((tm->tm_mday - tm->tm_yday) > 4) {
-			    week = 52;
-			}
-		    } else {
-			/* sat prev week */
-			bw = tm->tm_yday - tm->tm_wday - 1;
-			if (tm->tm_wday >= 0)
-			    bw += 7;	/* sat end of week */
-			week = (int) bw / 7;
-			if ((bw % 7) > 1) {	/* jan 1 is before friday */
-			    week++;
-			}
-		    }
-		    FORMAT_STRING(1, 2, week);	/* %02d */
-		    break;
+		int week = tmweek(fulltime, 1);
+		FORMAT_STRING(1, 2, week);	/* %02d */
+		break;
 		}
 
 	    case 'w':		/* day of week, sun=0 */
@@ -910,5 +879,200 @@ ggmtime(struct tm *tm, double l_clock)
     FPRINTF((stderr, "broken-down time : %02d/%02d/%d:%02d:%02d:%02d\n", tm->tm_mday, tm->tm_mon + 1, tm->tm_year, tm->tm_hour, tm->tm_min, tm->tm_sec));
 
     return (0);
+}
+
+/*
+ * tmweek( time, standard )
+ * input:  time in seconds since epoch date 1-Jan-1970
+ * return: week of year in either
+ *      standard = 0  to use ISO 8601 standard week (Mon-Sun)
+ *      standard = 1  to use CDC/MMWR "epi week" (Sun-Sat)
+ * Notes:
+ *	The first week of the year is the week whose starts is closest
+ *	    to 1 January, even if that is in the previous calendar year.
+ *	Corollaries: Up to three days in Week 1 may be in previous year.
+ *	The last week of a year may extend into the next calendar year.
+ *	The highest week number in a year is either 52 or 53.
+ */
+int
+tmweek( double time, int standard )
+{
+    struct tm tm;
+    int wday, week;
+
+    /* Fill time structure from time since epoch in seconds */
+    ggmtime(&tm, time);
+
+    if (standard == 0)
+	/* ISO C tm->tm_wday uses 0 = Sunday but we want 0 = Monday */
+	wday = (6 + tm.tm_wday) % 7;
+    else
+	wday = tm.tm_wday;
+    week = (int)(10 + tm.tm_yday - wday ) / 7;
+
+    /* Up to three days in December may belong in week 1 of the next year. */
+    if (tm.tm_mon == 11) {
+	if ( (tm.tm_mday == 31 && wday < 3)
+	||   (tm.tm_mday == 30 && wday < 2)
+	||   (tm.tm_mday == 29 && wday < 1))
+	    week = 1;
+    }
+
+    /* Up to three days in January may be in the last week of the previous year.
+     * That might be either week 52 or week 53 depending on the leap year cycle.
+     */
+    if (week == 0) {
+	struct tm temp = tm;
+	int Jan01, Dec31;
+
+	/* Was either 1 Jan or 31 Dec of the previous year precisely midweek? */
+	temp.tm_year -= 1; temp.tm_mon = 0; temp.tm_mday = 1;
+	ggmtime( &temp, gtimegm(&temp) );
+	Jan01 = temp.tm_wday;
+	temp.tm_mon = 11; temp.tm_mday = 31;
+	ggmtime( &temp, gtimegm(&temp) );
+	Dec31 = temp.tm_wday;
+	if (standard == 0)
+	    week = (Jan01 == 4 || Dec31 == 4) ? 53 : 52;
+	else
+	    week = (Jan01 == 3 || Dec31 == 3) ? 53 : 52;
+    }
+
+    return week;
+}
+
+
+/*
+ * Convert from week date notation to standard time in seconds since epoch.
+ *   time = weekdate( year, week, standard )
+ *   year, week as given in "week date" format; may not be calendar year
+ *          e.g. ISO week date 2009-W01-2 corresponds to 30 Dec 2008
+ *   standard 0 - ISO 8601 week date (week starts on Monday)
+ *   standard 1 - CDC/MMRW epidemiological week (starts on Sunday)
+ */
+double
+weekdate( int year, int week, int day, int standard )
+{
+    struct tm time_tm;
+    double time;
+    int wday;
+
+    /* Sanity check input (but allow day = 0 to mean day 1) */
+    /* FIXME:  Is there a minimum year for ISO dates? */
+    if (week < 1 || week > 53 || day > 7 || day < 0)
+	int_error(NO_CARET, "invalid week date");
+    if (day == 0)
+	day = 1;
+
+    memset( &time_tm, 0, sizeof(struct tm) );
+
+    /* Find standard time and week date for 1 Jan in nominal year.
+     * This will let us determine the start date for the week date system.
+     */
+    time_tm.tm_year = year;
+    time_tm.tm_mday = 1;
+    time_tm.tm_mon = 0;
+    time = gtimegm(&time_tm);
+
+    /* Normalize (unlike mktime, gtimegm does not recalculation wday) */
+    ggmtime(&time_tm, time);
+
+    /* Add offset to nearest Sunday (ISO 8601) */
+    if (standard == 1)
+	wday = time_tm.tm_wday;
+    else
+	wday = (6 + time_tm.tm_wday) % 7;
+    if (wday < 4)
+	time -= wday * DAY_SEC;
+    else
+	time += (7-wday) * DAY_SEC;
+
+    /* Now add offsets to the week number we were given */
+    time += (week-1) * WEEK_SEC;
+    time += (day-1) * DAY_SEC;
+
+    return time;
+}
+
+/* User-visible functions for accessing fields from tm structure.
+ * They are all the same, so define a macro
+ */
+#define TIMEFUNC(name, field)					\
+void								\
+name(union argument *arg)					\
+{								\
+    struct value a;						\
+    struct tm tm;						\
+								\
+    (void) arg;			/* avoid -Wunused warning */	\
+    (void) pop(&a);						\
+    ggmtime(&tm, real(&a));					\
+    push(Gcomplex(&a, (double)tm.field, 0.0));			\
+}
+
+TIMEFUNC( f_tmsec, tm_sec)
+TIMEFUNC( f_tmmin, tm_min)
+TIMEFUNC( f_tmhour, tm_hour)
+TIMEFUNC( f_tmmday, tm_mday)
+TIMEFUNC( f_tmmon, tm_mon)
+TIMEFUNC( f_tmyear, tm_year)
+TIMEFUNC( f_tmwday, tm_wday)
+TIMEFUNC( f_tmyday, tm_yday)
+
+void								
+f_tmweek(union argument *arg)					
+{								
+    struct value a;						
+    int week;
+    int standard;
+								
+    (void) arg;			/* avoid -Wunused warning */	
+    if ((pop(&a)->type != INTGR) || (a.v.int_val < 0) || (a.v.int_val > 1))
+	int_error(NO_CARET, "syntax: tm_week(time, standard)");
+    standard = a.v.int_val;
+    week = tmweek(real(pop(&a)), standard);
+    push(Ginteger(&a, week));
+}
+
+/*
+ * time = weekdate_iso( year, week [, day] )
+ */
+void
+f_weekdate_iso(union argument *arg)
+{
+    struct value a;
+    int nparams;
+    int year, week, day;
+
+    (void) arg;			/* avoid -Wunused warning */	
+    nparams = real(pop(&a));
+    if (nparams == 3)
+	day = real(pop(&a));
+    else
+	day = 1;
+    week = real(pop(&a));
+    year = real(pop(&a));
+    push(Gcomplex(&a, weekdate(year, week, day, 0), 0.0));
+}
+
+/*
+ * time = weekdate_cdc( year, week [, day] )
+ */
+void
+f_weekdate_cdc(union argument *arg)
+{
+    struct value a;
+    int nparams;
+    int year, week, day;
+
+    (void) arg;			/* avoid -Wunused warning */	
+    nparams = real(pop(&a));
+    if (nparams == 3)
+	day = real(pop(&a));
+    else
+	day = 1;
+    week = real(pop(&a));
+    year = real(pop(&a));
+    push(Gcomplex(&a, weekdate(year, week, day, 1), 0.0));
 }
 
