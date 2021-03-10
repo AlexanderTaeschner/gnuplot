@@ -100,15 +100,17 @@ int paused_for_mouse = 0;
 #define PROMPT "gnuplot> "
 
 #ifdef OS2_IPC
-#  define INCL_DOSMEMMGR
-#  define INCL_DOSPROCESS
-#  define INCL_DOSSEMAPHORES
-#  include <os2.h>
-PVOID input_from_PM_Terminal = NULL;
-char mouseSharedMemName[40] = "";
-HEV semInputReady = 0;      /* semaphore to be created in plot.c */
-int thread_rl_Running = 0;  /* running status */
-int thread_rl_RetCode = -1; /* return code from readline in a thread */
+# define INCL_DOSMEMMGR
+# define INCL_DOSPROCESS
+# define INCL_DOSSEMAPHORES
+# include <os2.h>
+static char *input_line_SharedMem = NULL; /* pointer to the shared memory for mouse messages */
+static HEV semInputReady = 0;      /* mouse event semaphore */
+static HEV semPause = 0;           /* pause event semaphore */
+static TBOOLEAN thread_rl_Running = FALSE;  /* running status */
+static int thread_rl_RetCode = -1; /* return code from readline input thread */
+static int thread_pause_RetCode = -1; /* return code from pause input thread */
+static TBOOLEAN pause_internal;    /* flag to indicate not to use a dialog box */
 #endif /* OS2_IPC */
 
 #ifndef _WIN32
@@ -207,14 +209,6 @@ extend_input_line()
 	gp_input_line = gp_alloc(MAX_LINE_LEN, "gp_input_line");
 	gp_input_line_len = MAX_LINE_LEN;
 	gp_input_line[0] = NUL;
-
-#ifdef OS2_IPC
-	sprintf( mouseSharedMemName, "\\SHAREMEM\\GP%i_Mouse_Input", getpid() );
-	if (DosAllocSharedMem((PVOID) & input_from_PM_Terminal,
-		mouseSharedMemName, MAX_LINE_LEN, PAG_WRITE | PAG_COMMIT))
-	    fputs("command.c: DosAllocSharedMem ERROR\n",stderr);
-#endif /* OS2_IPC */
-
     } else {
 	gp_input_line = gp_realloc(gp_input_line, gp_input_line_len + MAX_LINE_LEN,
 				"extend input line");
@@ -246,12 +240,139 @@ extend_token_table()
 
 
 #ifdef OS2_IPC
-void thread_read_line()
+void
+thread_read_line(void *arg)
 {
-   thread_rl_Running = 1;
-   thread_rl_RetCode = ( read_line(PROMPT, 0) );
-   thread_rl_Running = 0;
-   DosPostEventSem(semInputReady);
+    (void) arg;
+    thread_rl_Running = TRUE;
+    thread_rl_RetCode = read_line(PROMPT, 0);
+    thread_rl_Running = FALSE;
+    DosPostEventSem(semInputReady);
+}
+
+void
+thread_pause(void *arg)
+{
+    int rc = 2;
+
+    if (!pause_internal)
+	rc = PM_pause(arg != NULL ? arg : "paused");
+    if (rc == 2) {
+	/* rc==2: no dialog, listen to stdin */
+	int junk;
+
+	if (arg != NULL) fputs(arg, stderr);
+	do {
+	    junk = fgetc(stdin);
+	} while (junk != EOF && junk != '\r' && junk != '\n');
+	thread_pause_RetCode = (junk == EOF) ? 0 : 1;
+    } if (rc == 3) {
+	/* dialog/menu active, wait for event semaphore */
+	ULONG u;
+	DosResetEventSem(semPause, &u);
+	DosWaitEventSem(semPause, SEM_INDEFINITE_WAIT);
+	/* now query result */
+	thread_pause_RetCode = PM_pause(NULL);
+    } else {
+	/* rc==1: OK; rc==0: cancel */
+	thread_pause_RetCode = rc;
+    }
+    DosPostEventSem(semInputReady);
+}
+
+
+void
+os2_ipc_setup(void)
+{
+    APIRET rc;
+    char name[40];
+
+    /* create input event semaphore */
+    sprintf(name, "\\SEM32\\GP%i_Input_Ready", getpid());
+    rc = DosCreateEventSem(name, &semInputReady, 0, 0);
+    if (rc != 0)
+	fputs("DosCreateEventSem error\n", stderr);
+
+    /* create pause event semaphore */
+    sprintf(name, "\\SEM32\\GP%i_Pause_Ready", getpid());
+    rc = DosCreateEventSem(name, &semPause, 0, 0);
+    if (rc != 0)
+	fputs("DosCreateEventSem error\n", stderr);
+
+    /* allocate shared memory */
+    sprintf(name, "\\SHAREMEM\\GP%i_Mouse_Input", getpid());
+    rc = DosAllocSharedMem((PPVOID) &input_line_SharedMem,
+		name, MAX_LINE_LEN,
+		PAG_READ | PAG_WRITE | PAG_COMMIT);
+    if (rc != 0)
+	fputs("DosAllocSharedMem ERROR\n", stderr);
+    else
+	*input_line_SharedMem = 0;
+}
+
+
+int
+os2_ipc_dispatch_event(void)
+{
+    if (input_line_SharedMem == NULL || !*input_line_SharedMem)
+	return 0;
+
+    if (*input_line_SharedMem == '%') {
+	struct gp_event_t ge;
+
+	/* copy event data immediately */
+	memcpy(&ge, input_line_SharedMem + 1, sizeof(ge));
+	*input_line_SharedMem = 0; /* discard the event data */
+	thread_rl_RetCode = 0;
+
+	/* process event */
+	do_event(&ge);
+
+	/* end pause mouse? */
+	if ((ge.type == GE_buttonrelease) && (paused_for_mouse & PAUSE_CLICK) &&
+	    (((ge.par1 == 1) && (paused_for_mouse & PAUSE_BUTTON1)) ||
+	     ((ge.par1 == 2) && (paused_for_mouse & PAUSE_BUTTON2)) ||
+	     ((ge.par1 == 3) && (paused_for_mouse & PAUSE_BUTTON3)))) {
+	    paused_for_mouse = 0;
+	}
+	if ((ge.type == GE_keypress) && (paused_for_mouse & PAUSE_KEYSTROKE) &&
+	    (ge.par1 != NUL)) {
+	    paused_for_mouse = 0;
+	}
+	return 0;
+    }
+    if (*input_line_SharedMem &&
+        strstr(input_line_SharedMem, "plot") != NULL &&
+        (strcmp(term->name, "pm") != 0 && strcmp(term->name, "x11") != 0)) {
+	/* avoid plotting if terminal is not PM or X11 */
+	fprintf(stderr, "\n\tCommand(s) ignored for other than PM and X11 terminals\a\n");
+	if (interactive)
+	    fputs(PROMPT, stderr);
+	*input_line_SharedMem = 0; /* discard the event data */
+	return 0;
+    }
+    strcpy(gp_input_line, input_line_SharedMem);
+    input_line_SharedMem[0] = 0;
+    thread_rl_RetCode = 0;
+    return 1;
+}
+
+
+int
+os2_ipc_waitforinput(int mode)
+{
+    ULONG u;
+
+    if (mode == TERM_ONLY_CHECK_MOUSING) {
+	if (semInputReady == 0)
+	    return 0;
+
+	if (DosWaitEventSem(semInputReady, SEM_IMMEDIATE_RETURN) == 0) {
+	    os2_ipc_dispatch_event();
+	    DosResetEventSem(semInputReady, &u);
+	}
+    }
+    return 0;
 }
 #endif /* OS2_IPC */
 
@@ -259,18 +380,6 @@ void thread_read_line()
 int
 com_line()
 {
-#ifdef OS2_IPC
-static char *input_line_SharedMem = NULL;
-
-    if (input_line_SharedMem == NULL) {  /* get shared mem only once */
-    if (DosGetNamedSharedMem((PVOID) &input_line_SharedMem,
-		mouseSharedMemName, PAG_WRITE | PAG_READ))
-	fputs("readline.c: DosGetNamedSharedMem ERROR\n", stderr);
-    else
-	*input_line_SharedMem = 0;
-    }
-#endif /* OS2_IPC */
-
     if (multiplot) {
 	/* calls int_error() if it is not happy */
 	term_check_multiplot_okay(interactive);
@@ -281,42 +390,25 @@ static char *input_line_SharedMem = NULL;
 
 #if defined(OS2_IPC) && defined(USE_MOUSE)
 	ULONG u;
-	if (thread_rl_Running == 0) {
-	    int res = _beginthread(thread_read_line,NULL,32768,NULL);
+
+	if (!thread_rl_Running) {
+	    int res = _beginthread(thread_read_line, NULL, 32768, NULL);
 	    if (res == -1)
-		fputs("error command.c could not begin thread\n",stderr);
+		fputs("error command.c could not begin thread\n", stderr);
 	}
 	/* wait until a line is read or gnupmdrv makes shared mem available */
-	DosWaitEventSem(semInputReady,SEM_INDEFINITE_WAIT);
-	DosResetEventSem(semInputReady,&u);
+	DosWaitEventSem(semInputReady, SEM_INDEFINITE_WAIT);
+	DosResetEventSem(semInputReady, &u);
 	if (thread_rl_Running) {
-	    if (input_line_SharedMem == NULL || !*input_line_SharedMem)
-		return (0);
-	    if (*input_line_SharedMem=='%') {
-		do_event( (struct gp_event_t*)(input_line_SharedMem+1) ); /* pass terminal's event */
-		input_line_SharedMem[0] = 0; /* discard the whole command line */
-		thread_rl_RetCode = 0;
-		return (0);
-	    }
-	    if (*input_line_SharedMem &&
-		strstr(input_line_SharedMem,"plot") != NULL &&
-		(strcmp(term->name,"pm") && strcmp(term->name,"x11"))) {
-		/* avoid plotting if terminal is not PM or X11 */
-		fprintf(stderr,"\n\tCommand(s) ignored for other than PM and X11 terminals\a\n");
-		if (interactive) fputs(PROMPT,stderr);
-		input_line_SharedMem[0] = 0; /* discard the whole command line */
-		return (0);
-	    }
-	    strcpy(gp_input_line, input_line_SharedMem);
-	    input_line_SharedMem[0] = 0;
-	    thread_rl_RetCode = 0;
+	    /* input thread still running, this must be a "mouse" event */
+	    if (os2_ipc_dispatch_event() == 0)
+		return 0;
 	}
 	if (thread_rl_RetCode)
-	    return (1);
-
+	    return 1;
 #else	/* The normal case */
 	if (read_line(PROMPT, 0))
-	    return (1);
+	    return 1;
 #endif	/* defined(OS2_IPC) && defined(USE_MOUSE) */
     }
 
@@ -1706,7 +1798,7 @@ timed_pause(double sleep_time)
 void
 pause_command()
 {
-    int text = 0;
+    TBOOLEAN text = FALSE;
     double sleep_time;
     static char *buf = NULL;
 
@@ -1768,29 +1860,24 @@ pause_command()
 
     if (END_OF_COMMAND) {
 	free(buf); /* remove the previous message */
-	buf = gp_strdup("paused"); /* default message, used in Windows GUI pause dialog */
+	buf = gp_strdup("paused"); /* default message, used in GUI pause dialog */
     } else {
 	char *tmp = try_to_get_string();
 	if (!tmp)
 	    int_error(c_token, "expecting string");
 	else {
+	    free(buf);
+	    buf = tmp;
 #ifdef _WIN32
-	    free(buf);
-	    buf = tmp;
-	    if (sleep_time >= 0) {
+	    if (sleep_time >= 0)
 		fputs(buf, stderr);
-	    }
 #elif defined(OS2)
-	    free(buf);
-	    buf = tmp;
 	    if (strcmp(term->name, "pm") != 0 || sleep_time >= 0)
 		fputs(buf, stderr);
 #else /* Not _WIN32 or OS2 */
-	    free(buf);
-	    buf = tmp;
 	    fputs(buf, stderr);
 #endif
-	    text = 1;
+	    text = TRUE;
 	}
     }
 
@@ -1802,7 +1889,7 @@ pause_command()
 	    int junk = 0;
 	    if (buf) {
 		/* Use of fprintf() triggers a bug in MinGW + SJIS encoding */
-		fputs(buf, stderr); fputs("\n", stderr);
+		fputs(buf, stderr); fputc('\n', stderr);
 	    }
 	    /* cannot use EAT_INPUT_WITH here */
 	    do {
@@ -1817,22 +1904,47 @@ pause_command()
 		bail_to_command_line();
 	}
 #elif defined(OS2) && defined(USE_MOUSE)
-	if (isatty(fileno(stdin)) && strcmp(term->name, "pm") == 0) {
-	    int rc = PM_pause(buf);
-	    if (rc == 0) {
-		/* if (!CallFromRexx)
-		 * would help to stop REXX programs w/o raising an error message
-		 * in RexxInterface() ...
-		 */
-		bail_to_command_line();
-	    } else if (rc == 2) {
-		fputs(buf, stderr);
-		text = 1;
-		EAT_INPUT_WITH(fgetc(stdin));
+	if ((strcmp(term->name, "pm") == 0) || (strcmp(term->name, "x11") == 0)) {
+	    ULONG u;
+
+	    if (paused_for_mouse &&
+		/* only pause for mouse if window is actually open */
+		((strcmp(term->name, "pm") != 0) || PM_is_connected())) {
+		/* Only print a message if there is one given on the command line. */
+		if (text) fputs(buf, stderr);
+		while (paused_for_mouse) {
+		    /* wait for mouse event */
+		    DosWaitEventSem(semInputReady, SEM_INDEFINITE_WAIT);
+		    DosResetEventSem(semInputReady, &u);
+		    os2_ipc_dispatch_event();
+		}
+		if (text) fputc('\n', stderr);
+	    } else {
+		/* If input is redirected or if the x11 terminal is active,
+		   we don't use a dialog/menu for pausing. */
+		pause_internal = !isatty(fileno(stdin)) || (strcmp(term->name, "x11") == 0);
+		thread_pause_RetCode =  -1;
+		_beginthread(thread_pause, NULL, 32768, text ? buf : NULL);
+		do {
+		    /* wait until pause is done or gnupmdrv makes shared mem available */
+		    DosWaitEventSem(semInputReady, SEM_INDEFINITE_WAIT);
+		    DosResetEventSem(semInputReady, &u);
+		    if (thread_pause_RetCode < 0)
+			os2_ipc_dispatch_event();
+		} while (thread_pause_RetCode < 0);
+		if (!isatty(fileno(stdin)) && text)
+		    fputc('\n', stderr);
+		if (thread_pause_RetCode == 0) {
+		    /* if (!CallFromRexx)
+		     * would help to stop REXX programs w/o raising an error message
+		     * in RexxInterface() ...
+		     */
+		    bail_to_command_line();
+		}
 	    }
 	} else {
-	    if (strcmp(term->name, "pm") == 0)
-		fputs(buf, stderr);
+	    /* NOT x11 or pm terminal, so need to handle mouse events,
+	       just wait for input */
 	    EAT_INPUT_WITH(fgetc(stdin));
 	    fputc('\n', stderr);
 	}
@@ -1870,7 +1982,7 @@ pause_command()
     if (sleep_time > 0)
 	timed_pause(sleep_time);
 
-    if (text != 0 && sleep_time >= 0)
+    if (text && sleep_time >= 0)
 	fputc('\n', stderr);
     screen_ok = FALSE;
 

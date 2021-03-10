@@ -93,6 +93,7 @@
 #define INCL_DOSQUEUES
 #define INCL_WINSWITCHLIST
 #define INCL_GPIPRIMITIVES
+#define INCL_GPILCIDS
 #include <os2.h>
 /* Warning: the OS/2 headers already define LT_DEFAULT
             which conflicts with our definition. */
@@ -121,12 +122,12 @@
 
 /*==== m i s c e l l a n e o u s =============================================*/
 
-/* February 2008, according to the gnuplot bugs report #1773922
+/* Bug report #570  (Feb. 2008)
    The standard font selection dialog is somehow broken after saving options.
-   Use the font palette dialog instead.
+   (Feb. 2021) For newer OS/2 versions, this seems no longer be the case, but
+   you can still use the font palette dialog instead.
 */
-/* #define STANDARD_FONT_DIALOG 1 */
-#undef STANDARD_FONT_DIALOG
+#define STANDARD_FONT_DIALOG 1
 
 /*==== d e b u g g i n g =====================================================*/
 
@@ -143,6 +144,7 @@ BOOL    LoadExceptq(EXCEPTIONREGISTRATIONRECORD* pExRegRec,
 #define DEBUG_COLOR(a) // PmPrintf a
 #define DEBUG_FONT(a) // PmPrintf a
 #define DEBUG_LINES(a) // PmPrintf a
+#define DEBUG_LAYER(a) // PmPrintf a
 #define TEXT_DEBUG(x) // PmPrintf x
 
 /*==== l o c a l    d a t a ==================================================*/
@@ -233,9 +235,12 @@ static const  char  *SetDataStyles[] = {
 
 static ULONG    ulShellPos[4];
 static PAUSEDATA pausedata = {sizeof(PAUSEDATA), NULL, NULL};
+static char     szInitialFontNameSize[FONTBUF] = INITIAL_FONT;
+static int      iInitialFontSize;
+static char     *szInitialFontName;
 static char     szFontNameSize[FONTBUF];	/* default name and size, format: "10.Helvetica" */
 static char	szCurrentFontNameSize[FONTBUF];	/* currently selected font */
-static unsigned fontscale = 1;
+static unsigned fontscale = 100;	/* scaling factor for font size in percent */
 static PRQINFO3 infPrinter = { "" };
 static QPRINT   qPrintData = {
     sizeof(QPRINT), 0.0, 0.0, 1.0, 1.0, 0,
@@ -246,6 +251,7 @@ static HEV      semPause;
 static HMTX     semHpsAccess;
 static ULONG    ulPauseReply = 1;
 static ULONG    ulPauseMode  = PAUSE_DLG;
+static ULONG    ulPauseItem  = IDM_PAUSEDLG;
 
 static HWND     hSysMenu;
 
@@ -328,11 +334,23 @@ static SIZEF sizBaseFont;
 static struct _ft {
     char *name;
     int   codepage;
+    BOOL  bold;
+    BOOL  italic;
     LONG  lcid;
 } tabFont[256] = {
-    {NULL,0L},
+    {NULL, 0, FALSE, FALSE, 0L},
     {NULL}
 };
+
+typedef struct _plotlist {
+    int no;	   // plot number
+    unsigned plot; // segment number of plot
+    unsigned plot1; // segment number of plot
+    unsigned key;  // segment number of key
+    unsigned key1;  // segment number of key
+    struct _plotlist *next;
+} plotlist;
+static plotlist * plots = NULL;
 
 typedef struct image_list_entry {
     PBITMAPINFO2 pbmi;
@@ -360,7 +378,7 @@ static void     ReadGnu(void*);
 static void     SetFillStyle(HPS hps, int style);
 static HPS      InitScreenPS(void);
 static APIRET   BufRead(HFILE, void*, int, PULONG);
-static int      GetNewFont(HWND, HPS);
+static BOOL     GetNewFont(HWND, HPS);
 void            SigHandler(int);
 static void     FontExpand(char *);
 #ifdef PM_KEEP_OLD_ENHANCED_TEXT
@@ -377,12 +395,14 @@ static void     TextToClipboard(PCSZ);
 static void     GetMousePosViewport(HWND hWnd, int *mx, int *my);
 static void     MousePosToViewport(int *x, int *y, SHORT mx, SHORT my);
 static void     gpPMmenu_update(void);
-static void     DisplayStatusLine(HPS hps);
-static void     UpdateStatusLine(HPS hps, char *text);
+static void     ResetStatusLineText(void);
+static void     DisplayStatusLine();
+static void     UpdateStatusLine(char *text);
 static void     DrawMouseText(HPS hps, PPOINTL pt, char * text, LONG len);
 static void     DrawZoomBox(void);
 static void     DrawRuler(void);
 static void     DrawRulerLineTo(void);
+static BOOL     modify_segment(HPS hps, unsigned seg, unsigned op);
 
 #define IGNORE_MOUSE (!mouseTerminal || !useMouse || lock_mouse)
 /*  don't react to mouse in the event handler, and avoid some crashes */
@@ -396,6 +416,31 @@ struct drop {
 
 
 /*==== c o d e ===============================================================*/
+
+/* Our own versions of strlcpy and strlcat, required only for EMX. */
+#ifndef __KLIBC__
+#undef strlcpy
+static size_t
+strlcpy(char *dst, const char *src, size_t size)
+{
+    size_t len = strlen(src);
+    if (size > 0) {
+	strncpy(dst, src, size);
+	if (len >= size)
+	    dst[size - 1] = NUL;
+    }
+    return len;
+}
+
+#undef strlcat
+size_t
+strlcat(char *dst, const char *src, size_t size)
+{
+    size_t len = strlen(dst);
+    return strlcpy(dst + len, src, size - len) + len;
+}
+#endif
+
 
 /* An object is being dragged over the client window.  Check whether
    it can be dropped or not. */
@@ -564,6 +609,9 @@ EXPENTRY DisplayClientWndProc(HWND hWnd, ULONG message, MPARAM mp1, MPARAM mp2)
     if (gpPMmenu_update_req)
 	gpPMmenu_update();
 
+    /* Update the status line */
+    DisplayStatusLine();
+
     /* mouse events first */
     switch (message) {
     case WM_MOUSEMOVE:
@@ -571,6 +619,9 @@ EXPENTRY DisplayClientWndProc(HWND hWnd, ULONG message, MPARAM mp1, MPARAM mp2)
 	    WinSetPointer(HWND_DESKTOP, hptrDefault); /* set default pointer */
 	    return 0L;
 	}
+	/* check for valid mouse parameters */
+	if ((mx <= 0) && (my <= 0))
+	    return 0L;
 	/* was the mouse moved? */
 	if ((prev_mx != mx) || (prev_my != my)) {
 	    WinSetPointer(HWND_DESKTOP, hptrCurrent);
@@ -592,10 +643,40 @@ EXPENTRY DisplayClientWndProc(HWND hWnd, ULONG message, MPARAM mp1, MPARAM mp2)
 	return 0L; /* end of WM_MOUSEMOVE */
 
     case WM_BUTTON1DOWN:
+    {
+	BOOL     fSuccess;
+	POINTL   pt;
+	SIZEL    size = {100L, 100L}; /* size of pick aperture */
+	LONG     alSegTag[2];
+
 	WinSetFocus(HWND_DESKTOP, hWnd);
-	if (! IGNORE_MOUSE)
-	    gp_exec_event(GE_buttonpress, mx, my, 1, 0, 0);
+	// check if we are clicking on a key entry
+	pt.x = mx;
+	pt.y = my;
+	fSuccess = GpiSetPickAperturePosition(hpsScreen, &pt);
+	/* set aperture size (use default) */
+	//fSuccess = GpiSetPickApertureSize(hpsScreen, PICKAP_DEFAULT, &size);
+	fSuccess = GpiSetPickApertureSize(hpsScreen, PICKAP_REC, &size);
+	if (GpiCorrelateChain(hpsScreen, PICKSEL_VISIBLE, &pt,
+				1, 1, alSegTag) > 0) {
+	    DEBUG_LAYER(("Click correlation: tag=%li", alSegTag[0]));
+	    plotlist * plot = plots;
+	    while (plot != NULL) {
+		if (plot->key == alSegTag[0] || plot->key1 == alSegTag[0]) {
+		    modify_segment(hpsScreen, plot->plot, MODPLOTS_INVERT_VISIBILITIES);
+		    modify_segment(hpsScreen, plot->plot1, MODPLOTS_INVERT_VISIBILITIES);
+		    break;
+		}
+		plot = plot->next;
+	    }
+	    // enforce a redraw
+	    WinInvalidateRect(hWnd, NULL, TRUE);
+	} else {
+	    if (!IGNORE_MOUSE)
+		gp_exec_event(GE_buttonpress, mx, my, 1, 0, 0);
+	}
 	return 0L;
+    }
 
     case WM_BUTTON2DOWN:
 	WinSetFocus(HWND_DESKTOP, hWnd);
@@ -651,27 +732,30 @@ EXPENTRY DisplayClientWndProc(HWND hWnd, ULONG message, MPARAM mp1, MPARAM mp2)
 	LONG    PalSupport;
 
 	/* set initial values */
-	ChangeCheck(hWnd, IDM_LINES_THICK, bWideLines?IDM_LINES_THICK:0);
-	ChangeCheck(hWnd, IDM_COLOURS, bColours?IDM_COLOURS:0);
-	ChangeCheck(hWnd, IDM_FRONT, bPopFront?IDM_FRONT:0);
-	ChangeCheck(hWnd, IDM_KEEPRATIO, bKeepRatio?IDM_KEEPRATIO:0);
-	ChangeCheck(hWnd, IDM_USEMOUSE, useMouse?IDM_USEMOUSE:0);
+	ChangeCheck(hWnd, IDM_LINES_THICK, bWideLines ? IDM_LINES_THICK : 0);
+	ChangeCheck(hWnd, IDM_COLOURS, bColours ? IDM_COLOURS : 0);
+	ChangeCheck(hWnd, IDM_FRONT, bPopFront ? IDM_FRONT : 0);
+	ChangeCheck(hWnd, IDM_KEEPRATIO, bKeepRatio ? IDM_KEEPRATIO : 0);
+	ChangeCheck(hWnd, IDM_USEMOUSE, useMouse? IDM_USEMOUSE : 0);
 #if 0
 	ChangeCheck(hWnd, IDM_MOUSE_POLAR_DISTANCE, mousePolarDistance?IDM_MOUSE_POLAR_DISTANCE:0);
 #endif
 	switch (ulPauseMode) {
 	case PAUSE_DLG:
-	    ChangeCheck(hWnd, IDM_PAUSEDLG, IDM_PAUSEDLG);
+	    ChangeCheck(hWnd, ulPauseItem, IDM_PAUSEDLG);
+	    ulPauseItem = IDM_PAUSEDLG;
 	    break;
 	case PAUSE_BTN:
-	    ChangeCheck(hWnd, IDM_PAUSEDLG, IDM_PAUSEBTN);
+	    ChangeCheck(hWnd, ulPauseItem, IDM_PAUSEBTN);
+	    ulPauseItem = IDM_PAUSEBTN;
 	    break;
 	case PAUSE_GNU:
-	    ChangeCheck(hWnd, IDM_PAUSEDLG, IDM_PAUSEGNU);
+	    ChangeCheck(hWnd, ulPauseItem, IDM_PAUSEGNU);
+	    ulPauseItem = IDM_PAUSEGNU;
 	    break;
 	}
 
-	/* disable close from system menu(close only from gnuplot) */
+	/* disable close from system menu (close only from gnuplot) */
 	hApp = WinQueryWindow(hWnd, QW_PARENT); /* temporary assignment.. */
 	hSysMenu = WinWindowFromID(hApp, FID_SYSMENU);
 
@@ -970,8 +1054,8 @@ EXPENTRY DisplayClientWndProc(HWND hWnd, ULONG message, MPARAM mp1, MPARAM mp2)
 			      FONTBUF,
 			      pp,
 			      QPF_NOINHERIT) != 0L) {
-	    strcpy(szFontNameSize, pp);
-	    DEBUG_FONT(("WM_PRESPARAMCHANGED: %s", szFontNameSize));
+	    strlcpy(szFontNameSize, pp, FONTBUF);
+	    DEBUG_FONT(("WM_PRESPARAMCHANGED: \"%s\"", szFontNameSize));
 	    WinInvalidateRect(hWnd, NULL, TRUE);
 	}
 	free(pp);
@@ -1039,6 +1123,18 @@ EXPENTRY DisplayClientWndProc(HWND hWnd, ULONG message, MPARAM mp1, MPARAM mp2)
 	/* resume plotting */
 	ulPauseReply = (ULONG) mp1;
 	DosPostEventSem(semPause);
+	/* notify gnuplot about end of pause */
+	{
+	    static HEV semGPPause = 0;
+	    ULONG rc;
+
+	    if (semGPPause == 0) {
+		char name[40];
+		sprintf(name, "\\SEM32\\GP%i_Pause_Ready", (int) ppidGnu);
+		rc = DosOpenEventSem(name, &semGPPause);
+	    }
+	    rc = DosPostEventSem(semGPPause);
+	}
 	return 0L;
 
     case DM_DRAGOVER:
@@ -1080,7 +1176,6 @@ SetMouseCoords(HWND hWnd, MPARAM mp1, int n, char *f)
 MRESULT
 WmClientCmdProc(HWND hWnd, ULONG message, MPARAM mp1, MPARAM mp2)
 {
-    static int ulPauseItem = IDM_PAUSEDLG;
     int mx, my;
 
     GetMousePosViewport(hWnd, &mx, &my);
@@ -1353,7 +1448,7 @@ WmClientCmdProc(HWND hWnd, ULONG message, MPARAM mp1, MPARAM mp2)
     case IDM_DO_SENDCOMMAND:
 	if (input_from_PM_Terminal) {
 	    if (pausing)
-		DosBeep(440,111);
+		DosBeep(440, 111);
 	    else
 		WinDlgBox(HWND_DESKTOP, hWnd, SendCommandDlgProc,
 			  NULLHANDLE, IDM_DO_SENDCOMMAND,
@@ -1576,6 +1671,14 @@ QueryIni(HAB hab)
                           (long) sizeof(qPrintData.szPrinterName));
     PrfQueryProfileString(hini, APP_NAME, INIFONT, INITIAL_FONT,
 			  szFontNameSize, FONTBUF);
+    // save for later use
+    strcpy(szInitialFontNameSize, szFontNameSize);
+    szInitialFontName = strchr(szInitialFontNameSize, '.') + 1;
+    if (*szInitialFontName == NUL) {
+	strlcat(szInitialFontNameSize,
+	        strchr(INITIAL_FONT, '.') + 1, FONTBUF);
+    }
+    iInitialFontSize = atoi(szInitialFontNameSize);
     ulCB = sizeof(ulOpts);
     bData = PrfQueryProfileData(hini, APP_NAME, INICHAR, &ulOpts, &ulCB);
     if (bData) {
@@ -1587,16 +1690,7 @@ QueryIni(HAB hab)
     }
     ulCB = sizeof(bKeepRatio);
     bData = PrfQueryProfileData(hini, APP_NAME, INIKEEPRATIO, &ulOpts, &ulCB);
-    if (bData) bKeepRatio =(BOOL)ulOpts[0];
-
-    /* Mousing: */
-    /* ignore reading mouse cursor(real, relative or pixels).
-       Reason/bug: it does not switch the check mark in the menu, even
-       though it works as expected.
-       ulCB = sizeof(mouse_mode);
-       bData = PrfQueryProfileData(hini, APP_NAME, INIMOUSECOORD, &ulOpts, &ulCB);
-       if (bData) mouse_mode =(ULONG)ulOpts[0];
-    */
+    if (bData) bKeepRatio = (BOOL)ulOpts[0];
 
     PrfCloseProfile(hini);
 
@@ -1631,45 +1725,58 @@ SaveIni(HWND hWnd)
     hab = WinQueryAnchorBlock(hWnd);
     hini = PrfOpenProfile(hab, szIniFile);
     if (hini != NULLHANDLE) {
-        WinQueryWindowPos(hwndFrame, &swp);
-        ulPlotPos[0] = swp.x;
-        ulPlotPos[1] = swp.y;
-        ulPlotPos[2] = swp.cx;
-        ulPlotPos[3] = swp.cy;
-        PrfWriteProfileData(hini, APP_NAME, INISHELLPOS, &ulPlotPos,
+	/* windows position */
+	WinQueryWindowPos(hwndFrame, &swp);
+	ulPlotPos[0] = swp.x;
+	ulPlotPos[1] = swp.y;
+	ulPlotPos[2] = swp.cx;
+	ulPlotPos[3] = swp.cy;
+	PrfWriteProfileData(hini, APP_NAME, INISHELLPOS, &ulPlotPos,
 			    sizeof(ulPlotPos));
-        if (pausedata.pswp != NULL)
-            PrfWriteProfileData(hini, APP_NAME, INIPAUSEPOS,
+
+	/* position of pause dialog */
+	if (pausedata.pswp != NULL)
+	    PrfWriteProfileData(hini, APP_NAME, INIPAUSEPOS,
 				pausedata.pswp, sizeof(SWP));
-        ulOpts[0] = (ULONG)TRUE;
-        ulOpts[1] = (ULONG)bWideLines;
-        ulOpts[2] = (ULONG)bColours;
-        ulOpts[3] = ulPauseMode;
-        ulOpts[4] = (ULONG)bPopFront;
-        PrfWriteProfileData(hini, APP_NAME, INIOPTS, &ulOpts, sizeof(ulOpts));
-        PrfWriteProfileData(hini, APP_NAME, INIFRAC, &qPrintData.xsize,
+
+	/* options */
+	ulOpts[0] = (ULONG)TRUE;
+	ulOpts[1] = (ULONG)bWideLines;
+	ulOpts[2] = (ULONG)bColours;
+	ulOpts[3] = ulPauseMode;
+	ulOpts[4] = (ULONG)bPopFront;
+	PrfWriteProfileData(hini, APP_NAME, INIOPTS, &ulOpts, sizeof(ulOpts));
+
+	/* printer data */
+	PrfWriteProfileData(hini, APP_NAME, INIFRAC, &qPrintData.xsize,
 			    4 * sizeof(float));
-        if (qPrintData.pdriv != NULL)
-            PrfWriteProfileData(hini, APP_NAME, INIPRDRIV, qPrintData.pdriv,
-				qPrintData.cbpdriv);
+	if (qPrintData.pdriv != NULL)
+	    PrfWriteProfileData(hini, APP_NAME, INIPRDRIV, qPrintData.pdriv,
+	                        qPrintData.cbpdriv);
         PrfWriteProfileString(hini, APP_NAME, INIPRPR,
-			      qPrintData.szPrinterName[0] == '\0'? NULL:
-			      qPrintData.szPrinterName);
-        PrfWriteProfileString(hini, APP_NAME, INIFONT, szFontNameSize);
-        ulOpts[0] =(ULONG)lCharWidth;
-        ulOpts[1] =(ULONG)lCharHeight;
-        PrfWriteProfileData(hini, APP_NAME, INICHAR, &ulOpts, sizeof(ulOpts));
+	                      qPrintData.szPrinterName[0] == '\0'? NULL:
+	                      qPrintData.szPrinterName);
+
+	/* default font name */
+	{
+	    char szFontName[FONTBUF];
+
+	    /* make sure the default font includes a font name */
+	    strlcpy(szFontName, szFontNameSize, FONTBUF);
+	    if (szFontName[strlen(szFontName) - 1] == '.')
+		strlcat(szFontName, szInitialFontName, FONTBUF);
+	    PrfWriteProfileString(hini, APP_NAME, INIFONT, szFontName);
+	}
+	ulOpts[0] =(ULONG)lCharWidth;
+	ulOpts[1] =(ULONG)lCharHeight;
+	PrfWriteProfileData(hini, APP_NAME, INICHAR, &ulOpts, sizeof(ulOpts));
+
 	PrfWriteProfileData(hini, APP_NAME, INIKEEPRATIO, &bKeepRatio,
 			    sizeof(bKeepRatio));
 
-	/* Mouse stuff */
-	/* Do not write the mouse coord. mode.
-	   PrfWriteProfileData(hini, APP_NAME, INIMOUSECOORD, &mouse_mode, sizeof(mouse_mode));
-	*/
 	PrfCloseProfile(hini);
     } else {
-        WinMessageBox(HWND_DESKTOP,
-		      HWND_DESKTOP,
+	WinMessageBox(HWND_DESKTOP, HWND_DESKTOP,
 		      "Can't write ini file",
 		      APP_NAME,
 		      0,
@@ -1726,7 +1833,7 @@ ThreadDraw(void* arg)
     GpiDrawChain(hpsScreen);
     DrawRuler();
     DrawRulerLineTo();
-    DisplayStatusLine(hpsScreen);
+    DisplayStatusLine();
     WinEndPaint(hpsScreen);
     DosReleaseMutexSem(semHpsAccess);
     WinTerminate(hab);
@@ -1827,24 +1934,60 @@ ScalePS(HPS hps)
 
 
 /*
-**  Select a named and sized outline font
+**  Select the default outline font.
+**  The format of szFontNameSize is "<size>.<face name>{:Bold}{:Italic}".
+**  <face name> may be empty.
 */
 void
 SelectFont(HPS hps, char *szFontNameSize)
 {
     HDC    hdc;
-    FATTRS fat;
+    static FATTRS  fat;  // docs say that it may not be on the stack...
+    FONTMETRICS fm;
     LONG   xDeviceRes, yDeviceRes;
     POINTL ptlFont;
     SIZEF  sizfx;
-    static LONG lcid = 0L;
-    static char *szFontName;
-    static short shPointSize;
-    char *p;
+    LONG   lcid = 0L;
+    char   szFontName[FONTBUF];
+    short  shPointSize;
+    char  *p, *q;
+    BOOL   bBold, bItalic;
+    POINTL aptl[TXTBOX_COUNT];
+    GRADIENTL grdlold, grdl = {1, 0};
 
-    sscanf(szFontNameSize, "%hd", &shPointSize);
-    shPointSize = shPointSize * fontscale / 100.;
-    szFontName = strchr(szFontNameSize, '.') + 1;
+    DEBUG_FONT(("SelectFont: %s", szFontNameSize));
+
+    shPointSize = (atoi(szFontNameSize) * fontscale) / 100;
+    p = strchr(szFontNameSize, '.');
+    szFontName[0] = NUL;
+    if (p != NULL) {
+	p++;
+	if (*p == NUL) {
+	    // no font name, no attributes
+	    strlcpy(szFontName, szInitialFontName, FONTBUF);
+	} else if (*p == ':') {
+	    // just attributes, but no font name
+	    strlcpy(szFontName, szInitialFontName, FONTBUF);
+	    // append attributes
+	    strlcat(szFontName, p, FONTBUF);
+	} else {
+	    // font name provided
+	    strlcpy(szFontName, p, FONTBUF);
+	}
+    }
+    DEBUG_FONT(("SelectFont: fontname \"%s\"", szFontName));
+
+    // strip off attributes to obtain font family name
+    p = strstr(szFontName, " Bold");
+    if (p == NULL)
+	p = strstr(szFontName, ":Bold");
+    bBold = (p != NULL);
+    q = strstr(szFontName, " Italic");
+    if (q == NULL)
+	q = strstr(szFontName, ":Italic");
+    bItalic = (q != NULL);
+    if (bBold) *p = NUL;
+    if (bItalic) *q = NUL;
 
     fat.usRecordLength  = sizeof(fat);
     fat.fsSelection     = 0;
@@ -1857,23 +2000,37 @@ SelectFont(HPS hps, char *szFontNameSize)
     fat.fsFontUse       = FATTR_FONTUSE_OUTLINE |
 	FATTR_FONTUSE_TRANSFORMABLE;
 
-    strlcpy(fat.szFacename, szFontName, FACESIZE);
-    p = strchr(fat.szFacename, ':');
-    if (p != NULL) *p = NUL;
-    if (fat.szFacename[0] == NUL) {
-	p = strchr(szFontNameSize, '.');
-	if (p != NULL)
-	    strlcpy(fat.szFacename, p + 1, FACESIZE);
+    if (bBold || bItalic) {
+	// obtain face name using an OS/2 API
+	FACENAMEDESC pfndFaceAttrs;
+	ULONG len;
+
+	/* initialize face name description structure for
+	   weight class, normal width, and italics */
+	pfndFaceAttrs.usSize = sizeof(FACENAMEDESC);
+	pfndFaceAttrs.usWeightClass = bBold ? FWEIGHT_BOLD : 0;
+	pfndFaceAttrs.usWidthClass = FWIDTH_NORMAL;
+	pfndFaceAttrs.usReserved = 0;
+	pfndFaceAttrs.flOptions = bItalic ? FTYPE_ITALIC : 0;
+
+	len = GpiQueryFaceString(hps, szFontName, &pfndFaceAttrs,
+	                         FACESIZE, fat.szFacename);
+	if (strcmp(szFontName, fat.szFacename) == 0) {
+	    DEBUG_FONT(("SelectFont: simulate %s %s font",
+	                bBold ? "bold":"", bItalic ? "italic":""));
+	    // there is no bold or italic variant of the font: simulate
+	    fat.fsSelection = (bBold ? FATTR_SEL_BOLD : 0) | (bItalic ? FATTR_SEL_ITALIC : 0);
+	}
+    } else {
+	strlcpy(fat.szFacename, szFontName, FACESIZE);
     }
-    if (strstr(szFontName, ":Bold"))
-	fat.fsSelection |= FATTR_SEL_BOLD;
-    if (strstr(szFontName, ":Italic"))
-	fat.fsSelection |= FATTR_SEL_ITALIC;
 
     if (tabFont[0].name != NULL)
 	free(tabFont[0].name);
     tabFont[0].name = strdup(szFontName);
     tabFont[0].codepage = codepage;
+    tabFont[0].bold = bBold;
+    tabFont[0].italic = bItalic;
     tabFont[0].lcid = 10L;
 
     lcid = GpiQueryCharSet(hps);
@@ -1899,47 +2056,50 @@ SelectFont(HPS hps, char *szFontNameSize)
     sizfx.cx = MAKEFIXED(ptlFont.x, 0);
     sizfx.cy = MAKEFIXED(ptlFont.y, 0);
     lVOffset = ptlFont.y;
-
     sizBaseFont = sizfx;
     GpiSetCharBox(hps, &sizfx);
 
     /* set up some useful globals */
-    {
-	FONTMETRICS fm;
+    GpiQueryFontMetrics(hps, sizeof(FONTMETRICS), &fm);
+    lBaseSubOffset = -fm.lSubscriptYOffset;
+    lBaseSupOffset = fm.lSuperscriptYOffset;
+    lSubOffset = lBaseSubOffset;
+    lSupOffset = lBaseSupOffset;
+    lCharHeight = fm.lMaxAscender * 1.2;
+    lCharWidth  = fm.lAveCharWidth;
+    sizBaseSubSup.cx = MAKEFIXED(ptlFont.x * 0.7, 0);
+    sizBaseSubSup.cy = MAKEFIXED(ptlFont.y * 0.7, 0);
 
-	GpiQueryFontMetrics(hps, sizeof(FONTMETRICS), &fm);
-	lBaseSubOffset = -fm.lSubscriptYOffset;
-	lBaseSupOffset = fm.lSuperscriptYOffset;
-	lSubOffset = lBaseSubOffset;
-	lSupOffset = lBaseSupOffset;
-	lCharHeight = fm.lMaxAscender * 1.2;
-	lCharWidth  = fm.lAveCharWidth;
-	sizBaseSubSup.cx = MAKEFIXED(ptlFont.x * 0.7, 0);
-	sizBaseSubSup.cy = MAKEFIXED(ptlFont.y * 0.7, 0);
-    }
+    /* Use average width of digits instead of info from font metrics */
+    GpiQueryCharAngle(hps, &grdlold);
+    GpiSetCharAngle(hps, &grdl);
+    GpiQueryTextBox(hps, 10, "0123456789", TXTBOX_COUNT, aptl);
+    GpiSetCharAngle(hps, &grdlold);
+    lCharWidth = aptl[TXTBOX_CONCAT].x / 10;
+
     sizCurFont = sizBaseFont;
     sizCurSubSup = sizBaseSubSup;
 
-    strcpy(szCurrentFontNameSize, szFontNameSize);
+    strlcpy(szCurrentFontNameSize, szFontNameSize, FONTBUF);
 }
 
 
 /*
-**  Select a named and sized outline(adobe) font
+**  Select a named and sized outline font.
+**  The format of szFNS is "<point size>.<face name>{:Bold}{:Italic}"
+**  or NULL for the default font.  <face name> may be empty.
 */
-void
+static void
 SwapFont(HPS hps, char *szFNS)
 {
     HDC    hdc;
-    FATTRS  fat;
+    static FATTRS fat;  // docs say that it may not be on the stack...
     LONG   xDeviceRes, yDeviceRes;
     POINTL ptlFont;
-    static LONG lcid = 0L;
+    LONG   lcid = 0L;
     static int itab = 1;
-    static char *szFontName;
-    static short shPointSize;
 
-    if (szFNS == NULL) {    /* restore base font */
+    if (szFNS == NULL || szFNS[0] == NUL) {    /* restore base font */
 	sizCurFont = sizBaseFont;
 	sizCurSubSup = sizBaseSubSup;
 	lSubOffset = lBaseSubOffset;
@@ -1947,25 +2107,75 @@ SwapFont(HPS hps, char *szFNS)
 	GpiSetCharSet(hps, 10);
 	GpiSetCharBox(hps, &sizBaseFont);
     } else {
-	int i;
+	char   szFontName[FONTBUF];
+	short  shPointSize;
+	FONTMETRICS fm;
+	int    i;
+	char  *p, *q;
+	BOOL   bBold, bItalic;
+	POINTL aptl[TXTBOX_COUNT];
+	GRADIENTL grdlold, grdl = {1, 0};
 
-	sscanf(szFNS, "%hd", &shPointSize);
-	shPointSize = shPointSize * fontscale / 100.;
-	szFontName = strchr(szFNS, '.') + 1;
+	// we always expect a font size
+	shPointSize = (atoi(szFNS) * fontscale) / 100;
+	p = strchr(szFNS, '.');
+	szFontName[0] = NUL;
+	if (p != NULL) {
+	    p++;
+	    if (*p == NUL || *p == ':') {
+		// no font name, but maybe attributes
+		char * q = strchr(szFontNameSize, '.');
+		if (q != NULL) {
+		    q++;
+		    if (*q == ':') {
+			// default font does not include font name
+			strlcpy(szFontName, szInitialFontName, FONTBUF);
+			// append default attributes
+			strlcat(szFontName, q, FONTBUF);
+		    } else if (*q == NUL) {
+			// no (proper) default font name
+			strlcpy(szFontName, szInitialFontName, FONTBUF);
+		    } else {
+			// copy default font name
+			strlcpy(szFontName, q, FONTBUF);
+		    }
+		    if (*p != NUL) {
+			// append attributes
+			strlcat(szFontName, p, FONTBUF);
+		    }
+		}
+	    } else {
+		// font name provided
+		strlcpy(szFontName, p, FONTBUF);
+	    }
+	}
+	DEBUG_FONT(("SwapFont: fontname \"%s\"", szFontName));
 
-	/* search for previous font with correct encoding */
+	// strip off attributes to obtain font family name
+	p = strstr(szFontName, " Bold");
+	if (p == NULL)
+	    p = strstr(szFontName, ":Bold");
+	bBold = (p != NULL);
+	q = strstr(szFontName, " Italic");
+	if (q == NULL)
+	    q = strstr(szFontName, ":Italic");
+	bItalic = (q != NULL);
+	if (bBold) *p = NUL;
+	if (bItalic) *q = NUL;
+
+	/* search for a previous font with correct encoding and attributes */
 	lcid = 0;
 	for (i = 0; i < itab; i++) {
 	    if ((strcmp(szFontName, tabFont[i].name) == 0) &&
+	        (bBold == tabFont[i].bold) && (bItalic == tabFont[i].italic) &&
 	        (codepage == tabFont[i].codepage)) {
 		lcid = tabFont[i].lcid;
 		break;
 	    }
 	}
 
+	// no match found: create new logical font
 	if (lcid == 0) {
-	    char * p;
-
 	    fat.usRecordLength  = sizeof(fat);
 	    fat.fsSelection     = 0;
 	    fat.lMatch          = 0;
@@ -1977,18 +2187,30 @@ SwapFont(HPS hps, char *szFNS)
 	    fat.fsFontUse       = FATTR_FONTUSE_OUTLINE |
 		FATTR_FONTUSE_TRANSFORMABLE;
 
-	    strlcpy(fat.szFacename, szFontName, FACESIZE);
-	    p = strchr(fat.szFacename, ':');
-	    if (p != NULL) *p = NUL;
-	    if (fat.szFacename[0] == NUL) {
-		p = strchr(szFontNameSize, '.');
-		if (p != NULL)
-		    strlcpy(fat.szFacename, p + 1, FACESIZE);
+	    if (bBold || bItalic) {
+		// obtain face name using an OS/2 API
+		FACENAMEDESC pfndFaceAttrs;
+		ULONG len;
+
+		/* initialize face name description structure for
+		   weight class, normal width, and italics */
+		pfndFaceAttrs.usSize = sizeof(FACENAMEDESC);
+		pfndFaceAttrs.usWeightClass = bBold ? FWEIGHT_BOLD : 0;
+		pfndFaceAttrs.usWidthClass = FWIDTH_NORMAL;
+		pfndFaceAttrs.usReserved = 0;
+		pfndFaceAttrs.flOptions = bItalic ? FTYPE_ITALIC : 0;
+
+		len = GpiQueryFaceString(hps, szFontName, &pfndFaceAttrs,
+		                         FACESIZE, fat.szFacename);
+		if (strcmp(szFontName, fat.szFacename) == 0) {
+		    DEBUG_FONT(("SwapFont: simulate %s %s font",
+		                bBold ? "bold":"", bItalic ? "italic":""));
+		    // there is no bold or italic variant of the font: simulate
+		    fat.fsSelection = (bBold ? FATTR_SEL_BOLD : 0) | (bItalic ? FATTR_SEL_ITALIC : 0);
+		}
+	    } else {
+		strlcpy(fat.szFacename, szFontName, FACESIZE);
 	    }
-	    if (strstr(szFontName, ":Bold"))
-		fat.fsSelection |= FATTR_SEL_BOLD;
-	    if (strstr(szFontName, ":Italic"))
-		fat.fsSelection |= FATTR_SEL_ITALIC;
 
 	    // Use the default encoding for symbol fonts for all encodings but UTF-8
 	    if (codepage != 1208) { // not UTF-8
@@ -2007,11 +2229,12 @@ SwapFont(HPS hps, char *szFNS)
 
 	    tabFont[itab].name = strdup(szFontName);
 	    tabFont[itab].codepage = codepage;
-	    lcid = itab+10;
+	    tabFont[itab].bold = bBold;
+	    tabFont[itab].italic = bItalic;
+	    lcid = itab + 10;
 	    tabFont[itab].lcid = lcid;
 	    ++itab;
 
-	    /* lcid = 11L; */
 	    GpiSetCharSet(hps, 0L);
 	    GpiDeleteSetId(hps, lcid);
 	    GpiCreateLogFont(hps, NULL, lcid, &fat);
@@ -2024,8 +2247,8 @@ SwapFont(HPS hps, char *szFNS)
 	DevQueryCaps(hdc, CAPS_VERTICAL_RESOLUTION,   1L, &yDeviceRes);
 
 	/* Find desired font size in pixels */
-	ptlFont.x = 2540L *(long)shPointSize / 72L;
-	ptlFont.y = 2540L *(long)shPointSize / 72L;
+	ptlFont.x = 2540L * (long) shPointSize / 72L;
+	ptlFont.y = 2540L * (long) shPointSize / 72L;
 
 	/* Set the character box */
 	sizCurFont.cx = MAKEFIXED(ptlFont.x, 0);
@@ -2037,15 +2260,18 @@ SwapFont(HPS hps, char *szFNS)
 	sizCurSubSup.cy = MAKEFIXED(ptlFont.y*0.7, 0);
 
 	/* set up some useful globals */
-	{
-	    FONTMETRICS fm;
+	GpiQueryFontMetrics(hps, sizeof(FONTMETRICS), &fm);
+	lSubOffset = -fm.lSubscriptYOffset;
+	lSupOffset = fm.lSuperscriptYOffset;
+	lCharHeight = fm.lMaxAscender * 1.2;
+	lCharWidth  = fm.lAveCharWidth;
 
-	    GpiQueryFontMetrics(hps, sizeof(FONTMETRICS), &fm);
-	    lSubOffset = -fm.lSubscriptYOffset;
-	    lSupOffset = fm.lSuperscriptYOffset;
-	    lCharHeight = fm.lMaxAscender * 1.2;
-	    lCharWidth  = fm.lAveCharWidth;
-	}
+	/* Use average width of digits instead of info from font metrics */
+	GpiQueryCharAngle(hps, &grdlold);
+	GpiSetCharAngle(hps, &grdl);
+	GpiQueryTextBox(hps, 10, "0123456789", TXTBOX_COUNT, aptl);
+	GpiSetCharAngle(hps, &grdlold);
+	lCharWidth = aptl[TXTBOX_CONCAT].x / 10;
     }
 }
 
@@ -2066,6 +2292,78 @@ FlushPath(HPS hps, BOOL * bPath, int linewidth, LONG color, char * where)
 }
 
 
+static BOOL
+modify_segment(HPS hps, unsigned seg, unsigned op)
+{
+    LONG val, prev_val;
+
+    if (seg == 0)
+	return FALSE;
+
+    // query visibilty first, so we don't need to redraw when nothing changes
+    prev_val = GpiQuerySegmentAttrs(hps, seg, ATTR_VISIBLE);
+    switch (op) {
+    default:
+    case MODPLOTS_SET_VISIBLE:
+	val = ATTR_ON;
+	break;
+    case MODPLOTS_SET_INVISIBLE:
+	val = ATTR_OFF;
+	break;
+    case MODPLOTS_INVERT_VISIBILITIES:
+	val = (prev_val == ATTR_ON) ? ATTR_OFF : ATTR_ON;
+	break;
+    }
+    if (val != prev_val) {
+	DEBUG_LAYER(("Set segment %i visibility to %i", seg, val));
+	GpiSetSegmentAttrs(hps, seg, ATTR_VISIBLE, val);
+    }
+    return (val != prev_val);
+}
+
+
+#ifdef HAVE_PMPRINTF
+// name strings for layers (used for debugging)
+// adopted from Dima Kogan's diagnostics in the x11 code
+__attribute__((unused))
+static const char *
+layer_names(t_termlayer type)
+{
+#define LAYER_LIST(_)     \
+    _(RESET)              \
+    _(BACKTEXT)           \
+    _(FRONTTEXT)          \
+    _(BEGIN_BORDER)       \
+    _(END_BORDER)         \
+    _(BEGIN_GRID)         \
+    _(END_GRID)           \
+    _(END_TEXT)           \
+    _(BEFORE_PLOT)        \
+    _(AFTER_PLOT)         \
+    _(KEYBOX)             \
+    _(BEGIN_KEYSAMPLE)    \
+    _(END_KEYSAMPLE)      \
+    _(RESET_PLOTNO)       \
+    _(BEFORE_ZOOM)        \
+    _(BEGIN_PM3D_MAP)     \
+    _(END_PM3D_MAP)       \
+    _(BEGIN_PM3D_FLUSH)   \
+    _(END_PM3D_FLUSH)     \
+    _(BEGIN_IMAGE)        \
+    _(END_IMAGE)          \
+    _(BEGIN_COLORBOX)     \
+    _(END_COLORBOX)       \
+    _(3DPLOT)
+#define LAYER_NAME(name) case TERM_LAYER_##name: return #name;
+    switch (type) {
+	LAYER_LIST(LAYER_NAME)
+        default: ;
+    }
+    return "unknown";
+}
+#endif
+
+
 /*
 ** Thread to read plot commands from GNUPLOT pm driver.
 ** Opens named pipe, then clears semaphore to allow GNUPLOT driver to proceed.
@@ -2082,11 +2380,9 @@ ReadGnu(void* arg)
     ULONG rc;
     USHORT usErr;
     ULONG cbR;
-    USHORT i;
     unsigned char buff[2];
     HEV hev;
     static char *szPauseText = NULL;
-    ULONG ulPause;
     char *pszPipeName, *pszSemName;
     HPS hps;
     HAB hab;
@@ -2097,6 +2393,7 @@ ReadGnu(void* arg)
     ULONG *rgbTable = NULL; /* current colour table (this is a 'virtual' palette) */
     LONG color = 0;
     int fillstyle = FS_SOLID | (100 << 4);
+    unsigned plotno = 0;
 #ifdef HAVE_EXCEPTQ
     EXCEPTIONREGISTRATIONRECORD exRegRec;
 
@@ -2140,7 +2437,7 @@ ReadGnu(void* arg)
 
         DosRead(hRead, &ppidGnu, 4, &cbR);
 
-	sprintf(mouseShareMemName, "\\SHAREMEM\\GP%i_Mouse_Input",(int)ppidGnu);
+	sprintf(mouseShareMemName, "\\SHAREMEM\\GP%i_Mouse_Input", (int)ppidGnu);
 	if (DosGetNamedSharedMem(&input_from_PM_Terminal,
 				 mouseShareMemName,
 				 PAG_WRITE)) {
@@ -2197,14 +2494,22 @@ ReadGnu(void* arg)
 		InitScreenPS();
 		ScalePS(hps);
 		GpiSetDrawingMode(hps, DM_DRAWANDRETAIN);
-		for (i = 1; i <= iSeg; i++)
-		    GpiDeleteSegment(hps, i);
+		DEBUG_LAYER(("Cleaning up %i segments", iSeg));
+		GpiDeleteSegments(hps, 1, iSeg);
 		iSeg = 1;
 		GpiOpenSegment(hps, iSeg);
 		/* DosExitCritSec(); */
 		GpiSetLineEnd(hps, LINEEND_ROUND);
 		GpiSetLineWidthGeom(hps, linewidth);
 		GpiSetCharBox(hps, &sizBaseFont);
+
+		/* free list of plot segments */
+		plotno = 0;
+		while (plots) {
+		    plotlist * next = plots->next;
+		    free(plots);
+		    plots = next;
+		}
 
 		/* free image buffers from previous plot, if any */
 		while (image_list) {
@@ -2215,6 +2520,9 @@ ReadGnu(void* arg)
 		    free(ile->pbmi);
 		    free(ile);
 		}
+
+		/* discard the old status line text */
+		ResetStatusLineText();
 
 		break;
 	    }
@@ -2235,10 +2543,112 @@ ReadGnu(void* arg)
 		GpiCloseSegment(hps);
 		DrawRuler();
 		DrawRulerLineTo();
-		DisplayStatusLine(hps);
+		DisplayStatusLine();
 		DosReleaseMutexSem(semHpsAccess);
 		WinPostMsg(hApp, WM_GNUPLOT, 0L, 0L);
 		break;
+
+	    case SET_LAYER : /* handle some layer info for toggle etc. */
+	    {
+		unsigned layer;
+		BufRead(hRead, &layer, sizeof(int), &cbR);
+		DEBUG_LAYER(("SET_LAYER: %s (%i)", layer_names(layer), layer));
+
+		switch (layer) {
+		case TERM_LAYER_BEFORE_PLOT:
+		{
+		    plotlist * thisplot;
+
+		    /* put every plot in its own segment */
+		    FLUSHPATH(hps, "SET_LAYER");
+		    GpiCloseSegment(hps);
+		    iSeg++;
+		    GpiOpenSegment(hps, iSeg);
+
+		    /* create a new plot segment structure and prepend it to the list */
+		    DEBUG_LAYER(("SET_LAYER: start plot #%i", plotno));
+		    thisplot = malloc(sizeof(plotlist));
+		    thisplot->no = plotno++;
+		    thisplot->plot = 0;
+		    thisplot->plot1 = 0;
+		    thisplot->key = 0;
+		    thisplot->key1 = 0;
+		    thisplot->next = plots;
+		    plots = thisplot;
+		    break;
+		}
+		case TERM_LAYER_AFTER_PLOT:
+		    /* graphs are drawn _after_ the key element */
+		    if (plots->plot != iSeg) {
+			if (plots->plot == 0)
+			    plots->plot = iSeg;
+			else
+			    plots->plot1 = iSeg;
+		    }
+		    /* need to start a new segment for mutiplots anyway */
+		    FLUSHPATH(hps, "SET_LAYER");
+		    GpiCloseSegment(hps);
+		    iSeg++;
+		    GpiOpenSegment(hps, iSeg);
+		    DEBUG_LAYER(("SET_LAYER: end plot #%i: seg=%i seg1=%i key=%i key1=%i",
+			plots->no, plots->plot1, plots->plot, plots->key, plots->key1));
+		    break;
+		case TERM_LAYER_BEGIN_KEYSAMPLE:
+		    /* put every key sample in its own segment */
+		    FLUSHPATH(hps, "SET_LAYER");
+		    GpiCloseSegment(hps);
+		    iSeg++;
+		    GpiOpenSegment(hps, iSeg);
+		    // correlation only works for detectable and tagged primitives
+		    GpiSetSegmentAttrs(hps, iSeg, ATTR_DETECTABLE, ATTR_ON);
+		    GpiSetTag(hps, iSeg);
+		    // work around spurious extra key entries...
+		    if (plots->key == 0)
+			plots->key = iSeg;
+		    else
+			plots->key1 = iSeg;
+		    break;
+		case TERM_LAYER_END_KEYSAMPLE:
+		    FLUSHPATH(hps, "SET_LAYER");
+		    GpiSetTag(hps, 0);
+		    GpiCloseSegment(hps);
+		    iSeg++;
+		    if (plots->plot == 0)
+			plots->plot = iSeg;
+		    else
+			plots->plot1 = iSeg;
+		    GpiOpenSegment(hps, iSeg);
+		    break;
+		}
+		break;
+	    }
+
+	    case SET_MODIFY_PLOTS :
+	    {
+		unsigned int op;
+		int plotno;
+		plotlist * plot;
+		BOOL redraw = FALSE;
+
+		BufRead(hRead, &op, sizeof(int), &cbR);
+		BufRead(hRead, &plotno, sizeof(int), &cbR);
+		DEBUG_LAYER(("MODIFY_PLOTS op=%i plot=%i", op, plotno));
+
+	        plot = plots;
+		while (plot != NULL) {
+		    if (plotno == plot->no || plotno < 0) {
+			redraw |= modify_segment(hps, plot->plot, op);
+			redraw |= modify_segment(hps, plot->plot1, op);
+		    }
+		    plot = plot->next;
+		}
+
+		if (redraw) {
+		    /* enforce a screen update */
+		    WinInvalidateRect(WinWindowFromDC(hdcScreen), NULL, TRUE);
+		}
+		break;
+	    }
 
 	    case GR_RESET :
 		/* gnuplot has reset drivers, allow user to kill this */
@@ -2262,7 +2672,7 @@ ReadGnu(void* arg)
 		GpiOpenSegment(hps, iSeg);
 		break;
 
-	    case 's' :
+	    case GR_SUSPEND_OLD :
 		/* suspend after multiplot */
 		break;
 
@@ -2298,26 +2708,42 @@ ReadGnu(void* arg)
 	    }
 	    break;
 
-	    case GR_PAUSE  :   /* pause */
+	    case GR_PAUSE :   /* pause */
+	    case GR_PAUSE_OLD :
 	    {
 		int len;
 
-		pausing = 1;
+		pausing = TRUE;
 		BufRead(hRead, &len, sizeof(int), &cbR);
 		len = (len + sizeof(int) - 1) / sizeof(int);
 		if (len > 0){  /* get pause text */
 		    DosEnterCritSec();
-		    szPauseText = malloc(len*sizeof(int));
+		    szPauseText = malloc(len * sizeof(int));
 		    DosExitCritSec();
 		    BufRead(hRead, szPauseText, len * sizeof(int), &cbR);
 		}
 		if (ulPauseMode != PAUSE_GNU) {
-		    /* pause and wait for semaphore to be cleared */
-		    DosResetEventSem(semPause, &ulPause);
-		    WinPostMsg(hApp, WM_PAUSEPLOT, (MPARAM) szPauseText, 0L);
-		    DosWaitEventSem(semPause, SEM_INDEFINITE_WAIT);
+		    ULONG ulPause;
+
+		    if (*buff == GR_PAUSE_OLD) {
+			/* pause and wait for event semaphore */
+			DosResetEventSem(semPause, &ulPause);
+			WinPostMsg(hApp, WM_PAUSEPLOT, (MPARAM) szPauseText, 0L);
+			WinWaitEventSem(semPause, SEM_INDEFINITE_WAIT);
+		    } else {
+			DosQueryEventSem(semPause, &ulPause);
+			if (ulPause == 0) {
+			    /* event semaphore not (yet) posted */
+			    if (ulPauseReply != 3)
+				WinPostMsg(hApp, WM_PAUSEPLOT, (MPARAM) szPauseText, 0L);
+			    /* let gnuplot know we are (still) pausing with a dialog/menu */
+			    ulPauseReply = 3;
+			} else {
+			    DosResetEventSem(semPause, &ulPause);
+			}
+		    }
 		} else {
-		    /* gnuplot handles pause */
+		    /* gnuplot should handle pause internally */
 		    ulPauseReply = 2;
 		}
 		DosEnterCritSec();
@@ -2327,7 +2753,7 @@ ReadGnu(void* arg)
 		DosExitCritSec();
 		/* reply to gnuplot so it can continue */
 		DosWrite(hRead, &ulPauseReply, sizeof(int), &cbR);
-		pausing = 0;
+		pausing = FALSE;
 		break;
 	    }
 
@@ -2540,6 +2966,8 @@ ReadGnu(void* arg)
 	    {
 		int lt, col;
 
+		FLUSHPATH(hps, "SET_LTCOLOR");
+
 		BufRead(hRead, &lt, sizeof(int), &cbR);
 		col = lt;
 		if (lt > LT_NODRAW) {
@@ -2558,8 +2986,10 @@ ReadGnu(void* arg)
 	    {
 		int dt = 0;
 
-		DEBUG_LINES(("dash:  %d", dt));
+		FLUSHPATH(hps, "SET_DASH");
+
 		BufRead(hRead, &dt, sizeof(int), &cbR);
+		DEBUG_LINES(("SET_DASH: %d", dt));
 		if (dt == DASHTYPE_AXIS) /* map axis dashpattern */
 		    dt = 1;
 		else if (dt == DASHTYPE_SOLID) /* map solid "pattern" */
@@ -2633,34 +3063,45 @@ ReadGnu(void* arg)
 
 	    case SET_FONT :   /* set font */
 	    {
-		int len;
+		int len, size;
 
 		BufRead(hRead, &len, sizeof(int), &cbR);
-		len = (len + sizeof(int) - 1) / sizeof(int);
+		size = (len + sizeof(int) - 1) / sizeof(int);
 
 		if (len == 0) {
 		    SwapFont(hps, NULL);
-		    strcpy(szCurrentFontNameSize, szFontNameSize);
+		    strlcpy(szCurrentFontNameSize, szFontNameSize, FONTBUF);
+		    DEBUG_FONT(("SET_FONT: default font \"%s\"", szFontNameSize));
 		} else {
 		    char font[FONTBUF];
 		    char *p, *tmp, *str;
 
-		    tmp = str = malloc(len * sizeof(int));
-		    BufRead(hRead, str, len * sizeof(int), &cbR);
-		    p = strchr(str, ',');
-		    if (p == NULL)
-			strcpy(font, "10");  // FIXME: this should be the default size
-		    else {
-			*p = '\0';
-			strcpy(font, p+1);
+		    tmp = str = malloc(size * sizeof(int));
+		    BufRead(hRead, str, size * sizeof(int), &cbR);
+		    if (len == 1) { // empty string (only terminating NUL)
+			DEBUG_FONT(("SET_FONT: empty font: \"%s\"", szFontNameSize));
+			SwapFont(hps, NULL);
+			strlcpy(szCurrentFontNameSize, szFontNameSize, FONTBUF);
+		    } else {
+			DEBUG_FONT(("SET_FONT: \"%s\"", str));
+			p = strchr(str, ',');
+			if (p == NULL) {
+			    // default font size
+			    strlcpy(font, szFontNameSize, FONTBUF);
+			    p = strchr(font, '.');
+			    *(++p) = NUL;
+			} else {
+			    *p = NUL;
+			    strlcpy(font, p + 1, FONTBUF);
+			    strlcat(font, ".", FONTBUF);
+			}
+			/* allow abbreviation of some well known font names */
+			FontExpand(str);
+			strlcat(font, str, FONTBUF);
+			SwapFont(hps, font);
+			strlcpy(szCurrentFontNameSize, font, FONTBUF);
 		    }
-		    strcat(font, ".");
-		    /* allow abbreviation of some well known font names */
-		    FontExpand(str);
-		    strcat(font, str);
 		    free(tmp);
-		    SwapFont(hps, font);
-		    strcpy(szCurrentFontNameSize, font);
 		}
 		break;
 	    }
@@ -2672,7 +3113,7 @@ ReadGnu(void* arg)
 		namelen = strlen(szCurrentFontNameSize);
 		DosWrite(hRead, &namelen, sizeof(int), &cbR);
 		DosWrite(hRead, szCurrentFontNameSize, namelen, &cbR);
-		/* FIXME: is padding necessary? */
+		DEBUG_FONT(("GR_QUERY_FONT \"%s\"", szCurrentFontNameSize));
 		break;
 	    }
 
@@ -2759,36 +3200,23 @@ ReadGnu(void* arg)
 
 			tmp = str = malloc(len * sizeof(int));
 			BufRead(hRead, str, len * sizeof(int), &cbR);
+			// deal with font size first
 			p = strchr(str, ',');
-			 /* preserve previous font size if no new one is given */
 			if (p == NULL) {
-			    p = strchr(szFontNameSize, '.');
-			    if (p != NULL) {
-				*p = '\0';
-				strcpy(font, szFontNameSize);
-			    } else {
-				strcpy(font, "14");
-			    }
+			    // fall back to initial font size
+			    sprintf(font, "%i", iInitialFontSize);
 			} else {
-			    *p = '\0';
-			    strcpy(font, p + 1);
+			    *p =  NUL;
+			    strlcpy(font, p + 1, FONTBUF);
 			}
-			strcat(font, ".");
+			strlcat(font, ".", FONTBUF);
 			/* allow abbreviation of some well known font names */
 			FontExpand(str);
-			 /* preserve previous font name if no new one is given */
-			if (*str == NUL) {
-			    str = strchr(szFontNameSize, '.');
-			    if (str != NULL)
-				str++;
-			    else
-				str = "Helvetica";
-			}
-			strcat(font, str);
+			strlcat(font, str, FONTBUF);
 			free(tmp);
-			strcpy(szFontNameSize, font);
+			strlcpy(szFontNameSize, font, FONTBUF);
 			SelectFont(hps, font);
-			DEBUG_FONT(("set default font: %s", font));
+			DEBUG_FONT(("SET_SPECIAL_FONT: \"%s\"", font));
 		    }
 		    break;
 		}
@@ -2801,7 +3229,7 @@ ReadGnu(void* arg)
 			fontscale = newfontscale;
 			SelectFont(hps, szFontNameSize);
 		    }
-		    DEBUG_FONT(("set fontscale: %.1f", fontscale / 100.));
+		    DEBUG_FONT(("SET_SPECIAL_FONTSCALE: %i\%", newfontscale));
 		    break;
 		}
 		case SET_SPECIAL_RAISE: /* raise window */
@@ -2823,18 +3251,15 @@ ReadGnu(void* arg)
 		static char *text = NULL;
 		static int text_alloc = -1;
 
-		/* Position of the "table" of values resulting from
-		 * mouse movement(and clicks).  Negative y value would
-		 * position it at the top of the window---not
-		 * implemented. */
 		BufRead(hRead,&where, sizeof(int), &cbR);
 		BufRead(hRead,&l, sizeof(int), &cbR);
 		if (text_alloc < l)
 		    text = realloc(text, text_alloc = l+10);
 		BufRead(hRead, &text[0], l, &cbR);
+
 		switch (where) {
 		case 0:
-		    UpdateStatusLine(hps,text);
+		    UpdateStatusLine(text);
 		    break;
 		case 1:
 		    DrawZoomBox();
@@ -2915,7 +3340,9 @@ ReadGnu(void* arg)
 	    {
 		/* Note: use of uchar limits the size of the 'virtual'
 			  palette to 256 entries. (see also RGB_PALETTE_SIZE) */
-		unsigned char c;
+		unsigned char c = 0;
+
+		FLUSHPATH(hps, "GR_SET_COLOR");
 
 		BufRead(hRead, &c, sizeof(c), &cbR);
 		// FIXME: need range checking here
@@ -2931,6 +3358,8 @@ ReadGnu(void* arg)
 	    case GR_SET_RGBCOLOR :
 	    {
 		int rgb_color;
+
+		FLUSHPATH(hps, "GR_SET_RGBCOLOR");
 
 		BufRead(hRead, &rgb_color, sizeof(rgb_color), &cbR);
 		/* ignore alpha value */
@@ -2965,10 +3394,10 @@ ReadGnu(void* arg)
 		BufRead(hRead, &fillstyle, sizeof(fillstyle), &cbR);
 		// fall-through
 
-	    case 'f':  // old filled polygon - without fill style
+	    case GR_FILLED_POLYGON_OLD :  // old filled polygon - without fill style
 	    {
 		int points, x,y, i;
-		LONG curr_color;
+		LONG curr_color = 0;
 		POINTL p;
 
 		FLUSHPATH(hps, "GR_FILLED_POLYGON");
@@ -3004,15 +3433,19 @@ ReadGnu(void* arg)
 	    }
 
 	    case GR_RGB_IMAGE :
+	    case GR_RGBA_IMAGE :
 	    {
 		unsigned int i, M, N, image_size;
 		POINTL corner[4];
 		PBYTE image;
-		PBITMAPINFO2 pbmi;
+		PBYTE mask;
+		PBITMAPINFO2 pbmi, pbmi2;
 		POINTL points[4];
 		POINTL clip;
 		LONG hits;
 		image_list_entry *ile;
+
+		FLUSHPATH(hps, "GR_RGBx_IMAGE");
 
 		BufRead(hRead, &M, sizeof(M), &cbR);
 		BufRead(hRead, &N, sizeof(N), &cbR);
@@ -3020,6 +3453,13 @@ ReadGnu(void* arg)
 		    BufRead(hRead, &(corner[i].x), sizeof(int), &cbR);
 		    BufRead(hRead, &(corner[i].y), sizeof(int), &cbR);
 		}
+
+		if (*buff == GR_RGBA_IMAGE) {
+		    usErr = BufRead(hRead, &image_size, sizeof(image_size), &cbR);
+		    mask = (PBYTE) malloc(image_size);
+		    BufRead(hRead, mask, image_size, &cbR);
+		}
+
 		usErr = BufRead(hRead, &image_size, sizeof(image_size), &cbR);
 		DEBUG_IMAGE(("GR_IMAGE: M=%i, N=%i, size=%i, rc=%d", M, N, image_size, usErr));
 		DEBUG_IMAGE(("GR_IMAGE: corner [0]=(%i,%i) [1]=(%i,%i)", corner[0].x, corner[0].y, corner[1].x, corner[1].y));
@@ -3071,8 +3511,34 @@ ReadGnu(void* arg)
 		pbmi->cPlanes = 1;
 		pbmi->cBitCount = 24;
 		pbmi->ulCompression = BCA_UNCOMP;
-		hits = GpiDrawBits(hps, image, pbmi, 4, points, ROP_SRCCOPY, BBO_IGNORE);
-#if 0
+
+		if (*buff == GR_RGBA_IMAGE) {
+		    pbmi2 = (PBITMAPINFO2) calloc(sizeof(BITMAPINFOHEADER2) + 255 * sizeof(RGB2), 1);
+		    memcpy(pbmi2, pbmi, sizeof(BITMAPINFOHEADER2));
+		    pbmi2->cBitCount = 8;
+		    /* The color table maps alpha values to binary transparency. */
+		    pbmi2->argbColor[0xff].bBlue  = 0xff;
+		    pbmi2->argbColor[0xff].bGreen = 0xff;
+		    pbmi2->argbColor[0xff].bRed   = 0xff;
+#if 1
+		    /* Stamp out the mask first, then draw the image. */
+		    /* This actually relies on the color of transparent pixels being set to black,
+		       which we don't do. But source images are likely that way already. */
+		    hits = GpiDrawBits(hps, mask, pbmi2, 4, points, ROP_SRCAND, BBO_IGNORE);
+		    hits = GpiDrawBits(hps, image, pbmi, 4, points, ROP_SRCPAINT, BBO_IGNORE);
+#else
+		    /* Better version, which does not require image anipulation. But it is slower
+		       and causes more flicker:
+		       XOR with image, stamp out mask, XOR with image again.
+		    */
+		    hits = GpiDrawBits(hps, image, pbmi, 4, points, ROP_SRCINVERT, BBO_IGNORE);
+		    hits = GpiDrawBits(hps, mask, pbmi2, 4, points, ROP_SRCAND, BBO_IGNORE);
+		    hits = GpiDrawBits(hps, image, pbmi, 4, points, ROP_SRCINVERT, BBO_IGNORE);
+#endif
+		} else {
+		    hits = GpiDrawBits(hps, image, pbmi, 4, points, ROP_SRCCOPY, BBO_IGNORE);
+		}
+
 		if (hits == GPI_ERROR) {
 		    PERRINFO perriBlk = WinGetErrorInfo(hab);
 		    if (perriBlk) {
@@ -3086,7 +3552,7 @@ ReadGnu(void* arg)
 			WinFreeErrorInfo(perriBlk);
 		    }
 		}
-#endif
+
 		// reset clip region
 		GpiSetClipPath(hps, 0, SCP_RESET);
 
@@ -3097,6 +3563,14 @@ ReadGnu(void* arg)
 		ile->pbmi = pbmi;
 		ile->image = image;
 		image_list = ile;
+
+		if (*buff == GR_RGBA_IMAGE) {
+		    ile = (image_list_entry *) malloc(sizeof(image_list_entry));
+		    ile->next = image_list;
+		    ile->pbmi = pbmi2;
+		    ile->image = mask;
+		    image_list = ile;
+		}
 		break;
 	    }
 
@@ -3219,7 +3693,11 @@ ReadGnu(void* arg)
 		mouseTerminal = TRUE;
 		break;
 
-	    default :  /* should handle error */
+	    default :
+		/* This should not happen if the versions of gnuplot and gnupmdrv match. */
+#ifdef HAVE_PMPRINTF
+		PmPrintf("Unknown command: 0x%02x '%c'", *buff, *buff);
+#endif
 		break;
 	    }
 	}
@@ -3336,52 +3814,79 @@ BufRead(HFILE hfile, void *buf, int nBytes, ULONG *pcbR)
 /*
 ** Get a new font using standard font dialog
 */
-int
+BOOL
 GetNewFont(HWND hwnd, HPS hps)
 {
-    static FONTDLG pfdFontdlg;      /* Font dialog info structure */
-    static int i1 =1;
-    static int iSize;
+    static FONTDLG pfdFontdlg; /* Font dialog info structure */
+    int iSize;
     char szPtList[64];
-    HWND hwndFontDlg;     /* Font dialog window handle */
-    char szFamilyname[FACESIZE];
+    HWND hwndFontDlg;          /* Font dialog window handle */
+    char szFamilyName[FONTBUF];
+    char * p, * q;
+    BOOL bold = FALSE;
+    BOOL italic = FALSE;
 
-    if (i1) {
-        strcpy(pfdFontdlg.fAttrs.szFacename, strchr(szFontNameSize, '.') + 1);
-        strcpy(szFamilyname, strchr(szFontNameSize, '.') + 1);
-        sscanf(szFontNameSize, "%d", &iSize);
-        memset(&pfdFontdlg, 0, sizeof(FONTDLG));
+    // determine font size
+    iSize = atoi(szFontNameSize);
 
-        pfdFontdlg.cbSize = sizeof(FONTDLG);
-        pfdFontdlg.hpsScreen = hps;
-	/*   szFamilyname[0] = 0; */
-        pfdFontdlg.pszFamilyname = szFamilyname;
-        pfdFontdlg.usFamilyBufLen = FACESIZE;
-        pfdFontdlg.fl = FNTS_HELPBUTTON |
-	    FNTS_CENTER | FNTS_VECTORONLY |
-	    FNTS_OWNERDRAWPREVIEW;
-        pfdFontdlg.clrFore = CLR_BLACK;
-        pfdFontdlg.clrBack = CLR_WHITE;
-        pfdFontdlg.usWeight = FWEIGHT_NORMAL;
-        pfdFontdlg.fAttrs.usCodePage = codepage;
-        pfdFontdlg.fAttrs.usRecordLength = sizeof(FATTRS);
+    // determine family name
+    p = strchr(szFontNameSize, '.');
+    if (p == NULL)
+	strlcpy(szFamilyName, szFontNameSize, FONTBUF);
+    else
+	strlcpy(szFamilyName, p + 1, FONTBUF);
+    if (szFamilyName[0] == NUL) {
+	// apply default font
+	strlcpy(szFamilyName, szInitialFontName, FONTBUF);
     }
+
+    // determine attributes, strip
+    p = strstr(szFamilyName, ":Bold");
+    if (p == NULL)
+	p = strstr(szFamilyName, " Bold");
+    q = strstr(szFamilyName, ":Italic");
+    if (q == NULL)
+	q = strstr(szFamilyName, " Italic");
+    bold = (p != NULL);
+    italic = (q != NULL);
+    if (p != NULL) *p = NUL;
+    if (q != NULL) *q = NUL;
+
+    DEBUG_FONT(("Font dialog init: %ipt \"%s\"%s%s", iSize, 	szFamilyName,
+		bold ? ", bold" : "", italic ? ", italic" : ""));
+
+    memset(&pfdFontdlg, 0, sizeof(FONTDLG));
+    pfdFontdlg.cbSize = sizeof(FONTDLG);
+    pfdFontdlg.hpsScreen = hps;
+    pfdFontdlg.pszFamilyname = szFamilyName;
+    pfdFontdlg.usFamilyBufLen = FONTBUF;
+    pfdFontdlg.fl = FNTS_HELPBUTTON |
+	FNTS_CENTER | FNTS_VECTORONLY;
+    pfdFontdlg.flType = FTYPE_ROUNDED_DONT_CARE | FTYPE_OBLIQUE_DONT_CARE |
+	(italic ? FTYPE_ITALIC : 0);
+    pfdFontdlg.clrFore = CLR_BLACK;
+    pfdFontdlg.clrBack = CLR_WHITE;
+    pfdFontdlg.usWeight = bold ? FWEIGHT_BOLD : FWEIGHT_NORMAL;
+    pfdFontdlg.fAttrs.usRecordLength = sizeof(FATTRS);
+    pfdFontdlg.fAttrs.usCodePage = codepage;
+
     sprintf(szPtList, "%d 8 10 12 14 18 24", iSize);
     pfdFontdlg.pszPtSizeList = szPtList;
-    pfdFontdlg.fxPointSize = MAKEFIXED(iSize,0);
+    pfdFontdlg.fxPointSize = MAKEFIXED(iSize, 0);
     hwndFontDlg = WinFontDlg(HWND_DESKTOP, hwnd, &pfdFontdlg);
-    if (i1) {
-        pfdFontdlg.fl = FNTS_HELPBUTTON |
-	    FNTS_CENTER | FNTS_VECTORONLY |
-	    FNTS_INITFROMFATTRS;
-        i1=0;
+
+    if (hwndFontDlg && (pfdFontdlg.lReturn == DID_OK)) {
+	bold = (pfdFontdlg.usWeight == FWEIGHT_BOLD);
+	italic = (pfdFontdlg.flType & FTYPE_ITALIC);
+	iSize = FIXEDINT(pfdFontdlg.fxPointSize);
+	snprintf(szFontNameSize, FONTBUF, "%d.%s%s%s",
+		iSize, pfdFontdlg.pszFamilyname,
+		bold ? ":Bold" :  "", italic ? ":Italic" : "");
+	DEBUG_FONT(("Font selection: %s", szFontNameSize));
+	return TRUE;
+    } else {
+	return FALSE;
     }
-    if (hwndFontDlg &&(pfdFontdlg.lReturn == DID_OK)) {
-        iSize = FIXEDINT(pfdFontdlg.fxPointSize);
-        sprintf(szFontNameSize, "%d.%s", iSize, pfdFontdlg.fAttrs.szFacename);
-        return 1;
-    } else
-	return 0;
 }
 
 #else
@@ -3389,7 +3894,7 @@ GetNewFont(HWND hwnd, HPS hps)
 /*
 ** Get a new font using standard font palette
 */
-int
+BOOL
 GetNewFont(HWND hwnd, HPS hps)
 {
     HOBJECT hObject;
@@ -3398,8 +3903,8 @@ GetNewFont(HWND hwnd, HPS hps)
 
     hObject = WinQueryObject("<WP_FNTPAL>");
     if (hObject != NULLHANDLE)
-        fSuccess = WinOpenObject(hObject, ulView, TRUE);
-    return fSuccess ? 1 : 0;
+	fSuccess = WinOpenObject(hObject, ulView, TRUE);
+    return fSuccess;
 }
 
 #endif /* STANDARD_FONT_DIALOG */
@@ -3482,7 +3987,7 @@ static char
     if (fontname != NULL) {
 	char szFont[FONTBUF];
 
-	sprintf(szFont, "%d.%s", fontsize, fontname);
+	snprintf(szFont, FONTBUF, "%d.%s", fontsize, fontname);
 	SwapFont(hps, szFont);
 	bChangeFont = TRUE;
     }
@@ -3752,16 +4257,37 @@ QueryTextBox(HPS hps, int len, char *str)
 void
 FontExpand(char *name)
 {
-    if (strcmp(name,"S") == 0)
+    char * p, *attr;
+
+    // make a temporary copy of the font attributes
+    p = strchr(name, ':');
+    if (p != NULL) {
+	attr = strdup(p);
+	*p = NUL;
+    }
+
+    if (strcmp(name, "S") == 0)
 	strcpy(name, "Symbol Set");
-    if (strcmp(name,"Symbol") == 0)
+    if (strcmp(name, "Symbol") == 0)
 	strcpy(name, "Symbol Set");
-    else if (strcmp(name,"H") == 0)
+    else if (strcmp(name, "H") == 0)
 	strcpy(name, "Helvetica");
-    else if (strcmp(name,"T") == 0)
+    else if (strcmp(name, "sans") == 0)
+	strcpy(name, "Helvetica");
+    else if (strcmp(name, "T") == 0)
 	strcpy(name, "Times New Roman");
-    else if (strcmp(name,"C") == 0)
+    else if (strcmp(name, "Times") == 0)
+	strcpy(name, "Times New Roman");
+    else if (strcmp(name, "serif") == 0)
+	strcpy(name, "Times New Roman");
+    else if (strcmp(name, "C") == 0)
 	strcpy(name, "Courier");
+
+    // append them again to the font name
+    if (p != NULL) {
+	strcat(name, attr);
+	free(attr);
+    }
 }
 
 
@@ -3937,6 +4463,8 @@ DrawRuler()
 
     p.y = GNUYPAGE;
     GpiLine(hpsScreen, &p);
+
+    GpiSetMix(hpsScreen, FM_DEFAULT);
 }
 
 
@@ -3961,6 +4489,8 @@ DrawRulerLineTo()
     p.x = ruler_lineto.x;
     p.y = ruler_lineto.y;
     GpiLine(hpsScreen, &p);
+
+    GpiSetMix(hpsScreen, FM_DEFAULT);
 }
 
 
@@ -4004,47 +4534,50 @@ GetMousePosViewport(HWND hWnd, int *mx, int *my)
 
 
 /*
- * Status line previous and current text:
+ * Status text:
  */
 static char *sl_curr_text = NULL;
+static BOOL sl_needs_update = FALSE;
+
 
 /*
- * Display the status line by the text
+ * Discard the status line text (because we start a new graph)
  */
 static void
-DisplayStatusLine(HPS hps)
+ResetStatusLineText(void)
 {
-    POINTL pt;
-
-    if (!sl_curr_text)
-	return;
-
-    pt.x = 2;
-    pt.y = 2;
-    DrawMouseText(hps, &pt, sl_curr_text, strlen(sl_curr_text));
+    free(sl_curr_text);
+    sl_curr_text = strdup("");
+    sl_needs_update = FALSE;
 }
 
 
 /*
- * Update the status line by the text; firstly erase the previous text
+ * Actually display new status line text
+ * We can only update the status bar while we have access to the message queue.
  */
 static void
-UpdateStatusLine(HPS hps, char *text)
+DisplayStatusLine()
+{
+    if (sl_needs_update) {
+	BOOL rc = WinSetWindowText(hwndStatus, sl_curr_text);
+	if (rc) sl_needs_update = FALSE;
+    }
+}
+
+/*
+ * Update the status line with new text: first store text only
+ */
+static void
+UpdateStatusLine(char *text)
 {
     if (gpPMmenu_update_req)
 	gpPMmenu_update(); /* check for updated menu */
-    if (sl_curr_text) {
-	/* erase the previous text */
-	DisplayStatusLine(hps);
-	free(sl_curr_text);
-    }
-    if (!text || !*text)
-	sl_curr_text = 0;
-    else {
-	/* display new text */
-	sl_curr_text = strdup(text);
-	DisplayStatusLine(hps);
-    }
+
+    if (text != NULL && strcmp(text, sl_curr_text) != 0)
+	sl_needs_update = TRUE;
+    free(sl_curr_text);
+    sl_curr_text = strdup(text != NULL ? text : "");
 }
 
 
@@ -4060,8 +4593,8 @@ gpPMmenu_update()
 	return;
 #endif
 
-    ChangeCheck(hApp, IDM_USEMOUSE, useMouse ? IDM_USEMOUSE:0);
-    ChangeCheck(hApp, IDM_LINES_THICK, bWideLines ? IDM_LINES_THICK:0);
+    ChangeCheck(hApp, IDM_USEMOUSE, useMouse ? IDM_USEMOUSE : 0);
+    ChangeCheck(hApp, IDM_LINES_THICK, bWideLines ? IDM_LINES_THICK : 0);
     WinEnableMenuItem(/* can this situation be unzoomed back? */
 	WinWindowFromID(WinQueryWindow(hApp, QW_PARENT), FID_MENU),
 	IDM_MOUSE_UNZOOM,(gpPMmenu.where_zoom_queue & 1) ? TRUE : FALSE);
@@ -4074,7 +4607,7 @@ gpPMmenu_update()
 	    IDM_MOUSE_ZOOMNEXT,(gpPMmenu.where_zoom_queue & 4) ? TRUE : FALSE)
 	== TRUE)
 	gpPMmenu_update_req = FALSE;
-    ChangeCheck(hApp, IDM_MOUSE_POLAR_DISTANCE, gpPMmenu.polar_distance?IDM_MOUSE_POLAR_DISTANCE:0);
+    ChangeCheck(hApp, IDM_MOUSE_POLAR_DISTANCE, gpPMmenu.polar_distance ? IDM_MOUSE_POLAR_DISTANCE : 0);
 }
 
 
@@ -4085,6 +4618,8 @@ DrawMouseText(HPS hps, PPOINTL pt, char * text, LONG len)
     GpiSetCharMode(hps, CM_MODE1);
     GpiSetMix(hps, FM_INVERT);
     GpiCharStringAt(hps, pt, len, text);
+
+    GpiSetMix(hps, FM_DEFAULT);
 }
 
 
@@ -4102,7 +4637,9 @@ DrawZoomBox()
     GpiSetMix(hpsScreen, FM_INVERT);
     GpiMove(hpsScreen, &zoombox.from);
     GpiBox(hpsScreen, DRO_OUTLINE, &zoombox.to, 0, 0);
+
     GpiSetLineType(hpsScreen, LINETYPE_DEFAULT);
+    GpiSetMix(hpsScreen, FM_DEFAULT);
 
     if (zoombox.text1) {
 	char *separator = strchr(zoombox.text1, '\r');
@@ -4110,7 +4647,7 @@ DrawZoomBox()
 	    pt = zoombox.from;
 	    pt.y -= lCharHeight;
 	    DrawMouseText(hps, &zoombox.from, zoombox.text1, separator - zoombox.text1);
-	    DrawMouseText(hps, &zoombox.from, separator + 1, strlen(separator + 1));
+	    DrawMouseText(hps, &pt, separator + 1, strlen(separator + 1));
 	} else {
 	    pt = zoombox.from;
 	    pt.y -= lCharHeight / 2;

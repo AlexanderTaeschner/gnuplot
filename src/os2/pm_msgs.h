@@ -1,7 +1,7 @@
 /* GNUPLOT - pm_msgs.h */
 
 /*[
- * Copyright 1992, 1993, 1998, 2004   Roger Fearick
+ * Copyright 1992, 1993, 1998, 2004, 2021   Roger Fearick
  *
  * Permission to use, copy, and distribute this software and its
  * documentation for any purpose with or without fee is hereby granted,
@@ -41,6 +41,8 @@
 /* graphics commands */
 #define SET_GRAPHICS	'G'
 #define SET_TEXT	'E'
+#define SET_LAYER       'Y'
+#define SET_MODIFY_PLOTS '*'
 #define SET_LINE	'L'
 #define SET_DASH	'd'
 #define SET_FILLBOX	'B'
@@ -54,14 +56,17 @@
 #define SET_SPECIAL	'o'  /* used for special options */
 #define SET_MENU	'#'
 #define GR_QUERY	'Q'
-#define GR_SUSPEND	'E'	/* 's' */
+#define GR_SUSPEND	'E'
+#define GR_SUSPEND_OLD	's'
 #define GR_RESUME	'r'
 #define GR_MOVE		'M'
 #define GR_DRAW		'V'
 #define GR_RESET	'R'
 #define GR_TEXT		'T'
 #define GR_ENH_TEXT	'x'
-#define GR_PAUSE 	'P'
+#define GR_PAUSE	'3'
+#define GR_PAUSE_END	'4'
+#define GR_PAUSE_OLD 	'P'
 #define GR_HELP		'H'
 #define GR_MOUSECAPABLE 'm' /* PM: say gnupmdrv we are mouseable */
 #define PUT_TMPTEXT	't'
@@ -73,9 +78,11 @@
 #define GR_SET_COLOR		'C'
 #define GR_SET_RGBCOLOR		'b'
 #define GR_LTCOLOR		'N'
-#define GR_FILLED_POLYGON	'y' /* 'f' */
+#define GR_FILLED_POLYGON	'y'
+#define GR_FILLED_POLYGON_OLD	'f'
 #define GR_IMAGE		'i'
 #define GR_RGB_IMAGE	'I'
+#define GR_RGBA_IMAGE	'?'
 
 /* "special" option commands */
 #define SET_SPECIAL_ENHANCED	'e'
