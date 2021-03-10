@@ -27,4 +27,4 @@ Finally, open the VC2019 solution `config\msvc\gnuplot\gnuplot.sln` and build th
 
 | Branch | Build status |
 | ------ | ------------ |
-| master | [![Build status](https://ci.appveyor.com/api/projects/status/vnyn8yrfit4wewc0/branch/master?svg=true)](https://ci.appveyor.com/project/AlexanderTaeschner/gnuplot/branch/master) |
+| main   | [![Build status](https://ci.appveyor.com/api/projects/status/vnyn8yrfit4wewc0/branch/main?svg=true)](https://ci.appveyor.com/project/AlexanderTaeschner/gnuplot/branch/main) |
