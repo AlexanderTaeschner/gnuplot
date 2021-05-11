@@ -128,7 +128,7 @@ char *PS_psdir = NULL;
 char *PS_fontpath = NULL;
 
 /* true if terminal has been initialized */
-TBOOLEAN term_initialised;
+TBOOLEAN term_initialised = FALSE;
 
 /* The qt and wxt terminals cannot be used in the same session. */
 /* Whichever one is used first to plot, this locks out the other. */
@@ -528,10 +528,10 @@ term_start_plot()
 	invalidate_palette();
 
     /* Set canvas size to full range of current terminal coordinates */
-	canvas.xleft  = 0;
-	canvas.xright = term->xmax - 1;
-	canvas.ybot   = 0;
-	canvas.ytop   = term->ymax - 1;
+    canvas.xleft  = 0;
+    canvas.xright = term->xmax - 1;
+    canvas.ybot   = 0;
+    canvas.ytop   = term->ymax - 1;
 
 }
 

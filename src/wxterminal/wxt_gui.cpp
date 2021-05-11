@@ -98,6 +98,8 @@ extern "C" {
 }
 
 /* define DEBUG here to have debugging messages in stderr */
+/* #define DEBUG */
+
 #include "wxt_gui.h"
 
 /* frame icon composed of three icons of different resolutions */
@@ -165,7 +167,6 @@ int    wxt_hypertext_fontweight = 10;
 
 #if defined(WXT_MONOTHREADED) && !defined(_WIN32)
 static int wxt_yield = 0;		/* used in wxt_waitforinput() */
-static TBOOLEAN wxt_interlock = FALSE;	/* used to prevent recursive OnCreateWindow */
 #endif
 
 char *wxt_enhanced_fontname = NULL;
@@ -390,9 +391,6 @@ void wxtApp::OnCreateWindow( wxCommandEvent& event )
 	wxt_window_t *window = (wxt_window_t*) event.GetClientData();
 
 	FPRINTF((stderr,"wxtApp::OnCreateWindow\n"));
-#if defined(WXT_MONOTHREADED) && !defined(_WIN32)
-	wxt_interlock = TRUE;
-#endif
 	window->frame = new wxtFrame( window->title, window->id );
 	window->frame->Show(true);
 #ifdef __WXMSW__
@@ -414,9 +412,6 @@ void wxtApp::OnCreateWindow( wxCommandEvent& event )
 	/* tell the other thread we have finished */
 	wxMutexLocker lock(*(window->mutex));
 	window->condition->Broadcast();
-#if defined(WXT_MONOTHREADED) && !defined(_WIN32)
-	wxt_interlock = FALSE;
-#endif
 }
 
 /* wrapper for AddPendingEvent or ProcessEvent */
@@ -878,8 +873,10 @@ void wxtFrame::OnSize( wxSizeEvent& event )
 	PositionStatusBar();
 #endif
 
-	/* Note: On some platforms OnSize() might get called before the settings have been initialized in wxt_init(). */
-	if (wxt_redraw == yes)
+	/* Note: On some platforms OnSize() might get called before
+	 * settings have been initialized in wxt_init().
+	 */
+	if (wxt_redraw == yes && term_initialised)
 		wxt_exec_event(GE_replot, 0, 0, 0 , 0, this->GetId());
 }
 
@@ -2014,10 +2011,6 @@ void wxt_init()
 	if ( wxt_current_window == NULL ) {
 
 		FPRINTF((stderr,"opening a new plot window\n"));
-#if defined(WXT_MONOTHREADED) && !defined(_WIN32)
-		if (wxt_interlock)
-		    return;
-#endif
 		/* create a new plot window and show it */
 		wxt_window_t window;
 		window.id = wxt_window_number;

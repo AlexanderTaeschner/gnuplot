@@ -430,42 +430,36 @@ com_line()
 int
 do_line()
 {
-    /* Line continuation has already been handled by read_line() */
-    char *inlptr;
-
-    /* Expand any string variables in the current input line */
+    /* Line continuation has already been handled by read_line().
+     * Expand any string variables in the current input line.
+     */
     string_expand_macros();
 
-    /* Skip leading whitespace */
-    inlptr = gp_input_line;
-    while (isspace((unsigned char) *inlptr))
-	inlptr++;
+    /* Remove leading whitespace */
+    {
+	char *inlptr = gp_input_line;
+	while (isspace((unsigned char) *inlptr))
+	    inlptr++;
+	if (inlptr != gp_input_line) {
+	    memmove(gp_input_line, inlptr, strlen(inlptr));
+	    gp_input_line[strlen(inlptr)] = NUL;
+	}
+    }
 
     /* Leading '!' indicates a shell command that bypasses normal gnuplot
      * tokenization and parsing.  This doesn't work inside a bracketed clause.
      */
-    if (is_system(*inlptr)) {
-	do_system(inlptr + 1);
+    if (is_system(*gp_input_line)) {
+	do_system(gp_input_line + 1);
 	return (0);
     }
 
     /* Strip off trailing comment */
-    FPRINTF((stderr,"doline( \"%s\" )\n", gp_input_line));
-    if (strchr(inlptr, '#')) {
+    if (strchr(gp_input_line, '#')) {
 	num_tokens = scanner(&gp_input_line, &gp_input_line_len);
 	if (gp_input_line[token[num_tokens].start_index] == '#')
 	    gp_input_line[token[num_tokens].start_index] = NUL;
     }
-
-    if (inlptr != gp_input_line) {
-	/* If there was leading whitespace, copy the actual
-	 * command string to the front. use memmove() because
-	 * source and target may overlap */
-	memmove(gp_input_line, inlptr, strlen(inlptr));
-	/* Terminate resulting string */
-	gp_input_line[strlen(inlptr)] = NUL;
-    }
-    FPRINTF((stderr, "  echo: \"%s\"\n", gp_input_line));
 
     num_tokens = scanner(&gp_input_line, &gp_input_line_len);
 
@@ -1996,6 +1990,7 @@ plot_command()
     plot_token = c_token++;
     plotted_data_from_stdin = FALSE;
     refresh_nplots = 0;
+    plot_iterator = cleanup_iteration(plot_iterator);
     SET_CURSOR_WAIT;
 #ifdef USE_MOUSE
     plot_mode(MODE_PLOT);
@@ -2064,6 +2059,16 @@ print_set_output(char *name, TBOOLEAN datablock, TBOOLEAN append_p)
 	    return;
 	}
     } else {
+	/* Make sure we will not overwrite the current input. */
+	LFS *frame = lf_head;
+	for (frame = lf_head; frame; frame = frame->prev) {
+	    if (frame->name && !strcmp(name, frame->name)) {
+		free(name);
+		int_error(NO_CARET, "Attempt to set print output to overwrite input %s",
+			frame->name);
+	    }
+	}
+
 	print_out_var = add_udv_by_name(name);
 	if (!append_p)
 	    gpfree_datablock(&print_out_var->udv_value);
@@ -2425,6 +2430,7 @@ splot_command()
     plot_token = c_token++;
     plotted_data_from_stdin = FALSE;
     refresh_nplots = 0;
+    plot_iterator = cleanup_iteration(plot_iterator);
     SET_CURSOR_WAIT;
 #ifdef USE_MOUSE
     plot_mode(MODE_SPLOT);

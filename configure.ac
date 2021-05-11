@@ -216,10 +216,7 @@ dnl _instead_ of -lm ...
 AC_CHECK_FUNC(sin,,[AC_CHECK_LIB(m,sin)])
 
 dnl Header files. ANSI first
-AC_HEADER_STDC
-
-dnl Header files
-dnl ANSI/ISO C, POSIX, others
+dnl AC_HEADER_STDC
 AC_CHECK_HEADERS(dirent.h errno.h float.h langinfo.h limits.h locale.h math.h \
   stdlib.h string.h time.h sys/time.h sys/types.h \
   sys/bsdtypes.h sys/ioctl.h sys/param.h sys/select.h sys/socket.h \
@@ -944,13 +941,6 @@ AS_IF([test "x${with_tgif}" = "xyes"],
   AC_DEFINE(HAVE_TGIF,1,
           [ Define to include support for tgif terminal ],))
 
-dnl  Allow to include mif (FrameMaker 3) terminal
-AC_ARG_WITH(mif,dnl
-[  --with-mif               mif terminal (FrameMaker 3)])
-AS_IF([test "x${with_mif}" = "xyes"],
-  AC_DEFINE(HAVE_MIF,1,
-          [ Define to include support for mif terminal ],))
-
 dnl  Allow to include metapost terminal
 AC_ARG_WITH(metapost,dnl
 [  --with-metapost          metapost terminal])
@@ -1206,8 +1196,9 @@ if test "$with_bitmap_terminals" == yes; then
 else
   AC_MSG_RESULT([  dot-matrix terminals: no (use --with-bitmap-terminals to enable)])
 fi
-AC_MSG_RESULT([    epson, nec, okidata, tandy, and seiko dp414 printers])
-AC_MSG_RESULT([    hp500c, hpdj, hpljii, hppj, pbm, sixel, starc])
+AC_MSG_RESULT([    printers: epson, nec, okidata, tandy, seiko dpu414 ])
+AC_MSG_RESULT([              hp500c, hpdj, hpljii, hppj, starc])
+AC_MSG_RESULT([    other:    block pbm sixel ])
 AC_MSG_RESULT([])
 
 if test "$with_tektronix" == no; then
@@ -1241,12 +1232,6 @@ if test "$with_tgif" == yes; then
   AC_MSG_RESULT([    tgif terminal: yes])
 else
   AC_MSG_RESULT([    tgif terminal: no   (use --with-tgif to enable)])
-fi
-
-if test "$with_mif" == yes; then
-  AC_MSG_RESULT([    mif terminal (FrameMaker 3): yes])
-else
-  AC_MSG_RESULT([    mif terminal (FrameMaker 3): no   (use --with-mif to enable)])
 fi
 
 if test "$with_metapost" == yes; then
@@ -1283,8 +1268,8 @@ fi
 
 AC_MSG_RESULT([])
 AC_MSG_RESULT([  Other terminals that can be enabled but have no ./configure option:])
-AC_MSG_RESULT([    eepic, emtex, hp2623a, hp2648, imagen, kyocera, latex, qms, tpic ])
-AC_MSG_RESULT([    pm (makefile.os2), be (BeOS), svga (MSDOS/djgpp), windows])
+AC_MSG_RESULT([    eepic, emtex, hp2623a, hp2648, imagen, kyocera, latex, mif, tpic ])
+AC_MSG_RESULT([    qms, pm (makefile.os2), be (BeOS), svga (MSDOS/djgpp), windows])
 
 dnl These are the most common interactive terminal options
 AC_MSG_RESULT([])
