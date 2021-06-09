@@ -139,11 +139,6 @@ static TBOOLEAN pause_internal;    /* flag to indicate not to use a dialog box *
 # include <conio.h>		/* for getch() */
 #endif
 
-#ifdef VMS
-int vms_vkid;			/* Virtual keyboard id */
-int vms_ktid;			/* key table id, for translating keystrokes */
-#endif /* VMS */
-
 typedef enum ifstate {IF_INITIAL=1, IF_TRUE, IF_FALSE} ifstate;
 
 /* static prototypes */
@@ -170,7 +165,13 @@ char *gp_input_line;
 size_t gp_input_line_len;
 int inline_num;			/* input line number */
 
+/* Points to structure holding dummy parameter values
+ * to be used during function evaluation
+ */
 struct udft_entry *dummy_func;
+
+/* dummy_func will point to this during function plotting */
+struct udft_entry plot_func;
 
 /* support for replot command */
 char *replot_line = NULL;
@@ -864,9 +865,7 @@ array_command()
     /* Create or recycle a udv containing an array with the requested name */
     if (!isletter(++c_token))
 	int_error(c_token, "illegal variable name");
-    array = add_udv(c_token);
-    free_value(&array->udv_value);
-    c_token++;
+    array = add_udv(c_token++);
 
     if (equals(c_token, "[")) {
 	c_token++;
@@ -883,21 +882,13 @@ array_command()
 	}
 	nsize = est_size;
     }
-    if (nsize <= 0)
+    if (nsize > 0)
+	init_array(array, nsize);
+    else
 	int_error(c_token-1, "expecting array[size>0]");
 
-    array->udv_value.v.value_array = gp_alloc((nsize+1) * sizeof(t_value), "array_command");
-    array->udv_value.type = ARRAY;
-
-    /* Element zero of the new array is not visible but contains the size */
-    A = array->udv_value.v.value_array;
-    A[0].v.int_val = nsize;
-    for (i = 0; i <= nsize; i++) {
-	A[i].type = NOTDEFINED;
-    }
-
     /* Element zero can also hold an indicator that this is a colormap */
-    /* FIXME: more sanity checks?  e.g. all entries INTGR */
+    A = array->udv_value.v.value_array;
     if (equals(c_token, "colormap")) {
 	c_token++;
 	if (nsize >= 2)	/* Need at least 2 entries to calculate range */
@@ -2863,15 +2854,6 @@ struct dsc$descriptor_s line_desc =
 
 $DESCRIPTOR(help_desc, Help);
 $DESCRIPTOR(helpfile_desc, "GNUPLOT$HELP");
-
-/* HBB 990829: confirmed this to be used on VMS, only --> moved into
- * the VMS-specific section */
-void
-done(int status)
-{
-    term_reset();
-    gp_exit(status);
-}
 
 /* VMS-only version of read_line */
 static int
