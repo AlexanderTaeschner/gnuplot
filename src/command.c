@@ -683,6 +683,11 @@ define()
 	c_token += 2;
 	udv = add_udv(start_token);
 	(void) const_express(&result);
+
+	/* Special handling needed to safely return an array */
+	if (result.type == ARRAY)
+	    make_array_permanent(&result);
+
 	/* Prevents memory leak if the variable name is re-used */
 	free_value(&udv->udv_value);
 	udv->udv_value = result;
@@ -845,6 +850,7 @@ lower_command(void)
 /*
  * Arrays are declared using the syntax
  *    array A[size] { = [ element, element, ... ] }
+ *    array A = [ .., .. ]
  * where size is an integer and space is reserved for elements A[1] through A[size]
  * The size itself is stored in A[0].v.int_val.A
  * The list of initial values is optional.
@@ -858,6 +864,7 @@ array_command()
 {
     int nsize = 0;	/* Size of array when we leave */
     int est_size = 0;	/* Estimated size */
+    TBOOLEAN empty_array = FALSE;
     struct udvt_entry *array;
     struct value *A;
     int i;
@@ -873,6 +880,8 @@ array_command()
 	if (!equals(c_token++,"]"))
 	    int_error(c_token-1, "expecting array[size>0]");
     } else if (equals(c_token, "=") && equals(c_token+1, "[")) {
+	if (equals(c_token+2,"]"))
+	    empty_array = TRUE;
 	/* Estimate size of array by counting commas in the initializer */
 	for ( i = c_token+2; i < num_tokens; i++) {
 	    if (equals(i,",") || equals(i,"]"))
@@ -896,11 +905,9 @@ array_command()
     }
 
     /* Initializer syntax:   array A[10] = [x,y,z,,"foo",] */
-    if (equals(c_token, "=")) {
+    if (equals(c_token, "=") && equals(c_token+1, "[")) {
 	int initializers = 0;
-	if (!equals(++c_token, "["))
-	    int_error(c_token, "expecting Array[size] = [x,y,...]");
-	c_token++;
+	c_token += 2;
 	for (i = 1; i <= nsize; i++) {
 	    if (equals(c_token, "]"))
 		break;
@@ -910,6 +917,11 @@ array_command()
 		continue;
 	    }
 	    const_express(&A[i]);
+	    if (A[i].type == ARRAY) {
+		if (A[i].v.value_array[0].type == TEMP_ARRAY)
+		    gpfree_array(&(A[i]));
+		int_error(c_token, "Cannot nest arrays");
+	    }
 	    initializers++;
 	    if (equals(c_token, "]"))
 		break;
@@ -920,7 +932,9 @@ array_command()
 	}
 	c_token++;
 	/* If the size is determined by the number of initializers */
-	if (A[0].v.int_val == 0)
+	if (empty_array)
+	    A[0].v.int_val = 0;
+	else if (A[0].v.int_val == 0)
 	    A[0].v.int_val = initializers;
     }
 
@@ -979,7 +993,13 @@ is_array_assignment()
 
     /* Evaluate right side of assignment */
     c_token += 2;
-    (void) const_express(&newvalue);
+    const_express(&newvalue);
+    if (newvalue.type == ARRAY) {
+	if (newvalue.v.value_array[0].type == TEMP_ARRAY)
+	    gpfree_array(&newvalue);
+	int_error(c_token, "Cannot nest arrays");
+    }
+    free_value(&udv->udv_value.v.value_array[index]);
     udv->udv_value.v.value_array[index] = newvalue;
 
     return TRUE;
@@ -2135,11 +2155,6 @@ print_command()
 	    }
 	    continue;
 	}
-	if (type_udv(c_token) == ARRAY && !equals(c_token+1, "[")) {
-	    udvt_entry *array = add_udv(c_token++);
-	    save_array_content(print_out, array->udv_value.v.value_array);
-	    continue;
-	}
 	const_express(&a);
 	if (a.type == STRING) {
 	    if (dataline != NULL)
@@ -2147,6 +2162,11 @@ print_command()
 	    else
 		fputs(a.v.string_val, print_out);
 	    need_space = FALSE;
+	} else if (a.type == ARRAY) {
+	    save_array_content(print_out, a.v.value_array);
+	    if (a.v.value_array[0].type == TEMP_ARRAY)
+		gpfree_array(&a);
+	    continue;
 	} else {
 	    if (need_space) {
 		if (dataline != NULL)

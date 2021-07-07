@@ -155,6 +155,8 @@ struct value * pop_or_convert_from_string(struct value *);
 void free_value(struct value *a);
 void gpfree_string(struct value *a);
 void gpfree_array(struct value *a);
+void make_array_permanent(struct value *a);
+struct value * array_slice(struct value *full, int beg, int end);
 
 void init_array( struct udvt_entry *array, int size );
 
@@ -174,6 +176,7 @@ void f_jtern(union argument *x);
 void execute_at(struct at_type *at_ptr);
 void evaluate_at(struct at_type *at_ptr, struct value *val_ptr);
 void real_free_at(struct at_type *at_ptr);
+void free_action_entry(struct at_entry *a);
 struct udvt_entry * add_udv_by_name(char *key);
 struct udvt_entry * get_udv_by_name(char *key);
 void del_udv_by_name( char *key, TBOOLEAN isWildcard );

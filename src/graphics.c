@@ -1644,12 +1644,15 @@ plot_steps(struct curve_points *plot)
     int xleft, xright, ytop, ybot;	/* plot limits in terminal coords */
     int y0=0;				/* baseline */
     int style = 0;
+    int oneside = plot->filledcurves_options.oneside;	/* above/below */
 
     /* EAM April 2011:  Default to lines only, but allow filled boxes */
     if ((plot->plot_style & PLOT_STYLE_HAS_FILL) && t->fillbox) {
 	double ey = 0;
 	style = style_from_fill(&plot->fill_properties);
-	if (Y_AXIS.log)
+	if (plot->filledcurves_options.closeto == FILLEDCURVES_ATY1)
+	    ey = plot->filledcurves_options.at;
+	else if (Y_AXIS.log)
 	    ey = Y_AXIS.min;
 	else
 	    cliptorange(ey, Y_AXIS.min, Y_AXIS.max);
@@ -1687,12 +1690,12 @@ plot_steps(struct curve_points *plot)
 			break;
 
 		    /* Some terminals fail to completely color the join between boxes */
-		    if (style == FS_OPAQUE)
+		    if (style == FS_OPAQUE && oneside == 0)
 			draw_clip_line(xl, yprev, xl, y0);
 
-		    if (yprev - y0 < 0)
+		    if ((yprev - y0 < 0) && (oneside <= 0))
 			(*t->fillbox)(style, xl, yprev, (xr-xl), y0-yprev);
-		    else
+		    if ((yprev - y0 >= 0) && (oneside >= 0))
 			(*t->fillbox)(style, xl, y0, (xr-xl), yprev-y0);
 		} else {
 		    draw_clip_line(xprev, yprev, x, yprev);
@@ -2375,7 +2378,7 @@ plot_points(struct curve_points *plot)
 	     * Swarm jitter y offset is in the original coordinate system.
 	     * vertical jitter y offset is a multiple of character heights.
 	     */
-	    if (jitter.spread > 0) {
+	    if (jitter.spread > 0 && !(plot->plot_smooth == SMOOTH_ZSORT)) {
 		x += plot->points[i].CRD_XJITTER * 0.7 * t->h_char;
 		switch (jitter.style) {
 		    case JITTER_ON_Y:
@@ -4636,6 +4639,9 @@ process_image(void *plot, t_procimg_action action)
     t_imagecolor pixel_planes;
     udvt_entry *private_colormap = NULL;	/* "fc palette <colormap>" */
 
+    TBOOLEAN rectangular_image = FALSE;
+    TBOOLEAN fallback = FALSE;
+
     /* Detours necessary to handle 3D plots */
     TBOOLEAN project_points = FALSE;		/* True if 3D plot */
     int image_x_axis, image_y_axis;
@@ -4812,9 +4818,8 @@ process_image(void *plot, t_procimg_action action)
     /* Check if the pixel grid is orthogonal and oriented with axes.
      * If so, then can use efficient terminal image routines.
      */
-    {
-    TBOOLEAN rectangular_image = FALSE;
-    TBOOLEAN fallback = FALSE;
+    rectangular_image = FALSE;
+    fallback = FALSE;
 
 #define SHIFT_TOLERANCE 0.01
     if ( ( (fabs(delta_x_grid[0]) < SHIFT_TOLERANCE*fabs(delta_x_grid[1]))
@@ -5208,8 +5213,6 @@ process_image(void *plot, t_procimg_action action)
 			if ((points[i_image].type == UNDEFINED)
 			||  (isnan(points[i_image].CRD_COLOR))) {
 			    /* EAM April 2012 Distinguish +/-Inf from NaN */
-			    FPRINTF((stderr,"undefined pixel value %g\n",
-				    points[i_image].CRD_COLOR));
 			    if (isnan(points[i_image].CRD_COLOR))
 				    goto skip_pixel;
 			}
@@ -5263,7 +5266,6 @@ skip_pixel:
 	}
 
 	(term->layer)(TERM_LAYER_END_IMAGE);
-    }
     }
 
 }

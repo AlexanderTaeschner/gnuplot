@@ -2450,7 +2450,8 @@ eval_plots()
 			int_error(c_token, "\"with\" allowed only after parametric function fully specified");
 		    this_plot->plot_style = get_style();
 
-		    if (this_plot->plot_style == FILLEDCURVES) {
+		    if (this_plot->plot_style == FILLEDCURVES
+		    ||  this_plot->plot_style == FILLSTEPS) {
 			/* read a possible option for 'with filledcurves' */
 			get_filledcurves_style_options(&this_plot->filledcurves_options);
 		    }
@@ -3093,13 +3094,16 @@ eval_plots()
 		    break;
 		}
 
-		/* Images are defined by a grid representing centers of pixels.
-		 * Compensate for extent of the image so `set autoscale fix`
-		 * uses outer edges of outer pixels in axes adjustment.
-		 */
-		if ((this_plot->plot_style == IMAGE
-		    || this_plot->plot_style == RGBIMAGE
-		    || this_plot->plot_style == RGBA_IMAGE)) {
+		/* Images are defined by a grid representing centers of pixels */
+		if (this_plot->plot_style == IMAGE
+		||  this_plot->plot_style == RGBIMAGE
+		||  this_plot->plot_style == RGBA_IMAGE) {
+		    /* Sort pixels and complete image grid */
+		    if (df_sparse_matrix)
+			populate_sparse_matrix( &(this_plot->points), &(this_plot->p_count) );
+		    /* Compensate for the extent of the image so that `set autoscale fix`
+		     * uses the outer edges of the outer pixels for axis range adjustment.
+		     */
 		    this_plot->image_properties.type = IC_PALETTE;
 		    process_image(this_plot, IMG_UPDATE_AXES);
 		}

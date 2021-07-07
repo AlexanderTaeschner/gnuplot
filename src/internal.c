@@ -82,7 +82,7 @@ static enum DATA_TYPES sprintf_specifier(const char *format);
 
 #define BADINT_DEFAULT int_error(NO_CARET, "error: bit shift applied to non-INT");
 #define BAD_TYPE(type) int_error(NO_CARET, (type==NOTDEFINED) ? "uninitialized user variable" : "internal error : type neither INT nor CMPLX");
-	
+
 static const char *nonstring_error = "internal error : STRING operator applied to undefined or non-STRING variable";
 
 static int recursion_depth = 0;
@@ -168,9 +168,6 @@ f_call(union argument *x)
     save_dummy = udf->dummy_values[0];
     (void) pop(&(udf->dummy_values[0]));
 
-    if (udf->dummy_values[0].type == ARRAY)
-	int_error(NO_CARET, "f_call: unsupported array operation");
-
     if (udf->dummy_num != 1)
 	int_error(NO_CARET, "function %s requires %d variables", udf->udf_name, udf->dummy_num);
 
@@ -218,8 +215,6 @@ f_calln(union argument *x)
     /* pop parameters we can use */
     for (i = num_pop - 1; i >= 0; i--) {
 	(void) pop(&(udf->dummy_values[i]));
-	if (udf->dummy_values[i].type == ARRAY)
-	    int_error(NO_CARET, "f_calln: unsupported array operation");
     }
 
     if (recursion_depth++ > STACK_DEPTH)
@@ -1382,12 +1377,13 @@ f_strstrt(union argument *arg)
  * f_range() handles both explicit calls to substr(string, beg, end)
  * and the short form string[beg:end].  The calls to gp_strlen() and
  * gp_strchrn() allow it to handle utf8 strings.
+ * f_range() also handles requests for an array slice B = A[low:high].
  */
 void
 f_range(union argument *arg)
 {
     struct value beg, end, full;
-    struct value substr;
+    struct value result;
     int ibeg, iend;
 
     (void) arg;			/* avoid -Wunused warning */
@@ -1407,11 +1403,18 @@ f_range(union argument *arg)
 	iend = floor(end.v.cmplx_val.real);
     else
 	int_error(NO_CARET, "internal error: non-numeric substring range specifier");
-	
+
+    if (full.type == ARRAY) {
+	result.v.value_array = array_slice( &full, ibeg, iend );
+	result.type = ARRAY;
+	if (full.v.value_array[0].type == TEMP_ARRAY)
+	    gpfree_array(&full);
+	push(&result);
+	return;
+    }
+
     if (full.type != STRING)
 	int_error(NO_CARET, "internal error: substring range operator applied to non-STRING type");
-
-    FPRINTF((stderr,"f_range( \"%s\", %d, %d)\n", full.v.string_val, beg.v.int_val, end.v.int_val));
 
     if (iend > gp_strlen(full.v.string_val))
 	iend = gp_strlen(full.v.string_val);
@@ -1419,12 +1422,12 @@ f_range(union argument *arg)
 	ibeg = 1;
 
     if (ibeg > iend) {
-	push(Gstring(&substr, ""));
+	push(Gstring(&result, ""));
     } else {
 	char *begp = gp_strchrn(full.v.string_val,ibeg-1);
 	char *endp = gp_strchrn(full.v.string_val,iend);
 	*endp = '\0';
-	push(Gstring(&substr, begp));
+	push(Gstring(&result, begp));
     }
     gpfree_string(&full);
 }
@@ -1452,6 +1455,8 @@ f_index(union argument *arg)
 	if (i <= 0 || i > array.v.value_array[0].v.int_val)
 	    int_error(NO_CARET, "array index out of range");
 	push( &array.v.value_array[i] );
+	if (array.v.value_array[0].type == TEMP_ARRAY)
+	    gpfree_array(&array);
 
     } else if (array.type == DATABLOCK) {
 	i--;	/* line numbers run from 1 to nlines */
@@ -1475,12 +1480,15 @@ f_cardinality(union argument *arg)
     (void) arg;			/* avoid -Wunused warning */
     (void) pop(&array);
 
-    if (array.type == ARRAY)
+    if (array.type == ARRAY) {
 	size = array.v.value_array[0].v.int_val;
-    else if (array.type == DATABLOCK)
+	if (array.v.value_array[0].type == TEMP_ARRAY)
+	    gpfree_array(&array);
+    } else if (array.type == DATABLOCK) {
 	size = datablock_size(&array);
-    else
+    } else {
 	int_error(NO_CARET, "internal error: cardinality of a scalar variable");
+    }
 
     push(Ginteger(&array, size));
 }
@@ -2113,6 +2121,58 @@ f_value(union argument *arg)
 	result.v.cmplx_val.imag = 0;
     }
     push(&result);
+}
+
+/*
+ * retrieve index of array entry with known value
+ */
+void
+f_lookup(union argument *arg)
+{
+    struct value entry;
+    struct value a;
+    struct value *array;
+    int i, n;
+    int index = 0;
+
+    /* what entry are we looking for? */
+    pop(&entry);
+
+    /* what array is it in? */
+    pop(&a);
+    if (a.type != ARRAY)
+	int_error(NO_CARET, "index: expecting an array");
+    array = a.v.value_array;
+    n = array[0].v.int_val;
+
+    for (i=1; i<=n; i++) {
+	if (array[i].type != entry.type)
+	    continue;
+	switch (array[i].type) {
+	case INTGR:
+		if (array[i].v.int_val == entry.v.int_val)
+		    index = i;
+		break;
+	case CMPLX:
+		if (array[i].v.cmplx_val.real == entry.v.cmplx_val.real
+		&&  array[i].v.cmplx_val.imag == entry.v.cmplx_val.imag)
+		    index = i;
+		break;
+	case STRING:
+		if (!strcmp(array[i].v.string_val, entry.v.string_val))
+		    index = i;
+		break;
+	default:
+		break;
+	}
+	if (index != 0) /* Found it */
+	    break;
+    }
+    free_value(&entry);
+    if (array[0].type == TEMP_ARRAY)
+	gpfree_array(&a);
+
+    push(Ginteger(&a, index));
 }
 
 /*
