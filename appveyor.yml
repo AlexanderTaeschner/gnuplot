@@ -33,6 +33,6 @@ artifacts:
 deploy:
   provider: GitHub
   auth_token:
-    secure: 2Uyv3KkcTbdZTHXQMGa2O6JZS20RkoWVtItLyAXMy2pnq7K2M5MFkcb6wlHu/yqc
+    secure: ZtmXQDde09xZodH/vnmq1egEAoBMWX8aSM0HP65R2nh3xVkaZi0CLNTV98LRh5TI
   on:
     branch: main
