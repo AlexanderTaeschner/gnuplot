@@ -932,6 +932,15 @@ AS_IF([test "x${with_bitmap_terminals}" = "xyes"],,
           [ Define to disable terminals that depend on code in bitmap.c ]))
 AM_CONDITIONAL(BUILD_BITMAP, test "${with_bitmap_terminals}" = yes)
 
+dnl  Allow to enable old printer terminals (which rely on bitmap support).
+if test "$with_bitmap_terminals" == yes; then
+  AC_ARG_WITH(old_printers,dnl
+  [  --with-old-printers      dot-matrix printer terminals])
+  AS_IF([test "x${with_old_printers}" = "xyes"],
+    AC_DEFINE(OLD_PRINTERS,1,
+            [ Define to enable old dot-matrix printer terminals ]))
+fi
+
 dnl  Allow to include support for tektronix terminal emulators
 AC_ARG_WITH(tektronix,dnl
 [  --with-tektronix         tektronix terminal emulators ])
@@ -1282,14 +1291,23 @@ AC_MSG_RESULT([    pict2e pslatex pstex pstricks svg texdraw tkcanvas])
 AC_MSG_RESULT([])
 
 if test "$with_bitmap_terminals" = yes; then
-  AC_MSG_RESULT([  Dot-matrix terminals: yes ( --without-bitmap-terminals to disable)])
+  AC_MSG_RESULT([  Bitmap terminals: yes ( --without-bitmap-terminals to disable)])
 else
-  AC_MSG_RESULT([  Dot-matrix terminals: no (use --with-bitmap-terminals to enable)])
+  AC_MSG_RESULT([  Bitmap terminals: no (use --with-bitmap-terminals to enable)])
+  AC_MSG_RESULT([  These would include, if enabled])
+fi
+AC_MSG_RESULT([    block pbm sixeltek ])
+AC_MSG_RESULT([    note: not needed for sixel graphics output to vt100-series emulators])
+AC_MSG_RESULT([])
+
+if test "$with_old_printers" == yes; then
+  AC_MSG_RESULT([  Dot-matrix terminals: yes ( --without-old-printers to disable)])
+else
+  AC_MSG_RESULT([  Dot-matrix terminals: no (use --with-old-printers to enable)])
   AC_MSG_RESULT([  These would include, if enabled])
 fi
 AC_MSG_RESULT([    printers: epson nec okidata tandy seiko dpu414 ])
 AC_MSG_RESULT([              hp500c hpdj hpljii hppj starc])
-AC_MSG_RESULT([    other:    block pbm ])
 AC_MSG_RESULT([])
 
 if test "$with_tektronix" = yes; then
@@ -1298,7 +1316,6 @@ else
   AC_MSG_RESULT([  Tektronix terminal emulators: no ( --with-tektronix to enable)])
 fi
 AC_MSG_RESULT([    tek410x tek40 vttek xterm kc_tek40 km_tek40 selanar bitgraph])
-AC_MSG_RESULT([    sixeltek (not needed for sixel graphics output to vt100-series emulators)])
 
 AC_MSG_RESULT([])
 AC_MSG_RESULT([  Platform-specific, legacy, or specialized terminals omitted by default:])
