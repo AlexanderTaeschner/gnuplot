@@ -1094,6 +1094,52 @@ fake_pclose(FILE *stream)
 
 #ifdef WGP_CONSOLE
 
+// FIXME: these do not get destroyed properly
+HANDLE input_thread = NULL;
+HANDLE input_event = NULL;
+HANDLE input_cont = NULL;
+int nextchar = EOF;
+
+DWORD WINAPI
+stdin_pipe_reader(LPVOID param)
+{
+    do {
+	unsigned char c;
+	size_t n = fread(&c, 1, 1, stdin);
+	WaitForSingleObject(input_cont, INFINITE);
+	if (n == 1)
+	    nextchar = c;
+	else if (feof(stdin))
+	    nextchar = EOF;
+	SetEvent(input_event);
+	Sleep(0);
+    } while (TRUE);
+    return EOF;
+}
+
+
+HANDLE
+init_pipe_input(void)
+{
+    if (input_event == NULL)
+	input_event = CreateEvent(NULL, FALSE, FALSE, NULL);
+    if (input_cont == NULL)
+	input_cont = CreateEvent(NULL, FALSE, TRUE, NULL);
+    if (input_thread == NULL)
+	input_thread = CreateThread(NULL, 0, stdin_pipe_reader, NULL, 0, NULL);
+    return input_event;
+}
+
+
+int
+next_pipe_input(void)
+{
+    int c = nextchar;
+    SetEvent(input_cont);
+    return c;
+}
+
+
 int
 ConsoleGetch(void)
 {
@@ -1101,9 +1147,11 @@ ConsoleGetch(void)
     HANDLE h;
     DWORD waitResult;
 
-    h = (HANDLE)_get_osfhandle(fd);
-    if (h == INVALID_HANDLE_VALUE)
-	fprintf(stderr, "ERROR: Invalid stdin handle value!\n");
+    if (!_isatty(fd)) {
+	h = init_pipe_input();
+    } else {
+	h = (HANDLE)_get_osfhandle(fd);
+    }
 
     do {
 	waitResult = MsgWaitForMultipleObjects(1, &h, FALSE, INFINITE, QS_ALLINPUT);
@@ -1113,11 +1161,7 @@ ConsoleGetch(void)
 		if (c != NUL)
 		    return c;
 	    } else {
-		unsigned char c;
-		if (fread(&c, 1, 1, stdin) == 1)
-		    return c;
-		else
-		    return EOF;
+		return next_pipe_input();
 	    }
 	} else if (waitResult == WAIT_OBJECT_0+1) {
 	    WinMessageLoop();
@@ -1201,12 +1245,12 @@ static int
 ConsolePutS(const char *str)
 {
     LPWSTR wstr = UnicodeText(str, encoding);
-    // Use standard file IO instead of Console API
-    // to enable word-wrapping on Windows 10 and
-    // allow for redirection of stdout/stderr.
-    //HANDLE h = GetStdHandle(STD_OUTPUT_HANDLE);
-    //WriteConsoleW(h, wstr, wcslen(wstr), NULL, NULL);
-    fputws(wstr, stdout);
+    // Using standard (wide) file IO screws up UTF-8
+    // output, so use console IO instead. No idea why
+    // it does so, though.
+    // Word-wrapping on Windows 10 (now) works anyway.
+    HANDLE h = GetStdHandle(STD_OUTPUT_HANDLE);
+    WriteConsoleW(h, wstr, wcslen(wstr), NULL, NULL);
     free(wstr);
     return 0;
 }
@@ -1220,12 +1264,9 @@ ConsolePutCh(int ch)
 
     MultiByteAccumulate(ch, w, &count);
     if (count > 0) {
-	// Use standard file IO instead of Console API
-	// to enable word-wrapping on Windows 10.
-	//HANDLE h = GetStdHandle(STD_OUTPUT_HANDLE);
-	//WriteConsoleW(h, w, count, NULL, NULL);
 	w[count] = 0;
-	fputws(w, stdout);
+	HANDLE h = GetStdHandle(STD_OUTPUT_HANDLE);
+	WriteConsoleW(h, w, count, NULL, NULL);
     }
     return ch;
 }

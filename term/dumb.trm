@@ -52,6 +52,17 @@
  *   Bastian Maerkisch Nov 2016
  *	ANSI color support.  Filled polygons.
  *
+ *   Bastian Maerkisch Jul 2021
+ *	Filled boxes.
+ *	(Partial) wide character support.
+ *	Wide characters are problematic as they would destroy the layout.  We
+ *	handle this by marking subsequent cells as "occupied" with NUL.  These
+ *	cells do not get printed.  Subsequent calls to set_pixel() also blank
+ *	the cell to the left, if the cell is marked as occupied, and the one to
+ *	the right if they overwrite a wide character.
+ *	Note that is_wide_char() uses the same incomplete logic as mbwidth in
+ *	readline.c and strwidth_utf8() in estimate.trm.
+ *
  * send your comments or suggestions to (gnuplot-info@lists.sourceforge.net).
  *
  */
@@ -90,6 +101,9 @@ TERM_PUBLIC void ENHdumb_FLUSH(void);
 TERM_PUBLIC int DUMB_make_palette(t_sm_palette *palette);
 TERM_PUBLIC void DUMB_set_color(t_colorspec *);
 #endif
+TERM_PUBLIC void DUMB_fillbox(int style, unsigned int x, unsigned int y,
+			      unsigned int w, unsigned int h);
+TERM_PUBLIC void DUMB_filled_polygon(int points, gpiPoint *corners);
 
 #define DUMB_XMAX 79
 #define DUMB_YMAX 24
@@ -133,6 +147,8 @@ static int dumb_colormode = 0;
 #define DUMB_PIXEL(x,y) dumb_matrix[dumb_xmax*(y)+(x)]
 
 static void dumb_set_pixel(int x, int y, int v);
+static unsigned nearest_ansi(rgb255_color rgb255);
+static void dumb_rgb_color(rgb255_color rgb255, char * colorstring);
 
 enum DUMB_id { DUMB_FEED, DUMB_NOFEED, DUMB_ENH, DUMB_NOENH,
                DUMB_SIZE, DUMB_ASPECT,
@@ -252,17 +268,38 @@ DUMB_options()
 }
 
 
+static TBOOLEAN
+is_wide_char(unsigned char *charpixel)
+{
+    // see also mbwidth() in readline.c
+    if (encoding == S_ENC_UTF8)
+	return (*charpixel >= 0xe3);
+    else
+	return FALSE;
+}
+
+
 static void
 dumb_set_pixel(int x, int y, int v)
 {
-    char *charpixel;
+    unsigned char *charpixel;
 
     if ((unsigned int) x <= dumb_xmax 	/* ie x>=0 && x<=dumb_xmax */
-    &&  (unsigned int) y <= dumb_ymax
-    )  {
-	charpixel = (char *)(&dumb_matrix[dumb_xmax * y + x]);
-	/* null-terminate single ascii character (needed for UTF-8) */
-	dumb_matrix[dumb_xmax * y + x] = 0;
+    &&  (unsigned int) y <= dumb_ymax) {
+	charpixel = (unsigned char *)(&DUMB_PIXEL(x, y));
+	if (*charpixel == NUL && (x > 0)) {
+	    // Also clear the wide character to the left
+	    unsigned char * c = (unsigned char *) &(DUMB_PIXEL((x - 1), y));
+	    DUMB_PIXEL((x - 1), y) = 0;
+	    *c = ' ';
+	} else if (is_wide_char(charpixel) && ((x + 1) <= dumb_xmax)) {
+	    // This is a wide character, clear the cell to the right.
+	    char * c = (char *) &(DUMB_PIXEL((x + 1), y));
+	    DUMB_PIXEL((x + 1), y) = 0;
+	    *c = ' ';
+	}
+	/* null-terminate single ASCII character (needed for UTF-8) */
+	DUMB_PIXEL(x, y) = 0;
 	*charpixel = v;
 #ifndef NO_DUMB_COLOR_SUPPORT
 	memcpy(&dumb_colors[dumb_xmax * y + x], &dumb_color, sizeof(t_colorspec));
@@ -295,7 +332,7 @@ DUMB_graphics()
     memset(dumb_colors, 0, size * sizeof(t_colorspec));
 #endif
 
-    for (i=0; i<size; i++) {
+    for (i = 0; i < size; i++) {
 	char *c = (char *)pm++;
 	*c = ' ';
     }
@@ -443,37 +480,41 @@ DUMB_text()
     int x, y, i;
 
     putc('\f', gpoutfile);
-    for (y = dumb_ymax - 1; y >= 0; y--) {
+
 #ifndef NO_DUMB_COLOR_SUPPORT
-	if (dumb_colormode > 0) {
-	    fputs("\033[0;39m", gpoutfile); /* reset colors to default */
-	    memset(&dumb_prev_color, 0, sizeof(t_colorspec));
-	}
+    if (dumb_colormode > 0) {
+	fputs("\033[0;39m", gpoutfile); /* reset colors to default */
+	memset(&dumb_prev_color, 0, sizeof(t_colorspec));
+    }
 #endif
+
+    for (y = dumb_ymax - 1; y >= 0; y--) {
 	for (x = 0; x < dumb_xmax; x++) {
 	    char *c;
 
 #ifndef NO_DUMB_COLOR_SUPPORT
 	    t_colorspec * color = &dumb_colors[dumb_xmax*y + x];
 	    const char * colorstring = ansi_colorstring(color, &dumb_prev_color);
-	    if (colorstring[0] != NUL)
+	    if (colorstring[0] != NUL) {
 		fputs(colorstring, gpoutfile);
-	    memcpy(&dumb_prev_color, color, sizeof(t_colorspec));
+		memcpy(&dumb_prev_color, color, sizeof(t_colorspec));
+	    }
 #endif
 
-	    c = (char *)(&dumb_matrix[dumb_xmax*y + x]);
-	    /* The UTF-8 character might be four bytes long and so there's
-	       no guarantee that the charcell ends in a NUL. */
-	    for (i = 0; i < sizeof(charcell) && *c != NUL; i++, c++)
-		fputc(*c, gpoutfile);
+	    c = (char *)(&DUMB_PIXEL(x, y));
+	    if (*c != NUL) { /* Do not print cells occupied by wide characters. */
+		/* The UTF-8 character might be four bytes long and so there's
+		   no guarantee that the charcell ends in a NUL. */
+		for (i = 0; i < sizeof(charcell) && *c != NUL; i++, c++)
+		    fputc(*c, gpoutfile);
+	    }
 	}
 	if (dumb_feed || y > 0)
 	    putc('\n', gpoutfile);
     }
 #ifndef NO_DUMB_COLOR_SUPPORT
-    if (dumb_colormode > 0) {
+    if (dumb_colormode > 0)
 	fputs("\033[0;39;49m", gpoutfile); /* reset colors to default */
-    }
 #endif
     fflush(gpoutfile);
 }
@@ -667,6 +708,10 @@ DUMB_put_text(unsigned int x, unsigned int y, const char *str)
 #ifndef NO_DUMB_COLOR_SUPPORT
 	memcpy(&dumb_colors[dumb_xmax * y + x], &dumb_color, sizeof(t_colorspec));
 #endif
+	if (is_wide_char((unsigned char *)(&DUMB_PIXEL(x, y))) && (x + 1) < dumb_xmax) {
+	    DUMB_PIXEL(x + 1, y) = 0;  // mark as occupied
+	    x++;
+	}
     }
 }
 
@@ -761,7 +806,6 @@ ENHdumb_OPEN(
 	return;
     }
 
-
     if (!ENHdumb_opened_string) {
 	ENHdumb_opened_string = TRUE;
 	/* Start new text fragment */
@@ -824,7 +868,7 @@ ENHdumb_put_text(unsigned int x, unsigned int y, const char *str)
     /* If no enhanced text processing is needed, we can use the plain  */
     /* vanilla put_text() routine instead of this fancy recursive one. */
     if (ignore_enhanced_text || (!strpbrk(str, "{}^_@&~") && !contains_unicode(str))) {
-	DUMB_put_text(x,y,str);
+	DUMB_put_text(x, y, str);
 	return;
     }
 
@@ -837,7 +881,7 @@ ENHdumb_put_text(unsigned int x, unsigned int y, const char *str)
     /* Set up global variables needed by enhanced_recursion() */
     enhanced_fontscale = 1.0;
     ENHdumb_opened_string = FALSE;
-    strncpy(enhanced_escape_format,"%c",sizeof(enhanced_escape_format));
+    strncpy(enhanced_escape_format, "%c", sizeof(enhanced_escape_format));
 
     DUMB_move(x,y);
 
@@ -882,16 +926,37 @@ DUMB_set_color(t_colorspec *colorspec)
 #endif
 
 
+TERM_PUBLIC void
+DUMB_fillbox(int style, unsigned int x, unsigned int y, unsigned int w, unsigned int h)
+{
+    char save_pen;
+    unsigned ny;
+
+    /* temporarily change pen */
+    save_pen = dumb_pen;
+    dumb_pen = DUMB_FILL_CONST;
+
+    for (ny = y; ny < y + GPMAX(h, 1); ny++) {
+	DUMB_move(x, ny);
+	DUMB_vector(x + GPMAX(w, 1) - 1, ny);
+    }
+
+    /* restore pen */
+    dumb_pen = save_pen;
+}
+
+
 static int
 dumb_float_compare(const void * elem1, const void * elem2)
 {
-	int val = *(float *)elem1 - *(float *)elem2;
-	return (0 < val) - (val < 0);
+    int val = *(float *)elem1 - *(float *)elem2;
+    return (0 < val) - (val < 0);
 }
+
 
 /* adopted copy from caca.trm */
 TERM_PUBLIC void
-dumb_filled_polygon(int points, gpiPoint *corners)
+DUMB_filled_polygon(int points, gpiPoint *corners)
 {
     char save_pen;
 
@@ -975,7 +1040,6 @@ dumb_filled_polygon(int points, gpiPoint *corners)
     dumb_pen = save_pen;
 }
 
-
 #endif /* TERM_BODY */
 
 #ifdef TERM_TABLE
@@ -985,19 +1049,29 @@ TERM_TABLE_START(dumb_driver)
     1, 2, /* account for typical aspect ratio of characters */
     DUMB_options, DUMB_init, DUMB_reset,
     DUMB_text, null_scale, DUMB_graphics, DUMB_move, DUMB_vector,
-    DUMB_linetype, DUMB_put_text, null_text_angle,
+    DUMB_linetype,
+#ifndef NO_DUMB_ENHANCED_SUPPORT
+    ENHdumb_put_text,
+#else
+    DUMB_put_text,
+#endif
+    null_text_angle,
     null_justify_text, DUMB_point, DUMB_arrow, set_font_null,
-    0,				/* pointsize */
+    NULL,				/* pointsize */
+#ifndef NO_DUMB_ENHANCED_SUPPORT
+    TERM_CAN_MULTIPLOT | TERM_ENHANCED_TEXT,
+#else
     TERM_CAN_MULTIPLOT,
-    NULL, NULL, NULL, NULL,
+#endif
+    NULL, NULL, DUMB_fillbox, NULL,
 #ifdef USE_MOUSE
     NULL, NULL, NULL, NULL, NULL,
 #endif
     NULL,	/* Color support sets this to DUMB_make_palette */
     NULL, 	/* previous_palette */
     NULL,	/* Color support sets this to DUMB_set_color */
-    dumb_filled_polygon, /* filled_polygon */
-    NULL, /* image */
+    DUMB_filled_polygon,
+    NULL,	/* image */
 #ifndef NO_DUMB_ENHANCED_SUPPORT
     ENHdumb_OPEN, ENHdumb_FLUSH, do_enh_writec
 #endif /* NO_DUMB_ENHANCED_SUPPORT */

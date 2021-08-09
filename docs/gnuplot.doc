@@ -251,15 +251,17 @@ C
 ## of the Voigt profile. See `VP`, `VP_fwhm`.
 #end
 
-4 New plot styles and style options
-?new plot_styles
+4 New data pre-processing filters
+?new filters
 #start
 #b cubic spline smoothing of 3D lines. See `splot smooth csplines`
 #b curve smoothing using along-path cubic splines suitable for closed curves
 ## or for 2D curves that are not monotonic on x. See `smooth path`.
 #b new keyword `period` for smoothing periodic data. See `smooth kdensity`.
-#b `set colorbox cbtics <linestyle>` affects cbtics but not other tics.
 #b keyword `binvalue=avg` plots average, rather than sum, of binned data.
+#b A cluster of 2D points can be replaced by its bounding polygon using the
+## new filter `convexhull`.  A path-smoothed bounding curve is produced by
+## `smooth convexhull`. See `convexhull`.
 #end
 
 4 New data format
@@ -338,6 +340,7 @@ C
 ## the original array. See `slice`.
 #b Function `palette(z)` returns the RGB palette color for z in cbrange.
 #b Function `rgbcolor("name")` returns the 32bit ARGB value for a named color.
+#b `set colorbox cbtics <linestyle>` affects cbtics but not other tics.
 #b Support XDG base directory for gnuplotrc configuration preferences.
 ## Reads initialization commands from $HOME/.config/gnuplot/gnuplotrc if present.
 ## See `environment`.
@@ -2757,7 +2760,6 @@ C 4 index
 #end
 5 tm_week
 ?expressions functions tm_week
-?functions tm_week
 ?time_specifiers tm_week
 ?tm_week
 ?epidemiological week
@@ -2786,7 +2788,6 @@ C 4 index
 
 5 weekdate_iso
 ?expressions functions weekdate_iso
-?functions weekdate_iso
 ?time_specifiers weekdate_iso
 ?weekdate_iso
  Syntax:
@@ -2812,7 +2813,6 @@ C 4 index
 
 5 weekdate_cdc
 ?expressions functions weekdate_cdc
-?functions weekdate_cdc
 ?time_specifiers weekdate_cdc
 ?weekdate_cdc
 =epidemiological week
@@ -3259,6 +3259,7 @@ C ... and restart the table:
 
 3 User-defined variables and functions
 ?expressions user-defined
+?functions user-defined
 ?user-defined variables
 ?user-defined
 ?variables
@@ -4557,6 +4558,7 @@ Ffigure_newsyntax
 ?beeswarm
 ?bee swarm
 =jitter
+#TeX ~
 Ffigure_jitter
  "Bee swarm" plots result from applying jitter to separate overlapping points.
  A typical use is to compare the distribution of y values exhibited by two or
@@ -4596,7 +4598,7 @@ Ffigure_boxerrorbars
  ylow to yhigh, depending on how many data columns are provided.
  The line style used for the error bar may be controlled using `set bars`.
  Otherwise the error bar will match the border of the box.
- 
+
  DEPRECATED:  The special case `boxwidth = -2.0` is for four-column data with
  y errors in the form "ylow yhigh".  In this case the boxwidth will be
  calculated so that each box touches the adjacent boxes.
@@ -5580,6 +5582,7 @@ Ffigure_parallel
  By default gnuplot will automatically determine the range and scale of the
  individual axes from the input data, but the usual `set axis range` commands
  can be used to customize this.  See `set paxis`.
+#TeX \newpage
 2 Polar plots
 =polar
 Ffigure_polar
@@ -5589,7 +5592,6 @@ Ffigure_polar
  Many, but not all, of the 2D plotting styles work in polar mode.
  The figure shows a combination of plot styles `lines` and `filledcurves`.
  See `set polar`, `set rrange`, `set size square`, `set theta`, `set ttics`.
-#TeX \newpage
 2 points
 ?plotting styles points
 ?style points
@@ -7862,8 +7864,9 @@ Ffigure_zerror
 
  Syntax:
        smooth {unique | frequency | fnormal | cumulative | cnormal | bins
-              | kdensity {bandwidth} {period}
               | csplines | acsplines | mcsplines | path | bezier | sbezier
+              | kdensity {bandwidth} {period}
+              | convexhull {expand}
               | unwrap | zsort}
 
  The `unique`, `frequency`, `fnormal`, `cumulative` and `cnormal` options
@@ -7986,7 +7989,7 @@ Ffigure_zerror
  each treating one coordinate x, y, or z as a function of a shared implicit
  trajectory path parameter. This is equivalent to the 2D `plot ... smooth path`
  option.
- 
+
  In the special case that the curve lies in the xz, yz, or xy plane then only a
  single set of spline coefficients is generated.  This allows you to generate a
  stack of smoothed curves in 3D where each one replicates the spline fit you
@@ -8162,7 +8165,7 @@ Ffigure_smooth_path
  taken from the second column.  A Gaussian is placed at the location of each
  point and the sum of all these Gaussians is plotted as a function.
  To obtain a normalized histogram, each weight should be 1/number-of-points.
- 
+
  Bandwidth:
  By default gnuplot calculates and uses the bandwidth which would be optimal
  for normally distributed data values.
@@ -8186,13 +8189,40 @@ Ffigure_smooth_path
 ?plot smooth zsort
 ?smooth zsort
 ?zsort
- Syntax
+
       plot FOO using x:y:z:color smooth zsort with points lc palette
+
  The intended use is to filter presentation of 2D scatter plots with a
  huge number of points so that the distribution of high-scoring points
  remains evident. Sorting the points on z guarantees that points with
  a high z-value will not be obscured by points with lower z-values.
  Limited to plot style "with points".
+
+5 convexhull
+?commands plot datafile convexhull
+?plot smooth convexhull
+?plot convexhull
+?smooth convexhull
+?convexhull
+      plot FOO using x:y convexhull
+      plot FOO using x:y smooth convexhull {expand <scale>}
+
+Ffigure_convex_hull
+ The points in dataset FOO are replaced by a subset of the original points
+ that constitute a bounding convex polygon.  The vertices of this polygon,
+ the convex hull, are generated in clockwise order to form a closed curve.
+ The first and last points of the generated curve are equal, making
+ it suitable for plotting `with lines` or `with filledcurves`.
+
+ If the keyword `smooth` is present, the vertices are then used as guide
+ points to generate a smooth closed curve (see `smooth path`). By default
+ this smoothed curve runs through the bounding points.  The optional scale
+ factor shifts the guide points away from the centroid so that all data
+ points lie within the smoothed curve.
+
+ If a smooth non-convex hull is wanted, you might try contouring the result of
+ dgrid3d + gauss + kdensity.  This requires experimentation to find suitable
+ grids parameters and contour level.
 
 4 special-filenames
 ?special-filenames
@@ -12700,7 +12730,7 @@ Ffigure_multiple_keys
  <freq> is the number of sub-intervals (NOT the number of minor tic marks)
  between major tics. The default for a linear axis is either 2 (one mark) or
  5 (four marks) depending on the spacing of the major tics.
- 
+
  `default` will return the number of minor ticks to its default value.
 
  `set mxtics time <N> <units>` applies only when the major tics are set to
@@ -15591,7 +15621,7 @@ Ffigure_multiple_keys
  they are interpreted as "horizontal/vertical" rather than "x/y".
 
      set key top right at graph 0.95, graph 0.95     # works in any projection
- 
+
 3 vrange
 ?commands set vrange
 ?commands show vrange
