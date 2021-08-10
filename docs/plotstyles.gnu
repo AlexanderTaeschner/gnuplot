@@ -705,7 +705,7 @@ set style line 2 lc "forest-green" pt 7 ps 0.5
 set xrange [-30:30]
 set yrange [-30:30]
 
-plot for [i=0:1] 'hull.dat' index i with points ls (i+1), \
+plot for [i=0:1] demo.'hull.dat' index i with points ls (i+1), \
      for [i=0:1] '' index i convexhull with filledcurve ls (i+1)
 
 # Custom key placement
