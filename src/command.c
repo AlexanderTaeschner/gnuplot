@@ -1030,7 +1030,7 @@ bind_command()
      */
     if (END_OF_COMMAND) {
 	; /* Fall through */
-    } else if (isstringvalue(c_token) && (lhs = try_to_get_string())) {
+    } else if ((lhs = try_to_get_string())) {
 	FPRINTF((stderr,"Got bind quoted lhs = \"%s\"\n",lhs));
     } else {
 	char *first = gp_input_line + token[c_token].start_index;
@@ -1049,7 +1049,7 @@ bind_command()
      */
     if (END_OF_COMMAND) {
 	; /* Fall through */
-    } else if (isstringvalue(c_token) && (rhs = try_to_get_string())) {
+    } else if ((rhs = try_to_get_string())) {
 	FPRINTF((stderr,"Got bind quoted rhs = \"%s\"\n",rhs));
     } else {
 	int save_token = c_token;
@@ -1220,7 +1220,10 @@ history_command()
 
 	/* find and show the entries */
 	c_token++;
-	m_capture(&search_str, c_token, c_token);  /* reallocates memory */
+	if (isstring(c_token))
+	    m_quote_capture(&search_str, c_token, c_token);
+	else
+	    m_capture(&search_str, c_token, c_token);
 	printf ("history ?%s\n", search_str);
 	if (!history_find_all(search_str))
 	    int_error(c_token,"not in history");
@@ -1235,7 +1238,10 @@ history_command()
 	    line_to_do = history_find_by_number(i);
 	} else {
 	    char *search_str = NULL;  /* string from command line to search for */
-	    m_capture(&search_str, c_token, c_token);
+	    if (isstring(c_token))
+		m_quote_capture(&search_str, c_token, c_token);
+	    else
+		m_capture(&search_str, c_token, c_token);
 	    line_to_do = history_find(search_str);
 	    free(search_str);
 	}
