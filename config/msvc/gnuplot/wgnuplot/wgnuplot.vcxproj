@@ -93,7 +93,7 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>HAVE_CONFIG_H;USE_MOUSE;WXWIDGETS;HAVE_CAIROPDF;HAVE_CAIROEPS;HAVE_LIBGD;HAVE_GD_H;HAVE_GD_GIF;GIF_ANIMATION;HAVE_GD_PNG;HAVE_GD_JPEG;HAVE_GD_TTF;HAVE_LIBPNG;WXUSINGDLL;GNUPLOT_PS_DIR="share\\PostScript";USE_FAKEPIPES;WIN32;_DEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>$(SolutionDir)..\..\..\src;$(SolutionDir)..\..\..\term;$(SolutionDir);$(VcpkgInstalledDir)$(VcpkgTriplet)\include\cairo;$(VcpkgInstalledDir)$(VcpkgTriplet)\include\glib-2.0;$(VcpkgInstalledDir)$(VcpkgTriplet)\lib\glib-2.0\include;$(VcpkgInstalledDir)$(VcpkgTriplet)\include\pango-1.0;$(VcpkgInstalledDir)$(VcpkgTriplet)\include\harfbuzz;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)..\..\..\src;$(SolutionDir)..\..\..\term;$(SolutionDir);$(_ZVcpkgInstalledDir)$(VcpkgTriplet)\include\cairo;$(_ZVcpkgInstalledDir)$(VcpkgTriplet)\include\glib-2.0;$(_ZVcpkgInstalledDir)$(VcpkgTriplet)\lib\glib-2.0\include;$(_ZVcpkgInstalledDir)$(VcpkgTriplet)\include\pango-1.0;$(_ZVcpkgInstalledDir)$(VcpkgTriplet)\include\harfbuzz;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
     </ClCompile>
     <Link>
@@ -101,7 +101,7 @@
       <AdditionalDependencies>Gdiplus.lib;Comctl32.lib;Shlwapi.lib;Msimg32.lib;Htmlhelp.lib;d2d1.lib;dwrite.lib;Usp10.lib;Rpcrt4.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
-      <Command>xcopy /S /E /I /Y $(VcpkgInstalledDir)$(VcpkgTriplet)\etc\fonts $(TargetDir)fonts</Command>
+      <Command>xcopy /S /E /I /Y $(_ZVcpkgInstalledDir)$(VcpkgTriplet)\etc\fonts $(TargetDir)fonts</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -111,7 +111,7 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>HAVE_CONFIG_H;USE_MOUSE;WXWIDGETS;HAVE_CAIROPDF;HAVE_CAIROEPS;HAVE_LIBGD;HAVE_GD_H;HAVE_GD_GIF;GIF_ANIMATION;HAVE_GD_PNG;HAVE_GD_JPEG;HAVE_GD_TTF;HAVE_LIBPNG;WXUSINGDLL;GNUPLOT_PS_DIR="share\\PostScript";USE_FAKEPIPES;_DEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>$(SolutionDir)..\..\..\src;$(SolutionDir)..\..\..\term;$(SolutionDir);$(VcpkgInstalledDir)$(VcpkgTriplet)\include\cairo;$(VcpkgInstalledDir)$(VcpkgTriplet)\include\glib-2.0;$(VcpkgInstalledDir)$(VcpkgTriplet)\lib\glib-2.0\include;$(VcpkgInstalledDir)$(VcpkgTriplet)\include\pango-1.0;$(VcpkgInstalledDir)$(VcpkgTriplet)\include\harfbuzz;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)..\..\..\src;$(SolutionDir)..\..\..\term;$(SolutionDir);$(_ZVcpkgInstalledDir)$(VcpkgTriplet)\include\cairo;$(_ZVcpkgInstalledDir)$(VcpkgTriplet)\include\glib-2.0;$(_ZVcpkgInstalledDir)$(VcpkgTriplet)\lib\glib-2.0\include;$(_ZVcpkgInstalledDir)$(VcpkgTriplet)\include\pango-1.0;$(_ZVcpkgInstalledDir)$(VcpkgTriplet)\include\harfbuzz;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
     </ClCompile>
     <Link>
@@ -119,7 +119,7 @@
       <AdditionalDependencies>Gdiplus.lib;Comctl32.lib;Shlwapi.lib;Msimg32.lib;Htmlhelp.lib;d2d1.lib;dwrite.lib;Usp10.lib;Rpcrt4.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
-      <Command>xcopy /S /E /I /Y $(VcpkgInstalledDir)$(VcpkgTriplet)\etc\fonts $(TargetDir)fonts</Command>
+      <Command>xcopy /S /E /I /Y $(_ZVcpkgInstalledDir)$(VcpkgTriplet)\etc\fonts $(TargetDir)fonts</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -131,7 +131,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>HAVE_CONFIG_H;USE_MOUSE;WXWIDGETS;HAVE_CAIROPDF;HAVE_CAIROEPS;HAVE_LIBGD;HAVE_GD_H;HAVE_GD_GIF;GIF_ANIMATION;HAVE_GD_PNG;HAVE_GD_JPEG;HAVE_GD_TTF;HAVE_LIBPNG;WXUSINGDLL;GNUPLOT_PS_DIR="share\\PostScript";USE_FAKEPIPES;WIN32;NDEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>$(SolutionDir)..\..\..\src;$(SolutionDir)..\..\..\term;$(SolutionDir);$(VcpkgInstalledDir)$(VcpkgTriplet)\include\cairo;$(VcpkgInstalledDir)$(VcpkgTriplet)\include\glib-2.0;$(VcpkgInstalledDir)$(VcpkgTriplet)\lib\glib-2.0\include;$(VcpkgInstalledDir)$(VcpkgTriplet)\include\pango-1.0;$(VcpkgInstalledDir)$(VcpkgTriplet)\include\harfbuzz;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)..\..\..\src;$(SolutionDir)..\..\..\term;$(SolutionDir);$(_ZVcpkgInstalledDir)$(VcpkgTriplet)\include\cairo;$(_ZVcpkgInstalledDir)$(VcpkgTriplet)\include\glib-2.0;$(_ZVcpkgInstalledDir)$(VcpkgTriplet)\lib\glib-2.0\include;$(_ZVcpkgInstalledDir)$(VcpkgTriplet)\include\pango-1.0;$(_ZVcpkgInstalledDir)$(VcpkgTriplet)\include\harfbuzz;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
     </ClCompile>
     <Link>
@@ -143,7 +143,7 @@
       <LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration>
     </Link>
     <PostBuildEvent>
-      <Command>xcopy /S /E /I /Y $(VcpkgInstalledDir)$(VcpkgTriplet)\etc\fonts $(TargetDir)fonts</Command>
+      <Command>xcopy /S /E /I /Y $(_ZVcpkgInstalledDir)$(VcpkgTriplet)\etc\fonts $(TargetDir)fonts</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -155,7 +155,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>HAVE_CONFIG_H;USE_MOUSE;WXWIDGETS;HAVE_CAIROPDF;HAVE_CAIROEPS;HAVE_LIBGD;HAVE_GD_H;HAVE_GD_GIF;GIF_ANIMATION;HAVE_GD_PNG;HAVE_GD_JPEG;HAVE_GD_TTF;HAVE_LIBPNG;WXUSINGDLL;GNUPLOT_PS_DIR="share\\PostScript";USE_FAKEPIPES;NDEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>$(SolutionDir)..\..\..\src;$(SolutionDir)..\..\..\term;$(SolutionDir);$(VcpkgInstalledDir)$(VcpkgTriplet)\include\cairo;$(VcpkgInstalledDir)$(VcpkgTriplet)\include\glib-2.0;$(VcpkgInstalledDir)$(VcpkgTriplet)\lib\glib-2.0\include;$(VcpkgInstalledDir)$(VcpkgTriplet)\include\pango-1.0;$(VcpkgInstalledDir)$(VcpkgTriplet)\include\harfbuzz;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)..\..\..\src;$(SolutionDir)..\..\..\term;$(SolutionDir);$(_ZVcpkgInstalledDir)$(VcpkgTriplet)\include\cairo;$(_ZVcpkgInstalledDir)$(VcpkgTriplet)\include\glib-2.0;$(_ZVcpkgInstalledDir)$(VcpkgTriplet)\lib\glib-2.0\include;$(_ZVcpkgInstalledDir)$(VcpkgTriplet)\include\pango-1.0;$(_ZVcpkgInstalledDir)$(VcpkgTriplet)\include\harfbuzz;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
     </ClCompile>
     <Link>
@@ -167,7 +167,7 @@
       <GenerateDebugInformation>false</GenerateDebugInformation>
     </Link>
     <PostBuildEvent>
-      <Command>xcopy /S /E /I /Y $(VcpkgInstalledDir)$(VcpkgTriplet)\etc\fonts $(TargetDir)fonts</Command>
+      <Command>xcopy /S /E /I /Y $(_ZVcpkgInstalledDir)$(VcpkgTriplet)\etc\fonts $(TargetDir)fonts</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
