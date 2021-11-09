@@ -129,6 +129,16 @@ f_pop(union argument *x)
     pop(&dummy);
     if (dummy.type == STRING)
 	gpfree_string(&dummy);
+    if (dummy.type == ARRAY && dummy.v.value_array[0].type == TEMP_ARRAY)
+	gpfree_array(&dummy);
+}
+
+void
+f_nop(union argument *x)
+{
+    /* Presence of NOP in an action table serves as a barrier
+     * at the end of a ternary operation sequence.
+     */
 }
 
 void
@@ -166,7 +176,7 @@ f_call(union argument *x)
     }
 
     save_dummy = udf->dummy_values[0];
-    (void) pop(&(udf->dummy_values[0]));
+    pop(&(udf->dummy_values[0]));
 
     if (udf->dummy_num != 1)
 	int_error(NO_CARET, "function %s requires %d variables", udf->udf_name, udf->dummy_num);
@@ -174,11 +184,31 @@ f_call(union argument *x)
     if (recursion_depth++ > STACK_DEPTH)
 	int_error(NO_CARET, "recursion depth limit exceeded");
 
-    execute_at(udf->at);
-    gpfree_string(&udf->dummy_values[0]);
+    /* User-defined functions need help to clean up temporary arrays.
+     * If the action table contains hard-coded array functions they may
+     * delete these before return, which would lead to a double-free below.
+     * We replace the TEMP_ARRAY flag during evaluation to prevent this.
+     */
     if (udf->dummy_values[0].type == ARRAY
     &&  udf->dummy_values[0].v.value_array[0].type == TEMP_ARRAY)
-	gpfree_array(&udf->dummy_values[0]);
+	udf->dummy_values[0].v.value_array[0].type = ARRAY;
+
+    execute_at(udf->at);
+
+    if (udf->dummy_values[0].type == ARRAY
+    &&  udf->dummy_values[0].v.value_array[0].type == ARRAY) {
+	/* Free TEMP_ARRAY passed as a parameter unless it is also the return value. */
+	struct value top_of_stack;
+	pop(&top_of_stack);
+	if (udf->dummy_values[0].type == top_of_stack.type
+	&&  udf->dummy_values[0].v.value_array == top_of_stack.v.value_array) {
+	    top_of_stack.v.value_array[0].type = TEMP_ARRAY;
+	} else {
+	    gpfree_array(&udf->dummy_values[0]);
+	}
+	push(&top_of_stack);
+    }
+    gpfree_string(&udf->dummy_values[0]);
     udf->dummy_values[0] = save_dummy;
 
     recursion_depth--;
@@ -195,6 +225,7 @@ f_calln(union argument *x)
     int i;
     int num_pop;
     struct value num_params;
+    struct value top_of_stack;
 
     udf = x->udf_arg;
     if (!udf->at)		/* undefined */
@@ -207,30 +238,49 @@ f_calln(union argument *x)
     if (num_pop != udf->dummy_num)
 	int_error(NO_CARET, "function %s requires %d variable%c",
 	    udf->udf_name, udf->dummy_num, (udf->dummy_num == 1)?'\0':'s');
-    /* Jul 2020 CHANGE: we used to discard and ignore extra parameters */
     if (num_pop > MAX_NUM_VAR)
 	int_error(NO_CARET, "too many parameters passed to function %s",
 	    udf->udf_name);
+
+    if (recursion_depth++ > STACK_DEPTH)
+	int_error(NO_CARET, "recursion depth limit exceeded");
 
     for (i = 0; i < num_pop; i++)
 	save_dummy[i] = udf->dummy_values[i];
 
     /* pop parameters we can use */
     for (i = num_pop - 1; i >= 0; i--) {
-	(void) pop(&(udf->dummy_values[i]));
+	pop(&(udf->dummy_values[i]));
+	/* User-defined functions need help to clean up temporary arrays.
+	 * If the action table contains hard-coded array functions they may
+	 * delete these before return, which would lead to a double-free below.
+	 * We replace the TEMP_ARRAY flag during evaluation to prevent this.
+	 */
+	if (udf->dummy_values[i].type == ARRAY
+	&&  udf->dummy_values[i].v.value_array[0].type == TEMP_ARRAY)
+	    udf->dummy_values[i].v.value_array[0].type = ARRAY;
     }
-
-    if (recursion_depth++ > STACK_DEPTH)
-	int_error(NO_CARET, "recursion depth limit exceeded");
 
     execute_at(udf->at);
 
-    recursion_depth--;
-
+    /* Free TEMP_ARRAY passed as a parameter unless it is also the return value */
+    pop(&top_of_stack);
     for (i = 0; i < num_pop; i++) {
+	if (udf->dummy_values[i].type == ARRAY
+	&&  udf->dummy_values[i].v.value_array[0].type == ARRAY) {
+	    if (udf->dummy_values[i].type == top_of_stack.type
+	    &&  udf->dummy_values[i].v.value_array == top_of_stack.v.value_array) {
+		top_of_stack.v.value_array[0].type = TEMP_ARRAY;
+	    } else {
+		gpfree_array(&udf->dummy_values[i]);
+	    }
+	}
 	gpfree_string(&udf->dummy_values[i]);
 	udf->dummy_values[i] = save_dummy[i];
     }
+    push(&top_of_stack);
+
+    recursion_depth--;
 }
 
 
@@ -2051,7 +2101,6 @@ f_assign(union argument *arg)
     struct value a, b, index;
     (void) arg;
     (void) pop(&b);	/* new value */
-    (void) pop(&index);	/* index (only used if this is an array assignment) */
     (void) pop(&a);	/* name of variable */
 
     if (a.type != STRING)
@@ -2066,6 +2115,7 @@ f_assign(union argument *arg)
 
     if (udv->udv_value.type == ARRAY) {
 	int i;
+	pop(&index);
 	if (index.type == INTGR)
 	    i = index.v.int_val;
 	else if (index.type == CMPLX)
@@ -2171,7 +2221,7 @@ f_lookup(union argument *arg)
 	if (index != 0) /* Found it */
 	    break;
     }
-    free_value(&entry);
+    gpfree_string(&entry);
     if (array[0].type == TEMP_ARRAY)
 	gpfree_array(&a);
 

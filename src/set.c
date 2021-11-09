@@ -2587,6 +2587,25 @@ set_key()
 	    c_token--;  /* will be incremented again soon */
 	    break;
 
+	case S_KEY_COLS:
+	    c_token++;
+	    key->user_cols = int_expression();
+	    cliptorange(key->user_cols,0,100);
+	    c_token--;  /* will be incremented again soon */
+	    break;
+
+	case S_KEY_KEYWIDTH:
+	/* override automatic calculation of width */
+	    c_token++;
+	    get_position_default(&key->user_width, screen, 1);
+	    if (key->user_width.scalex != screen && key->user_width.scalex != graph) {
+		int_warn( c_token-2, "keywidth must be in graph or screen coordinates");
+		key->user_width.scalex = screen;
+		key->user_width.x = 0;
+	    }
+	    c_token--;  /* will be incremented again soon */
+	    break;
+
 	case S_KEY_INVALID:
 	default:
 	    int_error(c_token, "unknown key option");
@@ -5211,7 +5230,7 @@ set_terminal()
      * size to zero.  I keep patching the individual terminals, but a generic
      * sanity check may at least prevent a crash due to mistyping.
      */
-    if (term->h_char <= 0 || term->v_char <= 0) {
+    if (!(term->h_char > 0) || !(term->v_char > 0)) {
 	int_warn(NO_CARET, "invalid terminal font size");
 	term->h_char = 10;
 	term->v_char = 10;

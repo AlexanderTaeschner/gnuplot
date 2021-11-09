@@ -98,6 +98,7 @@ const struct ft_entry ft[] =
     {"lnot",  f_lnot},
     {"bnot",  f_bnot},
     {"uminus",  f_uminus},
+    {"nop",  f_nop},
     {"lor",  f_lor},
     {"land",  f_land},
     {"bor",  f_bor},
@@ -447,6 +448,8 @@ Gstring(struct value *a, char *s)
 
 /* Common interface for freeing data structures attached to a struct value.
  * Each of the type-specific routines will ignore values of other types.
+ * FIXME: It may be better to call gpfree_array only for TEMP_ARRAYs,
+ * otherwise an array passed in error as a function parameter may be wiped out.
  */
 void
 free_value(struct value *a)
@@ -720,6 +723,7 @@ evaluate_at(struct at_type *at_ptr, struct value *val_ptr)
      * so that the value on return reflects what really happened.
      */
     undefined = FALSE;
+    val_ptr->type = NOTDEFINED;
 
     errno = 0;
     reset_stack();

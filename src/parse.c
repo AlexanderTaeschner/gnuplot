@@ -254,6 +254,16 @@ string_or_express(struct at_type **atptr)
 		str = val.v.string_val;
 	    }
 	}
+	if (!undefined && val.type == ARRAY) {
+	    /* This must be an array slice or a function returning an array,
+	     * because otherwise we would have caught it above.
+	     */
+	    df_array = add_udv_by_name("GPVAL_PLOT_ARRAY");
+	    free_value(&(df_array->udv_value));
+	    make_array_permanent(&val);
+	    df_array->udv_value = val;
+	    return array_placeholder;
+	}
     }
 
     /* prepare return */
@@ -468,11 +478,6 @@ parse_assignment_expression()
 	foo->v_arg.type = STRING;
 	foo->v_arg.v.string_val = varname;
 
-	/* push a dummy variable that would be the index if this were an array */
-	/* FIXME: It would be nice to hide this from "show at" */
-	foo = add_action(PUSHC);
-	foo->v_arg.type = NOTDEFINED;
-
 	/* push the expression whose value it will get */
 	c_token += 2;
 	parse_expression();
@@ -527,17 +532,21 @@ parse_array_assignment_expression()
 	save_action = at->a_count;
 	save_token = c_token;
 
-	/* push the array name */
+	/* Get the array name */
 	m_capture(&varname,c_token,c_token);
-	foo = add_action(PUSHC);
-	foo->v_arg.type = STRING;
-	foo->v_arg.v.string_val = varname;
 
 	/* push the index */
 	c_token += 2;
 	parse_expression();
 
-	/* If this wasn't really an array element assignment, back out. */
+	/* push the array name */
+	foo = add_action(PUSHC);
+	foo->v_arg.type = STRING;
+	foo->v_arg.v.string_val = varname;
+
+	/* If this wasn't really an array element assignment, back out.
+	 * NB: foo is on the action list, so varname will be freed in this loop.
+	 */
 	if (!equals(c_token, "]") || !equals(c_token+1, "=")) {
 	    int i;
 	    for (i=save_action+1; i<at->a_count; i++) {
@@ -546,7 +555,6 @@ parse_array_assignment_expression()
 	    }
 	    c_token = save_token;
 	    at->a_count = save_action;
-	    free(varname);
 	    return 0;
 	}
 
@@ -842,6 +850,7 @@ parse_conditional_expression()
 	at->actions[savepc1].arg.j_arg = at->a_count - savepc1;
 	parse_expression();
 	at->actions[savepc2].arg.j_arg = at->a_count - savepc2;
+	add_action(NOP);
 	parse_recursion_level++;
     }
 }
@@ -1077,13 +1086,19 @@ parse_unary_expression()
 	parse_unary_expression();
 	/* Collapse two operations PUSHC <pos-const> + UMINUS
 	 * into a single operation PUSHC <neg-const>
+	 * Oct 2021: invalid if the previous constant is the else part of a conditional
+	 *           test for JUMP+PUSHC is fallible; NOP barrier hides PUSHC altogether
 	 */
 	previous = &(at->actions[at->a_count-1]);
-	if (previous->index == PUSHC &&  previous->arg.v_arg.type == INTGR) {
-	    previous->arg.v_arg.v.int_val = -previous->arg.v_arg.v.int_val;
-	} else if (previous->index == PUSHC &&  previous->arg.v_arg.type == CMPLX) {
-	    previous->arg.v_arg.v.cmplx_val.real = -previous->arg.v_arg.v.cmplx_val.real;
-	    previous->arg.v_arg.v.cmplx_val.imag = -previous->arg.v_arg.v.cmplx_val.imag;
+	if (previous->index == PUSHC
+	&&  (at->a_count < 2 || (at->actions[at->a_count-2]).index != JUMP)) {
+	    if (previous->arg.v_arg.type == INTGR) {
+		previous->arg.v_arg.v.int_val = -previous->arg.v_arg.v.int_val;
+	    } else if (previous->arg.v_arg.type == CMPLX) {
+		previous->arg.v_arg.v.cmplx_val.real = -previous->arg.v_arg.v.cmplx_val.real;
+		previous->arg.v_arg.v.cmplx_val.imag = -previous->arg.v_arg.v.cmplx_val.imag;
+	    } else
+		(void) add_action(UMINUS);
 	} else
 	    (void) add_action(UMINUS);
     } else if (equals(c_token, "+")) {	/* unary + is no-op */

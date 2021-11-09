@@ -600,6 +600,9 @@ get_data(struct curve_points *current_plot)
     case SMOOTH_ACSPLINES:
 	max_cols++;
 	break;
+    case SMOOTH_MASK:
+	/* warn about limitations? currently only implemented for image styles */
+	break;
     default:
 	if (df_no_use_specs > 2 && current_plot->plot_style != FILLEDCURVES)
 	    int_warn(NO_CARET, "extra columns ignored by smoothing option");
@@ -1276,6 +1279,13 @@ get_data(struct curve_points *current_plot)
 	    int_error(NO_CARET, "This plot style only available for splot");
 	    break;
 
+	/* "with mask" indicates a polygon data set that is to be read in
+	 * but saved for use as a mask rather than being plotted itself
+	 */
+	case POLYGONMASK:
+	    store2d_point(current_plot, i++, v[0], v[1], v[0], v[0], v[1], v[1], 0);
+	    break;
+
 	/* If anybody hits this it is because we missed handling a plot style above.
 	 * To be fixed immediately!
 	 */
@@ -1726,11 +1736,12 @@ histogram_range_fiddling(struct curve_points *plot)
 		}
 		if (axis_array[FIRST_X_AXIS].autoscale & AUTOSCALE_MAX) {
 		    /* FIXME - why did we increment p_count on UNDEFINED points? */
-		    while (plot->points[plot->p_count-1].type == UNDEFINED) {
+		    while (plot->p_count > 0
+			&& plot->points[plot->p_count-1].type == UNDEFINED) {
 			plot->p_count--;
-			if (!plot->p_count)
-			    int_error(NO_CARET,"All points in histogram UNDEFINED");
 		    }
+		    if (plot->p_count == 0)
+			int_error(NO_CARET,"No valid points in histogram");
 		    xhigh = plot->points[plot->p_count-1].x;
 		    xhigh += plot->histogram->start + 1.0;
 		    if (axis_array[FIRST_X_AXIS].max < xhigh)
@@ -2056,6 +2067,9 @@ eval_plots()
     /* Track complex values so that we can warn about trying to plot them */
     n_complex_values = 0;
 
+    /* No mask active */
+    construct_2D_mask_set(NULL, 0);
+
     /* ** First Pass: Read through data files ***
      * This pass serves to set the xrange and to parse the command, as well
      * as filling in every thing except the function data. That is done after
@@ -2240,6 +2254,9 @@ eval_plots()
 		else
 		    this_plot->sample_var2 = add_udv_by_name(c_dummy_var[1]);
 
+		if (this_plot->sample_var->udv_value.type == ARRAY)
+		    int_error(NO_CARET, "name conflict: dummy variable is an array");
+
 		/* Save prior value of sample variables so we can restore them later */
 		original_value_sample_var = this_plot->sample_var->udv_value;
 		original_value_sample_var2 = this_plot->sample_var2->udv_value;
@@ -2402,6 +2419,19 @@ eval_plots()
 			break;
 		    }
 		    set_smooth = TRUE;
+		    continue;
+		}
+
+		/* "mask" is currently implemented as if it were a smoothing
+		 * category, but giving it a separate keyword will make it
+		 * easier to separate later.
+		 */
+		if (equals(c_token, "mask")) {
+		    c_token++;
+		    if (set_smooth)
+			duplication = TRUE;
+		    set_smooth = TRUE;
+		    this_plot->plot_smooth = SMOOTH_MASK;
 		    continue;
 		}
 
