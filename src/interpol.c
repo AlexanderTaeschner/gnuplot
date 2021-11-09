@@ -851,13 +851,15 @@ do_cubic(
     xstart = this_points[0].x;
     xend = this_points[num_points - 1].x;
 #else
-    xstart = GPMAX(this_points[0].x, X_AXIS.min);
-    xend = GPMIN(this_points[num_points - 1].x, X_AXIS.max);
+    xstart = this_points[0].x;
+    xend = this_points[num_points-1].x;
+    cliptorange( xstart, X_AXIS.min, X_AXIS.max );
+    cliptorange( xend, X_AXIS.min, X_AXIS.max );
 
     if (xstart >= xend) {
 	/* This entire segment lies outside the current x range. */
 	for (i = 0; i < samples_1; i++)
-	    dest[i].type = OUTRANGE;
+	    dest[i].type = UNDEFINED;
 	return;
     }
 #endif
@@ -2021,9 +2023,13 @@ gen_2d_path_splines( struct curve_points *plot )
 	    old_points[nold-1].y = old_points[nold-2].y + old_points[nold-2].y - old_points[nold-3].y;
 	}
 
-	/* Construct path-length vector; store it in unused slot of old_points */
+	/* Construct path-length vector; store it in an unused slot of old_points */
 	t = tsum = 0.0;
 	old_points[0].CRD_PATH = 0;
+	if (xrange == 0)
+	    xrange = 1.;
+	if (yrange == 0)
+	    yrange = 1.;
 	for (i = 1; i < nold; i++) {
 	    dx = (old_points[i].x - old_points[i-1].x) / xrange;
 	    dy = (old_points[i].y - old_points[i-1].y) / yrange;

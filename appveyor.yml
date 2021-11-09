@@ -17,6 +17,7 @@ install:
   - .\vcpkg.exe integrate install
 cache:
   - c:\tools\vcpkg\installed\
+  - C:\Users\appveyor\AppData\Local\vcpkg\archives\
 environment:
   APPVEYOR_SAVE_CACHE_ON_ERROR: true
   APPVEYOR_CACHE_ENTRY_ZIP_ARGS: -t7z -mx

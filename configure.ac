@@ -556,20 +556,30 @@ AC_ARG_WITH(gd,dnl
 if test "$with_gd" != no; then
   PKG_CHECK_MODULES_NOFAIL(libgd, [gdlib])
   AC_PATH_PROG([GDLIB_CONFIG], [gdlib-config])
+
+  # If pkg-config did return libgd configuration then
+  # libgd_{CFLAGS,LDFLAGS,LIBS} is set
+  # If gdlib-config executable is found then GDLIB_CONFIG is set
   if test $pkg_failed == no && test -n "$GDLIB_CONFIG"; then
-    libgd_CPPFLAGS=`$GDLIB_CONFIG --cflags`
+    # If pkg-config did succeed and we have gdlib-config then the later takes
+    # priority
+    libgd_CFLAGS=`$GDLIB_CONFIG --cflags`
     libgd_LDFLAGS=`$GDLIB_CONFIG --ldflags`
     libgd_LIBS=`$GDLIB_CONFIG --libs`
   elif test -d "$with_gd"; then
-    libgd_CPPFLAGS="-I$with_gd/include"
+    # pkg-config did NOT succeed, we do NOT have gdlib-config but user
+    # specified --with-gd=
+    libgd_CFLAGS="-I$with_gd/include"
     libgd_LDFLAGS="-L$with_gd/lib"
     libgd_LIBS="-ljpeg -lpng -lfreetype -lz"
   fi
 
+  # Verify that libgd works, but backup the previous compilation variables to
+  # be able to revert in the case that libgd is not functional
   _cppflags="$CPPFLAGS"
   _ldflags="$LDFLAGS"
   _libs="$LIBS"
-  CPPFLAGS="$CPPFLAGS $libgd_CPPFLAGS"
+  CPPFLAGS="$CPPFLAGS $libgd_CFLAGS"
   LDFLAGS="$LDFLAGS $libgd_LDFLAGS"
   LIBS="$LIBS $libgd_LIBS"
 
@@ -941,6 +951,13 @@ AS_IF([test "x${with_tgif}" = "xyes"],
   AC_DEFINE(HAVE_TGIF,1,
           [ Define to include support for tgif terminal ],))
 
+dnl  Allow to include metafont terminal
+AC_ARG_WITH(metafont,dnl
+[  --with-metafont          metafont terminal])
+AS_IF([test "x${with_metafont}" = "xyes"],
+  AC_DEFINE(HAVE_METAFONT,1,
+          [ Define to include support for metafont terminal ],))
+
 dnl  Allow to include metapost terminal
 AC_ARG_WITH(metapost,dnl
 [  --with-metapost          metapost terminal])
@@ -1187,7 +1204,7 @@ AC_MSG_RESULT([])
 
 AC_MSG_RESULT([  Standalone terminals: yes (included by default)])
 AC_MSG_RESULT([    canvas, cgm, context, dumb, dxf, emf, epslatex,])
-AC_MSG_RESULT([    fig, hpgl, metafont, pcl5, postscript,])
+AC_MSG_RESULT([    fig, hpgl, pcl5, postscript,])
 AC_MSG_RESULT([    pict2e, pslatex, pstex, pstricks, svg, texdraw, tkcanvas])
 AC_MSG_RESULT([])
 
@@ -1198,7 +1215,7 @@ else
 fi
 AC_MSG_RESULT([    printers: epson, nec, okidata, tandy, seiko dpu414 ])
 AC_MSG_RESULT([              hp500c, hpdj, hpljii, hppj, starc])
-AC_MSG_RESULT([    other:    block pbm sixel ])
+AC_MSG_RESULT([    other:    block pbm ])
 AC_MSG_RESULT([])
 
 if test "$with_tektronix" == no; then
@@ -1214,56 +1231,63 @@ AC_MSG_RESULT([  Platform-specific, legacy, or specialized terminals omitted by 
 
 if test "$GGI_SUPPORT" = yes; then
   if test "$ac_cv_header_ggi_xmi_h" = yes; then
-    AC_MSG_RESULT([    ggi terminal: yes (with pm3d support)])
+    AC_MSG_RESULT([    ggi       : yes   (with pm3d support)])
   else
-    AC_MSG_RESULT([    ggi terminal: yes (no pm3d support, requires ggi xmi library)])
+    AC_MSG_RESULT([    ggi       : yes   (no pm3d support, requires ggi xmi library)])
   fi
 else
-  AC_MSG_RESULT([    ggi terminal:  no   (use --with-ggi to enable, requires libggi)])
+  AC_MSG_RESULT([    ggi       :  no   (use --with-ggi to enable, requires libggi)])
 fi
 
 if test "$with_gpic" == yes; then
-  AC_MSG_RESULT([    gpic terminal: yes])
+  AC_MSG_RESULT([    gpic      : yes])
 else
-  AC_MSG_RESULT([    gpic terminal: no   (use --with-gpic to enable)])
+  AC_MSG_RESULT([    gpic      :  no   (use --with-gpic to enable)])
 fi
 
 if test "$with_tgif" == yes; then
-  AC_MSG_RESULT([    tgif terminal: yes])
+  AC_MSG_RESULT([    tgif      : yes])
 else
-  AC_MSG_RESULT([    tgif terminal: no   (use --with-tgif to enable)])
+  AC_MSG_RESULT([    tgif      :  no   (use --with-tgif to enable)])
+fi
+
+if test "$with_metafont" == yes; then
+  AC_MSG_RESULT([    metafont  : yes])
+else
+  AC_MSG_RESULT([    metafont  :  no   (use --with-metafont to enable)])
 fi
 
 if test "$with_metapost" == yes; then
-  AC_MSG_RESULT([    metapost terminal          : yes])
+  AC_MSG_RESULT([    metapost  : yes])
 else
-  AC_MSG_RESULT([    metapost terminal          : no   (use --with-metapost to enable)])
+  AC_MSG_RESULT([    metapost  :  no   (use --with-metapost to enable)])
 fi
 
 if test "$with_regis" = yes; then
-  AC_MSG_RESULT([    ReGIS terminal: yes])
+  AC_MSG_RESULT([    ReGIS     : yes])
 else
-  AC_MSG_RESULT([    ReGIS terminal: no  (use --with-regis to enable)])
+  AC_MSG_RESULT([    ReGIS     :  no   (use --with-regis to enable)])
 fi
 
 if test "$is_msdos" = yes; then
-  AC_MSG_RESULT([    svga terminal (MSDOS/djgpp): yes])
+  AC_MSG_RESULT([    svga (djgpp): yes])
 fi
 
 if test "$build_src_beos_subdir" = yes; then
-  AC_MSG_RESULT([    be terminal (BeOS): yes])
+  AC_MSG_RESULT([    be (BeOS) : yes])
+
 fi
 
 if test "$with_caca" = yes; then
-  AC_MSG_RESULT([    caca terminal: yes (EXPERIMENTAL)])
+  AC_MSG_RESULT([    caca      : yes   (EXPERIMENTAL)])
 else
-  AC_MSG_RESULT([    caca terminal:  no   (use --with-caca to enable)])
+  AC_MSG_RESULT([    caca      :  no   (use --with-caca to enable)])
 fi
 
 if test "$gnuplot_framework_AquaTerm" = yes; then
-  AC_MSG_RESULT([    aqua terminal (OSX): yes])
+  AC_MSG_RESULT([    aqua (OSX): yes])
 else
-  AC_MSG_RESULT([    aqua terminal (OSX): no])
+  AC_MSG_RESULT([    aqua (OSX):  no])
 fi
 
 AC_MSG_RESULT([])
@@ -1275,9 +1299,9 @@ dnl These are the most common interactive terminal options
 AC_MSG_RESULT([])
 if test "$no_x" != yes; then
   if test "$enable_x11_mbfonts" = yes; then
-    AC_MSG_RESULT([  X Window System terminal: yes  (multi-byte fonts OK)])
+    AC_MSG_RESULT([  x11 (X Window System) : yes  (multi-byte fonts OK)])
   else
-    AC_MSG_RESULT([  X Window System terminal: yes  (multi-byte fonts not supported)])
+    AC_MSG_RESULT([  x11 (X Window System) : yes  (multi-byte fonts not supported)])
   fi
 
   if test "$enable_x11_external" = yes; then
@@ -1290,19 +1314,19 @@ if test "$no_x" != yes; then
     AC_MSG_RESULT([    (gnuplot_x11 can use KDE3/DCOP to raise konsole) ])
   fi
 else
-  AC_MSG_RESULT([  X Window System terminal: no (requires X libraries)])
+  AC_MSG_RESULT([  x11 (X Window System) : no (requires X libraries)])
 fi
 
 if test "$ac_cv_lib_gd_gdImageJpeg" = yes && 
    test "$ac_cv_lib_gd_gdImagePng" = yes && 
    test "$ac_cv_lib_gd_gdImageGif" = yes; then
     if test "$ac_cv_lib_gd_gdImageGifAnimBegin" = yes; then
-      AC_MSG_RESULT([  libgd-based png, jpeg, and gif terminals: yes (with animated gif)])
+      AC_MSG_RESULT([  libgd-based png, jpeg, gif, and sixel terminals: yes (with animated gif)])
     else
-      AC_MSG_RESULT([  libgd-based png, jpeg, and gif terminals: yes (no animated gif)])
+      AC_MSG_RESULT([  libgd-based png, jpeg, gif, and sixel terminals: yes (no animated gif)])
     fi
 else
-    AC_MSG_RESULT([  libgd-based png, jpeg, and gif terminals: no (requires libgd,  see config.log) ])
+    AC_MSG_RESULT([  libgd-based png, jpeg, gif, and sixel terminals: no (requires libgd,  see config.log) ])
 fi
 
 if test "$with_cairo" = yes; then

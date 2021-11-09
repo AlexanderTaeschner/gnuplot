@@ -135,6 +135,7 @@ const struct gen_table plot_smooth_tbl[] =
     { "z$sort", SMOOTH_ZSORT },
     { "path", SMOOTH_PATH },
     { "convex$hull", SMOOTH_CONVEX_HULL },
+    { "mask", SMOOTH_MASK },
     { NULL, SMOOTH_NONE }
 };
 
@@ -433,6 +434,7 @@ const struct gen_table set_key_tbl[] =
     { "sp$acing", S_KEY_SPACING },
     { "w$idth", S_KEY_WIDTH },
     { "h$eight", S_KEY_HEIGHT },
+    { "keyw$idth", S_KEY_KEYWIDTH },
     { "a$utotitles", S_KEY_AUTOTITLES },
     { "noa$utotitles", S_KEY_NOAUTOTITLES },
     { "ti$tle", S_KEY_TITLE },
@@ -440,6 +442,8 @@ const struct gen_table set_key_tbl[] =
     { "font", S_KEY_FONT },
     { "tc", S_KEY_TEXTCOLOR },
     { "text$color", S_KEY_TEXTCOLOR },
+    { "col$s", S_KEY_COLS},
+    { "colu$mns", S_KEY_COLS},
     { "maxcol$s", S_KEY_MAXCOLS},
     { "maxcolu$mns", S_KEY_MAXCOLS},
     { "maxrow$s", S_KEY_MAXROWS},
@@ -745,6 +749,7 @@ const struct gen_table plotstyle_tbl[] =
     { "spider$plot", SPIDERPLOT },
     { "table", TABLESTYLE },
     { "zerror$fill", ZERRORFILL },
+    { "mask", POLYGONMASK },
     { NULL, PLOT_STYLE_NONE }
 };
 
