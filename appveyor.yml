@@ -12,11 +12,12 @@ install:
   - .\vcpkg.exe install --recurse fontconfig:%PLATFORM%-windows
   - .\vcpkg.exe install --recurse pango:%PLATFORM%-windows
   - .\vcpkg.exe install --recurse libgd:%PLATFORM%-windows
-  - .\vcpkg.exe install --recurse wxwidgets:%PLATFORM%-windows
+#  - .\vcpkg.exe install --recurse wxwidgets:%PLATFORM%-windows
   - .\vcpkg.exe upgrade --no-dry-run
   - .\vcpkg.exe integrate install
 cache:
   - c:\tools\vcpkg\installed\
+  - C:\Users\appveyor\AppData\Local\vcpkg\archives\
 environment:
   APPVEYOR_SAVE_CACHE_ON_ERROR: true
   APPVEYOR_CACHE_ENTRY_ZIP_ARGS: -t7z -mx

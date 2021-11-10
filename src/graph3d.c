@@ -70,6 +70,8 @@ static int key_entry_height;	/* bigger of t->v_char, pointsize*t->v_tick */
 static int key_title_height;
 static int key_title_extra;	/* allow room for subscript/superscript */
 static int key_title_width;
+static int key_width;
+static int key_height;
 
 /* is contouring wanted ? */
 t_contour_placement draw_contour = CONTOUR_NONE;
@@ -274,6 +276,7 @@ find_maxl_keys3d(struct surface_points *plots, int count, int *kcnt)
 		mlen = len;
 	}
 	if (draw_contour && !clabel_onecolor && this_plot->contours != NULL
+	&&  !this_plot->title_is_suppressed
 	&&  this_plot->plot_style != LABELPOINTS) {
 	    len = find_maxl_cntr(this_plot->contours, &cnt);
 	    if (len > mlen)
@@ -351,31 +354,38 @@ boundary3d(struct surface_points *plots, int count)
     else /* No tic label on the right side, so ignore rmargin */
 	plot_bounds.xright = xsize * t->xmax - t->h_char * 2 - t->h_tic;
 
-    key_rows = ptitl_cnt;
-    key_cols = 1;
-    if (key_rows > key->maxrows && key->maxrows > 0) {
-	key_rows = key->maxrows;
-	key_cols = (ptitl_cnt - 1)/key_rows + 1;
+    /* New option "set key columns <ncol>" */
+    if (key->user_cols > 0) {
+	key_cols = key->user_cols;
+	key_rows = ceil((double)ptitl_cnt / (double)key_cols);
     }
 
-    if (key->visible)
-    if ((key->region == GPKEY_AUTO_EXTERIOR_MARGIN || key->region == GPKEY_AUTO_EXTERIOR_LRTBC)
-	&& key->margin == GPKEY_BMARGIN) {
-	if (ptitl_cnt > 0) {
-	    /* calculate max no cols, limited by label-length */
-	    key_cols = (int) (plot_bounds.xright - plot_bounds.xleft)
-		     / ((max_ptitl_len + 4) * t->h_char + key_sample_width);
-	    if (key_cols == 0)
-		key_cols = 1;
-	    key_rows = (int) ((ptitl_cnt - 1)/ key_cols) + 1;
-	    /* Limit the number of rows if requested by user */
-	    if (key_rows > key->maxrows && key->maxrows > 0)
-		key_rows = key->maxrows;
-	    /* now calculate actual no cols depending on no rows */
-	    key_cols = (int) ((ptitl_cnt - 1)/ key_rows) + 1;
-	    key_col_wth = (int) (plot_bounds.xright - plot_bounds.xleft) / key_cols;
-	} else {
-	    key_rows = key_cols = key_col_wth = 0;
+    /* Automatic calculation of key columns and rows */
+    if (key->user_cols == 0) {
+	key_rows = ptitl_cnt;
+	key_cols = 1;
+	if (key_rows > key->maxrows && key->maxrows > 0) {
+	    key_rows = key->maxrows;
+	    key_cols = (ptitl_cnt - 1)/key_rows + 1;
+	}
+
+	if (key->visible)
+	if ((key->region == GPKEY_AUTO_EXTERIOR_MARGIN || key->region == GPKEY_AUTO_EXTERIOR_LRTBC)
+	    && key->margin == GPKEY_BMARGIN) {
+	    if (ptitl_cnt > 0) {
+		/* calculate max no cols, limited by label-length */
+		key_cols = (plot_bounds.xright - plot_bounds.xleft)
+			 / ((max_ptitl_len + 4) * t->h_char + key_sample_width);
+		if (key_cols == 0)
+		    key_cols = 1;
+		key_rows = ((ptitl_cnt - 1)/ key_cols) + 1;
+		/* Limit the number of rows if requested by user */
+		if (key_rows > key->maxrows && key->maxrows > 0)
+		    key_rows = key->maxrows;
+		/* now calculate actual no cols depending on no rows */
+		key_cols = ((ptitl_cnt - 1)/ key_rows) + 1;
+		key_col_wth = (plot_bounds.xright - plot_bounds.xleft) / key_cols;
+	    }
 	}
     }
 
@@ -398,8 +408,8 @@ boundary3d(struct surface_points *plots, int count)
 	plot_bounds.ybot = t->v_char * 2.5 + 1;
 
     if (key->visible)
-    if (key_rows && (key->region == GPKEY_AUTO_EXTERIOR_MARGIN || key->region == GPKEY_AUTO_EXTERIOR_LRTBC)
-	&& key->margin == GPKEY_BMARGIN)
+    if (key_rows && (key->margin == GPKEY_BMARGIN)
+    && (key->region == GPKEY_AUTO_EXTERIOR_MARGIN || key->region == GPKEY_AUTO_EXTERIOR_LRTBC))
 	plot_bounds.ybot += key_rows * key_entry_height + key_title_height;
 
     if (title.text) {
@@ -415,36 +425,46 @@ boundary3d(struct surface_points *plots, int count)
     else /* FIXME: Why no provision for tmargin in terms of character height? */
 	plot_bounds.ytop = ysize * t->ymax - t->v_char * (titlelin + 1.5) - 1;
 
-    if (key->visible)
-    if (key->region == GPKEY_AUTO_INTERIOR_LRTBC
-	|| ((key->region == GPKEY_AUTO_EXTERIOR_LRTBC || key->region == GPKEY_AUTO_EXTERIOR_MARGIN)
-	    && key->margin == GPKEY_RMARGIN)) {
-	/* calculate max no rows, limited by plot_bounds.ytop-plot_bounds.ybot */
-	i = (int) (plot_bounds.ytop - plot_bounds.ybot) / t->v_char - 1 - ktitle_lines;
-	if (i > key->maxrows && key->maxrows > 0)
-	    i = key->maxrows;
-	if (i <= 0)
-	    i = 1;
-	if (ptitl_cnt > i) {
-	    key_cols = (int) ((ptitl_cnt - 1)/ i) + 1;
-	    /* now calculate actual no rows depending on no cols */
-	    key_rows = (int) ((ptitl_cnt - 1) / key_cols) + 1;
+    /* Automatic calculation of key columns and rows */
+    if (key->visible && key->user_cols == 0) {
+	if (key->region == GPKEY_AUTO_INTERIOR_LRTBC
+	    || ((key->region == GPKEY_AUTO_EXTERIOR_LRTBC || key->region == GPKEY_AUTO_EXTERIOR_MARGIN)
+		&& key->margin == GPKEY_RMARGIN)) {
+	    /* calculate max no rows, limited by plot_bounds.ytop-plot_bounds.ybot */
+	    i = (plot_bounds.ytop - plot_bounds.ybot) / t->v_char - 1 - ktitle_lines;
+	    if (i > key->maxrows && key->maxrows > 0)
+		i = key->maxrows;
+	    if (i <= 0)
+		i = 1;
+	    if (ptitl_cnt > i) {
+		key_cols = ((ptitl_cnt - 1)/ i) + 1;
+		/* now calculate actual no rows depending on no cols */
+		key_rows = ((ptitl_cnt - 1) / key_cols) + 1;
+	    }
 	}
     }
-    if (key->visible)
-    if ((key->region == GPKEY_AUTO_EXTERIOR_LRTBC || key->region == GPKEY_AUTO_EXTERIOR_MARGIN)
-	&& key->margin == GPKEY_RMARGIN) {
-	int key_width = key_col_wth * key_cols - 2 * t->h_char;
-	if (rmargin.scalex != screen)
-	    plot_bounds.xright -= key_width;
-    }
 
-    if (key->visible)
-    if ((key->region == GPKEY_AUTO_EXTERIOR_LRTBC || key->region == GPKEY_AUTO_EXTERIOR_MARGIN)
-	&& key->margin == GPKEY_LMARGIN) {
-	int key_width = key_col_wth * key_cols - 2 * t->h_char;
-	if (lmargin.scalex != screen)
-	    plot_bounds.xleft += key_width;
+    /* Calculation of key width */
+    if (key->visible) {
+	if (key->user_width.x == 0)
+	    key_width = key_col_wth * key_cols - 2 * t->h_char;
+	else {
+	    if (key->user_width.scalex == graph)
+		key_width = key->user_width.x * (plot_bounds.xright - plot_bounds.xleft);
+	    else /* (key->user_width.scalex == screen) */
+		key_width = key->user_width.x * (double)(t->xmax-1);
+	    key_col_wth = key_width / key_cols;
+	}
+
+	if ((key->region == GPKEY_AUTO_EXTERIOR_LRTBC || key->region == GPKEY_AUTO_EXTERIOR_MARGIN)
+	&&  (key->margin == GPKEY_RMARGIN)
+	&&  (rmargin.scalex != screen))
+		plot_bounds.xright -= key_width;
+
+	if ((key->region == GPKEY_AUTO_EXTERIOR_LRTBC || key->region == GPKEY_AUTO_EXTERIOR_MARGIN)
+	&&  (key->margin == GPKEY_LMARGIN)
+	&&  (lmargin.scalex != screen))
+		plot_bounds.xleft += key_width;
     }
 
     if (!splot_map && aspect_ratio_3D > 0) {
@@ -469,7 +489,6 @@ boundary3d(struct surface_points *plots, int count)
 	plot_bounds.ybot += t->ymax * yoffset;
     xmiddle = (plot_bounds.xright + plot_bounds.xleft) / 2;
     ymiddle = (plot_bounds.ytop + plot_bounds.ybot) / 2;
-
 
     /* HBB: Magic number alert! */
     xscaler = ((plot_bounds.xright - plot_bounds.xleft) * 4L) / 7L;
@@ -883,7 +902,7 @@ do_3dplot(
 	    int map_x1, map_y1, map_x2, map_y2;
 	    int tics_len = 0;
 	    if (X_AXIS.ticmode & TICS_MIRROR) {
-		tics_len = (int)(X_AXIS.ticscale * (X_AXIS.tic_in ? -1 : 1) * (term->v_tic));
+		tics_len = (X_AXIS.ticscale * (X_AXIS.tic_in ? -1 : 1) * (term->v_tic));
 		if (tics_len < 0) tics_len = 0; /* take care only about upward tics */
 	    }
 	    map3d_xy(X_AXIS.min, Y_AXIS.min, base_z, &map_x1, &map_y1);
@@ -983,11 +1002,17 @@ do_3dplot(
 	}
 
 	if (key->title.text) {
-	    int center = (key->bounds.xright + key->bounds.xleft) / 2;
 	    int titley = key->bounds.ytop - key_title_height/2;
+	    int title_anchor;
+	    if (key->title.pos == CENTRE)
+		title_anchor = (key->bounds.xright + key->bounds.xleft) / 2;
+	    else if (key->title.pos == RIGHT)
+		title_anchor = key->bounds.xright - term->h_char;
+	    else
+		title_anchor = key->bounds.xleft + term->h_char;
 	    /* FIXME: empirical tweak. I don't know why this is needed */
 	    titley += (ktitle_lines-1) * t->v_char/2;
-	    write_label(center, titley, &key->title);
+	    write_label(title_anchor, titley, &key->title);
 	    (*t->linetype)(LT_BLACK);
 	}
     }
@@ -1142,9 +1167,6 @@ do_3dplot(
 	    case XYERRORBARS:	/* ignored; treat like points */
 	    case BOXXYERROR:	/* HBB: ignore these as well */
 	    case ARROWS:
-	    case CANDLESTICKS:	/* HBB: ditto */
-	    case BOXPLOT:
-	    case FINANCEBARS:
 	    case CIRCLES:
 	    case ELLIPSES:
 	    case POINTSTYLE:
@@ -1215,9 +1237,6 @@ do_3dplot(
 		}
 		break;
 
-	    case HISTOGRAMS: /* Cannot happen */
-		break;
-
 	    case IMAGE:
 		/* Plot image using projection of 3D plot coordinates to 2D viewing coordinates. */
 		this_plot->image_properties.type = IC_PALETTE;
@@ -1237,6 +1256,11 @@ do_3dplot(
 
 	    case PARALLELPLOT:
 	    case SPIDERPLOT:
+	    case HISTOGRAMS:
+	    case CANDLESTICKS:
+	    case BOXPLOT:
+	    case FINANCEBARS:
+		/* These should have been caught in plot3d */
 		int_error(NO_CARET, "plot style not supported in 3D");
 		break;
 
@@ -1245,6 +1269,11 @@ do_3dplot(
 	    case TABLESTYLE:
 		/* cannot happen */
 		break;
+
+	    case POLYGONMASK:
+		/* nothing needed here */
+		break;
+
 	    }			/* switch(plot-style) plot proper */
 
 	    /* Next draw the key sample */
@@ -1277,9 +1306,6 @@ do_3dplot(
 	    case XERRORBARS:	/* ignored; treat like points */
 	    case XYERRORBARS:	/* ignored; treat like points */
 	    case BOXXYERROR:	/* HBB: ignore these as well */
-	    case CANDLESTICKS:	/* HBB: ditto */
-	    case BOXPLOT:
-	    case FINANCEBARS:
 	    case ELLIPSES:
 	    case POINTSTYLE:
 		if (this_plot->plot_type == VOXELDATA) {
@@ -4081,7 +4107,6 @@ void
 do_3dkey_layout(legend_key *key, int *xinkey, int *yinkey)
 {
     struct termentry *t = term;
-    int key_height, key_width;
 
     /* NOTE: All of these had better not change after being calculated here! */
     if (key->reverse) {
@@ -4094,8 +4119,8 @@ do_3dkey_layout(legend_key *key, int *xinkey, int *yinkey)
     } else {
 	key_sample_left = 0;
 	key_sample_right = key_sample_width;
-	key_text_left = -(int) (t->h_char * (max_ptitl_len + 1));
-	key_text_right = -(int) t->h_char;
+	key_text_left = -(t->h_char * (max_ptitl_len + 1));
+	key_text_right = -(t->h_char);
 	key_size_left = t->h_char * (max_ptitl_len + 2 + key->width_fix);
 	key_size_right = t->h_char + key_sample_width;
     }
@@ -4118,13 +4143,15 @@ do_3dkey_layout(legend_key *key, int *xinkey, int *yinkey)
 	    key_title_extra = t->v_char/2;
     }
 
-    key_width = key_col_wth * (key_cols - 1) + key_size_right + key_size_left;
+    /* "set key keywidth" takes precedence */
+    if (key->user_width.x == 0) {
+	key_width = key_col_wth * (key_cols - 1) + key_size_right + key_size_left;
+	/* Make room for extra long title */
+	if (key_width < key_title_width)
+	    key_width = key_title_width;
+    }
     key_height = key_title_height + key_title_extra
 		+ key_entry_height * key_rows + key->height_fix * t->v_char;
-
-    /* Make room for extra long title */
-    if (key_width < key_title_width)
-	key_width = key_title_width;
 
     /* Now that we know the size of the key, we can position it as requested */
     if (key->region == GPKEY_USER_PLACEMENT) {
