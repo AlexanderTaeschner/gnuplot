@@ -191,10 +191,10 @@ typedef struct {
    */
   int gradient_type;
 
-  /* the used color model: RGB, HSV, XYZ, etc. */
+  /* the used color model: RGB, HSV, CMY */
   int cmodel;
 
-  /* Three mapping function for gray->RGB/HSV/XYZ/etc. mapping
+  /* Three mapping function for gray->RGB/HSV/CMY/etc. mapping
    * used if colorMode == SMPAL_COLOR_MODE_FUNCTIONS */
   struct udft_entry Afunc;  /* R for RGB, H for HSV, C for CMY, ... */
   struct udft_entry Bfunc;  /* G for RGB, S for HSV, M for CMY, ... */
@@ -218,6 +218,7 @@ typedef struct {
 /* GLOBAL VARIABLES */
 
 extern t_sm_palette sm_palette;
+extern int enable_reset_palette;
 
 
 /* ROUTINES */
@@ -231,9 +232,12 @@ void init_color(void);  /* call once to initialize variables */
   Put number of allocated colours into sm_palette.colors
 */
 int make_palette(void);
+void reset_palette(void);
 
 void invalidate_palette(void);
 void check_palette_gradient_type(void);
+
+void set_palette(void);
 
 /*
    Send current colour to the terminal

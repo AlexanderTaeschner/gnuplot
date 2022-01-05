@@ -44,12 +44,15 @@ TERM_PUBLIC void BLOCK_graphics(void);
 TERM_PUBLIC void BLOCK_put_text(unsigned int x, unsigned int y, const char *str);
 TERM_PUBLIC void BLOCK_point(unsigned int x, unsigned int y, int point);
 TERM_PUBLIC void BLOCK_linetype(int linetype);
-TERM_PUBLIC void BLOCK_dashtype(int type, t_dashtype *custom_dash_type);
 TERM_PUBLIC void BLOCK_set_color(t_colorspec *color);
 #endif
 
 #ifndef TERM_PROTO_ONLY
 #ifdef TERM_BODY
+
+#ifdef HAVE_ICONV
+# include <iconv.h>
+#endif
 
 // default values for quadrants
 #define BLOCK_XMAX  (DUMB_XMAX)
@@ -79,7 +82,11 @@ static void to_rgb255(int v, rgb255_color * rgb255);
 static unsigned to_ansi256(rgb255_color *c);
 static const char * ansi_bg_colorstring(t_colorspec * color);
 
+#if defined(OS2) || defined(MSDOS)
+static int BLOCK_mode = BLOCK_MODE_HALF;
+#else
 static int BLOCK_mode = BLOCK_MODE_QUAD;
+#endif
 static int BLOCK_xchars = BLOCK_XMAX;
 static int BLOCK_ychars = BLOCK_YMAX;
 static TBOOLEAN BLOCK_optimize = TRUE;
@@ -101,6 +108,7 @@ enum BLOCK_id {
     BLOCK_ANSI, BLOCK_ANSI256, BLOCK_ANSIRGB, BLOCK_NOCOLOR,
     BLOCK_OPTIMIZE, BLOCK_NOOPTIMIZE,
     BLOCK_CHARPOINTS, BLOCK_GPPOINTS,
+    BLOCK_ATTRIBUTES, BLOCK_NOATTRIBUTES,
     BLOCK_SIZE,
     BLOCK_OTHER
 };
@@ -126,6 +134,8 @@ static struct gen_table BLOCK_opts[] =
     { "gps$ymbols", BLOCK_GPPOINTS },
     { "mono", BLOCK_NOCOLOR },
     { "siz$e", BLOCK_SIZE },
+    { "attr$ibutes", BLOCK_ATTRIBUTES },
+    { "noattr$ibutes", BLOCK_NOATTRIBUTES },
     { NULL, BLOCK_OTHER }
 };
 
@@ -176,6 +186,14 @@ BLOCK_options()
 	    dumb_colormode = 0;
 	    term->make_palette = NULL;
 	    term->flags |= TERM_MONOCHROME;
+	    break;
+	case BLOCK_ATTRIBUTES:
+	    c_token++;
+	    dumb_text_attributes = TRUE;
+	    break;
+	case BLOCK_NOATTRIBUTES:
+	    c_token++;
+	    dumb_text_attributes = FALSE;
 	    break;
 	case BLOCK_OPTIMIZE:
 	    c_token++;
@@ -263,6 +281,11 @@ BLOCK_init()
     // FIXME: is this correct or should the -1 go?
     dumb_xmax = BLOCK_xchars - 1;
     dumb_ymax = BLOCK_ychars - 1;
+    // guide the aspect ratio calculation in the core layer
+    if (BLOCK_mode == BLOCK_MODE_QUAD || BLOCK_mode == BLOCK_MODE_DOT)
+	term->h_tic = BLOCK_HTIC * 2;
+    else
+	term->h_tic = BLOCK_HTIC;
     DUMB_init();
 }
 
@@ -447,9 +470,35 @@ BLOCK_text()
     unsigned nsets, set;
     const int * pattern;
     size_t bufsiz;
+    text_attr prev_text_attr;
+#if defined(HAVE_ICONV) && !defined(_WIN32)
+    iconv_t cd = (iconv_t) -1;
+
+    {
+	enum set_encoding_id encoding = encoding_from_locale();
+	printf("enc %i, name %s, tty %i\n", encoding, iconv_encoding_name(encoding), isatty(fileno(gpoutfile)));
+	if (isatty(fileno(gpoutfile)) &&  /* only convert if output to terminal */
+	    encoding != S_ENC_UTF8 && encoding != S_ENC_DEFAULT &&
+	    iconv_encoding_name(encoding) != NULL) {
+	    char tocode [128];
+
+	    strcpy(tocode, iconv_encoding_name(encoding));
+# ifndef OS2
+	    strcat(tocode, "//TRANSLIT//IGNORE");
+# endif
+	    puts(tocode);
+	    if ((cd = iconv_open(tocode, "UTF-8")) == (iconv_t) -1)
+		int_warn(NO_CARET, "iconv_open failed");
+	}
+    }
+#endif
 
     if (dumb_colormode > 0) {
-	fputs("\033[0;39m", gpoutfile); /* reset colors to default */
+#if defined(OS2) || defined(MSDOS)
+	fputs("\033[0;37m", gpoutfile); /* reset foreground color to white */
+#else
+	fputs("\033[0;39m", gpoutfile); /* reset foreground color to default */
+#endif
 	memset(&dumb_prev_color, 0, sizeof(t_colorspec));
     }
 #endif
@@ -477,11 +526,14 @@ BLOCK_text()
     }
 #endif
 
-    // convert bitmap Unicode characters
+    // convert bitmap to Unicode characters
     // printf("vvvvvvvvvvvvvvvvvvvvvvvvvvvv\n");
     // FIXME: last row and column not handled properly!
     bufsiz = (term->xmax + 1) * 8;
     line = gp_alloc(bufsiz, "line buffer");
+    if (dumb_text_attributes)
+	memset(&prev_text_attr, 0, sizeof(text_attr));
+
     for (y = term->ymax - celly + 1; y >= 0; y -= celly) {
 	int yd = y / celly; // character cell coordinate
 
@@ -519,8 +571,20 @@ BLOCK_text()
 #endif
 		// Copy the character.
 		c = (char *)(&DUMB_PIXEL(xd, yd));
-		for (i = 0; i < sizeof(charcell) && *c != NUL; i++, c++, s++)
-		    *s = *c;
+		if (*c != NUL) { /* Do not print cells occupied by wide characters. */
+		    /* character attributes */
+		    if (dumb_text_attributes) {
+			text_attr * attr = &dumb_attributes[dumb_xmax*yd + xd];
+			const char * attrstring = dumb_attrstring(attr, &prev_text_attr);
+			if (attrstring[0] != NUL) {
+			    strcpy((char *) s, attrstring);
+			    s += strlen(attrstring);
+			    memcpy(&prev_text_attr, attr, sizeof(text_attr));
+			}
+		    }
+		    for (i = 0; i < sizeof(charcell) && *c != NUL; i++, c++, s++)
+			*s = *c;
+		}
 	    } else {
 		//
 		// No character. Print graphics.
@@ -640,6 +704,15 @@ BLOCK_text()
 		// Any pixel set within this charcell?
 		// Then average over the color over the charcell.
 		if (n != 0) {
+		    // first, reset text attributes
+		    if (dumb_text_attributes &&
+			(prev_text_attr.italic || prev_text_attr.bold)) {
+			const char tmp[] = "\033[22;23m"; /* reset attributes */
+			strcpy((char *) s, tmp);
+			s += strlen(tmp);
+			memset(&prev_text_attr, 0, sizeof(text_attr));
+		    }
+
 		    // average charcell color
 		    color.type = TC_RGB;
 		    color.lt = ((unsigned) sqrt(r / n) << 16) +
@@ -676,6 +749,8 @@ BLOCK_text()
 		    // so we don't need a mapping.
 		    v = 0x2800 + i;
 		    break;
+		default:
+		    v = 0x0020;
 		}
 
 		s += ucs4toutf8(v, s);
@@ -683,21 +758,55 @@ BLOCK_text()
 #ifndef NO_DUMB_COLOR_SUPPORT
 		// turn bg color off again
 		if (resetbg) {
-		    sprintf((char *) s, "\033[49m"); s += 5;
-		    sprintf((char *) s, "\033[49m"); s += 5;
+#if defined(OS2) || defined(MSDOS)
+		    sprintf((char *) s, "\033[40m"); s += 5; /* reset background color to black */
+#else
+		    sprintf((char *) s, "\033[49m"); s += 5; /* reset background color to default */
+#endif
 		}
 #endif
 	    }
 	}
 	*s++ = '\n';
 	*s = NUL;
+
+#if defined(HAVE_ICONV) && !defined(_WIN32)
+	/* If the current screen encoding is not UTF-8, we attempt to convert.
+	   This is useful for half mode with CP850 or CP437. */
+	if (cd != (iconv_t) -1) {
+	    char * str_start = line;
+	    size_t len1 = strlen(line) + 1;
+	    size_t len2 = len1;
+	    char * iconv_string = gp_alloc(len2, "iconv string");
+	    char * stmp = iconv_string;
+
+	    if (iconv(cd, (void *)&str_start, &len1, &stmp, &len2) == (size_t) -1)
+		int_warn(NO_CARET, "iconv failed");
+	    else
+	       fputs(iconv_string, gpoutfile);
+	    free(iconv_string);
+	} else
+#elif defined _WIN32
+	if (isatty(fileno(gpoutfile)) && GetConsoleOutputCP() != 65001) {
+	    LPWSTR wline = UnicodeText(line, S_ENC_UTF8);
+	    HANDLE h = GetStdHandle(STD_OUTPUT_HANDLE);
+	    WriteConsoleW(h, wline, wcslen(wline), NULL, NULL);
+	    free(wline);
+	} else
+#endif
 	fputs(line, gpoutfile);
     }
     // printf("^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n");
 
+    if (dumb_text_attributes)
+	fputs("\033[22;23m", gpoutfile); /* reset attributes */
 #ifndef NO_DUMB_COLOR_SUPPORT
     if (dumb_colormode > 0) {
+#if defined(OS2) || defined(MSDOS)
+	fputs("\033[0;37;40m", gpoutfile); /* reset colors to white on black */
+#else
 	fputs("\033[0;39;49m", gpoutfile); /* reset colors to default */
+#endif
     }
 #ifdef DEBUG_BLOCK_OPTI
     printf("full cells : %u (%3.1f\%)\n", nfullcells, 100 * ((float) nfullcells) / BLOCK_xchars / BLOCK_ychars);
@@ -708,6 +817,10 @@ BLOCK_text()
 
     free(line);
     (void) fflush(gpoutfile);	/* finish the graphics */
+#if defined(HAVE_ICONV) && !defined(_WIN32)
+    if (cd != (iconv_t) -1)
+	iconv_close(cd);
+#endif
 }
 
 
@@ -793,19 +906,6 @@ BLOCK_linetype(int linetype)
 
     // set text color
     DUMB_linetype(linetype);
-}
-
-
-TERM_PUBLIC void
-BLOCK_dashtype(int type, t_dashtype *custom_dash_type)
-{
-    if (type >= 0)
-	;
-    else if (type == DASHTYPE_AXIS)
-	type = LT_AXIS;
-    else
-	type = LT_SOLID; /* solid, also for custom dash types */
-    b_setlinetype(type);
 }
 
 
@@ -898,7 +998,7 @@ TERM_TABLE_START(block_driver)
     BLOCK_text, null_scale, BLOCK_graphics,
     b_move, b_vector, BLOCK_linetype,
     BLOCK_put_text, null_text_angle, null_justify_text,
-    BLOCK_point, do_arrow, set_font_null, 0,
+    BLOCK_point, do_arrow, DUMB_set_font, 0,
 #ifndef NO_DUMB_ENHANCED_SUPPORT
     TERM_MONOCHROME | TERM_ENHANCED_TEXT,
 #else
@@ -922,7 +1022,7 @@ TERM_TABLE_START(block_driver)
     NULL,
     NULL,
     NULL,
-    BLOCK_dashtype
+    b_dashtype
 TERM_TABLE_END(block_driver)
 
 #undef LAST_TERM
@@ -952,6 +1052,7 @@ START_HELP(block)
 "                 {mono | ansi | ansi256 | ansirgb}",
 "                 {{no}optimize}",
 #endif
+"                 {[no]attributes}",
 "                 {charpoints | gppoints}",
 "",
 " `size` sets the terminal size in character cells.",
@@ -972,6 +1073,9 @@ START_HELP(block)
 " in the output to output colors.  Note that these might not be handled by",
 " your terminal.  Default is `mono`.  See `terminal dumb` for a list of",
 " escape sequences.",
+"",
+" The `attributes` option enables bold and italic text on terminals or",
+" emulators that support these escape sequences, see `terminal dumb`.",
 "",
 " Using block characters increases the pseudo-resolution of the bitmap.  But",
 " this is not the case for the color.  Multiple 'pixels' necessarily share the",

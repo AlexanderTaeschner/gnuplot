@@ -1,27 +1,28 @@
-% LaTeX2e version
+% LuaTeX Japanese version of Gnuplot User Manual title page
 % add `[a4paper]' before `{article}' to load settings for A4-paper
-% see below if you add 11pt or 12pt
    \documentclass[twoside]{article}
+
+   \usepackage{luatexja}
+
+%  \usepackage{fontspec}
+%  \setmainfont{Noto Sans}
+%  \setmainfont{Harano Aji Mincho}
+%  \setmainfont{Sazanami Gothic}
+
    \usepackage{toc_entr}
    \usepackage{latexsym}
-   \usepackage[utf8x]{inputenc}
-   \usepackage{textgreek}
+%  \usepackage{textgreek}
    \usepackage{amsfonts}
    \usepackage{amssymb}
    \usepackage{nicefrac}
 
   \usepackage[
-% We've given up trying to understand pdftex vs. normal latex.
-% It'll just have to sort itself out.  If it doesn't, add your
-% own local hyperref options HERE.
         hyperindex,
         bookmarks,
         bookmarksnumbered=true,
         pdftitle={gnuplot documentation},
         pdfauthor={gnuplot},
         pdfsubject={see www.gnuplot.info}
-  %     ,pdfcreator={}
-  %     ,pdfkeywords={...}
   ]{hyperref}
 
 % This replaces the default ugly red boxes around hyperlinks
@@ -47,16 +48,7 @@
 % \widowpenalty=1000
 
 % The following statements should adjust the default values for
-% different papersizes, mainly required for verbatim output
-% 30pt are a bit more than really needed
-%\addtolength{\textwidth}{30pt}
-%\addtolength{\oddsidemargin}{-15pt}
-%\addtolength{\evensidemargin}{-15pt}
-% Approximately keep the same ratio of width/height
-%\addtolength{\textheight}{48pt}
-%\addtolength{\topmargin}{-24pt}
-
-% \setlength{\oddsidemargin}{0.5cm}
+% different papersizes, mainly required for verbatim output.
 \setlength{\oddsidemargin}{0.0cm}
 \setlength{\evensidemargin}{0.0cm}
 \setlength{\topmargin}{-0.5in}
@@ -115,7 +107,7 @@
 
   Version
     {\gnuplotVersion }
-  organized by: Ethan A Merritt and many others\\
+  organized by: Ethan A Merritt\\
 
    \vspace{2ex}
 
@@ -152,7 +144,7 @@
   Alex Woo,
   Johannes Zellner\\
   Copyright {\copyright} 1986 - 1993, 1998, 2004   Thomas Williams, Colin Kelley\\
-  Copyright {\copyright} 2004 - 2021  various authors\\
+  Copyright {\copyright} 2004 - 2022  various authors\\
 
   \vspace{2ex}
 
@@ -160,12 +152,13 @@
   Web site and issue trackers: \verb+http://sourceforge.net/projects/gnuplot+
 
   \vfill
-  This manual was originally prepared by Dick Crawford. \\
+  This manual was originally prepared by Dick Crawford \\
+  Japanese translation supervised by Shigeharu Takeno (竹野 茂治)
 
   \vspace{2ex}
 
 %  February 2020  Version 5.5
-   Version {\gpVersion} (development snapshot November 2021)
+   Version {\gpVersion} (development snapshot January 2022)
 
    \end{center}
 \newpage
