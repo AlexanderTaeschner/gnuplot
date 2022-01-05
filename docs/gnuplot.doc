@@ -200,9 +200,8 @@ C
  introduced here will generally not appear in a supported release until
  version 5.6.  Details may change before that.
 
- For a summary of new features in version 5.5 see `new`.
- For more information about options present in this particular copy of gnuplot
- see `show version long`.
+ For more information about optional features built into the particular copy
+ of gnuplot you are running, type `show version long`.
 
 4 Special and complex-valued functions
 ?new math
@@ -288,7 +287,7 @@ C
 ## Array[i] is equal to element.  See `arrays`.
 #end
 
-4 Multiple named palettes
+4 Named palettes
 ?new colormaps
 #start
 #b The current palette can be saved to a named colormap for future use.
@@ -299,6 +298,7 @@ C
 #b Named palette colormaps can be manipulated as arrays of 32-bit ARGB
 ## color values. This permits addition of alpha-channel values or other
 ## modifications not easily specified in a `set palette` command.
+#b There is a new predefined color scheme `set palette viridis`.
 #end
 
 4 New terminals and terminal options
@@ -332,7 +332,7 @@ C
 #end
 
 4 Other new features
-?new other
+?new features
 #start
 #b The character sequence $# in a `using` specifier evaluates to the total
 ## number of columns available in the current line of data.  For example
@@ -357,6 +357,12 @@ C
 ## are split into two pieces along the line of intersection so that tiles
 ## from one surface do not incorrectly protrude though the other surface.
 #b New options to force total key width and number of columns. See `key layout`.
+#b `set pm3d border retrace` draws a border around each pm3d quadrangle in the
+## same color as the filled area.  In principle this should have no visible
+## effect, but it prevents some display modes like glitchy pdf or postscript
+## viewers from introducing antialiasing artifacts.
+#b `set isotropic` adjusts the axis scaling in both 2D and 3D plots such that
+## the x, y, and z axes all have the same scale.
 #end
 
 3 Features introduced in version 5.4
@@ -469,7 +475,7 @@ C
 ## which are no longer built by default.
 #b The `texdraw` terminal has been extended to support text at arbitrary angles,
 ## variable line width, v5 dashed lines, and filled boxes and polygons. It can
-## now be used with plain TeX, too.
+## now be used with plain TeX, too.  It still does not support color.
 #b The previously experimental Direct2D variant of the `windows` terminal
 ## replaces the GDI and GDI+ variants. It now supports printing using D2D
 ## and color fonts.
@@ -3659,15 +3665,15 @@ Ffigure_newsyntax
 
  In general, colors can be specified using named colors, rgb (red, green, blue)
  components, hsv (hue, saturation, value) components, or a coordinate along the
- current pm3d palette.
+ current pm3d palette.  The keyword `linecolor` may be abbreviated to `lc`.
 
  Examples:
 
-      plot sin(x) lt rgb "violet"       # one of gnuplot's named colors
-      plot sin(x) lt rgb "#FF00FF"      # explicit RGB triple in hexadecimal
-      plot sin(x) lt palette cb -45     # whatever color corresponds to -45
+      plot sin(x) lc rgb "violet"       # use one of gnuplot's named colors
+      plot sin(x) lc rgb "#FF00FF"      # explicit RGB triple in hexadecimal
+      plot sin(x) lc palette cb -45     # whatever color corresponds to -45
                                         # in the current cbrange of the palette
-      plot sin(x) lt palette frac 0.3   # fractional value along the palette
+      plot sin(x) lc palette frac 0.3   # fractional value along the palette
 
  See `colorspec`, `show colornames`, `hsv`, `set palette`, `cbrange`.
  See also `set monochrome`.
@@ -3754,7 +3760,7 @@ Ffigure_newsyntax
       # background color
       set term wxt background rgb "gray75"
       set object 1 rectangle from x0,y0 to x1,y1 fillstyle solid fillcolor bgnd
-      # This will draw an "invisible" line along the x axis
+      # Draw an "invisible" line at y=0, erasing whatever was underneath
       plot 0 lt bgnd
 4 linecolor variable
 ?linecolor variable
@@ -3889,6 +3895,30 @@ Ffigure_newsyntax
       # linewidth 3, and associated point type 6 (a circle with a dot in it).
       set style line 5 lt rgb "cyan" lw 3 pt 6
       plot sin(x) with linespoints ls 5          # user-defined line style 5
+
+3 special linetypes
+?linetypes special linetypes
+?nodraw
+=bgnd
+=background
+=black
+ A few special (non-numerical) linetypes are recognized.
+
+ `lt black` specifies a solid black line.
+
+ `lt bgnd` specifies a solid line with the background color of the current
+ terminal. See `background`.
+
+ `lt nodraw` skips drawing the line altogether.  This is useful in conjunction
+ with plot style `linespoints`.  It allows you to suppress the line component
+ of the plot while retaining point properties that are available only in this
+ plot style.  For example
+      plot f(x) with linespoints lt nodraw pointinterval -3
+ will draw only every third point and will isolate it by placing a small
+ circle of background color underneath it.  See `linespoints`.
+ `lt nodraw` may also be used to suppress a particular set of lines that would
+ otherwise be drawn automatically. For example you could suppress certain
+ contour levels in a contour plot by setting their linetype to `nodraw`.
 
 2 layers
 ?layers
@@ -5196,6 +5226,10 @@ Ffigure_histeps
  If a plot contains both histograms and other plot styles, the non-histogram
  plot elements may use either the x1 or the x2 axis.
 
+ One additional style option `set style histogram nokeyseparators`
+ is relevant only to plots that contain multiple histograms.
+ See `newhistogram` for additional discussion of this case.
+
  Examples:
 Ffigure_histclust
  Suppose that the input file contains data values in columns 2, 4, 6, ...
@@ -5291,6 +5325,12 @@ Ffigure_histcols
  Similarly you can force the next histogram to begin with a specified fillstyle.
  If the fillstyle is set to `pattern`, then the pattern used for filling will
  be incremented automatically.
+
+ Starting a new histogram will normally add a blank entry to the key, so that
+ titles from this set of histogram components will be separated from those of
+ the previous histogram.  This blank line may be undesirable if the components
+ have no individual titles.  It can be suppressed by modifying the style with
+ `set style histogram nokeyseparators`.
 
 Ffigure_newhist
  The `at <x-coord>` option sets the x coordinate position of the following
@@ -5504,7 +5544,7 @@ Ffigure_lines
       1 column:   z       # implicit x from row, y from index
       3 columns:  x  y  z
 
- See also `linetype`, `linewidth`, and `linestyle`.
+ See also `linetypes`, `linewidth`, and `linestyle`.
 2 linespoints
 ?plotting styles linespoints
 ?style linespoints
@@ -5639,7 +5679,7 @@ Ffigure_polar
 Ffigure_points
  The `points` style displays a small symbol at each point. The command `set
  pointsize` may be used to change the default size of all points. The point type
- defaults to that of the linetype. See `linetype`.  If no `using` spec is found
+ defaults to that of the linetype. See `linetypes`.  If no `using` spec is found
  in the plot command, input data columns are interpreted implicitly in the order
       x y pointsize pointtype color
  Any columns beyond the first two (x and y) are optional; they correspond to
@@ -9051,7 +9091,7 @@ Ffigure_convex_hull
  coordinate provided in an optional additional `using` column.
  Color values may be treated either as a fraction of the palette range
  (`palette frac`) or as a coordinate value mapped onto the colorbox range
- (`palette` or `palette z`).  See `colorspec`, `set palette`, `linetype`.
+ (`palette` or `palette z`).  See `colorspec`, `set palette`, `linetypes`.
 
  The keyword `nohidden3d` applies only to plots made with the `splot` command.
  Normally the global option `set hidden3d` applies to all plots in the graph.
@@ -11582,6 +11622,20 @@ Ffigure_missing
  The method of choosing that color is the same as for hidden3d surfaces,
  where an offset <n> is added to the base linetype.  To draw both the inside
  and outside surfaces in the same color, use `set isosurface noinsidecolor`.
+3 isotropic
+?commands set isotropic
+?set isotropic
+?isotropic
+ Syntax:
+      set isotropic
+      unset isotropic
+ `set isotropic` adjusts the aspect ratio and size of the plot so that the
+ unit length along the x, y, and z axes is the same.  It is equivalent to
+ `set size ratio -1; set view equal xyz` and supercedes both of those commands.
+ This affects both 2D and 3D plots.
+ `unset isotropic` relaxes both the 2D and 3D constraints. It is equivalent to
+ the older commands `set size noratio; set view noequal_axes` but hopefully
+ easier to remember.
 3 jitter
 ?commands set jitter
 ?set jitter
@@ -12133,7 +12187,6 @@ Ffigure_multiple_keys
 ?commands show linetype
 ?set linetype
 ?show linetype
-?linetype
  The `set linetype` command allows you to redefine the basic linetypes used
  for plots.  The command options are identical to those for "set style line".
  Unlike line styles, redefinitions by `set linetype` are persistent;  they
@@ -13340,20 +13393,13 @@ Ffigure_multiple_keys
 ?commands set palette
 ?set palette
 =palette
- The palette is a set of colors, usually ordered in the form of one or
- more stepped gradients, used for `pm3d` surfaces and other graph elements
- colored by z value.  Colors in the current palette automatically mapped
- from plot coordinates z values or an extra data column of gray values.
- Palette colors also can be accessed explicitly in a color specification
- (see `colorspec`)
-#start
-#b as a `gray value` also known as `palette fraction` in the range [0:1]
-#b as a `z value` corresponding to the z coordinate of a plot element
-#b as a `cb value` in the range [cbmin:cbmax] (see `set cbrange`)
-#end
+ The palette is a set of colors, usually ordered as one or more stepped
+ gradients, used to color pm3d surfaces, heat maps, and other plot elements.
+ Colors in the current palette are automatically mapped from plot
+ coordinate z values or from an extra data column of gray values.
  The current palette is shown by default in a separate `colorbox` drawn
- next to plots that use plot style `pm3d`. The colorbox can be manually
- selected or disabled. See `set colorbox`.
+ next to plots that use plot style `pm3d`. The colorbox can be customized
+ or disabled. See `set colorbox`.  See also `show palette` and `test palette`.
 
  Syntax:
        set palette
@@ -13367,70 +13413,51 @@ Ffigure_multiple_keys
                     | functions <R>,<G>,<B>
                   }
                   { cubehelix {start <val>} {cycles <val>} {saturation <val>} }
+                  { viridis }
                   { model { RGB | CMY | HSV {start <radians>} } }
                   { positive | negative }
                   { nops_allcF | ps_allcF }
                   { maxcolors <maxcolors> }
                 }
 
- `set palette` (i.e. without options) restores the default values.
- Otherwise, the options can be given in any order.
+ A palette can be defined in several ways.
+Ffigure_palette1
+ - Provide formulae for the red, green, and blue components as a function
+ of the gray value between 0 and 1.
+ `Set palette rgbformulae` allows you to choose from 36 predefined formulae.
+ `Set palette functions` allows you to define your own functions.
+#TeX \\
+ - Use `set palette defined` to specify one or more smooth gradients,
+ each spanning one segment of the total z range.
+#TeX \\
+ - Load a previously save palette into the current palette.
+ `Set palette file` reads a saved palette from a file.
+ `Set palette colormap` extracts the RGB components from a saved colormap.
+#TeX \\
+ - Specify a named palette, perhaps with additional parameters to customize.
+ The named palettes currently provided are `cubehelix` (a customizable family
+ of palettes) and `viridis`.
 
- `show palette` lists the current palette properties.
+ `set palette` (without options) restores the default values.
 
- `test palette` displays the current palette on the screen.
+ `set palette negative` inverts the direction of the palette, e.g.
+ `set palette viridis negative` creates a gradient from yellow to blue rather
+ than from blue to yellow.
 
- The following options determine the coloring properties.
+ `set palette gray` switches to a grayscale palette.
+ `set palette color` restores the most recent color palette.
 
  In `pm3d` color surfaces the gray value of each small quadrangle is obtained by
  mapping the averaged z-coordinate of its 4 corners from the range [min_z,max_z]
- into the range of grays, which is always [0:1]. This value can be used directly
- as the gray for gray maps. The palette is a mapping that transforms the gray
- value into an RGB color.
+ into the range of grays, which is always [0:1].
+ The palette maps that gray value into an RGB color.
 
- Basically two different types of mappings can be used:  Analytic formulae to
- convert gray to color, or discrete mapping tables which are interpolated.
- `palette rgbformulae` and `palette functions` use analytic formulae whereas
- `palette defined` and `palette file` use interpolated tables.  `palette
- rgbformulae` reduces the size of postscript output to a minimum.
+ Palette colors can be mentioned explicitly in a color specification (see
+ `colorspec`). This is useful to assign a palette color to an object or label.
 
- `set palette gray` switches to a grayscale palette. `set palette rgbformulae`,
- `set palette defined`, `set palette file` and `set palette functions` switch
- to a color mapping. `set palette color` is an easy way to switch back from the
- gray palette to the most recent color mapping.
-
- Automatic gamma correction via `set palette gamma <gamma>` can be done for
- gray maps (`set palette gray`) and for the `cubehelix` color palette schemes.
- Gamma = 1 produces a linear ramp of intensity. See `test palette`.
-
- Some terminals support a limited number of colors (e.g. 256 colors in gif).
- After the default gnuplot linetype colors are allocated, the rest of the
- available colors are by default reserved for pm3d.  Thus a multiplot using
- multiple palettes could fail because the first palette has used all the
- available color positions.  You can mitigate this limitation by using
- `set palette maxcolors <N>` with a reasonably small value of N.
- This option causes N discrete colors to be selected from a continuous palette
- sampled at equally spaced intervals.  If you want unequal spacing of N
- discrete colors, use `set palette defined` instead of a single continuous
- palette.
-
- RGB color space might not be the most useful color space to work in.  For that
- reason you may change the color space `model` to one of `RGB`, `HSV`, `CMY`.
- Using color names for `set palette defined` tables and a color space other than
- RGB will result in funny colors.  All explanation have been written for
- RGB color space, so please note, that `R` can be `H`, or `C`,
- depending on the actual color space (`G` and `B` accordingly).
-
- All values for all color spaces are limited to [0,1].
-
- RGB stands for Red, Green, Blue;  CMY stands for Cyan, Magenta, Yellow;
- HSV stands for Hue, Saturation, Value.
- For more information on color models see:
-^ <a href="http://en.wikipedia.org/wiki/Color_space">
-           http://en.wikipedia.org/wiki/Color_space
-^ </a>
- Note: Earlier gnuplot versions accepted YIQ and XYZ color space models also,
- but the implementation was never complete or correct.
+ The palette can be defined in any of three color spaces: RGB CMY HSV.
+ See `set palette model`.
+ All color component values in all color spaces are limited to [0,1].
 
 4 rgbformulae
 ?commands set palette rgbformulae
@@ -13438,31 +13465,27 @@ Ffigure_multiple_keys
 ?palette rgbformulae
 ?rgbformulae
 =colors
- For `rgbformulae` three suitable mapping functions have
- to be chosen.  This is done via `rgbformulae <r>,<g>,<b>`.  The available
- mapping functions are listed by `show palette rgbformulae`.  Default is
- `7,5,15`, some other examples are `3,11,6`, `21,23,3` or `3,23,21`.  Negative
- numbers, like `3,-11,-6`, mean inverted color (i.e.  1-gray passed into the
- formula, see also `positive` and `negative` options below).
+      set palette rgbformulae <function 1>, <function 2>, <function 3>
+ Despite its name, this option applies to all color spaces.
+ You must specify one of 36 preset mapping functions by number for each color
+ component.  The available functions are listed by `show palette rgbformulae`.
+ The default is `set palette rgbformulae 7,5,15`.  In RGB space this uses
+ function 7 to map the red component, function 5 to map the blue component,
+ and function 15 to map the green component.  A negative function number
+ inverts the sense of that component by mapping f(1-gray) rather than f(gray).
 
+Ffigure_palette2
  Some nice schemes in RGB color space
-    7,5,15   ... traditional pm3d (black-blue-red-yellow)
+    7,5,15   ... default (black-blue-red-yellow)
     3,11,6   ... green-red-violet
-    23,28,3  ... ocean (green-blue-white); try also all other permutations
+    23,28,3  ... ocean (green-blue-white)
     21,22,23 ... hot (black-red-yellow-white)
-    30,31,32 ... color printable on gray (black-blue-violet-yellow-white)
+    30,31,32 ... black-blue-violet-yellow-white
     33,13,10 ... rainbow (blue-green-yellow-red)
     34,35,36 ... AFM hot (black-red-yellow-white)
 
  A full color palette in HSV color space
     3,2,2    ... red-yellow-green-cyan-blue-magenta-red
-
- Please note that even if called `rgbformulae` the formulas might actually
- determine the <H>,<S>,<V> or <X>,<Y>,<Z> or ... color components as usual.
-
- Use `positive` and `negative` to invert the figure colors.
-^ <a name="positive"></a>
-^ <a name="negative"></a>
 
 4 defined
 ?commands set palette defined
@@ -13490,11 +13513,8 @@ Ffigure_multiple_keys
  but the named color "red" will be something strange if RGB is not selected
  as color space.  Use `show colornames` for a list of known color names.
 
- Please note, that even if written as <r>, this might actually be the
- <H> component in HSV color space depending on the selected color model.
-
- The <gray> values have to form an ascending sequence of real numbers; the
- sequence will be automatically rescaled to [0,1].
+ The <gray> values must form an ascending sequence of real numbers;
+ the sequence will be automatically rescaled to [0,1].
 
  `set palette defined` (without a gradient definition in braces) switches to
  RGB color space and uses a preset full-spectrum color gradient.
@@ -13506,13 +13526,10 @@ Ffigure_multiple_keys
        set palette model RGB
        set palette defined ( 0 "black", 1 "white" )
 
- To produce a blue yellow red palette use (all equivalent):
+ To produce a blue-to-yellow-to-red palette use (all equivalent):
        set palette defined ( 0 "blue", 1 "yellow", 2 "red" )
        set palette defined ( 0 0 0 1, 1 1 1 0, 2 1 0 0 )
        set palette defined ( 0 "#0000ff", 1 "#ffff00", 2 "#ff0000" )
-
- To produce some rainbow-like palette use:
-       set palette defined ( 0 "blue", 3 "green", 6 "yellow", 10 "red" )
 
  Full color spectrum within HSV color space:
        set palette model HSV
@@ -13522,10 +13539,6 @@ Ffigure_multiple_keys
  Full color HSV spectrum wrapping at some hue other than red
        set palette model HSV start 0.15
        set palette defined ( 0 0 1 1, 1 1 1 1 )
-
- Approximate the default palette used by MATLAB:
-       set pal defined (1 '#00008f', 8 '#0000ff', 24 '#00ffff', \
-                        40 '#ffff00', 56 '#ff0000', 64 '#800000')
 
  To produce a palette with only a few, equally-spaced colors:
        set palette model RGB maxcolors 4
@@ -13541,12 +13554,11 @@ Ffigure_multiple_keys
 ?commands set palette functions
 ?set palette functions
 ?palette functions
- Use `set palette functions <Rexpr>, <Gexpr>, <Bexpr>` to define three formulae
- for the R(gray), G(gray) and B(gray) mapping.  The three formulae may depend
- on the variable `gray` which will take values in [0,1] and should also
- produce values in [0,1].
- Please note that <Rexpr> might be a formula for the H-value if HSV color
- space has been chosen (same for all other formulae and color spaces).
+      set palette functions <f1(gray)>, <f2(gray)>, <f3(gray)>
+ This option is like `set palette rgbformulae` except that you must provide
+ an actual function for each color component rather than the index of a preset
+ function.  The dummy parameter of each function, if any, must be "gray".
+ The function must map gray values in [0,1] to output values also in [0,1].
 
  Examples:
 
@@ -13558,8 +13570,8 @@ Ffigure_multiple_keys
 
  A gamma-corrected black and white palette
        gamma = 2.2
-       color(gray) = gray**(1./gamma)
-       set palette model RGB functions color(gray), color(gray), color(gray)
+       map(gray) = gray**(1./gamma)
+       set palette model RGB functions map(gray), map(gray), map(gray)
 4 gray
 ?commands set palette gray
 ?set palette gray
@@ -13573,8 +13585,8 @@ Ffigure_multiple_keys
 ?set palette cubehelix
 ?cubehelix
  The "cubehelix" option defines a family of palettes in which color (hue) varies
- along the standard color wheel while at the same time the net intensity
- increases monotonically as the gray value goes from 0 to 1.
+ around the standard color wheel while the net perceived intensity increases
+ monotonically as the gray value goes from 0 to 1.
        D A Green (2011) http://arxiv.org/abs/1108.5083
  `start` defines the starting point along the color wheel in radians.
  `cycles` defines how many color wheel cycles span the palette range.
@@ -13584,6 +13596,17 @@ Ffigure_multiple_keys
  The default values are
        set palette cubehelix start 0.5 cycles -1.5 saturation 1
        set palette gamma 1.5
+4 viridis
+?commands set palette viridis
+?set palette viridis
+?viridis
+       set palette viridis
+ The "viridis" palette is a (blue->yellow) gradient designed to accommodate
+ users with impaired color vision.  Viridis was developed by Stéfan van der Walt
+ and Nathaniel Smith.  It features an approximately linear gradient of perceived
+ brightness (luminance).  The colormap version used in gnuplot is based on
+       "Viridis - Colorblind-Friendly Color Maps for R", Garnier et al (2021)
+       https://CRAN.R-project.org/package=viridis
 4 colormap
 ?commands set palette colormap
 ?palette colormap
@@ -13602,9 +13625,6 @@ Ffigure_multiple_keys
  The gray range is automatically rescaled to [0,1].  The file is read as a
  normal data file, so all datafile modifiers can be used.
  Please note that `R` might actually be `H` if HSV color space is selected.
-
- As usual <filename> may be `'-'` which means that the data follow the command
- inline and are terminated by a single `e` on a line of its own.
 
  Use `show palette gradient` to display the gradient.
 
@@ -13630,9 +13650,11 @@ Ffigure_multiple_keys
 ?set palette gamma-correction
 ?palette gamma-correction
 ?gamma-correction
- For gray mappings gamma correction can be turned on by `set palette gamma
- <gamma>`.  <gamma> defaults to 1.5 which is quite suitable for most
- terminals.
+ Automatic gamma correction via `set palette gamma <gamma>` can be done for
+ gray maps (`set palette gray`) and for the `cubehelix` color palette schemes.
+ Gamma = 1 produces a linear ramp of intensity. See `test palette`.
+
+ For gray mappings, <gamma> defaults to 1.5 which is usually suitable.
 
  The gamma correction is applied to the cubehelix color palette family, but not
  to other palette coloring schemes. However, you may easily implement gamma
@@ -13653,27 +13675,67 @@ Ffigure_multiple_keys
 
  or even more intermediate points until the linear interpolation fits the
  "gamma corrected" interpolation well enough.
+4 maxcolors
+?commands set palette maxcolors
+?set palette maxcolors
+?palette maxcolors
+ `set palette maxcolors <N>` limits the palette to N discrete colors 
+ selected from a continuous palette sampled at equally spaced intervals.
+ If you want unequal spacing of N discrete colors, use `set palette defined`
+ instead of a single continuous palette.
 
+ The primary use for this is to generate heat maps with discrete colors,
+ each representing a range of values.
+
+ A second use is to handle terminals that support only a limited number of
+ colors (e.g. 256 colors in gif or sixel).  The default gnuplot linetype colors
+ use up some of these, further limiting the number available for palette use.
+ Thus a multiplot using multiple palettes could fail because the first palette
+ has used all the available color positions.  You can mitigate this by
+ restricting the number of colors used by each palette.
+4 Color model
+?commands set palette model
+?set palette model
+?palette model
+?color model
+?HSV
+?RGB
+?CMY
+      set palette model { RGB | CMY | HSV {start <radians>} }
+ Sometimes RGB color space is not the most convenient color space to work in.
+ You may change the color space `model` to one of `RGB`, `HSV`, `CMY`.
+ RGB stands for Red, Green, Blue;  CMY stands for Cyan, Magenta, Yellow;
+ HSV stands for Hue, Saturation, Value.  In HSV space the full color wheel is
+ traversed as H runs from 0 to 1, so H=0 and H=1 describe the same color.
+ By default the cycle starts and ends at red.  The optional parameter `start`
+ introduces an offset, so after `set palette model HSV start 0.3` H=0 and H=1
+ both correspond to green.
+
+ For more information on color models see:
+^ <a href="http://en.wikipedia.org/wiki/Color_space">
+           http://en.wikipedia.org/wiki/Color_space
+^ </a>
+
+ Documentation for palette options was written for RGB color space, so please
+ note that `R` really means "first color component", which can be `H` or `C`
+ depending on the actual color space in use.
 4 postscript
 ?commands set palette postscript
 ?set palette postscript
- In order to reduce the size of postscript files, the gray value and not all
- three calculated r,g,b values are written to the file.  Therefore the
- analytical formulae are coded directly in the postscript language as a header
- just before the pm3d drawing, see /g and /cF definitions.  Usually, it makes
- sense to write therein definitions of only the 3 formulae used.  But for
- multiplot or any other reason you may want to manually edit the
- transformations directly in the postscript file.  This is the default option
- `nops_allcF`.  Using the option `ps_allcF` writes postscript definitions of
- all formulae.  This you may find interesting if you want to edit the
- postscript file in order to have different palettes for different surfaces
- in one graph.  Well, you can achieve this functionality by `multiplot` with
- fixed `origin` and `size`.
+ This section is only relevant to output from `set term postscript color`.
+ When the palette is defined using `set palette rgbformulae`, gnuplot writes
+ a postscript implementation of the required analytical formulae as a header
+ just before a pm3d drawing (see /g and /cF definitions).  Usually, it makes
+ sense to write definitions of only the 3 formulae used in the palette.
+ This is the default option `nops_allcF`.  The option `ps_allcF` instead writes
+ definitions of all 36 formulae.  This allows you to edit the postscript file
+ in order to have different palettes for different surfaces in one graph.
 
- If you are writing a pm3d surface to a postscript file, it may be possible to
- reduce the file size by up to 50% by the enclosed awk script
- `pm3dCompress.awk`.  If the data lies on a rectangular grid, even greater
- compression may be possible using the script `pm3dConvertToImage.awk`.
+ If you write a pm3d surface to a postscript file, it may be possible to reduce
+ the file size by running the awk script `pm3dCompress.awk` afterward.
+ If the data lies on a rectangular grid, even greater compression may be
+ possible using the awk script `pm3dConvertToImage.awk`.
+ Both scripts are distributed with gnuplot.
  Usage:
      awk -f pm3dCompress.awk thefile.ps >smallerfile.ps
      awk -f pm3dConvertToImage.awk thefile.ps >smallerfile.ps
@@ -13833,7 +13895,7 @@ Ffigure_multiple_keys
                   { {no}lighting
                     {primary <fraction>} {specular <fraction>} {spec2 <fraction>}
                   }
-                  { border {<linestyle-options>}}
+                  { {no}border {retrace} {<linestyle-options>}}
                   { implicit | explicit }
                   { map }
                 }
@@ -14095,20 +14157,18 @@ Ffigure_multiple_keys
 ?pm3d hidden3d
 ?set pm3d border
 ?pm3d border
- The option `set pm3d border {line-properties}` draws bounding lines around each
- quadrangle as it is rendered. Normally this is used in conjunction with the
- `depthorder` option to approximate hidden line removal.
- Note that the global option `set hidden3d` has no effect on pm3d plots.
- Default line properties (color, width) optionally follow the keyword `border`.
- These defaults can be overridden later in an splot command.
+      set pm3d border {retrace} {line-properties}
+      set pm3d noborder
 
- Example of recommended usage:
+ This option draws bounding lines around each pm3d quadrangle as it is rendered.
+ Additional line properties (linetype, color, linewidth) are optional.
+ By default the border is drawn as a solid black line with width 1.
 
-       set pm3d at s depthorder border lw 0.2 lt black
-       unset hidden3d
-       unset surf
-       splot x*x+y*y linecolor rgb "blue"   # otherwise it would be black
-
+ `set pm3d border retrace` causes a border to be drawn in the same color as the
+ quadrangle.  In principle this should give the same result as `noborder`, but
+ some output modes can suffer from antialiasing artifacts between adjacent
+ filled quadrangles. Retracing the border hides these artifacts, at the cost of
+ a larger output file.
 4 fillcolor
 ?pm3d fillcolor
       splot FOO with pm3d fillcolor <colorspec>
@@ -14419,9 +14479,11 @@ Ffigure_multiple_keys
  the plot specified by <xscale> and <yscale>.
 
  The meaning of a negative value for <r> is different.  If <r>=-1, gnuplot
- tries to set the scales so that the unit has the same length on both the x
- and y axes.  This is the 2D equivalent to the 3D command `set view equal xy`.
+ tries to set the scales so that the unit length along on both the x and y axes
+ is the same; i.e. they are isotropic.  See also `set isotropic`.
+ This is the 2D equivalent to the 3D command `set view equal xy`.
  If <r>=-2, the unit on y has twice the length of the unit on x, and so on.
+ See also `set isotropic`.
 
  The success of `gnuplot` in producing the requested aspect ratio depends on
  the terminal selected.  The graph area will be the largest rectangle of
@@ -15687,7 +15749,7 @@ Ffigure_multiple_keys
  to be on the same scale, and chooses that scale so that the plot will fit on
  the page.  The command `set view equal xyz` additionally sets the z axis
  scale to match the x and y axes; however there is no guarantee that the
- current z axis range will fit within the plot boundary.
+ z axis range will fit within the plot boundary.  See also `set isotropic`.
  By default all three axes are scaled independently to fill the available area.
 
  See also `set xyplane`.

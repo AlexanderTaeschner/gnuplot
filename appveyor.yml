@@ -9,6 +9,7 @@ install:
   - git pull
   - .\bootstrap-vcpkg.bat
 #  - del /S /Q c:\tools\vcpkg\installed
+#  - del /S /Q C:\Users\appveyor\AppData\Local\vcpkg\archives
   - .\vcpkg.exe install --recurse fontconfig:%PLATFORM%-windows
   - .\vcpkg.exe install --recurse pango:%PLATFORM%-windows
   - .\vcpkg.exe install --recurse libgd:%PLATFORM%-windows
