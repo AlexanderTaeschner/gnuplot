@@ -208,7 +208,8 @@ const struct gen_table set_tbl[] =
     { "his$tory", S_HISTORY },
     { "pixmap$s", S_PIXMAP },
     { "isosurf$ace", S_ISOSURFACE },
-    { "is$osamples", S_ISOSAMPLES },
+    { "iso$samples", S_ISOSAMPLES },
+    { "isotropic", S_ISOTROPIC },
     { "jitter", S_JITTER },
     { "k$ey", S_KEY },
     { "keyt$itle", S_KEY },
@@ -500,6 +501,7 @@ const struct gen_table set_palette_tbl[] =
     { "maxc$olors",	S_PALETTE_MAXCOLORS },
     { "gam$ma",         S_PALETTE_GAMMA },
     { "cubehelix",      S_PALETTE_CUBEHELIX },
+    { "viridis",        S_PALETTE_VIRIDIS },
     { NULL, S_PALETTE_INVALID }
 };
 
@@ -509,7 +511,6 @@ const struct gen_table color_model_tbl[] =
     { "RGB", C_MODEL_RGB },
     { "HSV", C_MODEL_HSV },
     { "CMY", C_MODEL_CMY },
-    { "XYZ", C_MODEL_XYZ },	/* Obsolete */
     { NULL,  -1 }
 };
 

@@ -882,6 +882,8 @@ set origin %g,%g\n",
 	fprintf(fp," noborder");
     } else {
 	fprintf(fp," border");
+	if (pm3d.border.l_type == LT_DEFAULT)
+	    fprintf(fp," retrace");
 	save_linetype(fp, &(pm3d.border), FALSE);
     }
     fputs(" corners2color ", fp);
@@ -1746,6 +1748,8 @@ save_histogram_opts (FILE *fp)
     if (histogram_opts.title.font)
 	fprintf(fp, " font \"%s\" ", histogram_opts.title.font);
     save_position(fp, &histogram_opts.title.offset, 2, TRUE);
+    if (!histogram_opts.keyentry)
+	fprintf(fp, " nokeyseparators");
     fprintf(fp, "\n");
 }
 
