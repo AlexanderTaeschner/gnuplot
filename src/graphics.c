@@ -2380,7 +2380,7 @@ plot_points(struct curve_points *plot)
 	     * Swarm jitter y offset is in the original coordinate system.
 	     * vertical jitter y offset is a multiple of character heights.
 	     */
-	    if (jitter.spread > 0 && !(plot->plot_smooth == SMOOTH_ZSORT)) {
+	    if (jitter.spread > 0) {
 		x += plot->points[i].CRD_XJITTER * 0.7 * t->h_char;
 		switch (jitter.style) {
 		    case JITTER_ON_Y:
@@ -4667,7 +4667,7 @@ process_image(void *plot, t_procimg_action action)
 	pixel_planes = ((struct surface_points *)plot)->image_properties.type;
 	ncols = ((struct surface_points *)plot)->image_properties.ncols;
 	nrows = ((struct surface_points *)plot)->image_properties.nrows;
-	masking = (((struct surface_points *)plot)->plot_smooth == SMOOTH_MASK);
+	masking = (((struct surface_points *)plot)->plot_filter == FILTER_MASK);
 	mask_polygon_set = mask_3Dpolygon_set;
 	image_x_axis = FIRST_X_AXIS;
 	image_y_axis = FIRST_Y_AXIS;
@@ -4677,7 +4677,7 @@ process_image(void *plot, t_procimg_action action)
 	pixel_planes = ((struct curve_points *)plot)->image_properties.type;
 	ncols = ((struct curve_points *)plot)->image_properties.ncols;
 	nrows = ((struct curve_points *)plot)->image_properties.nrows;
-	masking = (((struct curve_points *)plot)->plot_smooth == SMOOTH_MASK);
+	masking = (((struct curve_points *)plot)->plot_filter == FILTER_MASK);
 	mask_polygon_set = mask_2Dpolygon_set;
 	image_x_axis = ((struct curve_points *)plot)->x_axis;
 	image_y_axis = ((struct curve_points *)plot)->y_axis;
@@ -5187,7 +5187,7 @@ process_image(void *plot, t_procimg_action action)
 		    gpiPoint corners[8];  /* At most 5 corners. */
 		    gpiPoint clipped[8];  /* used during clipping */
 
-		    corners[0].style = FS_DEFAULT;
+		    corners[0].style = FS_OPAQUE;
 
 		    if (corners_in_view > 0) {
 			int i_corners;
@@ -5237,6 +5237,11 @@ process_image(void *plot, t_procimg_action action)
 			if (private_colormap) {
 			    double gray = map2gray(points[i_image].CRD_COLOR,
 							     private_colormap);
+			    int alpha = ((int)(points[i_image].CRD_COLOR) >> 24) & 0xff;
+			    if (alpha && (term->flags & TERM_ALPHA_CHANNEL)) {
+				alpha = alpha * 100./255.;
+				corners[0].style = FS_TRANSPARENT_SOLID + (alpha<<4);
+			    }
 			    set_rgbcolor_var(rgb_from_colormap(gray, private_colormap));
 			} else {
 			    set_color( cb2gray(points[i_image].CRD_COLOR) );

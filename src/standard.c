@@ -47,16 +47,16 @@ static double carlson_elliptic_rj(double x,double y,double z,double p);
 
 /* April 2018
  * libm does not provide Bessel approximations for i0 and i1
- * so we do not include these in the conditional HAVE_LIBM
+ * so we do not include these in the conditional HAVE_JN
  */
 static double ri0(double x);
 static double ri1(double x);
 
-#ifndef HAVE_LIBM
+#ifndef HAVE_JN
 
 /* June 2017
  * These hard-coded Bessel approximations are used only if we
- * can't use the functions in libm
+ * can't use the functions in libm (or some other library)
  */
 
 static double jzero(double x);
@@ -283,7 +283,7 @@ static double qyone[] = {
 	0.1e+1
 };
 
-#endif	/* hard-coded Bessel approximations if not HAVE_LIBM */
+#endif	/* hard-coded Bessel approximations if not HAVE_JN */
 
 /* Chebyshev coefficients for exp(-x) I0(x)
  * in the interval [0,8].
@@ -985,6 +985,31 @@ f_sqrt(union argument *arg)
 
 
 void
+f_cbrt(union argument *arg)
+{
+    struct value a;
+    double mag;
+
+    (void) arg;			/* avoid -Wunused warning */
+    (void) pop(&a);
+    if (imag(&a) == 0.0) {
+#if HAVE_CBRT
+	mag = cbrt(real(&a));
+#else
+	if (real(&a) >= 0.0)
+	    mag = pow(real(&a), 1.0/3.0);
+	else
+	    mag = -pow(-real(&a), 1.0/3.0);
+#endif
+	push(Gcomplex(&a, mag, 0.0));
+    } else {
+	undefined = TRUE;
+	push(Gcomplex(&a, not_a_number(), 0.0));
+    }
+}
+
+
+void
 f_exp(union argument *arg)
 {
     struct value a;
@@ -1126,7 +1151,7 @@ f_exists(union argument *arg)
     }
 }
 
-#ifdef HAVE_LIBM
+#ifdef HAVE_JN
 
 /* June 2017
  * Use the Bessel functions from libm if possible
@@ -1340,7 +1365,7 @@ ry1(double x)
 #define jn(n,x) not_a_number()
 #define yn(n,x) not_a_number()
 
-#endif	/* hard-coded Bessel approximations if not HAVE_LIBM */
+#endif	/* hard-coded Bessel approximations if not HAVE_JN */
 
 /*
  * Evaluates the series (with n coefficients stored in array[])

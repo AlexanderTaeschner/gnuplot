@@ -330,13 +330,14 @@ VPATH = $(S):$(S)/wxterminal
 
 CFLAGS += -DGNUPLOT_PS_DIR=\"$(GNUPLOT_PS_DIR)\" 
 TERMFLAGS = -DGNUPLOT_JS_DIR=\"$(GNUPLOT_JS_DIR)\"
-TERMFLAGS += -I$(TOP)/term
 
 TERMLIBS =
 
 CFLAGS += -I. -I$(S) -I$(T) -DHAVE_CONFIG_H
 CFLAGS += -D__USE_MINGW_ANSI_STDIO=1
 CFLAGS += -DGNUPLOT_SHARE_DIR=\"$(GNUPLOT_SHARE_DIR)\"
+
+CFLAGS_DOCS = -I. -I$(S) -DHAVE_CONFIG_H
 
 ifndef RELEASE
   CFLAGS += -DDEVELOPMENT_VERSION
@@ -722,7 +723,7 @@ timestamp.h: $(TOP)/.git/${git_current} Makefile
 	@echo "#endif /* GNUPLOT_TIMEBASE_H_INCLUDED */" >> $@t
 	@if cmp -s $@ $@t; then rm -f $@t; else mv $@t $@; fi
 else
-$(S)/version.c: $(TOP)/VERSION $(TOP)/PATCHLEVEL $(S)/Makefile.maint
+$(S)/version.c: $(TOP)/PATCHLEVEL $(S)/Makefile.maint
 	$(MAKE) -C $(S) srcdir=. top_srcdir=.. -f Makefile.maint version.c
 endif
 
@@ -864,13 +865,13 @@ wgnuplot-ja.chm: $(JASRC) doc2html-ja.exe \
 doc2html.exe: $(CORETERM) $(D)windows/doc2html.c $(D)termdoc.c $(D)xref.c version.o $(LUA_HELP)
 	$(LD) $(LDFLAGS) -o $@ -DWINDOWS_NO_GUI \
 	    -DVERSION_MAJOR='"$(MAINVERSION)"' -DPATCHLEVEL='"$(PATCHLEVEL)"' \
-	    $(CFLAGS) -I. -I$(D:/=) -I$(T:/=) \
+	    $(CFLAGS_DOCS) -I. -I$(D:/=) -I$(T:/=) \
 	    $(D)windows/doc2html.c $(D)termdoc.c $(D)xref.c
 
 doc2html-ja.exe: $(JASRC) $(D)windows/doc2html.c $(D)termdoc.c $(D)xref.c version.o $(LUA_HELP)
 	$(LD) $(LDFLAGS) -o $@ -DWINDOWS_NO_GUI \
 	    -DVERSION_MAJOR='"$(MAINVERSION)"' -DPATCHLEVEL='"$(PATCHLEVEL)"' \
-	    -DJAPANESE_DOC $(CFLAGS) -I. -I$(JAD) -I$(JA)/term \
+	    -DJAPANESE_DOC $(CFLAGS_DOCS) -I. -I$(JAD) -I$(JA)/term \
 	    $(D)windows/doc2html.c $(D)termdoc.c $(D)xref.c
 
 doc2ms.exe: $(D)doc2ms.c $(D)termdoc.c $(D)xref.c version.o $(LUA_HELP)
@@ -931,6 +932,23 @@ doc2tex.exe: $(D)doc2tex.c $(D)termdoc.c $(LUA_HELP)
 	$(LD) $(LDFLAGS) -o $@ -DWINDOWS_NO_GUI $(CFLAGS) -I. -I$(D) -I$(T) $^
 endif
 
+allterm-ja.h: $(JASRC) $(LUA_HELP)
+	@echo "Building Japanese allterm-ja.h"
+	@for e in `egrep "^[ 	]*START_HELP" $(subst $(T),$(JA)term/,$(CORETERM)) |\
+	     $(GNUSORT) -f -t':' -k2` ; do \
+	  f=`echo $$e |cut -d\: -f1` ; s=`echo $$e | cut -d\: -f2` ;\
+	  sed -n "/^[ 	]*$$s/,/^[ 	]*END_HELP/p" $$f ; \
+	done >allterm-jp.h
+	iconv -f EUC-JP -t UTF-8 allterm-jp.h > allterm-ja.h
+	rm allterm-jp.h
+
+doc2tex-ja.exe: allterm-ja.h $(D)doc2tex.c $(D)termdoc.c
+	$(LD) $(LDFLAGS) -o $@ -DWINDOWS_NO_GUI \
+	    -DALL_TERM_DOC \
+	    -DVERSION_MAJOR='"$(MAINVERSION)"' -DPATCHLEVEL='"$(PATCHLEVEL)"' \
+	    -DJAPANESE_DOC $(CFLAGS_DOCS) -I. -I$(JAD) -I$(JA)/term \
+	    $(D)doc2tex.c $(D)termdoc.c
+
 gnuplot.tex: $(D)gnuplot.doc doc2tex.exe
 	./doc2tex $(D)gnuplot.doc gnuplot.tex
 
@@ -938,9 +956,14 @@ gnuplot-figures.tex: $(D)gnuplot.doc doc2tex.exe $(TARGET)
 	GNUPLOT_LIB=$(M) ./$(TARGET) -d $(D)plotstyles.gnu
 	./doc2tex -figures $(D)gnuplot.doc gnuplot-figures.tex
 
-gnuplot.dvi: gnuplot.tex $(TOP)/VERSION $(D)toc_entr.sty $(D)titlepag.tex
+gnuplot-figures-ja.tex: $(D)gnuplot.doc doc2tex-ja.exe $(TARGET)
+	GNUPLOT_LIB=$(M) ./$(TARGET) -d $(D)plotstyles.gnu
+	iconv -f EUC-JP -t UTF-8 $(D)gnuplot-ja.doc > ja.doc
+	./doc2tex-ja -figures ja.doc | sed 's/titlepag.tex/title-ja.tex/' > gnuplot-figures-ja.tex
+	rm ja.doc
+
+gnuplot.dvi: gnuplot.tex $(D)toc_entr.sty $(D)titlepag.tex
 	cp gnuplot.tex gp_tex2.tex
-	cp $(TOP)/VERSION .
 	cp -p $(D)toc_entr.sty .
 	cp -p $(D)titlepag.tex .
 	echo "" > pdffigures.tex
@@ -951,13 +974,8 @@ gnuplot.dvi: gnuplot.tex $(TOP)/VERSION $(D)toc_entr.sty $(D)titlepag.tex
 gnuplot.ps: gnuplot.dvi
 	dvips -o gnuplot.ps gnuplot.dvi
 
-gnuplot.pdf: gnuplot-figures.tex $(TOP)/VERSION $(D)toc_entr.sty $(D)titlepag.tex
+gnuplot.pdf: gnuplot-figures.tex gpinsetfigure.tex $(D)toc_entr.sty $(D)titlepag.tex
 	cp gnuplot-figures.tex gp_tex2.tex
-	echo "\usepackage{graphicx}" > gpinsetfigure.tex
-	echo "\usepackage{picins}" >> gpinsetfigure.tex
-	echo "\newcommand{\gpinsetfigure}[1]{" >> gpinsetfigure.tex ; \
-	echo "  \parpic[r][rt]{\includegraphics[width=3in,keepaspectratio]{#1}}" >> gpinsetfigure.tex ; \
-	echo "}" >> gpinsetfigure.tex
 	# Call LaTeX three times to get the toc right.
 	TEXINPUTS=.:$(TOP):$(D):${TEXINPUTS}: pdflatex gp_tex2.tex
 	TEXINPUTS=.:$(TOP):$(D):${TEXINPUTS}: pdflatex gp_tex2.tex
@@ -967,6 +985,27 @@ gnuplot.pdf: gnuplot-figures.tex $(TOP)/VERSION $(D)toc_entr.sty $(D)titlepag.te
 	TEXINPUTS=.:$(TOP):$(D):${TEXINPUTS}: pdflatex gp_tex2.tex
 	mv gp_tex2.pdf gnuplot.pdf
 	rm -f gp_tex2.*
+
+# Prepare PDF copy of User Manual in Japanese
+# This procedure assumes use of luatex with package luatexja
+gnuplot-ja.pdf: gnuplot-figures-ja.tex gpinsetfigure.tex $(D)toc_entr.sty $(D)title-ja.tex
+	cp gnuplot-figures-ja.tex gp_tex2.tex
+	# Call LaTeX three times to get the toc right.
+	TEXINPUTS=.:$(TOP):$(D):${TEXINPUTS}: lualatex gp_tex2.tex
+	TEXINPUTS=.:$(TOP):$(D):${TEXINPUTS}: lualatex gp_tex2.tex
+	TEXINPUTS=.:$(TOP):$(D):${TEXINPUTS}: lualatex gp_tex2.tex
+	# now include index
+	makeindex gp_tex2
+	TEXINPUTS=.:$(TOP):$(D):${TEXINPUTS}: lualatex gp_tex2.tex
+	mv gp_tex2.pdf gnuplot-ja.pdf
+	rm -f gp_tex2.*
+
+gpinsetfigure.tex: Makefile
+	echo "\usepackage{graphicx}" > gpinsetfigure.tex
+	echo "\usepackage{picins}" >> gpinsetfigure.tex
+	echo "\newcommand{\gpinsetfigure}[1]{" >> gpinsetfigure.tex ; \
+	echo "  \parpic[r][rt]{\includegraphics[width=3in,keepaspectratio]{#1}}" >> gpinsetfigure.tex ; \
+	echo "}" >> gpinsetfigure.tex
 
 gnuplot.ms: doc2ms.exe $(D)gnuplot.doc
 	./doc2ms $(D)gnuplot.doc gnuplot.ms
@@ -1022,36 +1061,51 @@ faq.pdf: $(TOP)/faq/faq.tex
 	pdflatex $<
 	pdflatex $<
 
+latex_demo.pdf: gnuplot.exe $(M)/latex_demo.dem $(M)/latex_demo.tex
+	GNUTERM="dumb noenhanced" GNUPLOT_LIB=$(M) GNUPLOT_PS_DIR=$(T)/PostScript ./gnuplot latex_demo.dem
+	latex epslatex.tex
+	dvips -E epslatex -o latex_epslatex.eps
+	epstopdf latex_epslatex.eps
+	xelatex $(M)/latex_demo
+
 # clean up temporary files
 clean:
-	$(RM) config.h wgnuplot.map wgnuplot.res
-	$(RM) *.o *.po *.co *.d *.cd *.pd *.map
-	$(RM) moc_*.cpp ui_*.h qrc_*.cpp
+	-$(RM) config.h wgnuplot.map wgnuplot.res
+	-$(RM) *.o *.po *.co *.d *.cd *.pd *.map
+	-$(RM) moc_*.cpp ui_*.h qrc_*.cpp
 	-$(RM) prntvpt.lib prntvpt.def
-	$(RM) doc2*.exe $(W)/wgnuplib.res wgnuplib.map wgnuplot.lib
-	$(RM) $(M)bf_test.exe demo_plugin.dll allterm.h allterm.c
-	$(RM) *.aux *.log *.dvi *.toc
-	$(RM) gnuplot.tex gnuplot-figures.tex pdffigures.tex figure_*.pdf
-	$(RM) titlepag.tex toc_entr.sty VERSION
-	$(RM) eg?.tex eg?.eps linepoin.tex test.tex test_tikz.tex
-	$(RM) $(D)windows/wgnuplot.log $(D)windows/wgnuplot.hhc
-	$(RM) $(D)windows/*.png $(D)windows/wgnuplot.html
+	-$(RM) doc2*.exe $(W)/wgnuplib.res wgnuplib.map wgnuplot.lib
+	-$(RM) $(M)bf_test.exe demo_plugin.dll allterm.h allterm.c
+	-$(RM) *.aux *.log *.dvi *.toc
+	-$(RM) gnuplot.tex gnuplot-figures.tex gpinsetfigure.tex figure_*.pdf
+	-$(RM) titlepag.tex toc_entr.sty
+	-$(RM) eg?.tex eg?.eps linepoin.tex test.tex test_tikz.tex
+	-$(RM) $(D)windows/wgnuplot.log $(D)windows/wgnuplot.hhc
+	-$(RM) $(D)windows/*.png $(D)windows/wgnuplot.html
+	-$(RM) doc2html.exe
 	-$(RM) timestamp.h *.tmp *.par
 	-$(RM) -rf ./dist/ ./gnuplot/
 	-$(RM) -rf $(JA)
+	-$(RM) allterm-ja.h gnuplot-figures-ja.tex
+	-$(RM) doc2html-ja.exe doc2tex-ja.exe
+	-$(RM) latex_epslatex.eps latex_epslatex.pdf epslatex.* epslatex-inc.eps
+	-$(RM) latex_cairo.pdf latex_cairo.tex latex_pict2e.tex latex_tikz.tex
+	-$(RM) latex_demo.aux latex_demo.log
 
 realclean: veryclean
 veryclean: clean
 	$(RM) wgnuplot.exe wgnuplot_pipes.exe gnuplot.exe pgnuplot.exe
 	$(RM) gnuplot_qt.exe qtgnuplot_*.qm
-	$(RM) $(HELPFILE) $(HELPFILEJA) wgnuplot.chw wgnuplot.gid wgnuplot.mnu
+	-$(RM) $(HELPFILE) $(HELPFILEJA) wgnuplot.chw wgnuplot.gid wgnuplot.mnu
 	$(RM) gnuplot.ps gnuplot.pdf
+	-$(RM) gnuplot-ja.pdf
 	-$(RM) tutorial.pdf faq.pdf
 	$(RM) ps_fontfile_doc.pdf ps_fontfile_doc.ps ps_guide.pdf
 	$(RM) ps_symbols.ps ps_symbols.pdf
 	$(RM) $(M)binary[123] $(M)fit.log $(M)soundfit.par
 	$(RM) gnuplot-lua-tikz.sty gnuplot-lua-tikz.tex
 	$(RM) gnuplot-lua-tikz-common.tex t-gnuplot-lua-tikz.tex
+	$(RM) latex_demo.pdf
 
 # now move the whole stuff to its destination
 install:

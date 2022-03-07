@@ -122,6 +122,7 @@ void WinExit(void);
 static void WinCloseHelp(void);
 int CALLBACK ShutDown(void);
 #ifdef WGP_CONSOLE
+static char * ConsoleGetS(char * str, unsigned int size);
 static int ConsolePutS(const char *str);
 static int ConsolePutCh(int ch);
 #endif
@@ -817,23 +818,7 @@ MyFGetS(char *str, unsigned int size, FILE *file)
 	    return str;
 	return NULL;
 #else
-	unsigned int i;
-	int c;
-
-	c = ConsoleGetch();
-	if (c == EOF)
-	    return NULL;
-
-	for (i = 1; i < size - 1; i++) {
-	    c = ConsoleGetch();
-	    if (c == EOF)
-		break;
-	    str[i] = c;
-	    if (c == '\n')
-		break;
-	}
-	str[i] = NUL;
-	return str;
+	return ConsoleGetS(str, size);
 #endif
     }
     return fgets(str,size,file);
@@ -1241,16 +1226,57 @@ ConsoleReadCh(void)
 
 #ifdef WGP_CONSOLE
 
+static char *
+ConsoleGetS(char * str, unsigned int size)
+{
+    char * next = str;
+
+    while (--size > 0) {
+	switch (*next = ConsoleGetch()) {
+	case EOF:
+	    *next = 0;
+	    if (next == str)
+		return NULL;
+	    return str;
+	case '\r':
+	    *next = '\n';
+	    /* intentionally fall through */
+	case '\n':
+	    ConsolePutCh(*next);
+	    *(next + 1) = 0;
+	    return str;
+	case 0x08:
+	case 0x7f:
+	    ConsolePutCh(*next);
+	    if (next > str)
+		--next;
+	    break;
+	default:
+	    ConsolePutCh(*next);
+	    ++next;
+	}
+    }
+    *next = 0;
+    return str;
+}
+
+
 static int
 ConsolePutS(const char *str)
 {
     LPWSTR wstr = UnicodeText(str, encoding);
-    // Using standard (wide) file IO screws up UTF-8
-    // output, so use console IO instead. No idea why
-    // it does so, though.
     // Word-wrapping on Windows 10 (now) works anyway.
-    HANDLE h = GetStdHandle(STD_OUTPUT_HANDLE);
-    WriteConsoleW(h, wstr, wcslen(wstr), NULL, NULL);
+    if (isatty(fileno(stdout))) {
+	// Using standard (wide) file IO screws up UTF-8
+	// output, so use console IO instead. No idea why
+	// it does so, though.
+	HANDLE h = GetStdHandle(STD_OUTPUT_HANDLE);
+	WriteConsoleW(h, wstr, wcslen(wstr), NULL, NULL);
+    } else {
+	// Use standard file IO instead of Console API
+	// to allow redirection of stdout/stderr.
+	fputws(wstr, stdout);
+    }
     free(wstr);
     return 0;
 }
@@ -1261,13 +1287,16 @@ ConsolePutCh(int ch)
 {
     WCHAR w[4];
     int count;
-    HANDLE h;
 
     MultiByteAccumulate(ch, w, &count);
     if (count > 0) {
 	w[count] = 0;
-	h = GetStdHandle(STD_OUTPUT_HANDLE);
-	WriteConsoleW(h, w, count, NULL, NULL);
+	if (isatty(fileno(stdout))) {
+	    HANDLE h = GetStdHandle(STD_OUTPUT_HANDLE);
+	    WriteConsoleW(h, w, count, NULL, NULL);
+	} else {
+	    fputws(w, stdout);
+	}
     }
     return ch;
 }

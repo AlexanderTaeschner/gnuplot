@@ -129,7 +129,6 @@ static void plot3d_points(struct surface_points * plot);
 static void plot3d_polygons(struct surface_points * plot);
 static void plot3d_zerrorfill(struct surface_points * plot);
 static void plot3d_boxes(struct surface_points * plot);
-static void plot3d_boxerrorbars(struct surface_points *plot);
 static void plot3d_vectors(struct surface_points * plot);
 static void plot3d_lines_pm3d(struct surface_points * plot);
 static void get_surface_cbminmax(struct surface_points *plot, double *cbmin, double *cbmax);
@@ -351,7 +350,9 @@ boundary3d(struct surface_points *plots, int count)
 
     if (rmargin.scalex == screen)
 	plot_bounds.xright = rmargin.x * (double)t->xmax + 0.5;
-    else /* No tic label on the right side, so ignore rmargin */
+    else if (splot_map && rmargin.x >= 0)
+	plot_bounds.xright = xsize * t->xmax - (rmargin.x * t->h_char + 0.5);
+    else
 	plot_bounds.xright = xsize * t->xmax - t->h_char * 2 - t->h_tic;
 
     /* New option "set key columns <ncol>" */
@@ -422,7 +423,9 @@ boundary3d(struct surface_points *plots, int count)
 
     if (tmargin.scalex == screen)
 	plot_bounds.ytop = tmargin.x * (double)t->ymax + 0.5;
-    else /* FIXME: Why no provision for tmargin in terms of character height? */
+    else if (splot_map && tmargin.x >= 0)
+	plot_bounds.ytop = ysize * t->ymax - t->v_char * (titlelin + tmargin.x) - 1;
+    else
 	plot_bounds.ytop = ysize * t->ymax - t->v_char * (titlelin + 1.5) - 1;
 
     /* Automatic calculation of key columns and rows */
@@ -467,6 +470,23 @@ boundary3d(struct surface_points *plots, int count)
 		plot_bounds.xleft += key_width;
     }
 
+    /* Make room for the colorbar to the right of the plot */
+    if (splot_map && is_plot_with_colorbox() && rmargin.scalex != screen) {
+	if ((color_box.where != SMCOLOR_BOX_NO) && (color_box.where != SMCOLOR_BOX_USER))
+	    plot_bounds.xright -= 0.1 * (plot_bounds.xright-plot_bounds.xleft);
+	color_box.xoffset = 0;
+    }
+
+    /* Leave room for optional x2label and y2label in "set view map" mode.
+     * These estimates are crude compared to the effort we make in 2D plots
+     * but the user can adjust it with "offset" and "set rmargin".
+     * Later we will adjust the colorbox position by the same amount.
+     */
+    if (splot_map && axis_array[SECOND_X_AXIS].label.text)
+	plot_bounds.ytop -= 1.5 * t->v_char;
+    if (splot_map && axis_array[SECOND_Y_AXIS].label.text)
+	plot_bounds.xright -= 2.5 * t->h_char;
+
     if (!splot_map && aspect_ratio_3D > 0) {
 	int height = (plot_bounds.ytop - plot_bounds.ybot);
 	int width  = (plot_bounds.xright - plot_bounds.xleft);
@@ -495,9 +515,9 @@ boundary3d(struct surface_points *plots, int count)
     yscaler = ((plot_bounds.ytop - plot_bounds.ybot) * 4L) / 7L;
 
     /* Allow explicit control via set {}margin screen */
-    if (tmargin.scalex == screen || bmargin.scalex == screen)
+    if (tmargin.scalex == screen && bmargin.scalex == screen)
 	yscaler = (plot_bounds.ytop - plot_bounds.ybot) / surface_scale;
-    if (rmargin.scalex == screen || lmargin.scalex == screen)
+    if (rmargin.scalex == screen && lmargin.scalex == screen)
 	xscaler = (plot_bounds.xright - plot_bounds.xleft) / surface_scale;
 
     /* prevent infinite loop or divide-by-zero if scaling is bad */
@@ -533,7 +553,7 @@ boundary3d(struct surface_points *plots, int count)
     }
 
     /* For anything that really wants to be the same on x and y */
-    xyscaler = sqrt(xscaler*yscaler);
+    xyscaler = sqrt((double)xscaler * (double)yscaler);
 
     /* This one is used to scale circles in 3D plots */
     radius_scaler = xscaler * surface_scale / (X_AXIS.max - X_AXIS.min);
@@ -870,7 +890,6 @@ do_3dplot(
     memcpy(&page_bounds, &plot_bounds, sizeof(page_bounds));
 
     /* Clipping in 'set view map' mode should be like 2D clipping */
-    /* FIXME:  Wasn't this already done in boundary3d?            */
     if (splot_map) {
 	int map_x1, map_y1, map_x2, map_y2;
 	map3d_xy(X_AXIS.min, Y_AXIS.min, base_z, &map_x1, &map_y1);
@@ -914,6 +933,10 @@ do_3dplot(
 	       tics is as given by character height: */
 	    x = ((map_x1 + map_x2) / 2);
 	    y = (map_y1 + tics_len + (titlelin + 0.5) * (t->v_char));
+	    if (splot_map && axis_array[SECOND_X_AXIS].ticmode)
+		y += 0.5 * t->v_char;
+	    if (splot_map && axis_array[SECOND_X_AXIS].label.text)
+		y += 1.0 * t->v_char;
 	} else { /* usual 3d set view ... */
 	    x = (plot_bounds.xleft + plot_bounds.xright) / 2;
 	    y = (plot_bounds.ytop + titlelin * (t->h_char));
@@ -1169,6 +1192,7 @@ do_3dplot(
 	    case XERRORBARS:	/* ignored; treat like points */
 	    case XYERRORBARS:	/* ignored; treat like points */
 	    case BOXXYERROR:	/* HBB: ignore these as well */
+	    case BOXERROR:
 	    case ARROWS:
 	    case CIRCLES:
 	    case ELLIPSES:
@@ -1207,10 +1231,6 @@ do_3dplot(
 		    plot3d_boxes(this_plot);
 		else
 		    plot3d_impulses(this_plot);
-		break;
-
-	    case BOXERROR:
-		plot3d_boxerrorbars(this_plot);
 		break;
 
 	    case PM3DSURFACE:
@@ -1309,6 +1329,10 @@ do_3dplot(
 	    case XERRORBARS:	/* ignored; treat like points */
 	    case XYERRORBARS:	/* ignored; treat like points */
 	    case BOXXYERROR:	/* HBB: ignore these as well */
+	    case BOXERROR:
+	    case CANDLESTICKS:	/* HBB: ditto */
+	    case BOXPLOT:
+	    case FINANCEBARS:
 	    case ELLIPSES:
 	    case POINTSTYLE:
 		if (this_plot->plot_type == VOXELDATA) {
@@ -1354,7 +1378,6 @@ do_3dplot(
 
 	    case BOXES:
 	    case CIRCLES:
-	    case BOXERROR:
 		apply_pm3dcolor(&this_plot->lp_properties.pm3d_color);
 		if (this_plot->iso_crvs)
 		    check3d_for_variable_color(this_plot, this_plot->iso_crvs->points);
@@ -2697,8 +2720,16 @@ draw_3d_graphbox(struct surface_points *plot, int plot_num, WHICHGRID whichgrid,
 	    }
 	}
 
+	/* In "set view map" 2D projection there may also be x2 tics and label */
 	if (splot_map && axis_array[SECOND_X_AXIS].ticmode)
 	    gen_tics(&axis_array[SECOND_X_AXIS], xtick_callback);
+	if (splot_map && axis_array[SECOND_X_AXIS].label.text) {
+	    int x2 = (plot_bounds.xright + plot_bounds.xleft) / 2;
+	    int y2 = plot_bounds.ytop + 1.0 * t->v_char;
+	    if (axis_array[SECOND_X_AXIS].ticmode)
+		y2 += 2.5 * t->h_char;
+	    write_label(x2, y2, &(axis_array[SECOND_X_AXIS].label));
+	}
     }
 
     /* y axis */
@@ -2807,8 +2838,27 @@ draw_3d_graphbox(struct surface_points *plot, int plot_num, WHICHGRID whichgrid,
 	    }
 	}
 
-	if (splot_map && axis_array[SECOND_Y_AXIS].ticmode)
-	    gen_tics(&axis_array[SECOND_Y_AXIS], ytick_callback);
+	/* In "set view map" 2D projection there may also be y2 tics and label */
+	if (splot_map) {
+	    int y2tic_textwidth = 0;      /* width of y2 tic labels */
+	    int y2label_width = 0;
+	    if (axis_array[SECOND_Y_AXIS].ticmode) {
+		gen_tics(&axis_array[SECOND_Y_AXIS], ytick_callback);
+		widest_tic_strlen = 0;
+		gen_tics(&axis_array[SECOND_Y_AXIS], widest_tic_callback);
+		y2tic_textwidth = (1.5 + widest_tic_strlen) * t->h_char;
+	    }
+	    if (axis_array[SECOND_Y_AXIS].label.text) {
+		int y2 = (plot_bounds.ytop + plot_bounds.ybot) / 2;
+		int x2 = plot_bounds.xright;
+		y2label_width = 2.5 * t->h_char;
+		x2 += y2tic_textwidth;
+		x2 += y2label_width;
+		write_label(x2, y2, &(axis_array[SECOND_Y_AXIS].label));
+	    }
+	    /* Jan 2022: this is at least one character width to the right of previous layout */
+	    color_box.xoffset = t->h_char + y2tic_textwidth + y2label_width;
+	}
     }
 
     /* do z tics */
@@ -3567,14 +3617,9 @@ key_sample_fill(int xl, int yl, struct surface_points *this_plot)
 	(term->fillbox)(style,x,y,w,h);
 
 	/* FIXME:  what other plot styles want a border on the key sample? */
-	if ((this_plot->plot_style & (PLOT_STYLE_HAS_PM3DBORDER | PLOT_STYLE_HAS_FILL))) {
-	    if ((this_plot->plot_style & PLOT_STYLE_HAS_PM3DBORDER))
-		if (pm3d.border.l_type != LT_NODRAW && pm3d.border.l_type != LT_DEFAULT)
-		    term_apply_lp_properties(&pm3d.border);
-#ifdef BOXERROR_3D
-	    if (this_plot->plot_style == BOXERROR)
-		need_fill_border(&this_plot->fill_properties);
-#endif
+	if ((this_plot->plot_style & PLOT_STYLE_HAS_PM3DBORDER)) {
+	    if (pm3d.border.l_type != LT_NODRAW && pm3d.border.l_type != LT_DEFAULT)
+		term_apply_lp_properties(&pm3d.border);
 	    newpath();
 	    draw_clip_line( x, y, x+w, y);
 	    draw_clip_line( x+w, y, x+w, y+h);
@@ -4296,140 +4341,3 @@ splot_map_deactivate()
     flip_projection_axis(&axis_array[FIRST_Y_AXIS]);
 }
 
-
-#ifdef BOXERROR_3D
-/*
- * 3D version of plot with boxerrorbars
- * The only intended use for this is in xz projection, where it generates a
- * box + errorbar plot oriented horizontally rather than vertically.
- */
-static void
-plot3d_boxerrorbars(struct surface_points *plot)
-{
-    int i;			/* point index */
-    double dx, dxl, dxh;	/* rectangle extent along X axis (vertical) */
-    double dz, dzl, dzh;	/* rectangle extent along Z axis (horizontal) */
-    double dy;			/* always 0 */
-    int x0, y0, x1, y1;		/* terminal coordinates */
-    int pass;
-
-    int style = style_from_fill(&plot->fill_properties);
-    int colortype = plot->fill_properties.border_color.type;
-
-    if (!xz_projection) {
-	int_warn(NO_CARET, "splot 'with boxerrorbars' only works in xz projection");
-	return;
-    }
-
-    /* We make two passes through the data
-     * 1st pass: draw the boxes
-     * 2nd pass: draw the errorbars
-     */
-    for (pass=1; pass<=2; pass++) {
-	struct iso_curve *icrvs = plot->iso_crvs;
-
-	if (pass == 1) {
-	    if (colortype == TC_RGB)
-		set_rgbcolor_const(plot->lp_properties.pm3d_color.lt);
-	}
-	if (pass == 2) {
-	    /* Errorbar line style from "set bars" */
-	    if ((bar_lp.flags & LP_ERRORBAR_SET) != 0)
-		term_apply_lp_properties(&bar_lp);
-	    else {
-		term_apply_lp_properties(&plot->lp_properties);
-		need_fill_border(&plot->fill_properties);
-	    }
-	}
-
-	while (icrvs) {
-	    struct coordinate *points = icrvs->points;
-
-	    for (i = 0; i < icrvs->p_count; i++) {
-
-		if (points[i].type == UNDEFINED)
-		    continue;
-
-		dx  = points[i].x;
-		dxh = dx + boxwidth/2.;
-		dxl = dx - boxwidth/2.;
-		dz = points[i].z;
-		dzl = points[i].CRD_ZLOW;
-		dzh = points[i].CRD_ZHIGH;
-		dy = 0;
-
-		/* clip to border */
-		cliptorange(dxl, X_AXIS.min, X_AXIS.max);
-		cliptorange(dxh, X_AXIS.min, X_AXIS.max);
-		cliptorange(dzl, Z_AXIS.min, Z_AXIS.max);
-		cliptorange(dzh, Z_AXIS.min, Z_AXIS.max);
-		cliptorange(dz, Z_AXIS.min, Z_AXIS.max);
-
-		/* Entire box is out of range */
-		if (dxl == dxh && (dxl == X_AXIS.min || dxl == X_AXIS.max))
-		    continue;
-
-		if (pass == 1) {
-		    /* Variable color */
-		    check3d_for_variable_color(plot, &points[i]);
-
-		    /* Draw box */
-		    map3d_xy( dxl, dy, Z_AXIS.min, &x0, &y0 );
-		    map3d_xy( dxh, dy, dz, &x1, &y1 );
-		    (term->fillbox)(style, x0, GPMIN(y0,y1), (x1-x0), abs(y1-y0));
-
-		    /* Draw border */
-		    if (need_fill_border(&plot->fill_properties)) {
-			newpath();
-			(term->move)   (x0, y0);
-			(term->vector) (x1, y0);
-			(term->vector) (x1, y1);
-			(term->vector) (x0, y1);
-			(term->vector) (x0, y0);
-			closepath();
-			if (plot->fill_properties.border_color.type != TC_DEFAULT)
-			    term_apply_lp_properties(&plot->lp_properties);
-		    }
-		}
-
-		if (pass == 2) {
-		    int vl, vh;
-
-		    /* conservative clipping */
-		    if ((X_AXIS.min < X_AXIS.max) && (dx <= X_AXIS.min || dx >= X_AXIS.max))
-			continue;
-		    if ((X_AXIS.min > X_AXIS.max) && (dx <= X_AXIS.max || dx >= X_AXIS.min))
-			continue;
-
-		    /* Draw error bars */
-		    map3d_xy( dxl, dy, dz, &x0, &vl );
-		    map3d_xy( dxh, dy, dz, &x0, &vh );
-		    map3d_xy( dx, dy, dzl, &x0, &y0 );
-		    map3d_xy( dx, dy, dzh, &x1, &y1 );
-		    /* Draw main error bar */
-		    (term->move) (x0, y0);
-		    (term->vector) (x1, y1);
-
-		    /* Draw the whiskers perpendicular to the main bar */
-		    if (bar_size >= 0.0) {
-			vl = y0 + bar_size * (y0 - vl);
-			vh = y0 + bar_size * (y0 - vh);
-		    }
-		    draw_clip_line(x0, vl, x0, vh);
-		    draw_clip_line(x1, vl, x1, vh);
-		}
-
-	    }	/* loop over points */
-
-	    icrvs = icrvs->next;
-	}
-    }	/* Passes 1 and 2 */
-
-    /* Restore base properties before key sample is drawn */
-    term_apply_lp_properties(&plot->lp_properties);
-}
-#else
-static void
-plot3d_boxerrorbars(struct surface_points *plot)
-{ int_error(NO_CARET, "this copy of gnuplot does not support 3D boxerrorbars"); }
-#endif /* BOXERROR_3D */

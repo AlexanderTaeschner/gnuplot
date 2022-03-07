@@ -31,12 +31,13 @@
 ]*/
 
 /*
- * doc2html.c  -- program to convert Gnuplot .DOC format to MS Windows
- * HTML help (.html) format.
+ * doc2web.c reformat gnuplot documentation into HTML for use as a 
+ *		web resource.
  *
+ * Derived from windows/doc2html
  * Derived from doc2rtf and doc2html (version 3.7.3) by B. Maerkisch
  *
- * usage:  doc2html file.doc outputdirectory [-d]
+ * usage:  doc2web file.doc outputdirectory [-d]
  *
  */
 
@@ -47,13 +48,7 @@
 # include "config.h"
 #endif
 
-#ifdef WXHELP
-/* The Microsoft help compiler splits topics and creates the index automatically.
-   To create help files for wxWidgets we need to do this manually.
-   Note that this might overwrite the stub index file from CVS. */
-#define SPLIT_FILES
 #define CREATE_INDEX
-#endif
 
 #include "syscfg.h"
 #include "stdfn.h"
@@ -62,26 +57,29 @@
 #include "xref.h"
 #include "version.h"
 
-static TBOOLEAN debug = FALSE;
 static char path[PATH_MAX];
-static const char name[] = "wgnuplot";
+static const char name[] = "gnuplot5";
+static char *sectionname = "";
+static TBOOLEAN collapsing_terminal_docs = FALSE;
+static TBOOLEAN processing_title_page = FALSE;
+static TBOOLEAN file_has_sidebar = FALSE;
 
-void convert(FILE *, FILE *, FILE *, FILE *);
-void process_line(char *, FILE *, FILE *, FILE *);
+void convert(FILE *, FILE *, FILE *);
+void process_line(char *, FILE *, FILE *);
+void sidebar(FILE *a, int start);
+void header(FILE *a, char * title);
+void footer(FILE *a);
 
 int
 main (int argc, char **argv)
 {
     FILE *infile;
     FILE *outfile;
-    FILE *contents;
     FILE *index = NULL;
     char filename[PATH_MAX];
     char *last_char;
 
-    if (argc == 4 && argv[3][0] == '-' && argv[3][1] == 'd')
-	debug = TRUE;
-    if (argc != 3 && !debug) {
+    if (argc != 3) {
 	fprintf(stderr, "Usage: %s infile outpath\n", argv[0]);
 	exit(EXIT_FAILURE);
     }
@@ -92,11 +90,16 @@ main (int argc, char **argv)
     }
     strcpy(path, argv[2]);
     /* make sure there's a path separator at the end */
-    last_char = path + strlen(path);
+    last_char = path + strlen(path) - 1;
     if ((*last_char != DIRSEP1) && (*last_char != DIRSEP2)) {
-        *last_char++ = DIRSEP1;
-        *last_char = 0;
+        *(++last_char) = DIRSEP1;
+        *(++last_char) = 0;
     }
+
+    /* Wrap the title page text in the same format as the manual.
+     * Assume that if we can create and write the file here,
+     * we will be able to do the same for the manual pages later.
+     */
     strcpy(filename, path);
     strcat(filename, name);
     strcat(filename, ".html");
@@ -105,32 +108,30 @@ main (int argc, char **argv)
 		argv[0], filename);
 	fclose(infile);
 	exit(EXIT_FAILURE);
+    } else {
+	char line[80];
+	// fprintf(stderr,"Opening %s for output\n", filename);
+	sprintf(line, "gnuplot %s", VERSION_MAJOR);
+	header(outfile, line);
+	fprintf(outfile, "<h1 align=\"center\">gnuplot %s</h1>\n", VERSION_MAJOR);
+	footer(outfile);
     }
-    strcpy(filename, path);
-    strcat(filename, name);
-    strcat(filename, ".hhc");
-    if ((contents = fopen(filename, "w")) == (FILE *) NULL) {
-	fprintf(stderr, "%s: Can't open %s for writing\n",
-		argv[0], filename);
-	fclose(infile);
-	fclose(outfile);
-	exit(EXIT_FAILURE);
-    }
+
 #ifdef CREATE_INDEX
     strcpy(filename, path);
-    strcat(filename, name);
+    strcat(filename, "index");
     strcat(filename, ".hhk");
     if ((index = fopen(filename, "w")) == (FILE *) NULL) {
 	fprintf(stderr, "%s: Can't open %s for writing\n",
 		argv[0], filename);
 	fclose(infile);
 	fclose(outfile);
-	fclose(contents);
 	exit(EXIT_FAILURE);
     }
 #endif
+
     parse(infile);
-    convert(infile, outfile, contents, index);
+    convert(infile, outfile, index);
     return EXIT_SUCCESS;
 }
 
@@ -143,63 +144,69 @@ header(FILE *a, char * title)
     fprintf(a, "<html>\n");
     fprintf(a, "<head>\n");
     fprintf(a, "<meta http-equiv=\"Content-type\" content=\"text/html; charset=utf-8\">\n");
+    fprintf(a, "<link text=\"text/css\" href=\"gnuplot_docs.css\" rel=\"stylesheet\">\n");
     fprintf(a, "<title>%s</title>\n", title);
     fprintf(a, "</head>\n");
     fprintf(a, "<body>\n");
+    fputs( 
+"<table class=\"center\" style=\"font-size:150%;\" width=\"80%\" >\n"
+"<th class=\"center\"><a href=\"gnuplot5.html\">Credits</a></td>\n"
+"<th class=\"center\"><a href=\"Overview.html\">Overview</a></td>\n"
+"<th class=\"center\"><a href=\"Plotting_Styles.html\">Plotting Styles</a></td>\n"
+"<th class=\"center\"><a href=\"Commands.html\">Commands</a></td>\n"
+"<th class=\"center\"><a href=\"Terminals.html\">Terminals</a></td>\n"
+"</th></table>\n", a);
 }
 
 
 void
 footer(FILE *a)
 {
-    /* close final page and generate trailer */
+    /* done with this HTML output page */
     fprintf(a, "</body>\n");
     fprintf(a, "</html>\n");
 }
 
-
 void
-convert(FILE *a, FILE *b, FILE *c, FILE *d)
+sidebar(FILE *a, int start)
+{
+    /* wrap the sidebar and the main page content in a table */
+    if (start)
+	fputs(
+"<table><tr><td width=20%>\n"
+"    <h1>Index</h1>\n"
+"    <object type=\"text/html\" class=\"sidebar\" data=\"index.html\">\n"
+"</td><td width=80%>\n", a);
+    else
+	fprintf(a, "</td></tr></table>\n");
+}
+
+
+/*
+ * a is input (normally gnuplot.doc)
+ * b is output (the html fragment we are working on)
+ * d is index.html (unsorted at this point)
+ */
+void
+convert(FILE *a, FILE *b, FILE *d)
 {
     static char line[MAX_LINE_LEN+1];
 
-    header(b, "gnuplot help");
-    fprintf(b, "<h1 align=\"center\">gnuplot %s patchlevel %s</h1>\n", VERSION_MAJOR, PATCHLEVEL);
-
-    header(c, "gnuplot help contents");
-    fprintf(c, "<ul>\n");
-
-    if (d) {
-        header(d, "gnuplot help index");
-        fprintf(d, "<ul>\n");
-    }
-
     /* process each line of the file */
     while (get_line(line, sizeof(line), a)) {
-	process_line(line, b, c, d);
-    }
-
-    footer(b);
-
-    fprintf(c, "</ul>\n");
-    footer(c);
-
-    if (d) {
-        fprintf(d, "</ul>\n");
-        footer(d);
+	process_line(line, b, d);
     }
 
     list_free();
 }
 
 void
-process_line(char *line, FILE *b, FILE *c, FILE *d)
+process_line(char *line, FILE *b, FILE *d)
 {
     static int line_count = 0;
     static char line2[MAX_LINE_LEN+1];
     static int last_line;
 
-    static int level = 1;
     static TBOOLEAN startpage = TRUE;
     static TBOOLEAN tabl = FALSE;
     static TBOOLEAN intable = FALSE;
@@ -207,7 +214,6 @@ process_line(char *line, FILE *b, FILE *c, FILE *d)
     static TBOOLEAN forcetable = FALSE;
     static TBOOLEAN para = FALSE;
     static TBOOLEAN inhlink = FALSE;
-    static TBOOLEAN inkey = FALSE;
     static TBOOLEAN inquote = FALSE;
     static int inref = 0;
     static int klink = 0;  /* link number counter */
@@ -252,40 +258,24 @@ process_line(char *line, FILE *b, FILE *c, FILE *d)
 		while ((line[k] != '`') && (line[k] != NUL))
 		    topic[l++] = line[k++];
 		topic[l] = NUL;
-		klist = lookup(topic);
+		/* Do not turn `gnuplot` in to a self-reference hyperlink */
+		if (!strcmp(&topic[1],"nuplot"))
+		    klist = 0;
+		else
+		    klist = lookup(topic);
 		if (klist && (k = klist->line) > 0 && (k != last_line)) {
                     char hyplink1[MAX_LINE_LEN+1];
-#if 0
-                    /* K-link: index lookup via ActiveX and JavaScript. */
-                    /* Deactivated, as none of the open source viewers seem to support this */
-                    char id[15];
-                    sprintf(id, "link%i", ++klink);
-                    sprintf(hyplink1, "<OBJECT id=%s type=\"application/x-oleobject\" classid=\"clsid:adb880a6-d8ff-11cf-9377-00aa003b7a11\">\n"
-                                      "  <PARAM name=\"Command\" value=\"KLink\">\n"
-                                      "  <PARAM name=\"Item1\" value=\"\">\n"
-                                      "  <PARAM name=\"Item2\" value=\"%s\">\n"
-                                      "</OBJECT>\n"
-                                      "<a href=\"JavaScript:%s.Click()\">",
-                                      id, topic, id);
-                    if (debug)
-                        fprintf(stderr, "hyper link \"%s\" - %s on line %d\n", topic, id, line_count);
-#else
 		    (void)klink;	/* Otherwise compiler warning about unused variable */
                     /* explicit links */
                     if ((klist->line) > 1)
                         sprintf(hyplink1, "<a href=\"loc%d.html\">", klist->line);
                     else
                         sprintf(hyplink1, "<a href=\"%s.html\">", name);
-                    if (debug)
-                        fprintf(stderr, "hyper link \"%s\" - loc%d.html on line %d\n", topic, klist->line, line_count);
-#endif
                     strcpy(line2 + j, hyplink1);
 		    j += strlen(hyplink1) - 1;
 
 		    inref = k;
 		} else {
-		    if (debug)
-			fprintf(stderr, "Can't make link for \042%s\042 on line %d\n", topic, line_count);
 		    line2[j++] = '<';
 		    line2[j++] = 'b';
 		    line2[j] = '>';
@@ -321,34 +311,18 @@ process_line(char *line, FILE *b, FILE *c, FILE *d)
 
     i = 1;
 
-    if (inkey && !(line[0] == '?' || line[0] == '=')) {
-        /* close keyword object */
-        fprintf(b, "</OBJECT>\n");
-        inkey = FALSE;
-    }
-
     switch (line[0]) {		/* control character */
     case '=': 			/* latex index entry */
 	    break;
     case '?':			/* interactive help entry */
-            if ((line2[1] != NUL) && (line2[1] != ' ')) {
-#ifndef CREATE_INDEX
-                if (!inkey) {
-                    /* open keyword object */
-                    fprintf(b, "<OBJECT type=\"application/x-oleobject\" classid=\"clsid:1e2a7bd0-dab9-11d0-b93a-00c04fc99f9e\">\n");
-                    inkey = TRUE;
-                }
-                /* add keyword */
-                fprintf(b, "  <param name=\"Keyword\" value=\"%s\">\n", &line2[1]);
-#else
-                fprintf(d, "<li> <object type=\"text/sitemap\">\n");
-                fprintf(d, "  <param name=\"Name\" value=\"%s\">\n", &line2[1]);
-                fprintf(d, "  <param name=\"Local\" value=\"%s.html\">\n", location);
-                fprintf(d, "  </object>\n");
-                /* NB: don't set inkey here */
+            if ((line2[1] != NUL) && (line2[1] != ' ') && (line2[1] != '?')) {
+#ifdef CREATE_INDEX
+		/* Only keep single-word entries */
+		if (!strchr( &(line2[1]), ' ' )) {
+		    fprintf(d, "<li><a href=\"%s.html\" target=\"_parent\">", location);
+		    fprintf(d, " %s </a></li>\n", &line2[1]);
+		}
 #endif
-                if (debug)
-                    fprintf(stderr,"keyword definition: \"%s\" on line %d.\n", line2 + 1, line_count);
             }
 	    break;
     case '@':{			/* start/end table */
@@ -358,7 +332,9 @@ process_line(char *line, FILE *b, FILE *c, FILE *d)
 	    break;
 	}
     case '^':{			/* html link escape */
-            if ((!inhlink) && (line[3] == 'a') && (line[5] == 'h')) {
+	    if (!strncmp(line,"^figure_",8)) {
+		/* Catch this again below */
+            } else if ((!inhlink) && (line[3] == 'a') && (line[5] == 'h')) {
                 char *str;
                 inhlink = TRUE;
                 /* remove trailing newline etc */
@@ -368,9 +344,17 @@ process_line(char *line, FILE *b, FILE *c, FILE *d)
             } else if (inhlink) {
                 inhlink = FALSE;
 	        fputs(line + 2, b);	/* copy directly */
-	    } else if (!strncmp(line,"^figure_",8)) {
-		/* or fall through to embedded figure as in doc2web? */
-		;
+
+
+	    } else if (processing_title_page && !strncmp(&line[1], "<!-- end", 8)) {
+		    /* Reached the end of the title page records.
+		     * Jump to approximately where we would have been if there
+		     * were no title records.
+		     */
+		    // fprintf(stderr, "Reached end of Title\n");
+		    startpage = TRUE;
+		    goto end_of_titlepage;
+
             } else {
                 if (line[2] == '!') { /* hack for function sections */
                     const char magic[] = "<!-- INCLUDE_NEXT_TABLE -->";
@@ -380,12 +364,17 @@ process_line(char *line, FILE *b, FILE *c, FILE *d)
                 inhlink = FALSE;
 	        fputs(line + 1, b);	/* copy directly */
             }
-	    break;		/* ignore */
+	    if (!strncmp(line,"^figure_",8))
+		; /* Fall through to embedded figure */
+	    else
+		break;
 	}
-    case 'F':			/* latex embedded figure */
-            if (para) fprintf(b, "</p><p align=\"justify\">\n");
-            fprintf(b, "<img src=\"%s.png\" alt=\"%s\">\n", line2+1, line2+1);
-            if (para) fprintf(b, "</p><p align=\"justify\">\n");
+    case 'F':			/* embedded figure */
+            if (para) fprintf(b, "</p>");
+            fprintf(b, "<p align=\"center\">\n");
+            fprintf(b, "<img src=\"%s.svg\" alt=\"%s\">\n", line2+1, line2+1);
+            fprintf(b, "</p>");
+            if (para) fprintf(b, "<p align=\"justify\">\n");
             break;
     case '#':{			/* latex table entry */
 	    if (!intable) {  /* HACK: we just handle itemized lists */
@@ -396,7 +385,7 @@ process_line(char *line, FILE *b, FILE *c, FILE *d)
 		    (void) fputs("</ul>\n", b);
 		else if (line[1] == 'b') {
 		    /* Bullet */
-		    fprintf(b, "<li>%s\n", line2+2);
+		    fprintf(b, "<li class=\"shortlist\">%s\n", line2+2);
 		}
 		else if (line[1] == '#') {
 		    /* Continuation of bulleted line */
@@ -466,45 +455,76 @@ process_line(char *line, FILE *b, FILE *c, FILE *d)
     default:{
 	    if (isdigit((int)line[0])) {	/* start of section */
                 int newlevel = line[0]-'0';
-                char spacer[10];
 
-		if (startpage) {
+		if (newlevel == 1) {
+		    startpage = TRUE;
+		    intable = FALSE;
+		    if (!strncmp(&line[2], "Gnuplot", 7)) {
+			processing_title_page = TRUE;
+			sectionname = "Overview";
+		    } else if (!strncmp(&line[2], "Plot", 4))
+			sectionname = "Plotting_Styles";
+		    else if (!strncmp(&line[2], "Commands", 4))
+			sectionname = "Commands";
+		    else if (!strncmp(&line[2], "Term", 4))
+			sectionname = "Terminals";
+		    else if (!strncmp(&line[2], "Bugs", 4))
+			sectionname = "Bugs";
+
 		} else {
 	            if (tabl)
 	                fprintf(b, "</pre>\n");
 	            if (para)
 	                fprintf(b, "</p>\n");
 		}
+
 		para = FALSE;	/* not in a paragraph */
 		tabl = FALSE;
 
-		if (!startpage)	/* add list of subtopics */
-		    refs(last_line, b, "<h3>Subtopics</h3>\n<menu>\n", "</menu>\n", "\t<li><a href=\"loc%d.html\">%s</a></li>\n");
-
-		last_line = line_count;
-		fprintf(b, "\n");
-
                 /* output unique ID */
-                if (!startpage)
+                if (startpage) {
+                    strcpy(location, sectionname);
+                } else
                     sprintf(location, "loc%d", line_count);
-                else
-                    strcpy(location, name);
 
-#ifndef SPLIT_FILES
-                /* let hhc automatically split contents */
-                if (!startpage) {
-                    fprintf(b, "<OBJECT type=\"application/x-oleobject\" classid=\"clsid:1e2a7bd0-dab9-11d0-b93a-00c04fc99f9e\">\n");
-	            fprintf(b, "<param name=\"New HTML file\" value=\"%s.html\">\n", location);
-	            fprintf(b, "<param name=\"New HTML title\" value=\"%s\">\n", &line2[2]);
-                    fprintf(b, "</OBJECT>\n");
-                    fprintf(b, "<h2>%s</h2>\n", &line2[2]);
-                }
-#else
-		/* split contents manually */
-                if (!startpage) {
+		/* add list of subtopics */
+		if (!collapsing_terminal_docs && !processing_title_page) {
+		    reftable(last_line, b,
+			"<table class=\"center\"><th colspan=3>Subtopics</th><tr><td width=33%><ul>\n",
+		    "</ul></td></tr></table>\n",
+		    "\t<li><a href=\"loc%d.html\">%s</a></li>\n",
+		    3,   /* number of columns */
+		    "</ul></td><td width=33%><ul>\n");
+		}
+		last_line = line_count;
+
+		if (processing_title_page) {
+		    /* Nothing to do here */
+
+		} else if (collapsing_terminal_docs) {
+		    collapsing_terminal_docs = FALSE;
+
+		} else {
+                    /* close current file and start a new one */
 		    char newfile[PATH_MAX] = "";
 
-                    /* close current file */
+    end_of_titlepage:
+
+		    /* If we got here via "goto end_of_titlepage"
+		     * dummy up the environment that would have been there if
+		     * it were not for that detour past the titlepage records.
+		     */
+		    if (processing_title_page) {
+			processing_title_page = FALSE;
+			last_line = 1;
+		    }
+
+#ifdef CREATE_INDEX
+		    if (file_has_sidebar) {
+			sidebar(b, 0);
+			file_has_sidebar = FALSE;
+		    }
+#endif
 		    footer(b);
 		    fclose(b);
 
@@ -513,39 +533,29 @@ process_line(char *line, FILE *b, FILE *c, FILE *d)
 		    strncat(newfile,location,PATH_MAX-strlen(newfile)-6);
 		    strcat(newfile,".html");
                     if (!(b = fopen(newfile, "w"))) {
-                        fprintf(stderr, "%s: Can't open %s for writing\n",
-                            "doc2html", newfile);
+                        fprintf(stderr, "doc2web: Can't open %s for writing\n",
+                            newfile);
                         exit(EXIT_FAILURE);
                     }
-		    header(b, &line2[2]);
-                    fprintf(b, "<h2>%s</h2>\n", &line2[2]);
-		}
+		    if (startpage) {
+			// fprintf(stderr,"Opening %s for output\n",newfile);
+			header(b, sectionname);
+#ifdef CREATE_INDEX
+			sidebar(b, 1);
+			file_has_sidebar = TRUE;
 #endif
+			fprintf(b, "<h1>Gnuplot %s %s</h1>\n", VERSION_MAJOR, sectionname);
+		    } else {
+			header(b, &line2[2]);
+			fprintf(b, "<h2>%s</h2>\n", &line2[2]);
+		    }
+		}
 
-                /* create toc entry */
-                if (newlevel > level) {
-                    level = newlevel;
-                    memset(spacer, '\t', level);
-                    spacer[level] = NUL;
-                    fprintf(c, "%s<ul>\n", spacer);
-                } else if (newlevel < level) {
-                    for ( ; newlevel < level; level--) {
-                        memset(spacer, '\t', level);
-                        spacer[level] = NUL;
-                        fprintf(c, "%s</ul>\n", spacer);
-                    }
-                }
-                level = newlevel;
-                memset(spacer, '\t', level);
-                spacer[level] = NUL;
-                fprintf(c, "%s<li> <OBJECT type=\"text/sitemap\">\n", spacer);
-		fprintf(c, "%s  <param name=\"Name\" value=\"%s\">\n", spacer, &line2[2]);
-                fprintf(c, "%s  <param name=\"Local\" value=\"%s.html\">\n", spacer, location);
-		fprintf(c, "%s  </OBJECT>\n", spacer);
-                if (debug)
-                    fprintf(stderr, "Section \"%s\", Level %i, ID=%s on line %d\n", line2 + 2, level, location, line_count);
-
+		if (startpage && !strncmp(sectionname,"Terminals",8)) {
+		    collapsing_terminal_docs = TRUE;
+		}
                 startpage = FALSE;
+
             } else
 		fprintf(stderr, "unknown control code '%c' in column 1, line %d\n",
 			line[0], line_count);

@@ -448,7 +448,7 @@ int df_max_num_bin_records = 0, df_num_bin_records, df_bin_record_count;
 int df_max_num_bin_records_default = 0, df_num_bin_records_default;
 
 /* Used to mark the location of a blank line in the original data input file */
-struct coordinate blank_data_line = {UNDEFINED, -999, -999, -999, -999, -999, -999, -999};
+const struct coordinate blank_data_line = {-999, -999, -999, -999, -999, -999, -999, UNDEFINED};
 
 static void gpbin_filetype_function(void);
 static void raw_filetype_function(void);
@@ -1254,8 +1254,9 @@ df_open(const char *cmd_filename, int max_using, struct curve_points *plot)
 	    continue;
 	}
 
-	/* Jul 2014 - "matrix columnheaders" indicates an ascii data file
-	 * in uniform grid format but with column labels in row 1 */
+	/* "matrix columnheaders" indicates an ascii data file
+	 * in uniform grid format but with column labels in row 1
+	 */
 	if (almost_equals(c_token, "columnhead$ers")) {
 	    c_token++;
 	    df_matrix_file = TRUE;
@@ -1265,8 +1266,9 @@ df_open(const char *cmd_filename, int max_using, struct curve_points *plot)
 	    continue;
 	}
 
-	/* Jul 2014 - "matrix rowheaders" indicates an ascii data file
-	 * in uniform grid format but with row labels in column 1 */
+	/* "matrix rowheaders" indicates an ascii data file
+	 * in uniform grid format but with row labels in column 1
+	 */
 	if (almost_equals(c_token, "rowhead$ers")) {
 	    c_token++;
 	    df_matrix_file = TRUE;
@@ -1323,6 +1325,13 @@ df_open(const char *cmd_filename, int max_using, struct curve_points *plot)
 	    c_token++;
 	    if (plot)
 		plot->noautoscale = TRUE;
+	    continue;
+	}
+
+	/* zsort filter will be applied to this data */
+	if (equals(c_token, "zsort")) {
+	    c_token++;
+	    plot->plot_filter = FILTER_ZSORT;
 	    continue;
 	}
 
@@ -4158,13 +4167,21 @@ plot_option_array(void)
     do {
 	c_token++;
 
-	/* Partial backward compatibility with syntax up to 4.2.4
-	 * Allow bare numbers; do not allow FOOxBAZ instead of (FOO,BAZ)
-	 */
+	/* Partial backward compatibility with syntax up to 4.2.4 */
 	if (isanumber(c_token)) {
 	    if (++number_of_records > df_num_bin_records)
 		df_add_binary_records(1, DF_CURRENT_RECORDS);
 	    df_bin_record[df_num_bin_records - 1].cart_dim[0] = int_expression();
+	    /* Handle the old syntax:  array=123x456 (still used by Octave) */
+	    if (!END_OF_COMMAND) {
+		char xguy[8]; int itmp=0;
+		copy_str(xguy, c_token, 6);
+		if (xguy[0] == 'x') {
+		    sscanf(&xguy[1],"%d",&itmp);
+		    df_bin_record[df_num_bin_records - 1].cart_dim[1] = itmp;
+		    c_token++;
+		}
+	    }
 	} else
 
 	if (equals(c_token, "(")) {
@@ -5844,8 +5861,8 @@ axcol_for_ticlabel(enum COLUMN_TYPE type, int *axis)
 void
 populate_sparse_matrix(struct coordinate **points, int *p_count)
 {
+    const struct coordinate empty = {0, 0, 0, NAN, NAN, NAN, NAN, UNDEFINED};
     struct coordinate *matrix;
-    struct coordinate empty = {UNDEFINED, 0, 0, 0, NAN, NAN, NAN, NAN};
     int i,j,m;
     int msize = df_ypixels * df_xpixels;
     int noutside = 0;

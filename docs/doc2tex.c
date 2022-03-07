@@ -68,6 +68,7 @@ void finish(FILE *);
 static TBOOLEAN intable = FALSE;
 static TBOOLEAN verb = FALSE;
 static TBOOLEAN see = FALSE;
+static TBOOLEAN ja_see = FALSE;
 static TBOOLEAN inhref = FALSE;
 static TBOOLEAN figures = FALSE;
 
@@ -141,6 +142,8 @@ process_line( char *line, FILE *b)
     switch (line[0]) {		/* control character */
     case '?':			/* interactive help entry */
                                 /* convert '?xxx' to '\label{xxx}' */
+	    if (line[1] == '?')
+		break;
 	    line[strlen(line)-1]=NUL;
             (void) fputs("\\label{",b);
 	    fputs(line+1, b);
@@ -456,6 +459,13 @@ puttex( char *str, FILE *file)
     int i;
 
     while ((ch = *str++) != NUL) {
+
+	/* Japanese documentation trigger for cross-reference link */
+	if (!strncmp( str, "参照", strlen("参照") ))
+	    ja_see = TRUE;
+	if (!strncmp( str, "。", strlen("。") ))
+	    ja_see = FALSE;
+
 	switch (ch) {
 	case '#':
 	case '$':
@@ -503,7 +513,7 @@ puttex( char *str, FILE *file)
 	    break;
 	case '`':    /* backquotes mean boldface */
 	    if (inquote) {
-                if (see){
+                if ((see || ja_see) && (*string != '$')) {
 		    char *index = string;
 		    char *s;
                     (void) fputs(" (p.~\\pageref{", file);
@@ -561,6 +571,7 @@ puttex( char *str, FILE *file)
         case ')':
         case '.':
             see = FALSE;
+            ja_see = FALSE;
 	default:
 	    (void) fputc(ch, file);
 	    break;

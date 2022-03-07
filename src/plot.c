@@ -294,7 +294,7 @@ main(int argc_orig, char **argv)
 		*s = NUL;
 	}
     }
-#endif /* DJGPP */
+#endif /* MSDOS || OS2 */
 
 #if (defined(PIPE_IPC) || defined(_WIN32)) && (defined(HAVE_LIBREADLINE) || (defined(HAVE_LIBEDITLINE) && defined(X11)))
     /* Editline needs this to be set before the very first call to readline(). */
@@ -316,6 +316,16 @@ main(int argc_orig, char **argv)
     history_init();
 #endif
 #endif
+
+#if defined(HAVE_LIBREADLINE) && defined(RL_VERSION_MAJOR)
+    /* Starting with readline v8.1 bracketed paste mode is on by default.
+     * This breaks multi-line pasted input to gnuplot because it looks like
+     * one long run-on line.
+     */
+    if (RL_VERSION_MAJOR >= 8)
+	rl_variable_bind ("enable-bracketed-paste", "off");
+#endif
+
 #if defined(HAVE_LIBREADLINE) && !defined(MISSING_RL_TILDE_EXPANSION)
     rl_complete_with_tilde_expansion = 1;
 #endif
@@ -630,9 +640,9 @@ RECOVER_FROM_ERROR_IN_DASH:
 		    gp_exit(EXIT_FAILURE);
 		}
 		call_argc = GPMIN(9, argc - 1);
-		for (i=0; i<=call_argc; i++) {
+		for (i = 0; i < call_argc; i++) {
 		    /* Need to stash argv[i] somewhere visible to load_file() */
-		    call_args[i] = gp_strdup(argv[i+1]);
+		    call_args[i] = gp_strdup(argv[i + 1]);
 		}
 
 		load_file(loadpath_fopen(*argv, "r"), gp_strdup(*argv), 5);

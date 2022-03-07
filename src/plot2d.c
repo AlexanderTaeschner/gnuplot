@@ -383,8 +383,7 @@ get_data(struct curve_points *current_plot)
 	    variable_color = TRUE;
 	if (current_plot->lp_properties.l_type == LT_COLORFROMCOLUMN)
 	    variable_color = TRUE;
-	if (current_plot->plot_smooth != SMOOTH_NONE
-	&&  current_plot->plot_smooth != SMOOTH_ZSORT) {
+	if (current_plot->plot_smooth != SMOOTH_NONE) {
 	    /* FIXME:  It would be possible to support smooth cspline lc palette */
 	    /* but it would require expanding and interpolating plot->varcolor   */
 	    /* in parallel with the y values.                                    */
@@ -402,7 +401,11 @@ get_data(struct curve_points *current_plot)
      * Set it to NO_AXIS to account for that. For styles that use
      * the z coordinate as a real coordinate (i.e. not a width or
      * 'delta' component, change the setting inside the switch: */
-    current_plot->z_axis = NO_AXIS;
+    if (current_plot->plot_filter == FILTER_ZSORT) {
+	current_plot->z_axis = FIRST_Z_AXIS;
+	axis_init(&axis_array[FIRST_Z_AXIS], TRUE);
+    } else
+	current_plot->z_axis = NO_AXIS;
 
     /* HBB NEW 20060427: if there's only one, explicit using column,
      * it's y data.  df_axis[] has to reflect that, so df_readline()
@@ -592,19 +595,12 @@ get_data(struct curve_points *current_plot)
     switch (current_plot->plot_smooth) {
     case SMOOTH_NONE:
 	break;
-    case SMOOTH_ZSORT:
-	min_cols = 3;
-	if (current_plot->plot_style != POINTSTYLE)
-	    int_error(NO_CARET, "'smooth zsort' only possible in plots 'with points'");
-	break;
     case SMOOTH_ACSPLINES:
 	max_cols++;
 	break;
-    case SMOOTH_MASK:
-	/* warn about limitations? currently only implemented for image styles */
-	break;
     default:
-	if (df_no_use_specs > 2 && current_plot->plot_style != FILLEDCURVES)
+	if (df_no_use_specs > 2 && current_plot->plot_style != FILLEDCURVES
+	&&  current_plot->plot_filter != FILTER_ZSORT)
 	    int_warn(NO_CARET, "extra columns ignored by smoothing option");
 	break;
     }
@@ -827,6 +823,8 @@ get_data(struct curve_points *current_plot)
 	if (j == 1 && !(current_plot->plot_style == HISTOGRAMS)) {
 	    if (default_smooth_weight(current_plot->plot_smooth))
 		v[1] = 1.0;
+	    else if (current_plot->plot_filter == FILTER_BINS)
+		v[1] = 1.0;
 	    else {
 		v[1] = v[0];
 		v[0] = df_datum;
@@ -860,7 +858,7 @@ get_data(struct curve_points *current_plot)
 	    coordval var_ps = current_plot->lp_properties.p_size;
 	    coordval var_pt = current_plot->lp_properties.p_type;
 	    coordval var_char = 0;
-	    if (current_plot->plot_smooth == SMOOTH_ZSORT)
+	    if (current_plot->plot_filter == FILTER_ZSORT)
 		weight = v[var++];
 	    if (var_pt == PT_VARIABLE) {
 		if (isnan(v[var]) && df_tokens[var]) {
@@ -1061,8 +1059,7 @@ get_data(struct curve_points *current_plot)
 		    y2 = y1;
 		else
 		    y2 = current_plot->filledcurves_options.at;
-	    } else if (current_plot->plot_smooth == SMOOTH_SMOOTH_HULL
-	           ||  current_plot->plot_smooth == SMOOTH_CONVEX_HULL) {
+	    } else if (current_plot->plot_smooth == SMOOTH_SMOOTH_HULL) {
 		y2 = y1;
 	    } else {
 		y2 = v[2];
@@ -1309,9 +1306,6 @@ get_data(struct curve_points *current_plot)
 
     /* We are finished reading user input; return to C locale for internal use */
     reset_numeric_locale();
-
-    /* Deferred evaluation of plot title now that we know column headers */
-    reevaluate_plot_title(current_plot);
 
     return ngood;                   /* 0 indicates an 'empty' file */
 }
@@ -2230,6 +2224,7 @@ eval_plots()
 		this_plot->plot_type = DATA;
 		this_plot->plot_style = data_style;
 		this_plot->plot_smooth = SMOOTH_NONE;
+		this_plot->plot_filter = FILTER_NONE;
 		this_plot->filledcurves_options = filledcurves_opts_data;
 
 		/* Only relevant to "with table" */
@@ -2311,14 +2306,18 @@ eval_plots()
 	    while (!END_OF_COMMAND) {
 		int save_token = c_token;
 
+		/* Previous keyword was problematic */
+		if (duplication)
+		    break;
+
 		/* bin the data if requested */
 		if (equals(c_token, "bins")) {
 		    if (set_smooth) {
-			duplication=TRUE;
+			duplication = TRUE;
 			break;
 		    }
 		    c_token++;
-		    this_plot->plot_smooth = SMOOTH_BINS;
+		    this_plot->plot_filter = FILTER_BINS;
 		    nbins = samples_1;
 		    if (equals(c_token, "=")) {
 			c_token++;
@@ -2361,9 +2360,7 @@ eval_plots()
 
 		/* "convexhull" is unsmoothed; "smooth convexhull is smoothed */
 		if (equals(c_token, "convexhull")) {
-		    set_smooth = TRUE; 
-		    this_plot->plot_smooth = SMOOTH_CONVEX_HULL;
-		    this_plot->filledcurves_options.closeto = FILLEDCURVES_CLOSED;
+		    this_plot->plot_filter = FILTER_CONVEX_HULL;
 		    c_token++;
 		    continue;
 		}
@@ -2372,16 +2369,14 @@ eval_plots()
 		if (almost_equals(c_token, "s$mooth")) {
 		    int found_token;
 
-		    if (set_smooth) {
-			duplication=TRUE;
-			break;
-		    }
 		    found_token = lookup_table(plot_smooth_tbl, ++c_token);
 		    c_token++;
 
 		    switch(found_token) {
 		    case SMOOTH_BINS:
-			/* catch the "bins" keyword by itself on the next pass */
+			/* "smooth bins" is the same as "bins".
+			 *  Catch the "bins" keyword as a filter on the next pass
+			 */
 			c_token--;
 			continue;
 		    case SMOOTH_UNWRAP:
@@ -2405,11 +2400,12 @@ eval_plots()
 			this_plot->plot_style = LINES;	/* can override later */
 			break;
 		    case SMOOTH_ZSORT:
-			this_plot->plot_smooth = SMOOTH_ZSORT;
-			this_plot->plot_style = POINTSTYLE;
+			/* Jan 2022: same as filter "zsort" */
+			this_plot->plot_filter = FILTER_ZSORT;
 			break;
-		    case SMOOTH_CONVEX_HULL:
+		    case SMOOTH_SMOOTH_HULL:
 			this_plot->plot_smooth = SMOOTH_SMOOTH_HULL;
+			this_plot->plot_filter = FILTER_CONVEX_HULL;
 			parse_hull_options(this_plot);
 			break;
 		    case SMOOTH_NONE:
@@ -2417,20 +2413,19 @@ eval_plots()
 			int_error(c_token, "unrecognized 'smooth' option");
 			break;
 		    }
-		    set_smooth = TRUE;
+
+		    if (set_smooth)
+			duplication = TRUE;
+		    else
+			set_smooth = TRUE;
+
 		    continue;
 		}
 
-		/* "mask" is currently implemented as if it were a smoothing
-		 * category, but giving it a separate keyword will make it
-		 * easier to separate later.
-		 */
+		/* "mask" is currently implemented as a filter */
 		if (equals(c_token, "mask")) {
 		    c_token++;
-		    if (set_smooth)
-			duplication = TRUE;
-		    set_smooth = TRUE;
-		    this_plot->plot_smooth = SMOOTH_MASK;
+		    this_plot->plot_filter = FILTER_MASK;
 		    continue;
 		}
 
@@ -2438,7 +2433,7 @@ eval_plots()
 		if (almost_equals(c_token, "ax$es")
 		    || almost_equals(c_token, "ax$is")) {
 		    if (set_axes) {
-			duplication=TRUE;
+			duplication = TRUE;
 			break;
 		    }
 		    if (parametric && in_parametric)
@@ -2490,7 +2485,7 @@ eval_plots()
 		/* deal with style */
 		if (almost_equals(c_token, "w$ith")) {
 		    if (set_with) {
-			duplication=TRUE;
+			duplication = TRUE;
 			break;
 		    }
 		    if (parametric && in_parametric)
@@ -2501,6 +2496,9 @@ eval_plots()
 		    ||  this_plot->plot_style == FILLSTEPS) {
 			/* read a possible option for 'with filledcurves' */
 			get_filledcurves_style_options(&this_plot->filledcurves_options);
+			if (this_plot->plot_filter == FILTER_CONVEX_HULL
+			||  this_plot->plot_smooth == SMOOTH_SMOOTH_HULL)
+			    this_plot->filledcurves_options.closeto = FILLEDCURVES_CLOSED;
 		    }
 
 		    if (this_plot->plot_style == IMAGE
@@ -2574,7 +2572,7 @@ eval_plots()
 		    arrow_parse(&(this_plot->arrow_properties), TRUE);
 		    if (stored_token != c_token) {
 			if (set_lpstyle) {
-			    duplication=TRUE;
+			    duplication = TRUE;
 			    break;
 			} else {
 			    set_lpstyle = TRUE;
@@ -2604,7 +2602,7 @@ eval_plots()
 		    }
 		    if (stored_token != c_token) {
 			if (set_ellipseaxes_units) {
-			    duplication=TRUE;
+			    duplication = TRUE;
 			    break;
 			} else {
 			    set_ellipseaxes_units = TRUE;
@@ -2646,7 +2644,7 @@ eval_plots()
 
 		    if (stored_token != c_token) {
 			if (set_lpstyle) {
-			    duplication=TRUE;
+			    duplication = TRUE;
 			    break;
 			} else {
 			    this_plot->lp_properties = lp;
@@ -3044,9 +3042,18 @@ eval_plots()
 		    }
 		}
 
-		/* If we are to bin the data, do that first */
-		if (this_plot->plot_smooth == SMOOTH_BINS) {
+		/* Jan 2022: Filter operations are performed immediately after
+		 * reading in the data, before any smoothing.
+		 */
+		if (this_plot->plot_filter == FILTER_BINS) {
 		    make_bins(this_plot, nbins, binlow, binhigh, binwidth, binopt);
+		}
+		if (this_plot->plot_filter == FILTER_CONVEX_HULL) {
+		    convex_hull(this_plot);
+		}
+		if (this_plot->plot_filter == FILTER_ZSORT) {
+		    zsort_points(this_plot);
+		    zrange_points(this_plot);
 		}
 
 		/* Restore auto-scaling prior to smoothing operation */
@@ -3089,12 +3096,7 @@ eval_plots()
 		    cp_implode(this_plot);
 		    break;
 		case SMOOTH_ZSORT:
-		    zsort_points(this_plot);
-		    break;
-		case SMOOTH_CONVEX_HULL:
 		case SMOOTH_SMOOTH_HULL:
-		    convex_hull(this_plot);
-		    break;
 		case SMOOTH_NONE:
 		case SMOOTH_PATH:
 		case SMOOTH_BEZIER:
@@ -3160,6 +3162,11 @@ eval_plots()
 		    process_image(this_plot, IMG_UPDATE_AXES);
 		}
 
+		/* Feb 2022: Deferred evaluation of plot title
+		 * now that we know column headers (loaded in get_data)
+		 * and potentially stats from filters, smoothing and image processing.
+		 */
+		reevaluate_plot_title(this_plot);
 	    }
 
 	    SKIPPED_EMPTY_FILE:

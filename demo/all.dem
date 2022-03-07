@@ -161,6 +161,7 @@ load "prob.dem"
 reset
 
 print "******************** file prob2.dem ********************"
+load "prob3.dem"
 load "prob2.dem"
 reset
 
@@ -275,6 +276,7 @@ load "expint.dem"
 reset
 
 print "********************** special functions *************************"
+load "BesselJ.dem"
 load "elliptic.dem"
 load "lnGamma.dem"
 load "igamma.dem"

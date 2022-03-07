@@ -292,7 +292,8 @@ AC_CHECK_FUNCS(atexit memcpy memmove memset \
   erf erfc gamma lgamma tgamma \
   getcwd poll pclose popen fdopen select sleep stpcpy \
   strcspn strdup strndup strnlen strcasecmp stricmp strncasecmp strnicmp \
-  sysinfo tcgetattr vfprintf doprnt uname usleep
+  sysinfo tcgetattr vfprintf doprnt uname usleep \
+  cbrt jn
 )
 
 dnl HBB 20030624: see if signgam is declared by math.h
@@ -741,6 +742,14 @@ AC_ARG_WITH(cwdrc,dnl
 if test "$with_cwdrc" = yes; then
      AC_DEFINE(USE_CWDRC,1,
                [ Define if you want to read .gnuplot from current directory (SECURITY RISK!).])
+fi
+
+dnl without-extra-coordinate may leave a hole in "struct coordinate"
+AC_ARG_WITH(extra-coordinate,dnl
+[  --without-extra-coordinate    leave possible hole in struct coordinate],,)
+if test "$with_extra_coordinate" != no; then
+     AC_DEFINE(WITH_EXTRA_COORDINATE,1,
+               [ Define to make use of otherwise empty space in struct coordinate ])
 fi
 
 dnl Sort help/subtopic tables by row or column

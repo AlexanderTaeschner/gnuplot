@@ -329,6 +329,10 @@ plot3drequest()
     axis_init(&axis_array[U_AXIS], FALSE);
     axis_init(&axis_array[V_AXIS], FALSE);
     axis_init(&axis_array[COLOR_AXIS], TRUE);
+    if (splot_map) {
+	axis_init(&axis_array[SECOND_X_AXIS], FALSE);
+	axis_init(&axis_array[SECOND_Y_AXIS], FALSE);
+    }
 
     /* Always be prepared to restore the autoscaled values on "refresh"
      * Dima Kogan April 2018
@@ -1239,31 +1243,6 @@ get_3ddata(struct surface_points *this_plot)
 		}
 		track_pm3d_quadrangles = TRUE;
 
-#ifdef BOXERROR_3D
-	    } else if (this_plot->plot_style == BOXERROR) {
-		/* This style only makes sense in xz projection, as a way
-		 * to produce horizontal bar charts with error bars.
-		 * 4 column:	x (y) z zerror
-		 * 5 column:	x (y) z zlow zhigh
-		 */
-		/* Optional variable color in last column */
-		if ((this_plot->lp_properties.pm3d_color.type == TC_RGB
-			&&  this_plot->lp_properties.pm3d_color.value < 0)
-		    ||  this_plot->lp_properties.l_type == LT_COLORFROMCOLUMN) {
-		    color_from_column(TRUE);
-		    color = v[--j];
-		}
-		if (j == 4) {
-		    zlow = v[2] - v[3];
-		    zhigh = v[2] + v[3];
-		} else if (j == 5) {
-		    zlow = v[3];
-		    zhigh = v[4];
-		} else {
-		    int_error(NO_CARET, "this plot style wants 4 or 5 input columns");
-		}
-#endif /* BOXERROR_3D */
-
 	    } else if (this_plot->plot_style == LINES && this_plot->plot_smooth == SMOOTH_ACSPLINES) {
 		if (j >= 4)
 		    weight = v[3];	/* spline weights */
@@ -1337,8 +1316,7 @@ get_3ddata(struct surface_points *this_plot)
 				this_plot->noautoscale,
 				cp->z=0;goto come_here_if_undefined);
 
-		if (this_plot->plot_style == ZERRORFILL
-		||  this_plot->plot_style == BOXERROR) {
+		if (this_plot->plot_style == ZERRORFILL) {
 		    STORE_AND_UPDATE_RANGE(cp->CRD_ZLOW, zlow, cp->type, z_axis,
 				this_plot->noautoscale, goto come_here_if_undefined);
 		    STORE_AND_UPDATE_RANGE(cp->CRD_ZHIGH, zhigh, cp->type, z_axis,
@@ -1978,7 +1956,7 @@ eval_3dplots()
 			duplication = TRUE;
 		    set_smooth = TRUE;
 		    c_token++;
-		    this_plot->plot_smooth = SMOOTH_MASK;
+		    this_plot->plot_filter = FILTER_MASK;
 		    continue;
 		}
 
@@ -2282,20 +2260,12 @@ eval_3dplots()
 
 	    /* If this plot style uses a fillstyle and we saw an explicit */
 	    /* fill color, save it in lp_properties now.                  */
-	    if ((this_plot->plot_style & PLOT_STYLE_HAS_FILL) && set_fillcolor) {
-#ifdef BOXERROR_3D
-		if (this_plot->plot_style == BOXERROR)
-		    this_plot->lp_properties.pm3d_color = fillcolor;
-		else
-#endif
-		    this_plot->fill_properties.border_color = fillcolor;
-	    }
+	    if ((this_plot->plot_style & PLOT_STYLE_HAS_FILL) && set_fillcolor)
+		this_plot->fill_properties.border_color = fillcolor;
 
 	    /* No fillcolor given; use the line color for fill also */
 	    if (((this_plot->plot_style & PLOT_STYLE_HAS_FILL) && !set_fillstyle)
-	    &&  !(this_plot->plot_style == PM3DSURFACE)
-	    &&  !(this_plot->plot_style == BOXERROR)
-)
+	    &&  !(this_plot->plot_style == PM3DSURFACE))
 		this_plot->fill_properties.border_color
 		    = this_plot->lp_properties.pm3d_color;
 
@@ -2770,6 +2740,22 @@ eval_3dplots()
     /* Is this too severe? */
     if (n_complex_values > 3)
 	int_warn(NO_CARET, "Did you try to plot a complex-valued function?");
+
+    /* In "set view map" mode it is possible for the x1/x2 or y1/y2 axes
+     * to be linked.  If so, reconcile their data limits before plotting.
+     */
+    if (splot_map) {
+	if (axis_array[FIRST_X_AXIS].linked_to_secondary) {
+	    AXIS *primary = &axis_array[FIRST_X_AXIS];
+	    AXIS *secondary = &axis_array[SECOND_X_AXIS];
+	    reconcile_linked_axes(primary, secondary);
+	}
+	if (axis_array[FIRST_Y_AXIS].linked_to_secondary) {
+	    AXIS *primary = &axis_array[FIRST_Y_AXIS];
+	    AXIS *secondary = &axis_array[SECOND_Y_AXIS];
+	    reconcile_linked_axes(primary, secondary);
+	}
+    }
 
     if (nonlinear(&axis_array[FIRST_X_AXIS])) {
 	/* Transfer observed data or function ranges back to primary axes */
