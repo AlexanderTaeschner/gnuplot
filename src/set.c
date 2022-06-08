@@ -39,7 +39,6 @@
 #include "setshow.h"
 
 #include "alloc.h"
-#include "axis.h"
 #include "breaders.h"	/* for df_read_pixmap */
 #include "command.h"
 #include "contour.h"
@@ -1500,21 +1499,6 @@ set_dashtype()
 	if (is_new)
 	    delete_dashtype(prev_dashtype, this_dashtype);
 	int_error(c_token,"Extraneous arguments to set dashtype");
-    }
-}
-
-/*
- * Delete dashtype from linked list.
- */
-void
-delete_dashtype(struct custom_dashtype_def *prev, struct custom_dashtype_def *this)
-{
-    if (this != NULL) {		/* there really is something to delete */
-	if (this == first_custom_dashtype)
-	    first_custom_dashtype = this->next;
-	else
-	    prev->next = this->next;
-	free(this);
     }
 }
 
@@ -5350,7 +5334,7 @@ set_tic_prop(struct axis *this_axis)
 		++c_token;
 		if (equals(c_token, "by")) {
 		    c_token++;
-		    this_axis->tic_rotate = int_expression();
+		    this_axis->tic_rotate = real_expression();
 		}
 	    } else if (almost_equals(c_token, "noro$tate")) {
 		this_axis->tic_rotate = 0;
@@ -5654,24 +5638,6 @@ set_linestyle(struct linestyle_def **head, lp_class destination_class)
 		head == &first_perm_linestyle ? "linetype" : "style line");
 }
 
-/*
- * Delete linestyle from linked list.
- * Called with pointers to the head of the list,
- * to the previous linestyle (not strictly necessary),
- * and to the linestyle to delete.
- */
-void
-delete_linestyle(struct linestyle_def **head, struct linestyle_def *prev, struct linestyle_def *this)
-{
-    if (this != NULL) {		/* there really is something to delete */
-	if (this == *head)
-	    *head = this->next;
-	else
-	    prev->next = this->next;
-	free(this);
-    }
-}
-
 
 /* ======================================================== */
 /* process a 'set arrowstyle' command */
@@ -5963,7 +5929,7 @@ parse_label_options( struct text_label *this_label, int ndim)
     struct position pos;
     char *font = NULL;
     enum JUSTIFY just = LEFT;
-    int rotate = 0;
+    float rotate = 0;
     TBOOLEAN set_position = FALSE, set_just = FALSE, set_point = FALSE,
 	set_rot = FALSE, set_font = FALSE, set_offset = FALSE,
 	set_layer = FALSE, set_textcolor = FALSE, set_hypertext = FALSE;
@@ -6013,7 +5979,7 @@ parse_label_options( struct text_label *this_label, int ndim)
 	    rotate = this_label->rotate;
 	    if (equals(c_token, "by")) {
 		c_token++;
-		rotate = int_expression();
+		rotate = real_expression();
 		if (this_label->tag == ROTATE_IN_3D_LABEL_TAG)
 		    this_label->tag = NONROTATING_LABEL_TAG;
 	    } else if (almost_equals(c_token,"para$llel")) {

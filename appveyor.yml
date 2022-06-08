@@ -12,9 +12,9 @@ install:
 #  - del /S /Q C:\Users\appveyor\AppData\Local\vcpkg\archives
   - .\vcpkg.exe install --recurse fontconfig:%PLATFORM%-windows
   - .\vcpkg.exe install --recurse pango:%PLATFORM%-windows
-  - .\vcpkg.exe install --recurse libgd:%PLATFORM%-windows
-  - .\vcpkg.exe install --recurse wxwidgets:%PLATFORM%-windows
-  - .\vcpkg.exe upgrade --no-dry-run
+#  - .\vcpkg.exe install --recurse libgd:%PLATFORM%-windows
+#  - .\vcpkg.exe install --recurse wxwidgets:%PLATFORM%-windows
+#  - .\vcpkg.exe upgrade --no-dry-run
   - .\vcpkg.exe integrate install
 cache:
   - c:\tools\vcpkg\installed\
