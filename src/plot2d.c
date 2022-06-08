@@ -383,6 +383,9 @@ get_data(struct curve_points *current_plot)
 	    variable_color = TRUE;
 	if (current_plot->lp_properties.l_type == LT_COLORFROMCOLUMN)
 	    variable_color = TRUE;
+	if ((current_plot->plot_style == VECTOR || current_plot->plot_style == ARROWS)
+	&&  (current_plot->arrow_properties.tag == AS_VARIABLE))
+	    variable_color = TRUE;
 	if (current_plot->plot_smooth != SMOOTH_NONE) {
 	    /* FIXME:  It would be possible to support smooth cspline lc palette */
 	    /* but it would require expanding and interpolating plot->varcolor   */
@@ -470,10 +473,10 @@ get_data(struct curve_points *current_plot)
 	    df_axis[2] = df_axis[3] = df_axis[1];
 	break;
 
-    case VECTOR:	/* x, y, dx, dy, variable color or arrow style */
-    case ARROWS:	/* x, y, len, ang, variable color or arrow style */
+    case VECTOR:	/* x, y, dx, dy, variable arrow style and/or variable color */
+    case ARROWS:	/* x, y, len, ang, variable arrow style and/or variable color */
 	min_cols = 4;
-	max_cols = 5;
+	max_cols = 6;
 	break;
 
     case XERRORLINES:
@@ -489,7 +492,7 @@ get_data(struct curve_points *current_plot)
     case YERRORLINES:
     case YERRORBARS:
 	min_cols = 2;
-	max_cols = 5;
+	max_cols = 7;
 	if (df_no_use_specs >= 4)
 	    /* HBB 20060427: signal 3rd and 4th column are absolute y
 	     * data --- needed so time/date parsing works */
@@ -628,7 +631,7 @@ get_data(struct curve_points *current_plot)
     }
 
     if (df_no_use_specs > max_cols)
-	int_error(NO_CARET, "Too many using specs for this style");
+	int_warn(NO_CARET, "more using specs than expected for this style");
 
     if (df_no_use_specs > 0 && df_no_use_specs < min_cols)
 	int_error(NO_CARET, "Not enough columns for this style");
@@ -772,6 +775,9 @@ get_data(struct curve_points *current_plot)
 	    case VECTOR:
 	    case ARROWS:
 			    if (j < 5) int_error(NO_CARET,errmsg);
+			    /* j can be 5 if the variable styles have constant color */
+			    if (j == 5 && current_plot->arrow_properties.tag == AS_VARIABLE)
+				v[j++] = 0;
 			    break;
 	    case LABELPOINTS:
 	    case BOXERROR:
@@ -860,6 +866,8 @@ get_data(struct curve_points *current_plot)
 	    coordval var_char = 0;
 	    if (current_plot->plot_filter == FILTER_ZSORT)
 		weight = v[var++];
+	    if (var_ps == PTSZ_VARIABLE)
+		var_ps = v[var++];
 	    if (var_pt == PT_VARIABLE) {
 		if (isnan(v[var]) && df_tokens[var]) {
 		    safe_strncpy( (char *)(&var_char), df_tokens[var], sizeof(coordval));
@@ -867,8 +875,6 @@ get_data(struct curve_points *current_plot)
 		}
 		var_pt = v[var++];
 	    }
-	    if (var_ps == PTSZ_VARIABLE)
-		var_ps = v[var++];
 	    if (var > j)
 		int_error(NO_CARET, "Not enough using specs");
 	    if (var_pt < 0)
@@ -890,10 +896,10 @@ get_data(struct curve_points *current_plot)
 
 	    if (current_plot->labels->tag == VARIABLE_ROTATE_LABEL_TAG)
 		var_rotation = v[var++];
-	    if (var_pt == PT_VARIABLE)
-		var_pt = v[var++];
 	    if (var_ps == PTSZ_VARIABLE)
 		var_ps = v[var++];
+	    if (var_pt == PT_VARIABLE)
+		var_pt = v[var++] - 1;
 	    if (var > j)
 		int_error(NO_CARET, "Not enough using specs");
 
@@ -949,12 +955,48 @@ get_data(struct curve_points *current_plot)
 	}
 
 	case YERRORLINES:
-	case YERRORBARS:
 	{   /* x y ydelta   or    x y ylow yhigh */
 	    coordval ylow  = (j > 3) ? v[2] : v[1] - v[2];
 	    coordval yhigh = (j > 3) ? v[3] : v[1] + v[2];
 	    store2d_point(current_plot, i++, v[0], v[1],
 			v[0], v[0], ylow, yhigh, -1.0);
+	    break;
+	}
+
+	case YERRORBARS:
+	{   /* NB: assumes CRD_PTSIZE == xlow CRD_PTTYPE == xhigh CRD_PTCHAR == ylow
+		   lc variable, if present, was already extracted and j reduced by 1
+	     */
+	    /* x y ydelta {lc variable} */
+	    if (j == 3) {
+		coordval ylow  = v[1] - v[2];
+		coordval yhigh = v[1] + v[2];
+		store2d_point(current_plot, i++, v[0], v[1],
+			v[0], v[0], ylow, yhigh, -1.0);
+
+	    /* x y ylow yhigh {var_ps} {var_pt} {lc variable} */
+	    } else {
+		int var = 4; /* column number for next variable spec */
+		coordval ylow  = v[2];
+		coordval yhigh = v[3];
+		coordval var_pt = current_plot->lp_properties.p_type;
+		coordval var_ps = current_plot->lp_properties.p_size;
+
+		if (var_ps == PTSZ_VARIABLE) {
+		    if (var >= j)
+			int_error(NO_CARET, "Not enough using specs");
+		    var_ps = v[var++];
+		}
+		if (var_pt == PT_VARIABLE) {
+		    if (var >= j)
+			int_error(NO_CARET, "Not enough using specs");
+		    var_pt = v[var++];
+		}
+		if (!(var_pt > 0)) /* Catches CRD_PTCHAR (NaN) also */
+		    var_pt = 0;
+		store2d_point(current_plot, i++, v[0], v[1],
+					    var_ps, var_pt, ylow, yhigh, -1.0);
+	    }
 	    break;
 	}
 
@@ -1110,25 +1152,24 @@ get_data(struct curve_points *current_plot)
 	}
 
 	case VECTOR:
-	{   /* 4 columns:	x y xdelta ydelta [arrowstyle variable] */
+	{   /* 	x y xdelta ydelta [arrowstyle variable] */
 	    coordval xlow  = v[0];
 	    coordval xhigh = v[0] + v[2];
 	    coordval ylow  = v[1];
 	    coordval yhigh = v[1] + v[3];
-	    coordval arrowstyle = (j == 5) ? v[4] : 0.0;
-
+	    coordval arrowstyle = (j >= 5) ? v[4] : 0.0;
 	    store2d_point(current_plot, i++, v[0], v[1],
 			  xlow, xhigh, ylow, yhigh, arrowstyle);
 	    break;
 	}
 
 	case ARROWS:
-	{   /* 4 columns:	x y len ang [arrowstyle variable] */
+	{   /* 	x y length angle [arrowstyle variable] */
 	    coordval xlow  = v[0];
 	    coordval ylow  = v[1];
 	    coordval len = v[2];
 	    coordval ang = v[3];
-	    coordval arrowstyle = (j == 5) ? v[4] : 0.0;
+	    coordval arrowstyle = (j >= 5) ? v[4] : 0.0;
 	    store2d_point(current_plot, i++, v[0], v[1],
 			  xlow, len, ylow, ang, arrowstyle);
 	    break;
@@ -1411,6 +1452,14 @@ store2d_point(
 	cp->xhigh = xhigh;
 	cp->ylow = ylow;
 	cp->yhigh = yhigh;
+	break;
+    case YERRORBARS:		/* auto-scale ylow yhigh */
+	cp->xlow = xlow;
+	cp->xhigh = xhigh;
+	STORE_AND_UPDATE_RANGE(cp->ylow, ylow, dummy_type, current_plot->y_axis,
+				current_plot->noautoscale, cp->ylow = -VERYLARGE);
+	STORE_AND_UPDATE_RANGE(cp->yhigh, yhigh, dummy_type, current_plot->y_axis,
+				current_plot->noautoscale, cp->yhigh = -VERYLARGE);
 	break;
     case BOXES:			/* auto-scale to xlow xhigh */
     case BOXPLOT:		/* auto-scale to xlow xhigh, factor is already in z */
