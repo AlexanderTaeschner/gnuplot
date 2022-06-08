@@ -1147,7 +1147,7 @@ recheck_ranges(struct curve_points *plot)
     int i;			/* point index */
 
     for (i = 0; i < plot->p_count; i++) {
-	if (plot->noautoscale && plot->points[i].type != UNDEFINED) {
+	if (plot->points[i].type != UNDEFINED) {
 	    plot->points[i].type = INRANGE;
 	    if (!inrange(plot->points[i].x, axis_array[plot->x_axis].min, axis_array[plot->x_axis].max))
 		plot->points[i].type = OUTRANGE;
@@ -1224,6 +1224,10 @@ plot_lines(struct curve_points *plot)
     /* If all the lines are invisible, don't bother to draw them */
     if (plot->lp_properties.l_type == LT_NODRAW)
 	return;
+
+    /* Along-path smoothing wiped out the flags for INRANGE/OUTRANGE */
+    if (plot->plot_smooth == SMOOTH_PATH || plot->plot_smooth == SMOOTH_SMOOTH_HULL)
+	recheck_ranges(plot);
 
     for (i = 0; i < plot->p_count; i++) {
 	xnow = plot->points[i].x;
@@ -2401,12 +2405,14 @@ plot_points(struct curve_points *plot)
 		    && x <= plot_bounds.xright - p_width
 		    && y <= plot_bounds.ytop - p_height)) {
 
-		if ((plot->plot_style == POINTSTYLE || plot->plot_style == LINESPOINTS)
-		&&  plot->lp_properties.p_size == PTSZ_VARIABLE)
+		if ((plot->lp_properties.p_size == PTSZ_VARIABLE)
+		&&  (plot->plot_style == POINTSTYLE || plot->plot_style == LINESPOINTS
+		     || plot->plot_style == YERRORBARS))
 		    (*t->pointsize)(pointsize * plot->points[i].CRD_PTSIZE);
 
 		/* Feb 2016: variable point type */
-		if ((plot->plot_style == POINTSTYLE || plot->plot_style == LINESPOINTS)
+		if ((plot->plot_style == POINTSTYLE || plot->plot_style == LINESPOINTS
+		     || plot->plot_style == YERRORBARS)
 		&&  (plot->lp_properties.p_type == PT_VARIABLE)
 		&&  !(isnan(plot->points[i].CRD_PTTYPE))) {
 		    pointtype = plot->points[i].CRD_PTTYPE - 1;
@@ -2419,7 +2425,8 @@ plot_points(struct curve_points *plot)
 		/* implementing a special point type, but that would require    */
 		/* modification to all terminal drivers. It might be worth it.  */
 		/* term_apply_lp_properties will restore the point type and size*/
-		if (plot->plot_style == LINESPOINTS && interval < 0) {
+		if ((plot->plot_style == LINESPOINTS && interval < 0)
+		||  (plot->plot_style == YERRORBARS)) {
 		    (*t->set_color)(&background_fill);
 		    (*t->pointsize)(pointsize * pointintervalbox);
 		    (*t->point) (x, y, 6);
@@ -2620,7 +2627,7 @@ plot_dots(struct curve_points *plot)
 }
 
 /* plot_vectors:
- * Plot the curves in VECTORS style
+ * Plot the curves in VECTORS style (used also for ARROWS)
  */
 static void
 plot_vectors(struct curve_points *plot)
@@ -2678,6 +2685,8 @@ plot_vectors(struct curve_points *plot)
 	    arrow_use_properties(&ap, as);
 	    term_apply_lp_properties(&ap.lp_properties);
 	    apply_head_properties(&ap);
+	    /* Over-write plot lp_properties so the check for variable color works */
+	    plot->lp_properties = ap.lp_properties;
 	}
 
 	/* variable color read from extra data column. */
@@ -2985,17 +2994,11 @@ plot_c_bars(struct curve_points *plot)
 	/* Some users prefer bars at the end of the whiskers */
 	if (plot->plot_style == BOXPLOT
 	||  plot->arrow_properties.head == BOTH_HEADS) {
-	    int d;
+	    int d = 0;
 	    if (plot->plot_style == BOXPLOT) {
-		if (bar_size < 0)
-		    d = 0;
-		else
+		if (bar_size > 0)
 		    d = (xhighM-xlowM)/2. - (bar_size * term->h_tic);
-	    } else {
-		double frac = plot->arrow_properties.head_length;
-		d = (frac <= 0) ? 0 : (xhighM-xlowM)*(1.-frac)/2.;
 	    }
-
 	    draw_clip_line(xlowM+d, yhighM, xhighM-d, yhighM);
 	    draw_clip_line(xlowM+d, ylowM, xhighM-d, ylowM);
 	}
