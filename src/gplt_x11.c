@@ -1344,9 +1344,13 @@ scan_palette_from_buf(void)
 	break;
     case SMPAL_COLOR_MODE_GRADIENT: {
 	static char frac[8] = {0,0,0,0,0,0,0,0};
-	int i=0;
+	int i=0, ierr=0;
 	read_input_line();
-	if (1 != sscanf( buf, "%d", &(tpal.gradient_num) )) {
+	ierr = sscanf( buf, "%d %d", &(tpal.gradient_num), &(tpal.gradient_type) );
+	/* Older gnuplots did not send a separate gradient type parameter */
+	if (ierr < 2)
+	    tpal.gradient_type = SMPAL_GRADIENT_TYPE_NONE;
+	if (ierr < 1) {
 	    fprintf( stderr, "%s:%d error in setting palette.\n",
 		     __FILE__, __LINE__);
 	    return;
@@ -2217,7 +2221,7 @@ exec_cmd(plot_struct *plot, char *command)
 	}
 
     /*   X11_vector(x, y) - draw vector  */
-    if (*buffer == 'V') {
+    if (*buffer == 'V' && plot->lt != LT_NODRAW) {
 	x = strtol(strx, &stry, 0);
 	y = strtol(stry, NULL, 0);
 
@@ -2236,7 +2240,6 @@ exec_cmd(plot_struct *plot, char *command)
 	cy = y;
 	/* Limit the number of vertices in any single polyline */
 	if (polyline_size > max_request_size) {
-	    FPRINTF((stderr, "(display) dumping polyline size %d\n", polyline_size));
 	    XDrawLines(dpy, plot->pixmap, *current_gc,
 			polyline, polyline_size+1, CoordModeOrigin);
 	    polyline_size = 0;
@@ -2248,14 +2251,19 @@ exec_cmd(plot_struct *plot, char *command)
 	}
 	return;
     } else if (polyline_size > 0) {
-	FPRINTF((stderr, "(display) dumping polyline size %d\n", polyline_size));
 	XDrawLines(dpy, plot->pixmap, *current_gc,
 			polyline, polyline_size+1, CoordModeOrigin);
 	polyline_size = 0;
     }
 
+    /*   Vector with LT_NODRAW is treated as a move */
+    if (*buffer == 'V' && plot->lt == LT_NODRAW) {
+	cx = strtol(strx, &stry, 0);
+	cy = strtol(stry, NULL, 0);
+    }
+
     /*   X11_move(x, y) - move  */
-    if (*buffer == 'M') {
+    else if (*buffer == 'M') {
 	cx = strtol(strx, &stry, 0);
 	cy = strtol(stry, NULL, 0);
     }
@@ -2537,7 +2545,7 @@ exec_cmd(plot_struct *plot, char *command)
 
 	/* Fixme: no mechanism to hold width or dashstyle for LT_BACKGROUND */
 	if (plot->lt < 0) { /* LT_NODRAW, LT_BACKGROUND, LT_UNDEFINED */
-	    plot->lt = -3;
+	    plot->lt = LT_NODRAW;
 
 	} else {
 	    /* LT_SOLID is a special case because version 5 uses it for all  */
@@ -3783,7 +3791,9 @@ PaletteMake(t_sm_palette * tpal)
 
 	if (tpal) {
 
-	    if (tpal->use_maxcolors > 0) {
+	    if (CHECK_SMPAL_IS_DISCRETE_GRADIENT) {
+		max_colors = tpal->gradient_num;
+	    } else if (tpal->use_maxcolors > 0) {
 		max_colors = tpal->use_maxcolors;
 	    } else {
 		max_colors = maximal_possible_colors;
@@ -3797,6 +3807,7 @@ PaletteMake(t_sm_palette * tpal)
 		free( sm_palette.gradient );
 		sm_palette.gradient = NULL;
 		sm_palette.gradient_num = 0;
+		sm_palette.gradient_type = SMPAL_GRADIENT_TYPE_NONE;
 	    }
 
 	    sm_palette.colorMode = tpal->colorMode;
@@ -3820,6 +3831,7 @@ PaletteMake(t_sm_palette * tpal)
 		sm_palette.gradient_num = tpal->gradient_num;
 		/* Take over the memory from tpal. */
 		sm_palette.gradient = tpal->gradient;
+		sm_palette.gradient_type = tpal->gradient_type;
 		tpal->gradient = NULL;
 		break;
 	    default:
@@ -3887,12 +3899,18 @@ PaletteMake(t_sm_palette * tpal)
 
 	    for (new_cmap->allocated = 0; new_cmap->allocated < max_colors; new_cmap->allocated++) {
 
-		double gray = (double) new_cmap->allocated * fact;
-		rgb_color color;
-		rgb1_from_gray( gray, &color );
-		xcolor.red = 0xffff * color.r + 0.5;
-		xcolor.green = 0xffff * color.g + 0.5;
-		xcolor.blue = 0xffff * color.b + 0.5;
+	        if (CHECK_SMPAL_IS_DISCRETE_GRADIENT) {
+		    xcolor.red = 0xffff * sm_palette.gradient[new_cmap->allocated].col.r + 0.5;
+		    xcolor.green = 0xffff * sm_palette.gradient[new_cmap->allocated].col.g + 0.5;
+		    xcolor.blue = 0xffff * sm_palette.gradient[new_cmap->allocated].col.b + 0.5;
+		} else {
+		    double gray = (double) new_cmap->allocated * fact;
+		    rgb_color color;
+		    rgb1_from_gray( gray, &color );
+		    xcolor.red = 0xffff * color.r + 0.5;
+		    xcolor.green = 0xffff * color.g + 0.5;
+		    xcolor.blue = 0xffff * color.b + 0.5;
+		}
 
 		if (XAllocColor(dpy, new_cmap->colormap, &xcolor)) {
 		    new_cmap->pixels[new_cmap->allocated] = xcolor.pixel;
@@ -3983,17 +4001,28 @@ PaletteSetColor(plot_struct * plot, double gray)
     if (plot->cmap->allocated) {
 	int index;
 
-	/* FIXME  -  I don't understand why sm_palette is not always in sync	*/
-	/* with plot->cmap->allocated, but in practice they can be different.	*/
-	if (sm_palette.use_maxcolors == plot->cmap->allocated) {
-	    gray = quantize_gray(gray);
-	    FPRINTF((stderr," %d",plot->cmap->allocated));
-	} else
-	    gray = floor(gray * plot->cmap->allocated) / (plot->cmap->allocated - 1);
-
-	index = gray * (plot->cmap->allocated - 1);
-	if (index >= plot->cmap->allocated)
+	if (CHECK_SMPAL_IS_DISCRETE_GRADIENT) {
+	    /* FIXME:
+	     * This conversion of gray is needed for comparison because
+	     * sm_palette_gradient[m].pos is rounded by "%6.4f" through gplt_x11 ipc
+	     * while gray has double precision.
+	     */
+	    char buf[8];
+	    sprintf(buf, "%6.4f", gray);
+	    gray = atof(buf);
+	    index = index_from_gray(gray);
+	} else {
+	    /* FIXME  -  I don't understand why sm_palette is not always in sync	*/
+	    /* with plot->cmap->allocated, but in practice they can be different.	*/
+	    if (sm_palette.use_maxcolors == plot->cmap->allocated) {
+	        gray = quantize_gray(gray);
+	        FPRINTF((stderr," %d",plot->cmap->allocated));
+	    } else
+	        gray = floor(gray * plot->cmap->allocated) / (plot->cmap->allocated - 1);
+	    index = gray * (plot->cmap->allocated - 1);
+	    if (index >= plot->cmap->allocated)
 		index = plot->cmap->allocated -1;
+	}
 
 	XSetForeground(dpy, gc, plot->cmap->pixels[index]);
 	plot->current_rgb = plot->cmap->pixels[index];
