@@ -609,6 +609,13 @@ place_labels3d(struct text_label *listhead, int layer)
 
     term->pointsize(pointsize);
 
+    /* Hypertext labels? */
+    /* NB: currently svg is the only terminal that needs this extra step */
+    if (layer == LAYER_PLOTLABELS && listhead && listhead->hypertext
+    &&  term->hypertext) {
+	term->hypertext(TERM_HYPERTEXT_FONT, listhead->font);
+    }
+
     for (this_label = listhead;
 	 this_label != NULL;
 	 this_label = this_label->next) {
@@ -1261,6 +1268,8 @@ do_3dplot(
 			break;
 		    if (draw_contour && !(this_plot->opt_out_of_contours))
 			break;
+		    if (pm3d_order_depth || track_pm3d_quadrangles)
+			break;
 		    place_labels3d(this_plot->labels->next, LAYER_PLOTLABELS);
 		}
 		break;
@@ -1554,6 +1563,17 @@ do_3dplot(
 	(term->layer)(TERM_LAYER_AFTER_PLOT);
     }
 
+    /* Add labels that were defered until after depth-sorted pm3d surfaces */
+    if (!key_pass)
+    if ((pm3d_order_depth || track_pm3d_quadrangles) && !hidden3d) {
+	this_plot = plots;
+	for (surface = 0; surface < pcount; this_plot = this_plot->next_sp, surface++) {
+	    if (this_plot->plot_style == LABELPOINTS)
+		if (!draw_contour || this_plot->opt_out_of_contours)
+		    place_labels3d(this_plot->labels->next, LAYER_PLOTLABELS);
+	}
+    }
+
     /* Draw grid and border.
      * The 1st case allows "set border behind" to override hidden3d processing.
      * The 2nd case either leaves everything to hidden3d or forces it to the front.
@@ -1590,7 +1610,7 @@ do_3dplot(
     /* Grid walls */
     place_objects(grid_wall, LAYER_FRONT, 3);
 
-    /* PLACE LABELS */
+    /* Add 'front' labels */
     place_labels3d(first_label, LAYER_FRONT);
 
     /* PLACE ARROWS */

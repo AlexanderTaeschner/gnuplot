@@ -111,8 +111,8 @@ init_color()
   sm_palette.cmodel = C_MODEL_RGB;
   sm_palette.Afunc.at = sm_palette.Bfunc.at = sm_palette.Cfunc.at = NULL;
   sm_palette.colorMode = SMPAL_COLOR_MODE_RGB;
+  sm_palette.gradient_type = SMPAL_GRADIENT_TYPE_SMOOTH;
   sm_palette.gamma = 1.5;
-  sm_palette.gradient_type = SMPAL_GRADIENT_TYPE_NONE;
 }
 
 
@@ -1221,17 +1221,16 @@ set_palette_file()
 {
     double v[4];
     int i, j, actual_size;
-    char *file_name;
+    char *name_str;
 
     ++c_token;
 
-    /* get filename */
-    if (!(file_name = try_to_get_string()))
-	int_error(c_token, "missing filename");
+    /* WARNING: do NOT free name_str */
+    if (!(name_str = string_or_express(NULL)))
+	int_error(c_token, "expecting filename or datablock");
 
     df_set_plot_mode(MODE_QUERY);	/* Needed only for binary datafiles */
-    df_open(file_name, 4, NULL);
-    free(file_name);
+    df_open(name_str, 4, NULL);
 
     free(sm_palette.gradient);
     sm_palette.gradient = NULL;
@@ -1254,6 +1253,12 @@ set_palette_file()
 		sm_palette.gradient[i].col.b = (0xff & ((int)(v[0])))       / 255.;
 		sm_palette.gradient[i].pos = i;
 		break;
+	    case 2:
+		sm_palette.gradient[i].col.r = (0xff & ((int)(v[1]) >> 16)) / 255.;
+		sm_palette.gradient[i].col.g = (0xff & ((int)(v[1]) >> 8))  / 255.;
+		sm_palette.gradient[i].col.b = (0xff & ((int)(v[1])))       / 255.;
+		sm_palette.gradient[i].pos = v[0];
+		break;
 	    case 3:
 		sm_palette.gradient[i].col.r = clip_to_01(v[0]);
 		sm_palette.gradient[i].col.g = clip_to_01(v[1]);
@@ -1265,6 +1270,11 @@ set_palette_file()
 		sm_palette.gradient[i].col.g = clip_to_01(v[2]);
 		sm_palette.gradient[i].col.b = clip_to_01(v[3]);
 		sm_palette.gradient[i].pos = v[0];
+		break;
+	    case DF_UNDEFINED:
+	    case DF_MISSING:
+	    case DF_COLUMN_HEADERS:
+		continue;
 		break;
 	    default:
 		df_close();
@@ -1418,6 +1428,7 @@ set_palette()
 	    /* gray or rgb-coloured */
 	    case S_PALETTE_GRAY: /* "gray" */
 		sm_palette.colorMode = SMPAL_COLOR_MODE_GRAY;
+                sm_palette.gradient_type = SMPAL_GRADIENT_TYPE_SMOOTH;
 		continue;
 	    case S_PALETTE_GAMMA: /* "gamma" */
 		++c_token;
@@ -1429,6 +1440,7 @@ set_palette()
 		    sm_palette.colorMode = pm3d_last_set_palette_mode;
 		} else {
 		    sm_palette.colorMode = SMPAL_COLOR_MODE_RGB;
+                    sm_palette.gradient_type = SMPAL_GRADIENT_TYPE_SMOOTH;
 		}
 		continue;
 	    /* rgb color mapping formulae: rgb$formulae r,g,b (3 integers) */
@@ -1458,6 +1470,7 @@ set_palette()
 		sm_palette.formulaB = i;
 		c_token--;
 		sm_palette.colorMode = SMPAL_COLOR_MODE_RGB;
+                sm_palette.gradient_type = SMPAL_GRADIENT_TYPE_SMOOTH;
 		pm3d_last_set_palette_mode = SMPAL_COLOR_MODE_RGB;
 		continue;
 	    } /* rgbformulae */
@@ -1467,6 +1480,7 @@ set_palette()
 		TBOOLEAN done = FALSE;
 		CHECK_TRANSFORM;
 		sm_palette.colorMode = SMPAL_COLOR_MODE_CUBEHELIX;
+                sm_palette.gradient_type = SMPAL_GRADIENT_TYPE_SMOOTH;
 		sm_palette.cmodel = C_MODEL_RGB;
 		sm_palette.cubehelix_start = 0.5;
 		sm_palette.cubehelix_cycles = -1.5;
@@ -1495,6 +1509,7 @@ set_palette()
 		CHECK_TRANSFORM;
 		set_palette_by_name(VIRIDIS);
 		sm_palette.colorMode = SMPAL_COLOR_MODE_GRADIENT;
+                sm_palette.gradient_type = SMPAL_GRADIENT_TYPE_SMOOTH;
 		pm3d_last_set_palette_mode = SMPAL_COLOR_MODE_GRADIENT;
 		continue;
 	    }
@@ -1503,6 +1518,8 @@ set_palette()
 		++c_token;
 		set_palette_colormap();
 		sm_palette.colorMode = SMPAL_COLOR_MODE_GRADIENT;
+                sm_palette.gradient_type = SMPAL_GRADIENT_TYPE_SMOOTH;
+                check_palette_gradient_type();
 		pm3d_last_set_palette_mode = SMPAL_COLOR_MODE_GRADIENT;
 		continue;
 	    }
@@ -1511,6 +1528,8 @@ set_palette()
 		++c_token;
 		named_color = set_palette_defined();
 		sm_palette.colorMode = SMPAL_COLOR_MODE_GRADIENT;
+                sm_palette.gradient_type = SMPAL_GRADIENT_TYPE_NONE;
+                check_palette_gradient_type();
 		pm3d_last_set_palette_mode = SMPAL_COLOR_MODE_GRADIENT;
 		continue;
 	    }
@@ -1518,6 +1537,8 @@ set_palette()
 		CHECK_TRANSFORM;
 		set_palette_file();
 		sm_palette.colorMode = SMPAL_COLOR_MODE_GRADIENT;
+                sm_palette.gradient_type = SMPAL_GRADIENT_TYPE_NONE;
+                check_palette_gradient_type();
 		pm3d_last_set_palette_mode = SMPAL_COLOR_MODE_GRADIENT;
 		--c_token;
 		continue;
@@ -1526,6 +1547,7 @@ set_palette()
 		CHECK_TRANSFORM;
 		set_palette_function();
 		sm_palette.colorMode = SMPAL_COLOR_MODE_FUNCTIONS;
+                sm_palette.gradient_type = SMPAL_GRADIENT_TYPE_SMOOTH;
 		pm3d_last_set_palette_mode = SMPAL_COLOR_MODE_FUNCTIONS;
 		--c_token;
 		continue;
