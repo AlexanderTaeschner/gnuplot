@@ -1977,6 +1977,13 @@ df_readascii(double v[], int max)
 		    return DF_EOF;
 		}
 
+		/* start of a new data block that might have column headers */
+		if (((&keyT)->auto_titles == COLUMNHEAD_KEYTITLES)
+		||  (df_columnheaders)) {
+		    parse_1st_row_as_headers = TRUE;
+		    df_already_got_headers = FALSE;
+		}
+
 		/* ignore line if current_index has just become
 		 * first required one - client doesn't want this
 		 * blank line. While we're here, check for <=
@@ -2117,6 +2124,7 @@ df_readascii(double v[], int max)
 		column_for_key_title = df_no_cols;
 
 	    if (column_for_key_title > 0) {
+		free(df_key_title);
 		df_key_title = gp_strdup(df_column[column_for_key_title-1].header);
 		if (!df_key_title) {
 		    FPRINTF((stderr,
@@ -5322,7 +5330,16 @@ df_readbinary(double v[], int max)
 	    {
 		int j;
 
-		df_datum = df_column[i].datum;
+		/* df_datum will be returned as column(0)
+		 * Aug 2022: CHANGE
+		 * I do not know why the original code set this to df_column[i].datum.
+		 * Returning the linear order in the matrix is more useful for both
+		 * ascii and binary nonuniform matrices.
+		 */
+		if (df_nonuniform_matrix)
+		    df_datum++;
+		else
+		    df_datum = df_column[i].datum;
 
 		/* Fill backward so that current read value is not
 		 * overwritten. */

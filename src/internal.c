@@ -2264,12 +2264,106 @@ f_trim(union argument *arg)
 	s++;
 
     /* Trim from back */
-    trim = strdup(s);
+    trim = s;
     s = &trim[strlen(trim)-1];
     while ((s > trim) && isspace((unsigned char) *s))
 	*(s--) = '\0';
 
-    free(a.v.string_val);
+    s = a.v.string_val;
     a.v.string_val = trim;
     push(&a);
+    free(s);
 }
+
+/*
+ * split ( "string", {"sep"} )
+ * Split string into an array of words.
+ * The second parameter is optional.
+ */
+void
+f_split(union argument *arg)
+{
+    struct value a;
+    char *string, *sep;
+    static char *whitespace = " ";
+
+    /* Determine number of parameters passed (1 or 2) */
+    (void)pop(&a);
+    if (a.v.int_val == 1) {
+	/* Separator defaults to whitespace, indicated by " " */
+	sep = whitespace;
+    } else if (a.v.int_val == 2) {
+	(void)pop(&a);
+	if (a.type != STRING)
+	    int_error(NO_CARET, nonstring_error);
+	sep = a.v.string_val;
+	if (*sep == '\0')
+	    sep = whitespace;
+    } else
+	int_error(NO_CARET, "too many parameters to split()");
+
+    (void)pop(&a);
+    if (a.type != STRING)
+	int_error(NO_CARET, nonstring_error);
+    string = a.v.string_val;
+
+    a.v.value_array = split(string, sep);
+    a.type = (a.v.value_array) ? ARRAY : NOTDEFINED;
+
+    if (sep != whitespace)
+	free(sep);
+    free(string);
+    push(&a);
+}
+
+/*
+ * join ( array, "sep" )
+ * Concatenate the string elements of array into a single longer string.
+ * The character sequence in "sep" is inserted between each element.
+ */
+void
+f_join(union argument *arg)
+{
+    struct value a;
+    struct value *array;
+    char *sep;
+    char *concatenation;
+    int i, n, size;
+
+    (void)pop(&a);
+    if (a.type != STRING)
+	int_error(NO_CARET, "join: expecting join(array, \"separator\")");
+    sep = a.v.string_val;
+
+    (void)pop(&a);
+    if (a.type != ARRAY)
+	int_error(NO_CARET, "join: expecting join(array, \"separator\")");
+
+    array = a.v.value_array;
+    n = array[0].v.int_val;
+    size = 0;
+    for (i=1; i<=n; i++) {
+	if (array[i].type == STRING)
+	    size += strlen(array[i].v.string_val);
+	size += strlen(sep);
+    }
+    concatenation = gp_alloc( size + 1, NULL );
+    *concatenation = '\0';
+    for (i=1; i<=n; i++) {
+	if (array[i].type == STRING)
+	    strcat(concatenation, array[i].v.string_val);
+	if (i<n)
+	    strcat(concatenation, sep);
+    }
+
+    if (array[0].type == TEMP_ARRAY)
+	gpfree_array(&a);
+
+    a.type = STRING; 
+    a.v.string_val = concatenation;
+    push(&a);
+
+    free(concatenation);
+    free(sep);
+}
+

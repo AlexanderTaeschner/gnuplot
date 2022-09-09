@@ -267,9 +267,14 @@ string_or_express(struct at_type **atptr)
 	}
     }
 
-    /* prepare return */
-    if (atptr)
-	*atptr  = at;
+    /* The function for a function plot will be stored in the plot header. */
+    if (atptr && !str) {
+	size_t len = sizeof(struct at_type)
+		   + (at->a_count - MAX_AT_LEN) * sizeof(struct at_entry);
+	*atptr = (struct at_type *) realloc(at, len);
+	at = NULL;
+    }
+
     return str;
 }
 
@@ -723,6 +728,10 @@ parse_primary_expression()
 		if (!strcmp(ft[whichfunc].f_name,"column")) {
 		    set_up_columnheader_parsing( &(at->actions[at->a_count-1]) );
 		}
+
+		/* split( "string" {, "sep"} ) has an optional 2nd parameter */
+		if (!strcmp(ft[whichfunc].f_name,"split"))
+		    add_action(PUSHC)->v_arg = num_params;
 
 		(void) add_action(whichfunc);
 
@@ -1682,4 +1691,84 @@ set_up_columnheader_parsing( struct at_entry *previous )
     }
 
     /* NOTE: There is no way to handle ... using (column(<general expression>)) */
+}
+
+
+/* Split a string into an array of substrings.
+ *    sep = " "
+ *          remove all whitespace and return the separated words
+ *    sep = anything else
+ *          split on the character sequence in sep (UTF8 OK)
+ *
+ * Returns NULL if sep or string was empty or NULL
+ * otherwise returns an array of string values suitable to be
+ * kept as field v.value_array of an ARRAY type value.
+ *
+ * Example  split( "one ;two; three", ";" ) returns array
+ *          ["one ", "two", " three"]
+ * Note that whitespace is preserved in this case.
+ */
+struct value *
+split(const char *string, const char *sep)
+{
+    int i;
+    const char *istart, *iend;
+    struct value *array = NULL;
+    int thisword = 0;	/* Number of words split out so far */
+    int size = 0;	/* Current size of allocated array */
+
+    if (*sep == '\0' || *string == '\0')
+	return NULL;
+
+    while (*string) {
+
+	/* Expand array allocation to hold more words */
+	if (++thisword > size) {
+	    size = size + strlen(string)/8 + 1;
+	    array = gp_realloc(array, (size+1) * sizeof(t_value), "split");
+	    array[0].v.int_val = thisword;
+	    for (i = thisword; i <= size; i++)
+		array[i].type = NOTDEFINED;
+	}
+
+	/* Split on whitespace */
+	if (!strcmp(sep," ")) {
+	    while (isspace(*string))
+		string++;
+	    if (*string == '\0') {
+		/* Nothing here but whitespace; we're done */
+		thisword--;
+		break;
+	    }
+	    istart = string;
+	    while (*string && !isspace(*string))
+		string++;
+	    iend = string;
+	    array[thisword].v.string_val = strndup(istart, (iend-istart));
+	    array[thisword].type = STRING;
+	}
+
+	/* Split on specific character sequence (keep whitespace) */
+	else {
+	    istart = string;
+	    iend = strstr( string, sep );
+	    if (iend) {
+		array[thisword].v.string_val = strndup(istart, (iend-istart));
+		array[thisword].type = STRING;
+		string = iend + strlen(sep);
+	    } else {
+		array[thisword].v.string_val = strdup(istart);
+		array[thisword].type = STRING;
+		break;
+	    }
+	}
+
+    }
+
+    /* Trim off any extra allocated space */
+    array = gp_realloc(array, (thisword+1) * sizeof(t_value), "split");
+    array[0].v.int_val = thisword;
+    array[0].type = TEMP_ARRAY;
+
+    return array;
 }

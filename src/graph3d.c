@@ -107,6 +107,7 @@ TBOOLEAN splot_map = FALSE;
 TBOOLEAN xz_projection = FALSE;
 TBOOLEAN yz_projection = FALSE;
 TBOOLEAN in_3d_polygon = FALSE;
+TBOOLEAN zx_projection = FALSE;
 
 /* position of the base plane, as given by 'set ticslevel' or 'set xyplane' */
 t_xyplane xyplane = { 0.5, FALSE };
@@ -712,6 +713,10 @@ do_3dplot(
 	surface_rot_z = 90.;
 	surface_scale = 1.425 * mapview_scale;
 	flip_projection_axis(&axis_array[FIRST_Z_AXIS]);
+    } else if (surface_rot_z == 0. && (surface_rot_x == 90. || surface_rot_x == 270.)) {
+	zx_projection = TRUE;
+    } else {
+	zx_projection = FALSE;
     }
     in_3d_polygon = FALSE;	/* protects polygons from xz, yz projections */
 
@@ -2448,7 +2453,7 @@ draw_3d_graphbox(struct surface_points *plot, int plot_num, WHICHGRID whichgrid,
 		closepath();
 	}
 
-    } else if (draw_border && xz_projection) {
+    } else if (draw_border && (xz_projection || zx_projection)) {
 	if (border_layer == current_layer) {
 	    struct axis *xaxis = &axis_array[FIRST_X_AXIS];
 	    struct axis *zaxis = &axis_array[FIRST_Z_AXIS];
@@ -2707,7 +2712,7 @@ draw_3d_graphbox(struct surface_points *plot, int plot_num, WHICHGRID whichgrid,
 		/* Default displacement with respect to baseline of tics labels */
 		y1 -= (1.5 * t->v_char);
 	    } else { /* usual 3d set view ... */
-		if (X_AXIS.label.tag == ROTATE_IN_3D_LABEL_TAG) {
+		if (X_AXIS.label.tag == LABEL_TAG_ROTATE_IN_3D) {
 		    double ang, angx0, angx1, angy0, angy1;
 		    map3d_xy_double(X_AXIS.min, xaxis_y, base_z, &angx0, &angy0);
 		    map3d_xy_double(X_AXIS.max, xaxis_y, base_z, &angx1, &angy1);
@@ -2726,6 +2731,8 @@ draw_3d_graphbox(struct surface_points *plot, int plot_num, WHICHGRID whichgrid,
 		if (xz_projection) {
 		    v1.x -= 3. * t->h_tic * tic_unitx;
 		    v1.y -= 3. * t->h_tic * tic_unity;
+		} else if (zx_projection) {
+		    v1.y -= 5. * t->h_tic * tic_unity;
 		} else if (X_AXIS.ticmode & TICS_ON_AXIS) {
 		    v1.x += 2. * t->h_tic * ((X_AXIS.tic_in) ? 1.0 : -1.0) * tic_unitx;
 		    v1.y += 2. * t->h_tic * ((X_AXIS.tic_in) ? 1.0 : -1.0) * tic_unity;
@@ -2821,7 +2828,7 @@ draw_3d_graphbox(struct surface_points *plot, int plot_num, WHICHGRID whichgrid,
 		    /* Default displacement with respect to baseline of tics labels */
 		    x1 -= (0.5 + widest_tic_strlen) * t->h_char;
 		} else { /* usual 3d set view ... */
-		    if (Y_AXIS.label.tag == ROTATE_IN_3D_LABEL_TAG) {
+		    if (Y_AXIS.label.tag == LABEL_TAG_ROTATE_IN_3D) {
 			double ang, angx0, angx1, angy0, angy1;
 			map3d_xy_double(yaxis_x, Y_AXIS.min, base_z, &angx0, &angy0);
 			map3d_xy_double(yaxis_x, Y_AXIS.max, base_z, &angx1, &angy1);
@@ -2966,7 +2973,7 @@ draw_3d_graphbox(struct surface_points *plot, int plot_num, WHICHGRID whichgrid,
 		x -= 7 * t->h_char;
 	}
 
-	if (Z_AXIS.label.tag == ROTATE_IN_3D_LABEL_TAG) {
+	if (Z_AXIS.label.tag == LABEL_TAG_ROTATE_IN_3D) {
 	    double ang, angx0, angx1, angy0, angy1;
 	    map3d_xy_double(zaxis_x, zaxis_y, Z_AXIS.min, &angx0, &angy0);
 	    map3d_xy_double(zaxis_x, zaxis_y, Z_AXIS.max, &angx1, &angy1);
@@ -3042,9 +3049,9 @@ xtick_callback(
     /* Draw top tic mark */
     if ((this_axis->index == SECOND_X_AXIS)
     ||  (this_axis->index == FIRST_X_AXIS && (this_axis->ticmode & TICS_MIRROR))) {
-	if (xz_projection)
-	    map3d_xyz(place, other_end, Z_AXIS.max, &v3);
-	else
+	if (xz_projection || zx_projection) {
+	    map3d_xyz(place, 0, Z_AXIS.max, &v3);
+	} else
 	    map3d_xyz(place, other_end, base_z, &v3);
 	v4.x = v3.x - tic_unitx * scale * t->v_tic;
 	v4.y = v3.y - tic_unity * scale * t->v_tic;

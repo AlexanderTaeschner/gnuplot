@@ -59,6 +59,7 @@ static void save_mtics(FILE *, struct axis *);
 static void save_zeroaxis(FILE *,AXIS_INDEX);
 static void save_set_all(FILE *);
 static void save_justification(int just, FILE *fp);
+static void save_pointstyle(FILE *fp, lp_style_type *lp);
 
 const char *coord_msg[] = {"first ", "second ", "graph ", "screen ", "character ", "polar "};
 /*
@@ -257,7 +258,7 @@ save_axis_label_or_title(FILE *fp, char *name, char *suffix,
     fprintf(fp, " font \"%s\"", label->font ? conv_text(label->font) : "");
     save_textcolor(fp, &(label->textcolor));
     if (savejust && (label->pos != CENTRE)) save_justification(label->pos,fp);
-    if (label->tag == ROTATE_IN_3D_LABEL_TAG)
+    if (label->tag == LABEL_TAG_ROTATE_IN_3D)
 	fprintf(fp, " rotate parallel");
     else if (label->rotate == TEXT_VERTICAL)
 	fprintf(fp, " rotate");
@@ -385,23 +386,16 @@ save_set_all(FILE *fp)
     }
 
     if (dgrid3d) {
-      if (dgrid3d_mode == DGRID3D_QNORM) {
-	fprintf(fp, "set dgrid3d %d,%d, %d\n",
-	  	dgrid3d_row_fineness,
-	  	dgrid3d_col_fineness,
-	  	dgrid3d_norm_value);
-      } else if (dgrid3d_mode == DGRID3D_SPLINES) {
-	fprintf(fp, "set dgrid3d %d,%d splines\n",
-	  	dgrid3d_row_fineness, dgrid3d_col_fineness );
-      } else {
-	fprintf(fp, "set dgrid3d %d,%d %s%s %f,%f\n",
-	  	dgrid3d_row_fineness,
-	  	dgrid3d_col_fineness,
-		reverse_table_lookup(dgrid3d_mode_tbl, dgrid3d_mode),
-		dgrid3d_kdensity ? " kdensity2d" : "",
-	  	dgrid3d_x_scale,
-	  	dgrid3d_y_scale );
-      }
+	fprintf(fp, "set dgrid3d %d,%d %s ",
+		dgrid3d_row_fineness, dgrid3d_col_fineness,
+		clean_reverse_table_lookup(dgrid3d_mode_tbl, dgrid3d_mode));
+	if (dgrid3d_mode == DGRID3D_QNORM)
+	    fprintf(fp, "%d\n", dgrid3d_norm_value);
+	else if (dgrid3d_mode == DGRID3D_SPLINES)
+	    /* no options */ ;
+	else
+	    fprintf(fp, "%s %g, %g\n", dgrid3d_kdensity ? " kdensity" : "",
+		dgrid3d_x_scale, dgrid3d_y_scale );
     }
 
     /* Dummy variable names */
@@ -484,32 +478,7 @@ save_set_all(FILE *fp)
 		this_label->tag,
 		conv_text(this_label->text));
 	save_position(fp, &this_label->place, 3, FALSE);
-	if (this_label->hypertext)
-	    fprintf(fp, " hypertext");
-
-	save_justification(this_label->pos, fp);
-	if (this_label->rotate)
-	    fprintf(fp, " rotate by %g", this_label->rotate);
-	else
-	    fprintf(fp, " norotate");
-	if (this_label->font != NULL)
-	    fprintf(fp, " font \"%s\"", this_label->font);
-	fprintf(fp, " %s", (this_label->layer==0) ? "back" : "front");
-	if (this_label->noenhanced)
-	    fprintf(fp, " noenhanced");
-	save_textcolor(fp, &(this_label->textcolor));
-	if ((this_label->lp_properties.flags & LP_SHOW_POINTS) == 0)
-	    fprintf(fp, " nopoint");
-	else {
-	    fprintf(fp, " point");
-	    save_linetype(fp, &(this_label->lp_properties), TRUE);
-	}
-	save_position(fp, &this_label->offset, 3, TRUE);
-	if (this_label->boxed) {
-	    fprintf(fp," boxed ");
-	    if (this_label->boxed > 0)
-		fprintf(fp,"bs %d ",this_label->boxed);
-	}
+	save_label_style(fp, this_label);
 	fputc('\n', fp);
     }
     fputs("unset arrow\n", fp);
@@ -1073,6 +1042,39 @@ set origin %g,%g\n",
     fputc('\n', fp);
 }
 
+void
+save_label_style( FILE *fp, struct text_label *this_label )
+{
+    if (this_label->hypertext)
+	fprintf(fp, " hypertext");
+    save_justification(this_label->pos, fp);
+    if (this_label->boxed) {
+	fprintf(fp," boxed ");
+	if (this_label->boxed > 0)
+	    fprintf(fp,"bs %d ",this_label->boxed);
+    }
+    if (this_label->rotate)
+	fprintf(fp, " rotate by %g", this_label->rotate);
+    else
+	fprintf(fp, " norotate");
+    if (this_label->font != NULL)
+	fprintf(fp, " font \"%s\"", this_label->font);
+    fprintf(fp, " %s", (this_label->layer==0) ? "back" : "front");
+    if (this_label->noenhanced)
+	fprintf(fp, " noenhanced");
+    save_textcolor(fp, &(this_label->textcolor));
+    if ((this_label->lp_properties.flags & LP_SHOW_POINTS) == 0)
+	fprintf(fp, " nopoint");
+    else {
+	fprintf(fp, " point");
+	save_pointstyle(fp, &(this_label->lp_properties));
+	if (this_label->lp_properties.pm3d_color.type > TC_LT) {
+	    fprintf(fp, " lc");
+	    save_pm3dcolor(fp, &(this_label->lp_properties.pm3d_color));
+	}
+	save_position(fp, &this_label->offset, 3, TRUE);
+    }
+}
 
 static void
 save_tics(FILE *fp, struct axis *this_axis)
@@ -1660,6 +1662,27 @@ save_dashtype(FILE *fp, int d_type, const t_dashtype *dt)
 }
 
 void
+save_pointstyle(FILE *fp, lp_style_type *lp)
+{
+    if (lp->p_type == PT_CHARACTER)
+	fprintf(fp, " pointtype \"%s\"", lp->p_char);
+    else if (lp->p_type == PT_VARIABLE)
+	fprintf(fp, " pointtype variable");
+    else
+	fprintf(fp, " pointtype %d", lp->p_type + 1);
+    if (lp->p_size == PTSZ_VARIABLE)
+	fprintf(fp, " pointsize variable");
+    else if (lp->p_size == PTSZ_DEFAULT)
+	fprintf(fp, " pointsize default");
+    else
+	fprintf(fp, " pointsize %.3f", lp->p_size);
+    if (lp->p_interval != 0)
+	fprintf(fp, " pointinterval %d", lp->p_interval);
+    if (lp->p_number != 0)
+	fprintf(fp, " pointnumber %d", lp->p_number);
+}
+
+void
 save_linetype(FILE *fp, lp_style_type *lp, TBOOLEAN show_point)
 {
     if (lp->l_type == LT_NODRAW)
@@ -1686,25 +1709,8 @@ save_linetype(FILE *fp, lp_style_type *lp, TBOOLEAN show_point)
 
     save_dashtype(fp, lp->d_type, &lp->custom_dash_pattern);
 
-    if (show_point) {
-	if (lp->p_type == PT_CHARACTER)
-	    fprintf(fp, " pointtype \"%s\"", lp->p_char);
-	else if (lp->p_type == PT_VARIABLE)
-	    fprintf(fp, " pointtype variable");
-	else
-	    fprintf(fp, " pointtype %d", lp->p_type + 1);
-	if (lp->p_size == PTSZ_VARIABLE)
-	    fprintf(fp, " pointsize variable");
-	else if (lp->p_size == PTSZ_DEFAULT)
-	    fprintf(fp, " pointsize default");
-	else
-	    fprintf(fp, " pointsize %.3f", lp->p_size);
-	if (lp->p_interval != 0)
-	    fprintf(fp, " pointinterval %d", lp->p_interval);
-	if (lp->p_number != 0)
-	    fprintf(fp, " pointnumber %d", lp->p_number);
-    }
-
+    if (show_point)
+	save_pointstyle(fp, lp);
 }
 
 

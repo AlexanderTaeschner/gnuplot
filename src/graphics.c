@@ -49,6 +49,7 @@
 #include "jitter.h"
 #include "plot2d.h"		/* for boxwidth */
 #include "term_api.h"
+#include "watch.h"
 #include "util.h"
 #include "util3d.h"
 
@@ -420,6 +421,9 @@ place_labels(struct text_label *listhead, int layer, TBOOLEAN clip)
 	if (this_label->layer != layer)
 	    continue;
 
+	if (this_label->hidden)
+	    continue;
+
 	if (layer == LAYER_PLOTLABELS) {
 	    x = map_x(this_label->place.x);
 	    y = map_y(this_label->place.y);
@@ -752,10 +756,6 @@ do_plot(struct curve_points *plots, int pcount)
     /* Sync point for epslatex text positioning */
     (term->layer)(TERM_LAYER_FRONTTEXT);
 
-    /* Draw axis labels and timestamps */
-    /* Note: As of Dec 2012 these are drawn as "front" text. */
-    draw_titles();
-
     /* Draw the key, or at least reserve space for it (pass 1) */
     if (key->visible)
 	draw_key( key, key_pass);
@@ -1066,6 +1066,27 @@ do_plot(struct curve_points *plots, int pcount)
 
     }
 
+#ifdef USE_WATCHPOINTS
+    /* Add labels that were deferred until after all plots have been drawn.
+     * This way they are not obscured by plots later in the command sequence.
+     */
+    if (!key_pass) {
+	this_plot = plots;
+	for (curve = 0; curve < pcount; this_plot = this_plot->next, curve++) {
+	    if (this_plot->plot_style == LINES
+	    ||  this_plot->plot_style == LINESPOINTS) {
+		/* These styles only have labels resulting from watchpoint hits */
+		if (this_plot->labels) {
+		    x_axis = this_plot->x_axis;
+		    y_axis = this_plot->y_axis;
+		    term->linetype(LT_BLACK);	/* Used for default textbox border */
+		    place_labels( this_plot->labels, LAYER_PLOTLABELS, FALSE);
+		}
+	    }
+	}
+    }
+#endif
+
     /* Go back and draw the legend in a separate pass if necessary */
     if (key->visible && key->front && !key_pass) {
 	key_pass = TRUE;
@@ -1107,6 +1128,13 @@ do_plot(struct curve_points *plots, int pcount)
     /* REDRAW PLOT BORDER */
     if (draw_border && border_layer == LAYER_FRONT)
 	plot_border();
+
+    /* DRAW AXIS LABELS AND TIMESTAMPS
+     * Sep 2022:  These were always intended to be "front" text
+     *       but previously this was only true for TeX terminals.
+     *       Moving the call here makes it true for all terminals.
+     */
+    draw_titles();
 
     /* Add front colorbox if appropriate */
     if (is_plot_with_colorbox() && color_box.layer == LAYER_FRONT)
@@ -1215,14 +1243,21 @@ plot_lines(struct curve_points *plot)
 {
     int i;			/* point index */
     int x=0, y=0;		/* current point in terminal coordinates */
+
     struct termentry *t = term;
     enum coord_type prev = UNDEFINED;	/* type of previous point */
-    double xprev = 0.0;
-    double yprev = 0.0;
-    double xnow, ynow;
+    double xprev = 0.0;		/* user coordinates */
+    double yprev = 0.0;		/* user coordinates */
+    double zprev = 0.0;		/* user coordinates */
+    double xnow, ynow, znow;	/* user coordinates */
+    TBOOLEAN drawn;
+
+    /* Clear status of watch events */
+    if (plot->watchlist)
+	init_watch(plot);
 
     /* If all the lines are invisible, don't bother to draw them */
-    if (plot->lp_properties.l_type == LT_NODRAW)
+    if (plot->lp_properties.l_type == LT_NODRAW && !(plot->watchlist))
 	return;
 
     /* Along-path smoothing wiped out the flags for INRANGE/OUTRANGE */
@@ -1232,6 +1267,12 @@ plot_lines(struct curve_points *plot)
     for (i = 0; i < plot->p_count; i++) {
 	xnow = plot->points[i].x;
 	ynow = plot->points[i].y;
+
+#ifdef USE_WATCHPOINTS
+	znow = plot->points[i].z;
+#else
+	(void)zprev; /* prevents warnings about unused variable */
+#endif
 
 	/* rgb variable  -  color read from data column */
 	check_for_variable_color(plot, &plot->varcolor[i]);
@@ -1251,6 +1292,8 @@ plot_lines(struct curve_points *plot)
 	case INRANGE:
 		if (prev == INRANGE) {
 		    (*t->vector) (x, y);
+		    if (plot->watchlist)
+			watch_line(plot, xprev, yprev, zprev, xnow, ynow, znow);
 		} else if (prev == OUTRANGE) {
 		    /* from outrange to inrange */
 		    if (!clip_lines1) {
@@ -1258,11 +1301,15 @@ plot_lines(struct curve_points *plot)
 		    } else if (polar && clip_radial) {
 			draw_polar_clip_line(xprev, yprev, xnow, ynow );
 		    } else {
-			if (!draw_clip_line( map_x(xprev), map_y(yprev), x, y))
+			if (draw_clip_line( map_x(xprev), map_y(yprev), x, y)) {
+			    if (plot->watchlist)
+				watch_line(plot, xprev, yprev, zprev, xnow, ynow, znow);
+			} else {
 			    /* This is needed if clip_line() doesn't agree that	*/
 			    /* the current point is INRANGE, i.e. it is on the	*/
 			    /*  border or just outside depending on rounding.	*/
 			    (*t->move)(x, y);
+			}
 		    }
 		} else {	/* prev == UNDEFINED */
 		    (*t->move) (x, y);
@@ -1271,13 +1318,14 @@ plot_lines(struct curve_points *plot)
 		break;
 
 	case OUTRANGE:
+		drawn = FALSE;
 		if (prev == INRANGE) {
 		    /* from inrange to outrange */
 		    if (clip_lines1) {
 			if (polar && clip_radial)
 			    draw_polar_clip_line(xprev, yprev, xnow, ynow );
 			else
-			    draw_clip_line( map_x(xprev), map_y(yprev), x, y);
+			    drawn = draw_clip_line( map_x(xprev), map_y(yprev), x, y);
 		    }
 		} else if (prev == OUTRANGE) {
 		    /* from outrange to outrange */
@@ -1285,18 +1333,24 @@ plot_lines(struct curve_points *plot)
 			if (polar && clip_radial)
 			    draw_polar_clip_line(xprev, yprev, xnow, ynow );
 			else
-			    draw_clip_line( map_x(xprev), map_y(yprev), x, y);
+			    drawn = draw_clip_line( map_x(xprev), map_y(yprev), x, y);
 		    }
+		} else {	/* prev == UNDEFINED */
+		    break;
 		}
+		if (plot->watchlist && drawn)
+		    watch_line(plot, xprev, yprev, zprev, xnow, ynow, znow);
 		break;
 
 	case UNDEFINED:
 	default:		/* just a safety */
 		break;
 	}
+
 	prev = plot->points[i].type;
 	xprev = xnow;
 	yprev = ynow;
+	zprev = znow;
     }
 }
 
@@ -2427,10 +2481,12 @@ plot_points(struct curve_points *plot)
 		/* term_apply_lp_properties will restore the point type and size*/
 		if ((plot->plot_style == LINESPOINTS && interval < 0)
 		||  (plot->plot_style == YERRORBARS)) {
-		    (*t->set_color)(&background_fill);
-		    (*t->pointsize)(pointsize * pointintervalbox);
-		    (*t->point) (x, y, 6);
-		    term_apply_lp_properties(&(plot->lp_properties));
+		    if (pointintervalbox != 0) {
+			(*t->set_color)(&background_fill);
+			(*t->pointsize)(pointsize * pointintervalbox);
+			(*t->point) (x, y, 6);
+			term_apply_lp_properties(&(plot->lp_properties));
+		    }
 		}
 
 		/* rgb variable  -  color read from data column */

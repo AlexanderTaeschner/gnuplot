@@ -61,6 +61,7 @@
 #include "variable.h"
 #include "version.h"
 #include "voxelgrid.h"
+#include "watch.h"
 #ifdef USE_MOUSE
 # include "mouse.h"
 #endif
@@ -675,6 +676,10 @@ show_command()
 		theta_origin == -90 ? "bottom" : "right");
 	break;
 
+    case S_WATCH:
+	show_watchpoints();
+	break;
+
     /* HBB 20010525: 'set commands' that don't have an
      * accompanying 'show' version, for no particular reason: */
     /* --- such case now, all implemented. */
@@ -1023,9 +1028,14 @@ show_version(FILE *fp)
 	    const char *plotoptions=
 		"+OBJECTS  "
 #ifdef USE_STATS
-		"+STATS "
+		"+STATS  "
 #else
-		"-STATS "
+		"-STATS  "
+#endif
+#ifdef USE_WATCHPOINTS
+		"+WATCHPOINTS  "
+#else
+		"-WATCHPOINTS  "
 #endif
 #ifdef HAVE_EXTERNAL_FUNCTIONS
 		"+EXTERNAL_FUNCTIONS "
@@ -1448,7 +1458,7 @@ show_dgrid3d()
 		reverse_table_lookup(dgrid3d_mode_tbl, dgrid3d_mode),
 		dgrid3d_x_scale,
 		dgrid3d_y_scale,
-		dgrid3d_kdensity ? ", kdensity2d mode" : "" );
+		dgrid3d_kdensity ? ", kdensity mode" : "" );
       }
     else
 	fputs("\tdata grid3d is disabled\n", stderr);
@@ -1586,6 +1596,10 @@ show_style()
 	show_style_ellipse();
 	c_token++;
 	break;
+    case SHOW_STYLE_WATCHPOINT:
+	show_style_watchpoint();
+	c_token++;
+	break;
     default:
 	/* show all styles */
 	show_styles("Data",data_style);
@@ -1595,6 +1609,7 @@ show_style()
 	show_increment();
 	show_histogram();
 	show_textbox();
+	show_style_watchpoint();
 	save_style_parallel(stderr);
 	show_arrowstyle(0);
 	show_boxplot();
@@ -1783,49 +1798,7 @@ show_label(int tag)
 		    this_label->tag,
 		    (this_label->text==NULL) ? "" : conv_text(this_label->text));
 	    show_position(&this_label->place, 3);
-	    if (this_label->hypertext)
-		fprintf(stderr, " hypertext");
-	    switch (this_label->pos) {
-	    case LEFT:{
-		    fputs(" left", stderr);
-		    break;
-		}
-	    case CENTRE:{
-		    fputs(" centre", stderr);
-		    break;
-		}
-	    case RIGHT:{
-		    fputs(" right", stderr);
-		    break;
-		}
-	    }
-	    if (this_label->rotate)
-	    	fprintf(stderr, " rotated by %g degrees (if possible)", this_label->rotate);
-	    else
-	    	fprintf(stderr, " not rotated");
-	    fprintf(stderr, " %s ", this_label->layer ? "front" : "back");
-	    if (this_label->font != NULL)
-		fprintf(stderr, " font \"%s\"", this_label->font);
-	    if (this_label->textcolor.type)
-		save_textcolor(stderr, &this_label->textcolor);
-	    if (this_label->noenhanced)
-		fprintf(stderr, " noenhanced");
-	    if ((this_label->lp_properties.flags & LP_SHOW_POINTS) == 0)
-		fprintf(stderr, " nopoint");
-	    else {
-		fprintf(stderr, " point with color of");
-		save_linetype(stderr, &(this_label->lp_properties), TRUE);
-		fprintf(stderr, " offset ");
-		show_position(&this_label->offset, 3);
-	    }
-
-	    if (this_label->boxed) {
-		fprintf(stderr," boxed");
-		if (this_label->boxed > 0)
-		    fprintf(stderr," bs %d",this_label->boxed);
-	    }
-
-	    /* Entry font added by DJL */
+	    save_label_style(stderr, this_label);
 	    fputc('\n', stderr);
 	}
     }
@@ -3113,7 +3086,7 @@ show_xyzlabel(const char *name, const char *suffix, text_label *label)
     if (label->font)
 	fprintf(stderr, ", using font \"%s\"", conv_text(label->font));
 
-    if (label->tag == ROTATE_IN_3D_LABEL_TAG)
+    if (label->tag == LABEL_TAG_ROTATE_IN_3D)
 	fprintf(stderr, ", parallel to axis in 3D plots");
     else if (label->rotate)
 	fprintf(stderr, ", rotated by %g degrees in 2D plots", label->rotate);

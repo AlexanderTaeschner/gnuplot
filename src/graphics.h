@@ -63,11 +63,13 @@ typedef struct curve_points {
     struct t_image image_properties;	/* only used if plot_style is IMAGE or RGB_IMAGE */
     struct udvt_entry *sample_var;	/* used by '+' if plot has private sampling range */
     struct udvt_entry *sample_var2;	/* used by '++'if plot has private sampling range */
+    struct udft_entry plot_function;	/* action table and dummy variables for function plot */
 
     /* 2D and 3D plot structure fields overlay only to this point */
     filledcurves_opts filledcurves_options;
     int base_linetype;		/* before any calls to load_linetype(), lc variable */
 				/* analogous to hidden3d_top_linetype in graph3d.h  */
+    struct watch_t *watchlist;	/* only used if watch conditions are active */
     int ellipseaxes_units;              /* Only used if plot_style == ELLIPSES */    
     struct histogram_style *histogram;	/* Only used if plot_style == HISTOGRAM */
     int histogram_sequence;	/* Ordering of this dataset within the histogram */

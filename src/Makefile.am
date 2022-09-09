@@ -60,7 +60,8 @@ standard.c standard.h stats.h stats.c stdfn.c stdfn.h syscfg.h tables.c tables.h
 tabulate.c tabulate.h \
 term_api.h term.c term.h time.c unset.c util.c util.h \
 util3d.c util3d.h variable.c variable.h version.c version.h \
-voxelgrid.c voxelgrid.h vplot.c vplot.h marching_cubes.h xdg.c xdg.h
+voxelgrid.c voxelgrid.h vplot.c vplot.h marching_cubes.h \
+watch.c watch.h xdg.c xdg.h
 
 gnuplot_LDADD = $(TERMLIBS) $(TERMXLIBS) $(WX_LIBS) $(QT_LIBS)
 
@@ -182,21 +183,20 @@ qtterminal/QtGnuplotScene.cpp qtterminal/QtGnuplotItems.cpp \
 qtterminal/QtGnuplotEvent.cpp
 gnuplot_qt_LDADD = $(QT_LIBS)
 
-# embed example (uncomment to build it)
+#
+# embedded Qt widget example program
 # 
-# bin_PROGRAMS += embed_example
-# 
-# nodist_embed_example_SOURCES = qtterminal/moc_embed_example.cpp \
-#          qtterminal/moc_QtGnuplotInstance.cpp \
-#          qtterminal/moc_QtGnuplotWidget.cpp qtterminal/moc_QtGnuplotScene.cpp \
-#          qtterminal/moc_QtGnuplotEvent.cpp qtterminal/qrc_QtGnuplotResource.cpp
-# 
-# embed_example_SOURCES = qtterminal/embed_example.cpp \
-# qtterminal/QtGnuplotWidget.cpp qtterminal/QtGnuplotEvent.cpp \
-# qtterminal/QtGnuplotScene.cpp qtterminal/QtGnuplotItems.cpp \
-# qtterminal/QtGnuplotInstance.cpp
-# 
-# embed_example_LDADD = $(QT_LIBS)
+noinst_PROGRAMS += qt_embed_example
+
+nodist_qt_embed_example_SOURCES = qtterminal/moc_qt_embed_example.cpp \
+       qtterminal/moc_QtGnuplotInstance.cpp \
+       qtterminal/moc_QtGnuplotWidget.cpp qtterminal/moc_QtGnuplotScene.cpp \
+       qtterminal/moc_QtGnuplotEvent.cpp qtterminal/qrc_QtGnuplotResource.cpp
+qt_embed_example_SOURCES = qtterminal/qt_embed_example.cpp \
+       qtterminal/QtGnuplotWidget.cpp qtterminal/QtGnuplotEvent.cpp \
+       qtterminal/QtGnuplotScene.cpp qtterminal/QtGnuplotItems.cpp \
+       qtterminal/QtGnuplotInstance.cpp
+qt_embed_example_LDADD = $(QT_LIBS)
 
 endif # build_qt
 
