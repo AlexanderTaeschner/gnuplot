@@ -66,6 +66,7 @@
 #endif
 #include "encoding.h"
 #include "voxelgrid.h"
+#include "watch.h"
 
 static void set_angles(void);
 static void set_arrow(void);
@@ -1502,84 +1503,89 @@ set_dashtype()
     }
 }
 
-/* process 'set dgrid3d' command */
+/*
+ * set dgrid3d {rows {, columns}} splines
+ * set dgrid3d {rows {, columns}} qnorm {<value>}
+ * set dgrid3d {rows {, columns}} {gauss|cauchy|exp|box|hann} {kdensity} {dx {,dy}}
+ */
 static void
 set_dgrid3d()
 {
-    int token_cnt = 0; /* Number of comma-separated values read in */
-
     int gridx     = dgrid3d_row_fineness;
     int gridy     = dgrid3d_col_fineness;
     int normval   = dgrid3d_norm_value;
     double scalex = dgrid3d_x_scale;
     double scaley = dgrid3d_y_scale;
-
-    /* dgrid3d has two different syntax alternatives: classic and new.
-       If there is a "mode" keyword, the syntax is new, otherwise it is classic.*/
-    dgrid3d_mode  = DGRID3D_DEFAULT;
-
     dgrid3d_kdensity = FALSE;
 
     c_token++;
-    while ( !(END_OF_COMMAND) ) {
+
+    /* Accommodate ancient deprecated syntax "set dgrid3d ,,<normval>" */
+    if (equals(c_token,",") && equals(c_token+1,",")) {
+	c_token += 2;
+	dgrid3d_mode = DGRID3D_QNORM;
+	dgrid3d_norm_value = int_expression();
+	dgrid3d = TRUE;
+	return;
+    }
+
+    if (might_be_numeric(c_token)) {
+	gridx = gridy = int_expression();
+	if (equals(c_token, ",")) {
+	    c_token++;
+	    gridy = int_expression();
+	    /* Deprecated syntax using 3 numeric parameters and no keywords */
+	    if (equals(c_token, ",")) {
+		c_token++;
+		normval = int_expression();
+	    }
+	}
+    }
+
+    while (!(END_OF_COMMAND)) {
 	int tmp_mode = lookup_table(&dgrid3d_mode_tbl[0],c_token);
+
 	if (tmp_mode != DGRID3D_OTHER) {
 	    dgrid3d_mode = tmp_mode;
 	    c_token++;
-	}
 
-	switch (tmp_mode) {
-	case DGRID3D_QNORM:
-				if (!(END_OF_COMMAND)) normval = int_expression();
-				break;
-	case DGRID3D_SPLINES:
-				break;
-	case DGRID3D_GAUSS:
-	case DGRID3D_CAUCHY:
-	case DGRID3D_EXP:
-	case DGRID3D_BOX:
-	case DGRID3D_HANN:
-				if (!(END_OF_COMMAND) && almost_equals( c_token, "kdens$ity2d" )) {
-					dgrid3d_kdensity = TRUE;
-					c_token++;
-				}
-				if (!(END_OF_COMMAND)) {
-					scalex = real_expression();
-					scaley = scalex;
-					if (equals(c_token, ",")) {
-						c_token++;
-						scaley = real_expression();
-					}
-				}
-				break;
-
-	default:		/* {rows}{,cols{,norm}}} */
-
-			if  ( equals( c_token, "," )) {
-				c_token++;
-				token_cnt++;
-			} else if (token_cnt == 0) {
-				gridx = int_expression();
-				gridy = gridx; /* gridy defaults to gridx, unless overridden below */
-			} else if (token_cnt == 1) {
-				gridy = int_expression();
-			} else if (token_cnt == 2) {
-				normval = int_expression();
-			} else
-				int_error(c_token,"Unrecognized keyword or unexpected value");
+	    switch (dgrid3d_mode) {
+	    case DGRID3D_QNORM:
+	    default:
+			if (might_be_numeric(c_token))
+			    normval = int_expression();
 			break;
-	}
-
+	    case DGRID3D_SPLINES:
+			/* No options */
+			break;
+	    case DGRID3D_GAUSS:
+	    case DGRID3D_CAUCHY:
+	    case DGRID3D_EXP:
+	    case DGRID3D_BOX:
+	    case DGRID3D_HANN:
+			if (almost_equals( c_token, "kdens$ity2d" )) {
+				dgrid3d_kdensity = TRUE;
+				c_token++;
+			} else {
+				dgrid3d_kdensity = FALSE;
+			}
+			if (might_be_numeric(c_token)) {
+				scaley = scalex = real_expression();
+				if (equals(c_token, ",")) {
+					c_token++;
+					scaley = real_expression();
+				}
+			}
+			break;
+	    }
+	} else 
+	    int_error(c_token,"Unrecognized keyword or unexpected value");
     }
 
-    /* we could warn here about floating point values being truncated... */
+    /* Sanity checks */
     if (gridx < 2 || gridx > 1000 || gridy < 2 || gridy > 1000)
 	int_error( NO_CARET,
 		   "Number of grid points must be in [2:1000] - not changed!");
-
-    /* no mode token found: classic format */
-    if (dgrid3d_mode == DGRID3D_DEFAULT)
-	dgrid3d_mode = DGRID3D_QNORM;
 
     if (scalex < 0.0 || scaley < 0.0)
 	int_error( NO_CARET,
@@ -3749,7 +3755,7 @@ set_pointintervalbox()
 	pointintervalbox = 1.0;
     else
 	pointintervalbox = real_expression();
-    if (pointintervalbox <= 0)
+    if (pointintervalbox < 0)
 	pointintervalbox = 1.0;
 }
 
@@ -4521,7 +4527,12 @@ set_style()
 		    continue;
 		if (equals(c_token,"lt"))
 		    c_token--;
-		parse_colorspec(&textbox->border_color, TC_RGB);
+		/* Workaround/hack to prevent bare keyword "border" from 
+		 * complained about following keyword, e.g. "lw"
+		 */
+		if (equals(c_token,"lc") || almost_equals(c_token,"linec$olor")
+		||  equals(c_token,"rgb") || equals(c_token+1, "lt"))
+		    parse_colorspec(&textbox->border_color, TC_RGB);
 	    } else if (almost_equals(c_token,"linew$idth") || equals(c_token,"lw")) {
 		c_token++;
 		textbox->linewidth = real_expression();
@@ -4562,6 +4573,11 @@ set_style()
     case SHOW_STYLE_SPIDERPLOT:
 	set_style_spiderplot();
 	break;
+#ifdef USE_WATCHPOINTS
+    case SHOW_STYLE_WATCHPOINT:
+	set_style_watchpoint();
+	break;
+#endif
     default:
 	int_error(c_token, "unrecognized option - see 'help set style'");
     }
@@ -5944,12 +5960,14 @@ parse_label_options( struct text_label *this_label, int ndim)
 	set_rot = FALSE, set_font = FALSE, set_offset = FALSE,
 	set_layer = FALSE, set_textcolor = FALSE, set_hypertext = FALSE;
     int layer = LAYER_BACK;
-    TBOOLEAN axis_label = (this_label->tag <= NONROTATING_LABEL_TAG);
+    TBOOLEAN axis_label = FALSE;
     TBOOLEAN hypertext = FALSE;
     struct position offset = default_offset;
     t_colorspec textcolor = {TC_DEFAULT,0,0.0};
     struct lp_style_type loc_lp = DEFAULT_LP_STYLE_TYPE;
     loc_lp.flags = LP_NOT_INITIALIZED;
+    if (this_label->tag == LABEL_TAG_ROTATE_IN_3D || this_label->tag == LABEL_TAG_VARIABLE_ROTATE)
+	axis_label = TRUE;
 
    /* Now parse the label format and style options */
     while (!END_OF_COMMAND) {
@@ -5990,16 +6008,16 @@ parse_label_options( struct text_label *this_label, int ndim)
 	    if (equals(c_token, "by")) {
 		c_token++;
 		rotate = real_expression();
-		if (this_label->tag == ROTATE_IN_3D_LABEL_TAG)
-		    this_label->tag = NONROTATING_LABEL_TAG;
+		if (this_label->tag == LABEL_TAG_ROTATE_IN_3D)
+		    this_label->tag = LABEL_TAG_NONROTATING;
 	    } else if (almost_equals(c_token,"para$llel")) {
 		if (this_label->tag >= 0)
 		    int_error(c_token,"invalid option");
 		c_token++;
-		this_label->tag = ROTATE_IN_3D_LABEL_TAG;
+		this_label->tag = LABEL_TAG_ROTATE_IN_3D;
 	    } else if (almost_equals(c_token,"var$iable")) {
 		if (ndim == 2)	/* only in 2D plot with labels */
-		    this_label->tag = VARIABLE_ROTATE_LABEL_TAG;
+		    this_label->tag = LABEL_TAG_VARIABLE_ROTATE;
 		else
 		    set_rot = FALSE;
 		c_token++;
@@ -6010,8 +6028,8 @@ parse_label_options( struct text_label *this_label, int ndim)
 	    rotate = 0;
 	    c_token++;
 	    set_rot = TRUE;
-	    if (this_label->tag == ROTATE_IN_3D_LABEL_TAG)
-		this_label->tag = NONROTATING_LABEL_TAG;
+	    if (this_label->tag == LABEL_TAG_ROTATE_IN_3D)
+		this_label->tag = LABEL_TAG_NONROTATING;
 	    continue;
 	}
 

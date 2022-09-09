@@ -52,6 +52,7 @@
 #include "term_api.h"
 #include "util.h"
 #include "variable.h" /* For locale handling */
+#include "watch.h"
 
 #ifndef _WIN32
 # include "help.h"
@@ -181,6 +182,9 @@ cp_free(struct curve_points *cp)
 	if (cp->labels)
 	    free_labels(cp->labels);
 	cp->labels = NULL;
+	free_at(cp->plot_function.at);
+	free_watchlist(cp->watchlist);
+	cp->watchlist = NULL;
 
 	free(cp);
 	cp = next;
@@ -894,7 +898,7 @@ get_data(struct curve_points *current_plot)
 	    coordval var_ps = current_plot->labels->lp_properties.p_size;
 	    coordval var_pt = current_plot->labels->lp_properties.p_type;
 
-	    if (current_plot->labels->tag == VARIABLE_ROTATE_LABEL_TAG)
+	    if (current_plot->labels->tag == LABEL_TAG_VARIABLE_ROTATE)
 		var_rotation = v[var++];
 	    if (var_ps == PTSZ_VARIABLE)
 		var_ps = v[var++];
@@ -2078,6 +2082,9 @@ eval_plots()
     paxis_end = -1;
     paxis_current = -1;
 
+    /* Watch condition bookkeeping */
+    reset_watches();
+
     uses_axis[FIRST_X_AXIS] =
 	uses_axis[FIRST_Y_AXIS] =
 	uses_axis[SECOND_X_AXIS] =
@@ -2249,10 +2256,10 @@ eval_plots()
 		strcpy(c_dummy_var[0], orig_dummy_var);
 
 	    /* If string_or_express finds a function, it will construct an
-	     * action table that retrieves its dummy parameters from plot_func.
-	     * Later we will store values there prior to function evaluation.
+	     * action table for this plot.  Later we will store dummy variable
+	     * values for it prior to function evaluation.
 	     */
-	    dummy_func = &plot_func;
+	    dummy_func = &(this_plot->plot_function);
 	    name_str = string_or_express(NULL);
 	    dummy_func = NULL;
 
@@ -2714,7 +2721,7 @@ eval_plots()
 		    int stored_token = c_token;
 
 		    if (this_plot->labels == NULL) {
-			this_plot->labels = new_text_label(-1);
+			this_plot->labels = new_text_label(LABEL_TAG_PLOTLABELS);
 			this_plot->labels->pos = CENTRE;
 			this_plot->labels->layer = LAYER_PLOTLABELS;
 		    }
@@ -2757,6 +2764,14 @@ eval_plots()
 		    if (stored_token != c_token)
 			continue;
 		}
+
+#ifdef USE_WATCHPOINTS
+		/* Watch conditions (only supported for "plot with lines") */
+		if (equals(c_token, "watch")) {
+		    parse_watch(this_plot);
+		    continue;
+		}
+#endif
 
 		break; /* unknown option */
 
@@ -2894,7 +2909,7 @@ eval_plots()
 	    if (this_plot->plot_style & PLOT_STYLE_HAS_POINT
 	    &&  this_plot->lp_properties.p_type == PT_CHARACTER) {
 		if (this_plot->labels == NULL) {
-		    this_plot->labels = new_text_label(-1);
+		    this_plot->labels = new_text_label(LABEL_TAG_PLOTLABELS);
 		    this_plot->labels->pos = CENTRE;
 		    parse_label_options(this_plot->labels, 2);
 		}
@@ -2903,7 +2918,7 @@ eval_plots()
 	    /* If we got this far without initializing the label list, do it now */
 	    if (this_plot->plot_style == LABELPOINTS) {
 		if (this_plot->labels == NULL) {
-		    this_plot->labels = new_text_label(-1);
+		    this_plot->labels = new_text_label(LABEL_TAG_PLOTLABELS);
 		    this_plot->labels->pos = CENTRE;
 		    this_plot->labels->layer = LAYER_PLOTLABELS;
 		}
@@ -2944,7 +2959,7 @@ eval_plots()
 	    /* Initialize the label list in case the BOXPLOT style needs it to store factors */
 	    if (this_plot->plot_style == BOXPLOT) {
 		if (this_plot->labels == NULL)
-		    this_plot->labels = new_text_label(-1);
+		    this_plot->labels = new_text_label(LABEL_TAG_PLOTLABELS);
 		/* We only use the list to store strings, so this is all we need here. */
 	    }
 
@@ -3383,7 +3398,7 @@ eval_plots()
 		if (!parametric && !polar)
 		    init_sample_range(axis_array + x_axis, FUNC);
 		sample_range_token = parse_range(SAMPLE_AXIS);
-		dummy_func = &plot_func;
+		dummy_func = &(this_plot->plot_function);
 
 		if (almost_equals(c_token, "newhist$ogram")) {
 		    /* Make sure this isn't interpreted as a function */
@@ -3412,7 +3427,8 @@ eval_plots()
 		    if (this_plot->plot_style == TABLESTYLE)
 			int_warn(NO_CARET, "'with table' requires a data source not a pure function");
 
-		    plot_func.at = at_ptr;
+		    /* Used to generate samples and to optimize watchpoints */
+		    this_plot->plot_function.at = at_ptr;
 
 		    if (!parametric && !polar) {
 			t_min = axis_array[SAMPLE_AXIS].min;
@@ -3448,8 +3464,8 @@ eval_plots()
 			}
 
 			x = t;
-			(void) Gcomplex(&plot_func.dummy_values[0], x, 0.0);
-			evaluate_at(plot_func.at, &a);
+			Gcomplex(&this_plot->plot_function.dummy_values[0], x, 0.0);
+			evaluate_at(this_plot->plot_function.at, &a);
 
 			if (undefined) {
 			    this_plot->points[i].type = UNDEFINED;

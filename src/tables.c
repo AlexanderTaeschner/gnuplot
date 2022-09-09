@@ -374,6 +374,7 @@ const struct gen_table set_tbl[] =
     { "paxis", S_PAXIS },
 
     { "z$ero", S_ZERO },
+    { "watch$points", S_WATCH },
     { NULL, S_INVALID }
 };
 
@@ -702,6 +703,7 @@ const struct gen_table show_style_tbl[] =
     { "parallel$axis", SHOW_STYLE_PARALLEL },
     { "spider$plot", SHOW_STYLE_SPIDERPLOT },
     { "textbox", SHOW_STYLE_TEXTBOX },
+    { "watch$points", SHOW_STYLE_WATCHPOINT },
     { NULL, SHOW_STYLE_INVALID }
 };
 

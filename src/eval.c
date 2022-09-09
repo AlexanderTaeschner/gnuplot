@@ -258,11 +258,13 @@ const struct ft_entry ft[] =
     {"weekdate_iso", f_weekdate_iso},
     {"weekdate_cdc", f_weekdate_cdc},
 
+    {"join",  f_join},		/* create string from array */
     {"sprintf",  f_sprintf},	/* for string variables only */
     {"gprintf",  f_gprintf},	/* for string variables only */
     {"strlen",  f_strlen},	/* for string variables only */
     {"strstrt",  f_strstrt},	/* for string variables only */
     {"substr",  f_range},	/* for string variables only */
+    {"split", f_split},		/* for string variables only */
     {"trim",  f_trim},		/* for string variables only */
     {"word",  f_word},		/* for string variables only */
     {"words", f_words},		/* implemented as word(s,-1) */
@@ -861,6 +863,20 @@ del_udv_by_name(char *key, TBOOLEAN wildcard)
 	udv_ptr = udv_ptr->next_udv;
     }
 }
+
+#ifdef USE_WATCHPOINTS
+struct udft_entry *
+get_udf_by_token(int t_num)
+{
+    struct udft_entry **udf_ptr = &first_udf;
+    while (*udf_ptr) {
+	if (equals(t_num, (*udf_ptr)->udf_name))
+	    return *udf_ptr;
+	udf_ptr = &((*udf_ptr)->next_udf);
+    }
+    return NULL;
+}
+#endif
 
 /* Clear (delete) all user defined functions */
 void
