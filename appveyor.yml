@@ -3,7 +3,7 @@ branches:
   only:
   - main
   - dev
-image: Visual Studio 2019
+image: Visual Studio 2022
 install:
   - cd C:\Tools\vcpkg
   - git pull
