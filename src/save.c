@@ -392,7 +392,7 @@ save_set_all(FILE *fp)
 	if (dgrid3d_mode == DGRID3D_QNORM)
 	    fprintf(fp, "%d\n", dgrid3d_norm_value);
 	else if (dgrid3d_mode == DGRID3D_SPLINES)
-	    /* no options */ ;
+	    fprintf(fp, "\n");
 	else
 	    fprintf(fp, "%s %g, %g\n", dgrid3d_kdensity ? " kdensity" : "",
 		dgrid3d_x_scale, dgrid3d_y_scale );
@@ -426,8 +426,8 @@ save_set_all(FILE *fp)
     if (! some_grid_selected())
 	fputs("unset grid\n", fp);
     else {
-	if (polar_grid_angle) 	/* set angle already output */
-	    fprintf(fp, "set grid polar %f\n", polar_grid_angle / ang2rad);
+	if (theta_grid_angle) 	/* set angle already output */
+	    fprintf(fp, "set grid polar %f\n", theta_grid_angle / ang2rad);
 	else
 	    fputs("set grid nopolar\n", fp);
 
@@ -569,12 +569,31 @@ save_set_all(FILE *fp)
 set pointsize %g\n\
 set pointintervalbox %g\n\
 set encoding %s\n\
-%sset polar\n\
 %sset parametric\n",
 	    pointsize, pointintervalbox,
 	    encoding_names[encoding],
-	    (polar) ? "" : "un",
 	    (parametric) ? "" : "un");
+
+    if (polar) {
+	fprintf(fp, "set polar\n");
+#ifdef USE_POLAR_GRID
+	fprintf(fp, "set polar grid %d, %d %s ",
+		polar_grid.theta_segments, polar_grid.r_segments,
+		reverse_table_lookup(dgrid3d_mode_tbl, polar_grid.mode));
+	if (polar_grid.mode == DGRID3D_QNORM)
+	    fprintf(fp, "%d  ", polar_grid.norm_q);
+	else
+	    fprintf(fp, "%s scale %g  ",
+		polar_grid.kdensity ? "kdensity" : "", polar_grid.scale);
+	fprintf(fp, "theta [%g:%g]  ", THETA_AXIS.min, THETA_AXIS.max);
+	if (polar_grid.rmax < VERYLARGE)
+	    fprintf(fp, "r [%g:%g]\n", polar_grid.rmin, polar_grid.rmax);
+	else
+	    fprintf(fp, "r [%g:*]\n", polar_grid.rmin);
+#endif
+    } else {
+	fprintf(fp, "unset polar\n");
+    }
 
     if (spiderplot) {
 	fprintf(fp, "set spiderplot\n");
@@ -1269,7 +1288,9 @@ save_key(FILE *fp)
 	}
 	fprintf(fp, "\n");
     }
-    fprintf(fp, "set key maxcolumns %d maxrows %d\n",key->maxcols,key->maxrows);
+    fprintf(fp, "set key maxcolumns %d maxrows %d",key->maxcols,key->maxrows);
+    save_position(fp, &key->offset, 2, TRUE);
+    fprintf(fp, "\n");
     if (key->front) {
 	fprintf(fp, "set key opaque");
 	if (key->fillcolor.lt != LT_BACKGROUND) {

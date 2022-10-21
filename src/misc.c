@@ -50,7 +50,8 @@
 # endif
 #endif
 
-static void prepare_call(int calltype);
+static void prepare_call(int calltype, udvt_entry *functionblock);
+static void lf_exit_scope(int depth);
 
 /* State information for load_file(), to recover from errors
  * and properly handle recursive load_file calls
@@ -69,7 +70,7 @@ static char *failed_file_name = NULL;
 char *loadpath_fontname = NULL;
 
 static void
-prepare_call(int calltype)
+prepare_call(int calltype, udvt_entry *functionblock)
 {
     struct udvt_entry *udv;
     struct value *ARGV;
@@ -84,7 +85,7 @@ prepare_call(int calltype)
     for (argindex = 0; argindex < 9; argindex++)
 	argval[argindex].type = NOTDEFINED;
 
-    if (calltype == 2) {
+    if (calltype == 2 || calltype == 7) {
 	call_argc = 0;
 	while (!END_OF_COMMAND && call_argc < 9) {
 	    call_args[call_argc] = try_to_get_string();
@@ -146,6 +147,38 @@ prepare_call(int calltype)
 	    lf_head->call_args[argindex] = NULL;	/* just to be safe */
 	}
 
+#ifdef USE_FUNCTIONBLOCKS
+    } else if (calltype == 8) {
+	/* $functionblock(arg1, ...) */
+	cache_at(&lf_head->shadow_at, &lf_head->shadow_at_size);
+	memcpy(argval, eval_parameters, sizeof(argval));
+	call_argc = 0;
+	while ((call_argc < 9) && (argval[call_argc].type != NOTDEFINED)) {
+	    /* Execute the equivalent of local paramN = ARGV[N] */
+	    if (functionblock->udv_value.v.functionblock.parnames) {
+		char *name = functionblock->udv_value.v.functionblock.parnames[call_argc];
+		if (name) {
+		    struct udvt_entry *udv = add_udv_by_name(name);
+		    shadow_one_variable(udv);
+		    udv->udv_value = eval_parameters[call_argc];
+		    if (udv->udv_value.type == STRING)
+			udv->udv_value.v.string_val = strdup(udv->udv_value.v.string_val);
+		    lf_head->local_variables = TRUE;
+		}
+	    }
+	    call_argc++;
+	}
+	if ((call_argc < 9)
+	&&  (functionblock->udv_value.v.functionblock.parnames != NULL)
+	&&  (functionblock->udv_value.v.functionblock.parnames[call_argc] != NULL))
+	    int_warn(c_token-1, "Not enough parameters for %s", lf_head->name);
+	if (evaluate_inside_functionblock == 0) {
+	    evaluate_inside_functionblock = lf_head->depth + 1;
+	    FPRINTF((stderr, "setting flag evaluate_inside_functionblock to %d\n",
+		    lf_head->depth + 1));
+	}
+#endif
+
     } else {
 	/* "load" command has no arguments */
 	call_argc = 0;
@@ -158,15 +191,22 @@ prepare_call(int calltype)
     udv = add_udv_by_name("ARGC");
     Ginteger(&(udv->udv_value), call_argc);
 
+    udv = add_udv_by_name("ARGV");
+    argv_size = GPMIN(call_argc, 9);
+    init_array(udv, argv_size);
+    ARGV = udv->udv_value.v.value_array;
+
+#ifdef USE_FUNCTIONBLOCKS
+    if (calltype == 8) {
+	for (argindex = 1; argindex <= argv_size; argindex++)
+	    ARGV[argindex] = argval[argindex-1];
+	return;
+    }
+#endif
+
     udv = add_udv_by_name("ARG0");
     gpfree_string(&(udv->udv_value));
     Gstring(&(udv->udv_value), gp_strdup(lf_head->name));
-
-    argv_size = GPMIN(call_argc, 9);
-
-    udv = add_udv_by_name("ARGV");
-    init_array(udv, argv_size);
-    ARGV = udv->udv_value.v.value_array;
 
     for (argindex = 1; argindex <= 9; argindex++) {
 	char *argstring = call_args[argindex-1];
@@ -192,6 +232,8 @@ prepare_call(int calltype)
  * (4) to execute script files given on the command line (acts like "load")
  * (5) to execute a single script file given with -c (acts like "call")
  * (6) "load $datablock"
+ * (7) "call $datablock"
+ * (8) execute commands in function block (called from f_eval)
  */
 void
 load_file(FILE *fp, char *name, int calltype)
@@ -203,10 +245,20 @@ load_file(FILE *fp, char *name, int calltype)
     int stop = FALSE;
     udvt_entry *gpval_lineno = NULL;
     char **datablock_input_line = NULL;
+    udvt_entry *functionblock = NULL;
 
     /* Support for "load $datablock" */
-    if (calltype == 6)
+    if (calltype == 6 || calltype == 7)
 	datablock_input_line = get_datablock(name);
+
+#ifdef USE_FUNCTIONBLOCKS
+    /* Support for function blocks */
+    if (calltype == 8) {
+	functionblock = (udvt_entry *)(name);
+	datablock_input_line = functionblock->udv_value.v.functionblock.data_array;
+	name = strdup(functionblock->udv_name);
+    }
+#endif
 
     if (!fp && !datablock_input_line) {
 	failed_file_name = name;
@@ -228,7 +280,7 @@ load_file(FILE *fp, char *name, int calltype)
     }
 
     /* We actually will read from a file */
-    prepare_call(calltype);
+    prepare_call(calltype, functionblock);
 
     /* things to do after lf_push */
     inline_num = 0;
@@ -430,6 +482,21 @@ lf_pop()
     free(lf->name);
     free(lf->cmdline);
 
+    /* Clean up any local variables going out of scope */
+    if (lf->local_variables)
+	lf_exit_scope(lf->depth);
+
+#ifdef USE_FUNCTIONBLOCKS
+    /* Restore action table context from which function block was called */
+    if (lf->shadow_at)
+	uncache_at(lf->shadow_at, lf->shadow_at_size);
+    if (evaluate_inside_functionblock > lf->depth) {
+	evaluate_inside_functionblock = 0;
+	FPRINTF((stderr, "Clearing flag evaluate_inside_functionblock on return to depth %d\n",
+		lf->depth));
+    }
+#endif
+
     lf_head = lf->prev;
     free(lf);
     return (TRUE);
@@ -493,12 +560,17 @@ lf_push(FILE *fp, char *name, char *cmdline)
     if (lf->depth > STACK_DEPTH)
 	int_error(NO_CARET, "load/eval nested too deeply");
     lf->if_open_for_else = if_open_for_else;
+    lf->local_variables = FALSE;
     lf->c_token = c_token;
     lf->num_tokens = num_tokens;
     lf->tokens = gp_alloc((num_tokens+1) * sizeof(struct lexical_unit),
 			  "lf tokens");
     memcpy(lf->tokens, token, (num_tokens+1) * sizeof(struct lexical_unit));
     lf->input_line = gp_strdup(gp_input_line);
+
+    /* Only relevant for function block calls */
+    lf->shadow_at = NULL;
+    lf->shadow_at_size = 0;
 
     lf->prev = lf_head;		/* link to stack */
     lf_head = lf;
@@ -513,14 +585,51 @@ lf_top()
     return (lf_head->fp);
 }
 
-/* called from main to pop everything off the stack of loaded files */
+/* Clean up from error inside a "load" or "call" scope
+ * (called from main).
+ */
 void
-reset_load_stack_after_error()
+lf_reset_after_error()
 {
     free(failed_file_name);
     failed_file_name = NULL;
+    /* pop off everything on stack */
     while (lf_pop());
 }
+
+/* Restore any variables that were shadowed by a local variable */
+static void
+lf_exit_scope(int depth)
+{
+    struct udvt_entry *udv, *restored_udv;
+    struct udvt_entry *prev_udv = first_udv;
+    char prefix[13];
+    char *name;
+
+    snprintf(prefix, sizeof(prefix), "GPLOCAL_%03d_", depth);
+    FPRINTF((stderr, "Leaving scope of %s variables\n", prefix));
+
+    for (prev_udv = first_udv, udv = prev_udv->next_udv;
+	 udv;  prev_udv = udv, udv = udv->next_udv) {
+	if (strncmp(udv->udv_name,prefix,12))
+	    continue;
+	name = &(udv->udv_name[12]);
+	restored_udv = get_udv_by_name(name);
+	if (restored_udv) {
+	    free_value(&restored_udv->udv_value);
+	    restored_udv->udv_value = udv->udv_value;
+	    /* It is not sufficient to mark the shadow copy NOTDEFINED because if
+	     * we see it later we would spuriously restore the original from it.
+	     * Instead delete it altogether.
+	     */
+	    prev_udv->next_udv = udv->next_udv;
+	    free(udv->udv_name);
+	    free(udv);
+	    udv = prev_udv;
+	}
+    }
+}
+
 
 FILE *
 loadpath_fopen(const char *filename, const char *mode)

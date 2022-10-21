@@ -126,7 +126,7 @@ static void reset_colorbox(void);
 static void unset_colorbox(void);
 static void unset_pointsize(void);
 static void unset_pointintervalbox(void);
-static void unset_polar(void);
+static void unset_polar(TBOOLEAN grid);
 static void unset_print(void);
 static void unset_psdir(void);
 static void unset_samples(void);
@@ -411,7 +411,13 @@ unset_command()
 	unset_pointsize();
 	break;
     case S_POLAR:
-	unset_polar();
+#ifdef USE_POLAR_GRID
+	if (equals(c_token,"grid")) {
+	    c_token++;
+	    unset_polar(TRUE);
+	} else
+#endif
+	unset_polar(FALSE);
 	break;
     case S_PRINT:
 	unset_print();
@@ -1039,7 +1045,7 @@ unset_grid()
 	axis_array[i].gridmajor = FALSE;
 	axis_array[i].gridminor = FALSE;
     }
-    polar_grid_angle = 0;
+    theta_grid_angle = 0;
     grid_vertical_lines = FALSE;
     grid_spiderweb = FALSE;
 }
@@ -1107,7 +1113,38 @@ unset_isotropic()
 void
 reset_key()
 {
-    legend_key temp_key = DEFAULT_KEY_PROPS;
+    legend_key temp_key = {
+	.visible = TRUE,
+	.region = GPKEY_AUTO_INTERIOR_LRTBC,
+	.margin = GPKEY_RMARGIN,
+	.user_pos = DEFAULT_KEY_POSITION,
+	.user_width = DEFAULT_KEY_WIDTH,
+	.user_cols = 0,
+	.vpos = JUST_TOP,
+	.hpos = RIGHT,
+	.fixed = TRUE,
+	.just = GPKEY_RIGHT,
+	.stack_dir = GPKEY_VERTICAL,
+	.swidth = 4.0,
+	.vert_factor = 1.0,
+	.width_fix = 0.0,
+	.height_fix = 0.0,
+	.auto_titles = FILENAME_KEYTITLES,
+	.front = FALSE,
+	.reverse = FALSE,
+	.invert = FALSE,
+	.enhanced = TRUE,
+	.box = DEFAULT_KEYBOX_LP,
+	.font = NULL,
+	.textcolor = {TC_LT, LT_BLACK, 0.0},
+	.fillcolor = BACKGROUND_COLORSPEC,
+	.bounds = {0,0,0,0},
+	.maxcols = 0,
+	.maxrows = 0,
+	.title = EMPTY_LABELSTRUCT,
+	.offset = {character, character, character, 0, 0, 0}
+    };
+
     free(keyT.font);
     free(keyT.title.text);
     free(keyT.title.font);
@@ -1581,7 +1618,7 @@ unset_pointsize()
 
 /* process 'unset polar' command */
 static void
-unset_polar()
+unset_polar( TBOOLEAN grid )
 {
     if (polar) {
 	polar = FALSE;
@@ -1613,6 +1650,12 @@ unset_polar()
     THETA_AXIS.miniticscale = 0.5;
     THETA_AXIS.tic_in = TRUE;
     THETA_AXIS.tic_rotate = 0;
+
+#ifdef USE_POLAR_GRID
+    if (grid) {
+	polar_grid = default_polar_grid;
+    }
+#endif
 }
 
 
@@ -1950,6 +1993,9 @@ reset_command()
 
     c_token++;
 
+    /* This is the expression evaluation stack */
+    reset_stack();
+
     /* Reset session state as well as internal graphics state */
     if (equals(c_token, "session")) {
 	clear_udf_list();
@@ -2029,7 +2075,7 @@ reset_command()
 
     /* 'polar', 'parametric' and 'dummy' are interdependent, so be
      * sure to keep the order intact */
-    unset_polar();
+    unset_polar(TRUE);
     unset_parametric();
     unset_dummy();
 
@@ -2116,7 +2162,7 @@ reset_command()
     unset_grid();
     grid_lp = default_grid_lp;
     mgrid_lp = default_grid_lp;
-    polar_grid_angle = 0;
+    theta_grid_angle = 0;
     grid_layer = LAYER_BEHIND;
     grid_tics_in_front = FALSE;
     for (i=0; i<5; i++)

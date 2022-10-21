@@ -274,8 +274,15 @@ typedef struct {
 } filledcurves_opts;
 #define EMPTY_FILLEDCURVES_OPTS { FILLEDCURVES_DEFAULT, 0, 0.0, 0.0 }
 
+typedef enum histogram_type {
+	HT_NONE,
+	HT_STACKED_IN_LAYERS,
+	HT_STACKED_IN_TOWERS,
+	HT_CLUSTERED,
+	HT_ERRORBARS
+} t_histogram_type;
 typedef struct histogram_style {
-    int type;		/* enum t_histogram_type */
+    t_histogram_type type;		/* enum t_histogram_type */
     int gap;		/* set style hist gap <n> (space between clusters) */
     int clustersize;	/* number of datasets in this histogram */
     TBOOLEAN keyentry;	/* FALSE suppresses extra blank line in key */
@@ -287,13 +294,6 @@ typedef struct histogram_style {
     struct histogram_style *next;
     struct text_label title;
 } histogram_style;
-typedef enum histogram_type {
-	HT_NONE,
-	HT_STACKED_IN_LAYERS,
-	HT_STACKED_IN_TOWERS,
-	HT_CLUSTERED,
-	HT_ERRORBARS
-} t_histogram_type;
 #define DEFAULT_HISTOGRAM_STYLE { HT_CLUSTERED, 2, 1, TRUE, 0.0, 0.0, LT_UNDEFINED, LT_UNDEFINED, 0, NULL, EMPTY_LABELSTRUCT }
 
 typedef enum en_boxplot_factor_labels {
@@ -329,6 +329,22 @@ typedef struct textbox_style {
     t_colorspec fillcolor;	/* only used if opaque is TRUE */
 } textbox_style;
 #define DEFAULT_TEXTBOX_STYLE { FALSE, FALSE, 1.0, 1.0, 1.0, BLACK_COLORSPEC, BACKGROUND_COLORSPEC }
+
+/*
+ * Used by dgrid3d in 3D gridding
+ * and polar_grid in 2D polar gridding
+ */
+typedef enum en_dgrid3d_mode {
+    DGRID3D_DEFAULT,
+    DGRID3D_QNORM,
+    DGRID3D_SPLINES,
+    DGRID3D_GAUSS,
+    DGRID3D_EXP,
+    DGRID3D_CAUCHY,
+    DGRID3D_BOX,
+    DGRID3D_HANN,
+    DGRID3D_OTHER
+} t_dgrid3d_mode;
 
 /***********************************************************/
 /* Variables defined by gadgets.c needed by other modules. */
@@ -378,6 +394,7 @@ typedef struct {
     int maxcols;		/* maximum no of columns for horizontal keys */
     int maxrows;		/* maximum no of rows for vertical keys */
     text_label title;		/* holds title line for the key as a whole */
+    struct position offset;	/* manual displacement of the entire key */
 } legend_key;
 
 extern legend_key keyT;
@@ -386,22 +403,6 @@ extern legend_key keyT;
 
 #define DEFAULT_KEY_POSITION { graph, graph, graph, 0.9, 0.9, 0. }
 #define DEFAULT_KEY_WIDTH { graph, graph, graph, 0., 0., 0. }
-
-#define DEFAULT_KEY_PROPS \
-		{ TRUE, \
-		GPKEY_AUTO_INTERIOR_LRTBC, GPKEY_RMARGIN, \
-		DEFAULT_KEY_POSITION, \
-		DEFAULT_KEY_WIDTH, 0, \
-		JUST_TOP, RIGHT, TRUE, \
-		GPKEY_RIGHT, GPKEY_VERTICAL, \
-		4.0, 1.0, 0.0, 0.0, \
-		FILENAME_KEYTITLES, \
-		FALSE, FALSE, FALSE, TRUE, \
-		DEFAULT_KEYBOX_LP, \
-		NULL, {TC_LT, LT_BLACK, 0.0}, \
-		BACKGROUND_COLORSPEC, \
-		{0,0,0,0}, 0, 0, \
-		EMPTY_LABELSTRUCT}
 
 
 /*
@@ -696,6 +697,7 @@ int label_width(const char *, int *);
 TBOOLEAN pm3d_objects(void);
 
 void place_title(int title_x, int title_y);
+double effective_aspect_ratio(void);
 
 /* Image data or pm3d quadrangles can be masked by first loading a set
  * of masking polygons via dummy plotting style "with mask".

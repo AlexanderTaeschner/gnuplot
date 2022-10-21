@@ -364,7 +364,7 @@ extern int tic_text, rotate_tics, tic_hjust, tic_vjust;
 extern struct lp_style_type grid_lp; /* linestyle for major grid lines */
 extern struct lp_style_type mgrid_lp; /* linestyle for minor grid lines */
 
-extern double polar_grid_angle; /* angle step in polar grid in radians */
+extern double theta_grid_angle; /* angle step in polar grid in radians */
 extern double theta_origin;	/* 0 = right side of plot */
 extern double theta_direction;	/* 1 = counterclockwise -1 = clockwise */
 
@@ -484,6 +484,7 @@ void save_writeback_all_axes(void);
 int  parse_range(AXIS_INDEX axis);
 void parse_skip_range(void);
 void check_axis_reversed(AXIS_INDEX axis);
+double parse_one_range_limit( double default_value );
 
 /* set widest_tic_label: length of the longest tics label */
 void widest_tic_callback(struct axis *, double place, char *text, int ticlevel,

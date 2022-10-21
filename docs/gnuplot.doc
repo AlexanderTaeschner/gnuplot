@@ -190,8 +190,7 @@ C
  A mailing list for those interested in the development version of gnuplot is:
            gnuplot-beta@lists.sourceforge.net
 
-2 New features
-3 Development version
+2 New features in this version
 ?new version_5.5
 ?new
 ?development version
@@ -204,7 +203,7 @@ C
  For more information about optional features built into the particular copy
  of gnuplot you are running, type `show version long`.
 
-4 Special and complex-valued functions
+3 Special and complex-valued functions
 ?new math
  This version of gnuplot provides a larger set of complex-valued functions and
  updated versions of some functions that were present in earlier versions.
@@ -253,7 +252,17 @@ C
 ## of the Voigt profile. See `VP`, `VP_fwhm`.
 #end
 
-4 Hulls, masks, and smoothing
+3 New plot style
+?new style
+#start
+#b The plot style `with surface` works in 2D polar coordinates to produce
+## a solid-fill gridded representation of the plane, colored by a weighted
+## contribution an arbitrary set of input points. This is analagous to
+## the use of `dgrid3d` and style `with pm3d` to produce a 3D gridded surface.
+## See `set polar grid` and `polar heatmap`.
+#end
+
+3 Hulls, masks, and smoothing
 ?new hulls
 #start
 #b A cluster of 2D points can be replaced by its bounding polygon using the
@@ -271,7 +280,7 @@ C
 #b New keyword `period` for smoothing periodic data. See `smooth kdensity`.
 #end
 
-4 New data formats
+3 New data formats
 ?new data_formats
 #start
 #b The `sparse matrix=(cols,rows)` option to `plot` and `splot` generates
@@ -283,12 +292,13 @@ C
 ## column(0)/M gives the row index i, and column(0)%M gives the column index j.
 #end
 
-4 New built-in functions and array operations
+3 New built-in functions and array operations
 ?new built-in functions
 #start
 #b `palette(z)` returns the current RGB palette color mapping z into cbrange.
 #b `rgbcolor("name")` returns the 32bit ARGB value for a named color.
 #b `index( Array, element )` returns the first index `i` for which
+## Array[i] is equal to element. See `arrays`.
 #b User-defined functions allow an array as a parameter.
 ^<br>
 ## Example: dot(A,B) = sum [i=1:|A|] A[i]*B[i]
@@ -304,7 +314,37 @@ C
 #b `stats $vgrid` finds min/max/mean/stddev of voxels in grid
 #end
 
-4 Named palettes
+3 Function blocks and scoped variables
+?new function blocks
+ This version of gnuplot introduces a mechanism for invoking a block of
+ standard gnuplot commands as a callable function.  A function block can
+ accept from 0 to 9 parameters and returns a value.  Function blocks can be
+ used to calculate and assign a new value to a variable, to combine with other
+ functions and operators, or to perform a repetitive task preparing data.
+ There are three components to this mechanism.
+ See `local`, `scope`, `function blocks`, `return`.
+#start
+#b The `local` qualifier allows optional declaration of a variable or array
+## whose scope is limited to the duration of execution of the program unit in
+## which it is found. These units currently include execution of a
+## `load` or `call` statement, function block evaluation, and the code block
+## in curly brackets following an `if`, `else`, `do for`, or `while` statement.
+## If the name of a local variable duplicates the name of a global variable,
+## the global variable is shadowed until exit from the local scope.
+#b The `function` command declares a named function block (effectively an
+## array of strings) containing gnuplot commands.  When the function block
+## is invoked, commands are executely successively until the end of the block
+## or until a `return` command is encountered.
+#b The `return <expression>` command terminates execution of a function block.
+## The result of evaluating <expression> is returned as the value of the
+## function.  Anywhere outside a function block `return` acts like `exit`.
+#end
+
+ Please see `function_block.dem` for an example of using this mechanism
+ to define and plot a non-trivial function that is too complicated for a
+ simple one-line definition `f(x) = ...`.
+
+3 Named palettes
 ?new colormaps
 #start
 #b The current palette can be saved to a named colormap for future use.
@@ -320,20 +360,22 @@ C
 ## either using fractional color components or 24-bit packed RGB values.
 #end
 
-4 Program control flow
+3 Program control flow
 ?control flow
 #start
 #b Support XDG base directory for gnuplotrc configuration preferences.
 ## The program reads initial commands from $HOME/.config/gnuplot/gnuplotrc
-## if this file is founs. See `environment`.
+## if this file is found. See `environment`.
 #b Exception handling for the "fit" command.  Control always returns to the
 ## next line of input, even in the case of fit errors.  On return, FIT_ERROR is
 ## non-zero if an error occurred. This allows scripted recovery from a bad fit.
 ## See `fit error_recovery`.
+#b The `load` and `call` commands can input commands from a datablock as an
+## alternative to reading them from a file.
 #b New syntax  `if ... else if ... else ...`
 #end
 
-4 New terminals and terminal options
+3 New terminals and terminal options
 ?new terminals
 #start
 #b New terminal `block` for text-mode pseudo-graphics uses Unicode
@@ -344,7 +386,7 @@ C
 ## encoded through the WebPAnimEncoder API exported by libwebp and libwebpmux.
 #end
 
-4 Watchpoints
+3 Watchpoints
 ?new watchpoints
  Watchpoints are target values associated with individual plots in a graph.
  As that plot is drawn, each component line segment is monitored to see if
@@ -360,7 +402,7 @@ C
 #b Use the mouse to track values along multiple plots simultaneously
 #end
 
-4 Week-date time support
+3 Week-date time support
 ?new week-date time
  The Covid-19 pandemic of 2020/2021 generated increased interest in plotting
  epidemiological data, which is often tabulated using a "week date" reporting
@@ -379,7 +421,7 @@ C
 ## to calendar time.
 #end
 
-4 Other new features
+3 Other new features
 ?new features
 #start
 #b `Time units for setting major and minor tics.`
@@ -404,6 +446,10 @@ C
 #b Change: Text rotation angle is not limited to integral degrees.
 #b Special (non-numerical) linetypes `lt nodraw`, `lt black`, `lt bgnd`
 ## See `special_linetypes`.
+#b Data-driven color assignments in histogram plots. See `histograms colors`.
+#b The position of the key box can be manually tweaked by specifying an
+## offset to be added to whatever position the program would otherwise use.
+## See `set key offset`.
 #end
 
 3 Features introduced in version 5.4
@@ -2249,11 +2295,13 @@ C 4 FresnelS
  omitted or if it contains a single space character the fields are split
  by any amount of whitespace (space, tab, formfeed, newline, return).
  Otherwise the full sequence of characters in "sep" must be matched.
+ For examples, see `counting_words`.
 4 join
 ?
  `join(array, "sep")` concatenates the string elements of an array into a
  single string containing fields delimited by the character sequence in "sep".
  Non-string array elements generate an empty field.
+ For examples, see `counting_words`.
 #join(array,"sep") & array,string & concatenate array elements into a string\\
 %join(array,"sep") @array,string@concatenate array elements into a string
 
@@ -2978,6 +3026,7 @@ C 4 weekdata_cdc
  value() returns NaN.
 
 4 Counting and extracting words
+?counting_words
 ?expressions functions word
 ?expressions functions words
 ?words
@@ -3429,6 +3478,9 @@ C ... and restart the table:
        <func-name>( <dummy1> {,<dummy2>} ... {,<dummy12>} ) = <expression>
 
  where <expression> is defined in terms of <dummy1> through <dummy12>.
+ This form of function definition is limited to a single line.
+ More complicated multi-line functions can be defined using the function block
+ mechanism (new in version 5.5). See `function blocks`.
 
  User-defined variable syntax:
        <variable-name> = <constant-expression>
@@ -3766,15 +3818,8 @@ Ffigure_newsyntax
  In the second case <start>, <end>, and <increment> are integers or integer
  expressions.
 
-?scope
 =scope
- With one exception, gnuplot variables are global.
- There is a single, persistent, list of active variables indexed by name.
- Assignment to a variable creates or replaces an entry in that list.
- The only way to remove a variable from that list is the `undefine` command.
-
- The single exception to this is the variable used in an iteration specifier.
- The scope of the iteration variable is private to that iteration.
+ The scope of the iteration variable is private to that iteration. See `scope`.
  You cannot permanently change the value of the iteration variable inside the
  iterated clause.  If the iteration variable has a value prior to iteration,
  that value will be retained or restored at the end of the iteration.
@@ -4331,6 +4376,44 @@ Ffigure_newsyntax
       import Q(a,x) from "uigamma_plugin"
       uigamma(a,x) = ((x<1 || x<a) ? 1.0-igamma(a,x) : Q(a,x))
 
+2 Scope of variables
+?scope
+?variables local
+=local
+=global
+ Gnuplot variables are global except in the special cases listed below.
+ There is a single persistent list of active variables indexed by name.
+ Assignment to a variable creates or replaces an entry in that list.
+ The only way to remove a variable from that list is the `undefine` command.
+
+ Exception 1: The scope of the variable used in an iteration specifier is
+ private to that iteration.  You cannot permanently change the value of the
+ iteration variable inside the iterated clause.
+ If the iteration variable has a value prior to iteration, that value will
+ be retained or restored at the end of the iteration.
+ For example, the following commands will print 1 2 3 4 5 6 7 8 9 10 A.
+
+      i = "A"
+      do for [i=1:10] { print i; i=10; }
+      print i
+
+ Exception 2: The parameter names used in defining a function are only
+ placeholders for the actual values that will be provided when the function
+ is called.  For example, any current or future values of x and y are not
+ relevant to the definition shown here, but A must exist as a global variable
+ when the function is later evaluated:
+
+      func(x,y) = A + (x+y)/2.
+
+ Exception 3: Variables declared with the `local` command.
+ The `local` qualifier (new in version 5.5) allows optional declaration of a
+ variable or array whose scope is limited to the execution of the code block
+ in which it is found.  This includes `load` and `call` operations,
+ evaluation of a function block, and the code in curly brackets that follows
+ an `if`, `else`, `do for`, or `while` condition.
+ If the name of a local variable duplicates the name of a global variable,
+ the global variable is shadowed until exit from the local scope.
+
 2 Start-up (initialization)
 ?startup
 ?start
@@ -4576,7 +4659,7 @@ Ffigure_newsyntax
  Curly braces are used in the syntax for enhanced text mode and to delimit
  blocks in if/then/else statements.  They are also used to denote complex
  numbers: {3,2} = 3 + 2i.
-3 quote Marks
+3 quote marks
 ?quotes
 ?syntax quotes
  Gnuplot uses three forms of quote marks for delimiting text strings,
@@ -4722,7 +4805,7 @@ Ffigure_newsyntax
       plot DATA using 1:2 smooth cnormal watch y=0.25 watch y=0.5 watch y=0.75
 
 Ffigure_watchpoints
- Watchpoint hits for each targets in the previous plot command are stored in
+ Watchpoint hits for each target in the previous plot command are stored in
  named arrays WATCH_n.  You can also display a summary of all watchpoint hits
  from the previous plot command;  see `show watchpoints`.
 
@@ -4778,7 +4861,7 @@ Ffigure_watchpoints
       set style watchpoint labels point pt 6
       plot FOO axes x1y2 watch mouse
 
-1 plotting styles
+1 Plotting styles
 ?plotting styles
 =plot styles
 
@@ -5407,6 +5490,43 @@ Ffigure_histeps
  steps demo.
 ^ </a>
 
+#TeX \newpage
+2 heatmaps
+?heatmaps
+ Several of gnuplot's plot styles can be used to create heat maps. The choice
+ of which style to use is dictated by the type of data.
+
+Ffigure_sparsematrix
+ The pixel-based image styles require a regular rectangular grid of data values;
+ see `with image`.  However it is possible to deal with some missing grid values
+ (see `sparse`) and it is also possible to mask out only a portion of the grid
+ for display (see `masking`).  These pixel-based heat maps all have the property
+ that each pixel in the map corresponds exactly to one original data value.
+ Unless there are a large number of grid element, it is usually a good idea to
+ render each rectangular element separately (`with image pixels`) so that
+ smoothing or lossy compression is not applied to the resulting "image".
+
+Ffigure_mask
+ If the data points do not constitue a regular rectangular grid, they can often
+ be used to fit a gridded surface by interpolation or by splines. Alternatively
+ a point-density function can be mapped onto a gridded plane or smooth surface.
+ See `set dgrid3d`.  The gridded surface can then be plotted as a pm3d surface
+ (see `masking` example). In this case the points on the heat map do not retain
+ a one-to-one correspondance with the input data.  I.e. the validity of the heat
+ map represenation is only as good as the gridded approximation. 
+ The demo collection has examples of generating 2D heatmaps from a set of points
+^ <a href="http://www.gnuplot.info/demo/heatmap_points.html">
+ heatmap_points.dem
+^ </a>
+
+Ffigure_polar_grid
+ If your copy of gnuplot was built with the --enable-polar-grid option,
+ polar coordinate data points can be used to generate a 2D polar heat map in
+ which each "pixel" corresponded to a pre-determined range of theta and r.
+ See `set polar grid` and `with surface`.  This process is exactly analogous
+ to the use of `set dgrid3d` and `with pm3d` except that it operates in
+ 2D polar coordinate space.
+
 2 histograms
 ?style histograms
 ?with histograms
@@ -5435,7 +5555,8 @@ Ffigure_histeps
  corresponding to the second entry in the respective data columns, and so on.
  The default gap width of 2 indicates that the empty space between clusters is
  equivalent to the width of 2 boxes.  All boxes derived from any one column
- are given the same fill color and/or pattern (see `set style fill`).
+ are given the same fill color and/or pattern; however see the subsection
+ `histograms colors`.
 
  Each cluster of boxes is derived from a single row of the input data file.
  It is common in such input files that the first element of each row is a
@@ -5468,10 +5589,10 @@ Ffigure_histeps
 
  The `columnstacked` style is similar, except that each stack of boxes is
  built up from a single data column. Each data value from the first specified
- column yields a box in the stack at x=1, each data value from the second
- specified column yields a box in the stack at x=2, and so on.  In this style
- the color of each box is taken from the row number, rather than the column
- number, of the corresponding data field.
+ data column yields a box in the stack at x=1, each data value from the second
+ specified data column yields a box in the stack at x=2, and so on.
+ In this style the color of each box is taken from the row number, rather than
+ the column number, of the corresponding data field.
 
  Box widths may be modified using the `set boxwidth` command.
  Box fill styles may be set using the `set style fill` command.
@@ -5550,7 +5671,9 @@ Ffigure_histcols
  but in different formats.
 3 newhistogram
 ?newhistogram
+?with histograms newhistogram
 ?histograms newhistogram
+?styles histograms newhistogram
 ?plotting styles histograms newhistogram
  Syntax:
 
@@ -5602,6 +5725,7 @@ Ffigure_newhist
  will position the second histogram to start at x=8.
 3 automated iteration over multiple columns
 ?automated
+?with histograms automated
 ?histograms automated
 ?styles histograms automated
 ?plotting styles histograms automated
@@ -5611,6 +5735,49 @@ Ffigure_newhist
 
        set style histogram columnstacked
        plot for [i=3:8] "datafile" using i title columnhead
+3 histogram color assignments
+?with histograms colors
+?histograms colors
+?styles histograms colors
+?plotting styles histograms colors
+ The program assigns a color to each component box in a histogram
+ automatically such that equivalent data values maintain a consistent
+ color wherever they appear in the rows or columns of the histogram.
+ The colors are taken from successive linetypes, starting either with
+ the next unused linetype or an initial linetype provided in a
+ `newhistogram` element.
+
+ In some cases this mechanism fails due to data sources that are not
+ truly parallel (i.e. some files contain incomplete data).  In other
+ cases there may be additional properties of the data that could be
+ visualized by, say, varying the intensity or saturation of their base
+ color.  As an alternative to the automatic color assigmnent, you can
+ provide an explicit color value for each data value in a second `using`
+ column via the `linecolor variable` or `rgb variable` mechanism. 
+ See `colorspec`. Depending on the layout of your data, the color category
+ might correspond to a row header or a column header or a data column.
+ Note that you will probably have to customize the key sample colors
+ to match (see `keyentry`).
+
+ Example: Suppose file_001.dat through file_008.dat contain one column with
+ a category identifier A, B, C, ... and a second column with a data value.
+ Not all of the files contain a line for every category, so they are not
+ truly parallel. The program would be wrong to assign the same color to the
+ value from line N in each file.  Instead we assign a color based on the
+ category in column 1.
+
+      file(i) = sprintf("file_%03d.dat",i)
+      array Category = ["A", "B", "C", "D", "E", "F"]
+      color(c) = index(Category, strcol(c))
+      set style data histogram
+      plot for [i=1:8] file(i) using 2:(color(1)) linecolor variable
+
+ A more complete example including generation of a custom key is in the
+ demo collection
+^ <a href="http://www.gnuplot.info/demo/histogram_colors.html">
+ histogram_colors.dem
+^ </a>
+
 2 image
 ?plotting styles image
 ?style image
@@ -5618,12 +5785,12 @@ Ffigure_newhist
 ?image
 ?rgbimage
 ?rgbalpha
-?heatmap
  The `image`, `rgbimage`, and `rgbalpha` plotting styles all project a
  uniformly sampled grid of data values onto a plane in either 2D or 3D.
  The input data may be an actual bitmapped image, perhaps converted from a
  standard format such as PNG, or a simple array of numerical values.
  These plot styles are often used to produce heatmaps.
+ For 2D heatmaps in polar coordinates, see `set polar grid`.
 
 Ffigure_heatmap
  This figure illustrates generation of a heat map from an array of scalar values.
@@ -5699,7 +5866,7 @@ Ffigure_scaled_image
 ?with image pixels
 ?image pixels
 ?pixels
-=heatmap
+=heatmaps
  Some terminals use device- or library-specific optimizations to render image
  data within a rectangular 2D area. This sometimes produces undesirable output,
  e.g. inter-pixel smoothing, bad clipping or missing edges. An example of this
@@ -5727,7 +5894,6 @@ Ffigure_impulses
       2 columns:  x  y     # line from [x,0] to [x,y]  (2D)
       3 columns:  x  y  z  # line from [x,y,0] to [x,y,z] (3D)
 
-#TeX \newpage
 2 labels
 ?plotting styles labels
 ?style labels
@@ -5781,7 +5947,6 @@ Ffigure_labels2
 
    plot $Data using 1:2:3:4:5 with labels tc variable rotate variable
 
-#TeX \newpage
 2 lines
 ?plotting styles lines
 ?style lines
@@ -5861,17 +6026,18 @@ Ffigure_mask
     plot $POINTS using 1:2 convexhull
     unset table
 
+    set view map
     set multiplot layout 1,2
     splot $POINTS using 1:2:3 with pm3d, \
           $POINTS using 1:2:(0) nogrid with points
     splot $HULL using 1:2:(0) with mask, \
           $POINTS using 1:2:3 mask with pm3d
     unset multiplot
- The `splot` command for the first panel renders the unmasked surface and the
- set of points, plotted in that order.  The `splot` command for the second panel
- renders the masked surface.  Note that definition of the mask must come first
- (plot style `with mask`), followed by the pm3d surface it applies to
- (plot style `with pm3d` modified by the `mask` keyword).
+ The `splot` command for the first panel renders the unmasked surface created by
+ dgrid3d from the original points and then the points themselves, in that order.
+ The `splot` command for the second panel renders the masked surface.  Note that
+ definition of the mask must come first (plot `with mask`), followed by the pm3d
+ surface it applies to (plot style `with pm3d` modified by the `mask` keyword).
  A more complete version of this example is in the demo collection
 ^ <a href="http://www.gnuplot.info/demo/mask_pm3d.html">
  mask_pm3d.dem
@@ -5882,7 +6048,7 @@ Ffigure_mask
 
  The masking commands are EXPERIMENTAL. Details may change before inclusion
  in a stable release version.
-#TeX \newpage
+
 2 parallelaxes
 Ffigure_parallel
 ?plotting styles parallelaxes
@@ -5929,7 +6095,20 @@ Ffigure_polar
  Many, but not all, of the 2D plotting styles work in polar mode.
  The figure shows a combination of plot styles `lines` and `filledcurves`.
  See `set polar`, `set rrange`, `set size square`, `set theta`, `set ttics`.
-#TeX \newpage
+
+?polar heatmap
+ Polar heatmaps can be generated using plot style `with surface` together with
+ `set polar grid`.
+Ffigure_polar_grid
+      set size square
+      set angle degrees
+      set rtics
+      set grid polar
+      set palette cubehelix negative gamma 0.8
+      set polar grid gauss kdensity scale 35
+      set polar grid theta [0:190]
+      plot DATA with surface, DATA with points pt 7
+ 
 2 points
 ?plotting styles points
 ?style points
@@ -6025,6 +6204,17 @@ Ffigure_polygons
       set pm3d border lc "black" lw 1.5
       splot 'icosahedron.dat' with polygons \
             fs transparent solid 0.8 fc bgnd
+
+2 rgbalpha
+?plotting styles rgbalpha
+?style rgbalpha
+?with rgbalpha
+ See `image`.
+2 rgbimage
+?plotting styles rgbimage
+?style rgbimage
+?with rgbimage
+ See `image`.
 2 spiderplot
 ?plotting styles spiderplot
 ?with spiderplot
@@ -6073,7 +6263,6 @@ Ffigure_spiderplot
       # Two polygons with 5 vertices
       plot for [i=1:5] 'A' using i, newspiderplot, for [j=1:5] 'B' using j
 
-#TeX \newpage
 2 steps
 ?plotting styles steps
 ?style steps
@@ -6092,16 +6281,23 @@ Ffigure_steps
  steps demo.
 ^ </a>
 
-2 rgbalpha
-?plotting styles rgbalpha
-?style rgbalpha
-?with rgbalpha
- See `image`.
-2 rgbimage
-?plotting styles rgbimage
-?style rgbimage
-?with rgbimage
- See `image`.
+2 surface
+?plotting styles surface
+?style surface
+?with surface
+ The plot style `with surface` has two uses.
+
+ In 3D plots, `with surface` always produces a surface.
+ If a 3D data set is recognizable as a mesh (grid) then by default the program
+ implicitly treats the plot style `with lines` as requesting a gridded surface,
+ making `with lines` a synonym for `with surface`.  However the command
+ `set surface explicit` suppresses this treatment, in which case `with surface`
+ and `with lines` become distinct styles that may be used in the same plot.
+
+ In 2D polar mode plots, `with surface` is used to produce a solid fill gridded
+ represention of the data. Generation of the surface is controlled using the
+ command `set polar grid`.
+
 2 vectors
 ?plotting styles vectors
 ?style vectors
@@ -6140,6 +6336,8 @@ Ffigure_vectors
 
  See also the 2D plot style `with arrows` that is identical to `with vectors`
  except that each arrow is specified using x:y:length:angle.
+
+#TeX \newpage
 2 xerrorbars
 ?plotting styles xerrorbars
 ?style xerrorbars
@@ -6202,7 +6400,6 @@ Ffigure_xerrorlines
 
  An additional input column (4th or 5th) may be used to provide variable color.
 
-#TeX \newpage
 2 xyerrorlines
 ?plotting styles xyerrorlines
 ?style xyerrorlines
@@ -6260,7 +6457,6 @@ Ffigure_yerrorbars
  errorbar demo.
 ^ </a>
 
-#TeX \newpage
 2 yerrorlines
 ?plotting styles yerrorlines
 ?plotting styles errorlines
@@ -6484,6 +6680,7 @@ Ffigure_zerror
 ?call
  The `call` command is identical to the `load` command with one exception:
  the name of the file being loaded may be followed by up to nine parameters.
+ EXPERIMENTAL: Commands can be read from a datablock rather than a file.
 
       call "inputfile" <param-1> <param-2> <param-3> ... <param-9>
 
@@ -6515,12 +6712,14 @@ Ffigure_zerror
  by the caller are available via two mechanisms.  Each parameter is stored as a
  string in variables ARG1, ARG2, ... ARG9.  Each parameter is also stored as one
  element of the array ARGV[9]. Numerical values are stored as complex variables.
- All other values are stored as strings.  Thus after a call
+ All other values are stored as strings.  ARGC holds the number of parameters.
+ Thus after a call
 
       call 'routine_1.gp'  1 pi "title"
 
  The three arguments are available inside routine_1.gp as follows
 
+      ARGC = 3
       ARG1 = "1"         ARGV[1] = 1.0
       ARG2 = "3.14159"   ARGV[2] = 3.14159265358979...
       ARG3 = "title"     ARGV[3] = "title"
@@ -6641,11 +6840,11 @@ Ffigure_zerror
 2 evaluate
 ?commands evaluate
 ?evaluate
- The `evaluate` command executes the commands given as an argument string.
+ The `evaluate` command executes gnuplot commands contained in a string.
  Newline characters are not allowed within the string.
 
- Syntax:
-       eval <string expression>
+      evaluate "commands in a string constant"
+      evaluate <commands produced by a string-valued expression>
 
  This is especially useful for a repetition of similar commands.
 
@@ -6656,8 +6855,8 @@ Ffigure_zerror
        eval set_label(2., 1., 'two/one')
        eval set_label(1., 2., 'one/two')
 
- Please see `substitution macros` for another way to execute commands
- from a string.
+ Please see `function blocks` and `substitution macros` for other mechanisms
+ that construct or execute strings containing gnuplot commands.
 2 exit
 ?commands exit
 ?exit
@@ -7259,6 +7458,91 @@ Ffigure_zerror
 
  Finally, a nice quote from the manual of another fitting package (fudgit),
  that kind of summarizes all these issues:  "Nonlinear fitting is an art!"
+#TeX \newpage
+2 function blocks
+?commands function
+?function blocks
+?functionblocks
+ The `function` command signals the definition of a here-document containing
+ a named block of gnuplot code that can be called as a function.
+ As with data blocks, the name of a function block must begin with a '$'.
+ Up to nine named parameters may be specified as part of the definition.
+ These names may be used inside the function block as local variables.
+ See `local` and `scope`.
+
+ Once the function block is defined, you can invoke it by name anywhere that
+ a normal function could be used.
+
+ Example:
+      function $sinc(arg) << EOF
+          if (arg == 0) { return 1.0 }
+          return sin(arg) / arg
+      EOF
+
+      gnuplot> plot $sinc(x) with lines title "sinc(x) as a function block"
+
+ It is not necessary to specify a list of named arguments to a function block
+ at the time it is declared. Arguments to the function passed from the command
+ line can be also be accessed from inside the function block as ARGV[1] etc,
+ as they would be for a `call` command.  See `ARGV`.  This allows defining a
+ function block that can operate on a variable number of arguments.
+
+ Example:
+      function $max << EOF
+          local max = real("-Inf")
+          if (ARGC == 0) { return NaN }
+          do for [i=1:ARGC] {
+              if (max < ARGV[i]) {
+                  max = ARGV[i]
+              }
+          }
+          return max
+      EOF
+      gnuplot> foo = $max( f(A), 2.0, C, Array[3] )
+      gnuplot> baz = $max( foo, 100. )
+
+ The primary motivation for function block support is to allow definition of
+ complicated functions directly in gnuplot.  Execution is of course slower
+ than if the same function were coded directly in C or Fortran, but this is
+ acceptable for many purposes.  If execution speed matters then the function
+ can be implemented later as a plugin instead (see `plugins`).
+
+ A non-trivial example of using function blocks to implement and plot
+ a 15-term Lancosz approximation for the complex lngamma function is
+ provided in the demo collection as
+^ <a href="http://www.gnuplot.info/demo_5.5/function_block.html">
+      function_block.dem
+^ </a>
+ The function block implementation is slower by a factor of roughly 25 compared
+ to the built-in lnGamma function using the same algorithm coded directly in C.
+ Nevertheless it is still fast enough for 3D interactive rotation.
+#TeX The function definitions used in that demo are show below.
+#TeX \newline
+#TeX {\small
+#TeX \begin{verbatim}
+#TeX array coef[15] = [ ... ]
+#TeX 
+#TeX function $Lancosz(z) << EOD
+#TeX     local Sum = coef[1] + sum [k=2:15] coef[k] / (z + k - 1)
+#TeX     local temp = z + 671./128.
+#TeX     temp = (z + 0.5) * log(temp) - temp
+#TeX     temp = temp + log( sqrt(2*pi) * Sum/z )
+#TeX     return temp
+#TeX EOD
+#TeX 
+#TeX function $Reflect(z) << EOD
+#TeX     local w = $Lancosz(1.0 - z)
+#TeX     local temp = log( sin(pi * z) )
+#TeX     return log(pi) - (w + temp)
+#TeX EOD
+#TeX 
+#TeX my_lngamma(z) = (z == 0) ? NaN : (real(z) < 0.5) ? $Reflect(z) : $Lancosz(z)
+#TeX \end{verbatim}
+#TeX }
+
+ Use of function blocks is EXPERIMENTAL.
+ Details may change before inclusion in a release version.
+#TeX \newpage
 2 help
 ?commands help
 ?help
@@ -7427,6 +7711,43 @@ Ffigure_zerror
  The `load` command is performed implicitly on any file names given as
  arguments to `gnuplot`.  These are loaded in the order specified, and
  then `gnuplot` exits.
+2 local
+?local
+?commands local
+ Syntax:
+      local foo = <expression>
+      local array foo[size]
+
+ The `local` keyword introduces declaration of a variable whose scope
+ is limited to the execution of the code block in which it is declared.
+ Declaration is optional, but without it all variables are global.
+ If the name of a local variable duplicates the name of a global variable,
+ the global variable is shadowed until exit from the local scope.
+ See `scope`.
+
+ Local declarations may be used to prevent a global variable from being
+ unintentionally overwritten by a `call` or `load` statement.  They are
+ particularly useful inside a function block. The `local` command is also
+ also valid inside the code block in curly brackets following an `if`,
+ `else`, `do for`, or `while` statement.
+
+ Example: Suppose you want to write a script "plot_all_data.gp" containing
+ commands that plot a bunch of data sets.  You want to call this convenience
+ script from the command line or from other scripts without worrying that it
+ trashes any variables with names "file" or "files" or "dataset" or "outfile".
+ The variable "file" is inherently local because it is an iteration variable
+ (see `scope`) but the other three names need keyword `local` to protect them.
+ 
+ plot_all_data.gp:
+      local files = system("ls -1 *.dat")
+      do for [file in files] {
+         local dataset = file[1:strstrt(file,".dat")-1]
+         local outfile = dataset . ".png"
+         set output outfile
+         plot file with lines title dataset
+      }
+      unset output
+
 2 lower
  See `raise`.
 2 pause
@@ -9517,7 +9838,7 @@ Ffigure_smooth_path
       print sinh(pi/2)
       print "rms of residuals (FIT_STDFIT) is ", FIT_STDFIT
       print sprintf("rms of residuals is %.3f after fit", FIT_STDFIT)
-      print "Array A": ", A
+      print "Array A: ", A
       print "Individual elements of array A: ", for [i=1:|A|] A[i]
       print $DATA
 
@@ -9655,6 +9976,24 @@ Ffigure_smooth_path
 ?reset bind
 =bind
  `reset bind` restores all hotkey bindings to their default state.
+2 return
+?commands return
+?return
+ Syntax:
+      return <expression>
+
+ The `return` command acts the same way as the `exit` and `quit` commands in
+ that it terminates execution of the current code block or input stream.
+ The return value is meaningful only in the context of executing code in a
+ function block.  See `function blocks`.
+
+ Example:
+      function $myfun << EOF
+      local result = 0
+      if (error-condition) { return -1 }
+      ... body of function ...
+      return result
+      EOF
 2 save
 ?commands save
 ?save set
@@ -10595,14 +10934,19 @@ Ffigure_smooth_path
  See also help for `set pm3d`, `set palette`, and `set style line`.
 3 colornames
 ?colornames
+Ffigure_colornames
  Gnuplot knows a limited number of color names. You can use these to define
  the color range spanned by a pm3d palette, to assign a named color to a
  particular linetype or linestyle, or to define a gradient for the current
  color palette.
- To list the known color names, use the command `show colornames`.
+ Use the command `show colornames` to list the known color names together
+ with their RGB component definitions.
  Examples:
        set style line 1 linecolor "sea-green"
        set palette defined (0 "dark-red", 1 "white")
+       print sprintf("0x%06x", rgbcolor("dark-green"))
+             0x006400
+
 3 contour
 ?commands set contour
 ?commands unset contour
@@ -10952,6 +11296,9 @@ Ffigure_missing
 =kdensity
  The `set dgrid3d` command enables and sets parameters for mapping non-grid data
  onto a grid.  See `splot grid_data` for details about the grid data structure.
+ Aside from its use in fitting 3D surfaces, this process can also be used to
+ generate 2D heatmaps, where the 'z' value of each point contributes to a local
+ weighted value.
 
  Syntax:
        set dgrid3d {<rows>} {,{<cols>}} splines
@@ -11022,24 +11369,23 @@ Ffigure_missing
  the sum of these kernels is evaluated at every grid point, and this smooth
  surface is plotted instead of the original data. This is similar in
  principle to what the `smooth kdensity` option does to 1D datasets.
- (See kdensity2d.dem for usage demo)
-
- DEPRECATED (do not use): For backward compatibility with old scripts,
- the command "set dgrid3d <val1>,<vali2>,<vali3>" is interpreted to mean
- "set dgrid3d <val1>, <vale> qnorm <val3>".
+ See kdensity2d.dem and heatmap_points.dem for usage example.
 
  The `dgrid3d` option is a simple scheme which replaces scattered data
  with weighted averages on a regular grid.  More sophisticated approaches
  to this problem exist and should be used to preprocess the data outside
  `gnuplot` if this simple solution is found inadequate.
 
- See also the online
+ See also the online demos for
 ^ <a href="http://www.gnuplot.info/demo/dgrid3d.html">
- dgrid3d demo
+ dgrid3d
+^ </a>
+^ <a href="http://www.gnuplot.info/demo/scatter.html">
+ scatter
 ^ </a>
  and
-^ <a href="http://www.gnuplot.info/demo/scatter.html">
- scatter demo
+^ <a href="http://www.gnuplot.info/demo/heatmap_points.html">
+ heatmap_points
 ^ </a>
 
 3 dummy
@@ -11991,7 +12337,7 @@ Ffigure_missing
       unset isotropic
  `set isotropic` adjusts the aspect ratio and size of the plot so that the
  unit length along the x, y, and z axes is the same.  It is equivalent to
- `set size ratio -1; set view equal xyz` and supercedes both of those commands.
+ `set size ratio -1; set view equal xyz` and supersedes both of those commands.
  This affects both 2D and 3D plots.
 
  `unset isotropic` relaxes both the 2D and 3D constraints. It is equivalent to
@@ -12066,6 +12412,7 @@ Ffigure_missing
              {{no}autotitle {columnheader}}
              {{no}box {<line properties>}} {{no}opaque {fc <colorspec>}}
              {width <width_increment>} {height <height_increment>}
+             {offset <dx>,<dy>}
        unset key
 
  By default the key is placed in the upper right inside corner of the graph.
@@ -12155,6 +12502,7 @@ Ffigure_keyentry
  All the usual options for title font, text color, `at` coordinates, and
  enhanced text markup apply.
  Example:
+      set key outside right center title "Outcomes"
       plot $HEATMAP matrix with image notitle, \
            keyentry with boxes fc palette cb 0 title "no effect", \
            keyentry with boxes fc palette cb 1 title "threshold", \
@@ -12320,6 +12668,14 @@ Ffigure_keyentry
  is given is to align the key as though it were text positioned using the
  label command, i.e., `left` means left align with key to the right of
  <position>, etc.
+4 key offset
+?commands set key offset
+?set key offset
+?key offset
+ Regardless of the key placement options chosen, the final position of the key
+ can be adjusted manually by specifying an offset.  As usual, the x and y
+ components of the offset may be given in character, graph, or screen
+ coordinates.
 4 key samples
 ?commands set key samples
 ?set key samples
@@ -13851,8 +14207,8 @@ Ffigure_palette1
  You must specify one of 36 preset mapping functions by number for each color
  component.  The available functions are listed by `show palette rgbformulae`.
  The default is `set palette rgbformulae 7,5,15`.  In RGB space this uses
- function 7 to map the red component, function 5 to map the blue component,
- and function 15 to map the green component.  A negative function number
+ function 7 to map the red component, function 5 to map the green component,
+ and function 15 to map the blue component.  A negative function number
  inverts the sense of that component by mapping f(1-gray) rather than f(gray).
 
 Ffigure_palette2
@@ -14656,6 +15012,7 @@ Ffigure_palette2
 
  Syntax:
        set polar
+       set polar grid <grid options>
        unset polar
        show polar
 
@@ -14666,8 +15023,8 @@ Ffigure_palette2
  The command `unset polar` changes the meaning of the plot back to the default
  rectangular coordinate system.
 
- The `set polar` command is not supported for `splot`s.  See the `set mapping`
- command for similar functionality for `splot`s.
+ The `set polar` command affects only 2D plotting.
+ See the `set mapping` command for analogous 3D functionality.
 
  While in polar coordinates the meaning of an expression in t is really
  r = f(t), where t is an angle of rotation.  The trange controls the domain
@@ -14703,6 +15060,52 @@ Ffigure_palette2
 ^ <a href="http://www.gnuplot.info/demo/poldat.html">
  polar data plot (poldat.dem).
 ^ </a>
+4 polar grid
+?commands set polar grid
+?set polar grid
+?polar grid
+ Syntax:
+       set polar grid {<theta_segments>, <radial_segments>}
+                      { qnorm {<power>} | gauss | cauchy | exp | box | hann }
+                      { kdensity } { scale <scale> }
+                      {theta [min:max]} {r [min:max]}
+
+ The polar grid settings are used in conjunction with the plot style
+ `with surface` to generate a heat map from a set of polar coordinate points.
+ The surface consists of a grid filling a circle divided into segments formed
+ by discrete ranges on theta and r.
+
+ Each segment is assigned a value derived from the input set of individual
+ scattered points [x,y,z] by applying a filter operation.
+ The default filter is `qnorm 1`, which averages each point's z value weighted
+ by the inverse of the point's distance from the center of that grid segment.
+
+ Alternative filter operations gauss, cauchy, exp, box, and hann are described
+ in more detail elsewhere.  See `dgrid3d`.
+
+ `kdensity`: This keyword tells the program to use the weighted sum of
+ contributions from all points rather than the weighted average.
+
+ `scale`: This scale facter (default 1.0) is applied to all distances prior to
+ using them in the weighting calculation.
+
+ Masking:  All input points are used to calculate grid values.
+ The full gridded surface always spans theta range [0:360] and the radial
+ defined by autoscaling or by a previous `set rrange` command.
+ However the portion of the surface that actually appears in the plot
+ can be restricted to a truncated wedge bounded by lower and upper
+ limits on theta and r.  Theta limits must be given in degrees.
+
+Ffigure_polar_grid
+ For example the following commands will generate a plot which is auto-scaled
+ in size to show all input points.  The contributions of all input points are
+ summed, not averaged (`kdensity`), and only a wedge of the resulting gridded
+ surface is displayed.
+
+      set rrange [0:*]
+      set polar grid qnorm kdensity theta [0:190]
+      plot DATA with surface, DATA with points
+
 3 print
 ?commands set print
 ?commands show print
@@ -16032,8 +16435,10 @@ Ffigure_palette2
  The range of the parametric variable t is useful in three contexts.
  1) In parametric mode `plot` commands it limits the range of sampling
     for both generating functions.  See `set parametric`, `set samples`.
- 2) In polar mode `plot` commands it limits or defines the range of the
-    angular parameter theta. See `polar`.
+ 2) In polar mode `plot` commands it limits or defines the acceptable
+    range of the angular parameter theta during input.  Data points
+    with theta value outside this range are excluded from the plot even
+    if they would otherwise lie inside the plot boundary. See `polar`.
  3) In `plot` or `splot` commands using 1-dimensional sampled data via
     the pseudofile "+".  See `sampling 1D`, `special-filenames`.
 3 ttics
@@ -17343,8 +17748,8 @@ Ffigure_walls
 ?commands show colornames
 ?show colornames
 ?show palette colornames
- Gnuplot knows about 100 colors by name. You can dump a list of these to the
- terminal by using the command `show colornames`.
+ Gnuplot knows about 100 colors by name (see `colornames`).  You can dump
+ a list of these to the terminal by using the command `show colornames`.
  There is currently no way to set new names.
 3 show functions
 ?commands show functions
@@ -18327,7 +18732,7 @@ Ffigure_sparsematrix
  To see a list of terminals available in a particular gnuplot session,
  type 'set terminal' with no modifiers.
 
- Several gnuplot are designed for use with TeX/LaTeX document preparation.
+ Several terminals are designed for use with TeX/LaTeX document preparation.
  A summary of TeX-friendly terminals is available here:
 ^ <a href="http://www.gnuplot.info/docs/latex_demo.pdf">
            http://www.gnuplot.info/docs/latex_demo.pdf

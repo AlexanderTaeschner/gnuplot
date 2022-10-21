@@ -89,6 +89,7 @@ static int recursion_depth = 0;
 void
 eval_reset_after_error()
 {
+    reset_stack();
     recursion_depth = 0;
     undefined = FALSE;
 }
@@ -207,6 +208,7 @@ f_call(union argument *x)
 	    gpfree_array(&udf->dummy_values[0]);
 	}
 	push(&top_of_stack);
+	gpfree_string(&top_of_stack);
     }
     gpfree_string(&udf->dummy_values[0]);
     udf->dummy_values[0] = save_dummy;
@@ -279,6 +281,7 @@ f_calln(union argument *x)
 	udf->dummy_values[i] = save_dummy[i];
     }
     push(&top_of_stack);
+    gpfree_string(&top_of_stack);
 
     recursion_depth--;
 }
@@ -1155,7 +1158,7 @@ f_power(union argument *arg)
 		(void) Ginteger(&result, 1);
 		break;
 	    } else if (b.v.int_val > 0) {
-		/* DEBUG - deal with overflow by empirical check */
+		/* deal with overflow by empirical check */
 		intgr_t tprev, t;
 		intgr_t tmag = labs(a.v.int_val);
 		tprev = t = 1;
@@ -1876,7 +1879,7 @@ f_gprintf(union argument *arg)
 }
 
 
-/* Output time given in seconds from year 2000 into string */
+/* Output time given in seconds from ZERO_YEAR into string */
 void
 f_strftime(union argument *arg)
 {
@@ -1922,7 +1925,7 @@ f_strftime(union argument *arg)
     free(buffer);
 }
 
-/* Convert string into seconds from year 2000 */
+/* Convert string into seconds from ZERO_YEAR */
 void
 f_strptime(union argument *arg)
 {
@@ -1958,7 +1961,7 @@ f_strptime(union argument *arg)
     push(Gcomplex(&val, result, 0.0));
 }
 
-/* Get current system time in seconds since 2000
+/* Get current system time in seconds since ZERO_YEAR.
  * The type of the value popped from the stack
  * determines what is returned.
  * If integer, the result is also an integer.
@@ -2107,8 +2110,8 @@ f_assign(union argument *arg)
     dest = pop(&a);	/* name of variable or pointer to array content */
 
     if (dest->type == ARRAY) {
-	/* FIXME:  This is supposed to work but it is new relatively untested code */
-	// int_warn(NO_CARET, "unsupported array assignment");
+	/* It's an assignment to an array element. We don't know the index yet */
+	;
 
     } else {
 	if (dest->type != STRING)
@@ -2117,8 +2120,8 @@ f_assign(union argument *arg)
 	    int_error(NO_CARET, "attempt to assign to a read-only variable");
 
 	udv = add_udv_by_name(a.v.string_val);
-	gpfree_string(&a);
-	dest = &(udv->udv_value);
+	gpfree_string(&a);	    /* This frees the name string, not the variable it names */
+	dest = &(udv->udv_value);   /* Now dest points to where the new value will go */
     }
 
     if (b.type == ARRAY) {
@@ -2143,7 +2146,7 @@ f_assign(union argument *arg)
 	dest->v.value_array[i] = b;
 
     } else {
-	gpfree_string(dest);
+	free_value(dest);
 	*dest = b;
     }
 

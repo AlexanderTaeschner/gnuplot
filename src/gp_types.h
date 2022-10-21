@@ -46,6 +46,7 @@ enum DATA_TYPES {
 	CMPLX,
 	STRING,
 	DATABLOCK,
+	FUNCTIONBLOCK,
 	ARRAY,
 			/* ARRAY subcategories are marked in array->value_array[0].type */
 	COLORMAP_ARRAY,	/*    Array containing packed ARGB values */
@@ -115,7 +116,7 @@ typedef enum PLOT_STYLE {
     CIRCLES      = 28*PLOT_STYLE_BITS + PLOT_STYLE_HAS_LINE + PLOT_STYLE_HAS_FILL,
     BOXPLOT      = 29*PLOT_STYLE_BITS + PLOT_STYLE_HAS_FILL + PLOT_STYLE_HAS_POINT,
     ELLIPSES     = 30*PLOT_STYLE_BITS + PLOT_STYLE_HAS_LINE + PLOT_STYLE_HAS_FILL,
-    SURFACEGRID  = 31*PLOT_STYLE_BITS + PLOT_STYLE_HAS_LINE,
+    SURFACEGRID  = 31*PLOT_STYLE_BITS + PLOT_STYLE_HAS_LINE + PLOT_STYLE_HAS_FILL,
     PARALLELPLOT = 32*PLOT_STYLE_BITS + PLOT_STYLE_HAS_LINE,
     TABLESTYLE   = 33*PLOT_STYLE_BITS,
     ZERRORFILL   = 34*PLOT_STYLE_BITS + PLOT_STYLE_HAS_FILL,
@@ -159,6 +160,11 @@ struct cmplx {
 	double real, imag;
 };
 
+struct fblock {
+	char **data_array;
+	char **parnames;
+};
+
 typedef struct value {
     enum DATA_TYPES type;
     union {
@@ -166,6 +172,7 @@ typedef struct value {
 	struct cmplx cmplx_val;
 	char *string_val;
 	char **data_array;
+	struct fblock functionblock;
 	struct value *value_array;
 	struct vgrid *vgrid;
     } v;

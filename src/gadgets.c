@@ -47,7 +47,7 @@
  * but better than mixing internal status and the user interface as we
  * used to have it, in set.c and setshow.h */
 
-legend_key keyT = DEFAULT_KEY_PROPS;
+legend_key keyT;
 
 /* Description of the color box associated with CB_AXIS */
 color_box_struct color_box; /* initialized in init_color() */
@@ -863,6 +863,16 @@ apply_head_properties(struct arrow_style_type *arrow_properties)
 	curr_arrow_headbackangle = arrow_properties->head_backangle;
 	curr_arrow_headlength = xtmp;
     }
+}
+
+/* Used by arrow-drawing code in graphics.c graph3d.c */
+double effective_aspect_ratio(void)
+{
+#ifdef _WIN32
+    if (strcmp(term->name, "windows") == 0)
+	return 1.0;
+#endif
+    return (double)term->v_tic / (double)term->h_tic;
 }
 
 void

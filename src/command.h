@@ -156,6 +156,7 @@ void load_command(void);
 void begin_clause(void);
 void clause_reset_after_error(void);
 void end_clause(void);
+void local_command(void);
 void null_command(void);
 void pause_command(void);
 void plot_command(void);
@@ -166,6 +167,7 @@ void refresh_request(void);
 void refresh_command(void);
 void replot_command(void);
 void reread_command(void);
+void return_command(void);
 void save_command(void);
 void screendump_command(void);
 void splot_command(void);
@@ -194,6 +196,7 @@ void do_string_replot(const char* s);
 void define(void);
 
 void replotrequest(void); /* used in command.c & mouse.c */
+void shadow_one_variable(struct udvt_entry *udv);
 
 void print_set_output(char *, TBOOLEAN, TBOOLEAN); /* set print output file */
 char *print_show_output(void); /* show print output file */

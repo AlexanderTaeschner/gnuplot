@@ -1270,7 +1270,7 @@ set_cntrparam()
 
 	/*  RKC: I have modified the next two:
 	 *   to use commas to separate list elements as in xtics
-	 *   so that incremental lists start,incr[,end]as in "
+	 *   so that incremental lists start,incr[,end]
 	 */
 	if (almost_equals(c_token, "di$screte")) {
 	    contour_levels_kind = LEVELS_DISCRETE;
@@ -1319,9 +1319,9 @@ set_cntrparam()
 	    if (!END_OF_COMMAND)
 		contour_levels = int_expression();
 	} else {
-	    if (contour_levels_kind == LEVELS_DISCRETE)
-		int_error(c_token, "Levels type is discrete, ignoring new number of contour levels");
-	    contour_levels = int_expression();
+	    int new = int_expression();
+	    if (contour_levels_kind != LEVELS_DISCRETE)
+		contour_levels = new;
 	}
     } else if (almost_equals(c_token, "o$rder")) {
 	int order;
@@ -1984,14 +1984,14 @@ set_grid()
 	} else if (almost_equals(c_token,"po$lar")) {
 	    /* Dec 2016 - zero or negative disables radial grid lines */
 	    axis_array[POLAR_AXIS].gridmajor = TRUE;	/* Enable both circles and radii */
-	    polar_grid_angle = 30*DEG2RAD;
+	    theta_grid_angle = 30*DEG2RAD;
 	    c_token++;
 	    if (might_be_numeric(c_token)) {
 		double ang = real_expression();
-		polar_grid_angle = (ang > 2.*M_PI) ? DEG2RAD*ang : ang2rad*ang;
+		theta_grid_angle = (ang > 2.*M_PI) ? DEG2RAD*ang : ang2rad*ang;
 	    }
 	} else if (almost_equals(c_token,"nopo$lar")) {
-	    polar_grid_angle = 0; /* not polar grid */
+	    theta_grid_angle = 0; /* not polar grid */
 	    c_token++;
 	} else if (almost_equals(c_token, "spider$plot")) {
 	    grid_spiderweb = TRUE;
@@ -2029,7 +2029,7 @@ set_grid()
 	/* no axis specified, thus select default grid */
 	if (polar) {
 	    axis_array[POLAR_AXIS].gridmajor = TRUE;
-	    polar_grid_angle = 30.*DEG2RAD;
+	    theta_grid_angle = 30.*DEG2RAD;
 	} else if (spiderplot) {
 	    grid_spiderweb = TRUE;
 	} else {
@@ -2602,6 +2602,12 @@ set_key()
 	    c_token--;  /* will be incremented again soon */
 	    break;
 
+	case S_KEY_OFFSET:
+	    c_token++;
+	    get_position_default(&key->offset, character, 2);
+	    c_token--;  /* will be incremented again soon */
+	    break;
+
 	case S_KEY_INVALID:
 	default:
 	    int_error(c_token, "unknown key option");
@@ -2649,10 +2655,10 @@ set_label()
 	if (a.type == STRING) {
 	    c_token = save_token;
 	    tag = assign_label_tag();
+	    gpfree_string(&a);
 	} else {
 	    tag = (int) real(&a);
 	}
-	free_value(&a);
     }
 
     if (tag <= 0)
@@ -2836,10 +2842,17 @@ set_logscale()
 		axis_array[axis].set_min = 0.1;
 
 	    /* Also forgive negative axis limits if we are currently autoscaling */
-	    if ((axis_array[axis].set_autoscale != AUTOSCALE_NONE)
+	    if (((axis_array[axis].set_autoscale & AUTOSCALE_BOTH) != AUTOSCALE_NONE)
 	    &&  (axis_array[axis].set_min <= 0 || axis_array[axis].set_max <= 0)) {
 		axis_array[axis].set_min = 0.1;
 		axis_array[axis].set_max = 10.;
+	    }
+
+	    /* Autoscaled minimum cannot work with log scale R */
+	    if ((axis == POLAR_AXIS) && (axis_array[axis].set_autoscale & AUTOSCALE_MIN)) {
+		axis_array[axis].set_autoscale &= ~AUTOSCALE_MIN;
+		axis_array[axis].set_min = 0.1;
+		axis_array[axis].min = 0.1;
 	    }
 
 	    if (newbase == 10.) {
@@ -3777,13 +3790,105 @@ set_pointsize()
 static void
 set_polar()
 {
+    TBOOLEAN was_already_polar = polar;
     c_token++;
-
-    if (polar)
-	return;
 
     polar = TRUE;
     raxis = TRUE;
+
+#ifdef USE_POLAR_GRID
+    /* set polar grid {<theta_segments>, <radial_segments>}
+     *                { qnorm {<power>} | gauss | cauchy | exp | box | hann }
+     *                { kdensity } { scale <scale> }
+     *                {theta [min:max]} {r [min:max]}
+     */
+    if (equals(c_token, "grid")) {
+	int val;
+	t_dgrid3d_mode scheme;
+	c_token++;
+	if (might_be_numeric(c_token)) {
+	    val = int_expression();
+	    if (val > 5 && val < 1000)
+		polar_grid.theta_segments = val;
+	    if (equals(c_token, ",")) {
+		c_token++;
+		val = int_expression();
+		if (val > 1 && val < 101)
+		    polar_grid.r_segments = val;
+	    }
+	}
+
+	while (!END_OF_COMMAND) {
+
+	    scheme = lookup_table(&dgrid3d_mode_tbl[0],c_token);
+	    if (scheme != DGRID3D_OTHER) {
+		switch (scheme) {
+		case DGRID3D_QNORM:
+					c_token++;
+					polar_grid.mode = scheme;
+					val = 1;
+					if (might_be_numeric(c_token))
+					    val = int_expression();
+					if (val > 0 && val < 25)
+					    polar_grid.norm_q = val;
+					break;
+		case DGRID3D_GAUSS:
+		case DGRID3D_CAUCHY:
+		case DGRID3D_EXP:
+		case DGRID3D_BOX:
+					c_token++;
+					polar_grid.mode = scheme;
+					break;
+		case DGRID3D_HANN:
+		case DGRID3D_SPLINES:
+		default:
+					int_warn(c_token, "unsupported weighting scheme");
+					break;
+		}
+		if (equals(c_token,"kdensity")) {
+		    polar_grid.kdensity = TRUE;
+		    c_token++;
+		} else
+		    polar_grid.kdensity = FALSE;
+		continue;
+	    }
+
+	    if (equals(c_token,"scale")) {
+		c_token++;
+		polar_grid.scale = real_expression();
+		if (polar_grid.scale <= 0)
+		    polar_grid.scale = 1.0;
+		continue;
+	    }
+
+	    if (equals(c_token,"theta")) {
+		int start_token = ++c_token;
+		if (!equals(c_token++,"["))
+		    int_error(start_token, "expecting [ theta_min : theta_max ]");
+		THETA_AXIS.min = parse_one_range_limit( 0.0 );
+		THETA_AXIS.max = parse_one_range_limit( 360. );
+		if (THETA_AXIS.max < 0)
+		    THETA_AXIS.max += 360;
+		continue;
+	    }
+
+	    if (equals(c_token,"r")) {
+		int start_token = ++c_token;
+		if (!equals(c_token++,"["))
+		    int_error(start_token, "expecting [ radius_min : radius_max ]");
+		polar_grid.rmin = parse_one_range_limit( 0.0 );
+		polar_grid.rmax = parse_one_range_limit( VERYLARGE );
+		continue;
+	    }
+
+	    int_error(c_token, "Unexpected token");
+
+	} /* while (!END_OF_COMMAND) */
+    }
+#endif /* USE_POLAR_GRID */
+
+    if (was_already_polar)
+	return;
 
     if (!parametric) {
 	if (interactive)
@@ -3796,7 +3901,7 @@ set_polar()
 	/* 360 if degrees, 2pi if radians */
 	axis_array[T_AXIS].set_max = 2 * M_PI / ang2rad;
     }
-    if (axis_array[POLAR_AXIS].set_autoscale != AUTOSCALE_BOTH)
+    if ((axis_array[POLAR_AXIS].set_autoscale & AUTOSCALE_BOTH) != AUTOSCALE_BOTH)
 	rrange_to_xy();
 }
 
@@ -4805,33 +4910,12 @@ static void
 set_tics()
 {
     int i;
-    TBOOLEAN global_opt = FALSE;
     int save_token = c_token;
 
-    /* There are a few options that set_tic_prop doesn't handle */
-    /* because they are global rather than per-axis.            */
-    while (!END_OF_COMMAND) {
-	if (equals(c_token, "front")) {
-	    grid_tics_in_front = TRUE;
-	    global_opt = TRUE;
-	} else if (equals(c_token, "back")) {
-	    grid_tics_in_front = FALSE;
-	    global_opt = TRUE;
-	} else if (almost_equals(c_token, "sc$ale")) {
-	    set_ticscale();
-	    global_opt = TRUE;
-	}
-	c_token++;
-    }
-
-    /* Otherwise we iterate over axes and apply the options to each */
-    for (i = 0; i < NUMBER_OF_MAIN_VISIBLE_AXES; i++) {
-	c_token = save_token;
-	set_tic_prop( &axis_array[i] );
-    }
-
-    /* if tics are off, reset to default (border) */
-    if (END_OF_COMMAND || global_opt) {
+    /* On a bare "set tics" command, reset the default on/off/placement/mirror
+     * state of the visible axes.
+     */
+    if (END_OF_COMMAND) {
 	for (i = 0; i < NUMBER_OF_MAIN_VISIBLE_AXES; ++i) {
 	    if ((axis_array[i].ticmode & TICS_MASK) == NO_TICS) {
 		if ((i == SECOND_X_AXIS) || (i == SECOND_Y_AXIS))
@@ -4841,6 +4925,25 @@ set_tics()
 		    axis_array[i].ticmode |= TICS_MIRROR;
 	    }
 	}
+	return;
+    }
+
+    /* There are a few options that set_tic_prop doesn't handle */
+    /* because they are global rather than per-axis.            */
+    while (!END_OF_COMMAND) {
+	if (equals(c_token, "front"))
+	    grid_tics_in_front = TRUE;
+	else if (equals(c_token, "back"))
+	    grid_tics_in_front = FALSE;
+	else if (almost_equals(c_token, "sc$ale"))
+	    set_ticscale();
+	c_token++;
+    }
+
+    /* Otherwise we iterate over axes and apply the options to each */
+    for (i = 0; i < NUMBER_OF_MAIN_VISIBLE_AXES; i++) {
+	c_token = save_token;
+	set_tic_prop( &axis_array[i] );
     }
 }
 
@@ -4874,6 +4977,13 @@ set_ticscale()
 	for (i = 0; i < NUMBER_OF_MAIN_VISIBLE_AXES; ++i) {
 	    axis_array[i].ticscale = lticscale;
 	    axis_array[i].miniticscale = lminiticscale;
+	    /* For backward compatibility, setting tic scale has the side
+	     * effect of reenabling display of tics that had been "unset".
+	     * This allows auto-extension of axes with tic scale 0.
+	     * NB: The old code also turned on mirroring; now we don't.
+	     */
+	    if (i != SECOND_X_AXIS && i != SECOND_Y_AXIS)
+		axis_array[i].ticmode = TICS_ON_BORDER;
 	}
 	ticlevel = 2;
 	while (equals(c_token, ",")) {

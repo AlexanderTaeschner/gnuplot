@@ -156,7 +156,7 @@ int grid_layer = LAYER_BEHIND;
 TBOOLEAN grid_tics_in_front = FALSE;
 TBOOLEAN grid_vertical_lines = FALSE;
 TBOOLEAN grid_spiderweb = FALSE;
-double polar_grid_angle = 0;	/* nonzero means a polar grid */
+double theta_grid_angle = 0;	/* nonzero means a polar grid */
 TBOOLEAN raxis = FALSE;
 double theta_origin = 0.0;	/* default origin at right side */
 double theta_direction = 1;	/* counterclockwise from origin */
@@ -751,7 +751,7 @@ make_tics(struct axis *this_axis, int guide)
 	    axis_name(this_axis->index));
 	/* FIXME: this used to be int_error but there were false positives
 	 * (bad range on unused axis).  However letting +/-VERYLARGE through
-	 * can overrun data structures for time conversions. Zero avoids this.
+	 * can overrun data structures for time conversions. min = max avoids this.
 	 */
 	this_axis->min = this_axis->max = 0;
     }
@@ -1122,6 +1122,11 @@ gen_tics(struct axis *this, tic_callback callback)
 	double lmin = this->min, lmax = this->max;
 
 	reorder_if_necessary(lmin, lmax);
+
+	/* Clipping theta tics (ttics) based on theta range is undesireable */
+	if (this == &THETA_AXIS) {
+	    lmin = 0; lmax = 360;
+	}
 
 	/* {{{  choose start, step and end */
 	switch (def->type) {
@@ -2045,7 +2050,7 @@ some_grid_selected()
 	if (axis_array[i].gridmajor || axis_array[i].gridminor)
 	    return TRUE;
     /* Dec 2016 - CHANGE */
-    if (polar_grid_angle > 0)
+    if (theta_grid_angle > 0)
 	return TRUE;
     if (grid_spiderweb)
 	return TRUE;
@@ -2791,7 +2796,7 @@ polar_to_xy( double theta, double r, double *x, double *y, TBOOLEAN update)
 		if (R_AXIS.autoscale & AUTOSCALE_MAX)	{
 		    if ((R_AXIS.max_constraint & CONSTRAINT_UPPER)
 		    &&  (R_AXIS.max_ub < r))
-			    R_AXIS.max = R_AXIS.max_ub;
+			R_AXIS.max = R_AXIS.max_ub;
 		    else
 			R_AXIS.max = r;
 		} else {
@@ -2805,8 +2810,11 @@ polar_to_xy( double theta, double r, double *x, double *y, TBOOLEAN update)
 	AXIS *shadow = R_AXIS.linked_to_primary;
 	if (R_AXIS.log && r <= 0)
 	    r = not_a_number();
-	else
+	else {
 	    r = eval_link_function(shadow, r) - shadow->min;
+	    if (update && (R_AXIS.autoscale & AUTOSCALE_MAX) && (r > shadow->max))
+		shadow->max = r;
+	}
     } else if (inverted_raxis) {
 	r = R_AXIS.set_min - r;
     } else if ((R_AXIS.autoscale & AUTOSCALE_MIN)) {
@@ -2952,3 +2960,29 @@ autoscale_one_point(struct axis *axis, double x)
 	    axis->max = x;
     }
 }
+
+#ifdef USE_POLAR_GRID
+
+/*
+ * read one of the limiting values in a range of the form:
+ *    [min:max] [*:*] [*:max] [min:*]
+ * advance past following separator
+ */
+double
+parse_one_range_limit( double default_value )
+{
+    double limit = default_value;
+
+    if (equals(c_token, "*"))
+	c_token++;
+    else if (equals(c_token, ":") || equals(c_token, "]"))
+	;
+    else
+	limit = real_expression();
+    c_token++;
+
+    return limit;
+}
+
+#endif /* USE_POLAR_GRID */
+	

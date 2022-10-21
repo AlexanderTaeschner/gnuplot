@@ -119,6 +119,7 @@ static void place_grid(int layer);
 static void place_raxis(void);
 static void place_parallel_axes(struct curve_points *plots, int layer);
 static void place_spiderplot_axes(struct curve_points *plots, int layer);
+static void plot_polar_grid(struct curve_points *plot);
 
 static void plot_steps(struct curve_points * plot);	/* JG */
 static void plot_fsteps(struct curve_points * plot);	/* HOE */
@@ -184,13 +185,9 @@ get_arrow(
 	*ex += *sx;
 	*ey += *sy;
     } else if (arrow->type == arrow_end_oriented) {
-	double aspect = (double)term->v_tic / (double)term->h_tic;
+	double aspect = effective_aspect_ratio();
 	double radius;
 
-#ifdef _WIN32
-	if (strcmp(term->name, "windows") == 0)
-	    aspect = 1.;
-#endif
 	map_position_r(&arrow->end, &radius, NULL, "arrow");
 	*ex = *sx + cos(DEG2RAD * arrow->angle) * radius;
 	*ey = *sy + sin(DEG2RAD * arrow->angle) * radius * aspect;
@@ -259,7 +256,7 @@ place_grid(int layer)
     }
 
     /* POLAR GRID radial lines */
-    if (polar_grid_angle > 0) {
+    if (theta_grid_angle > 0) {
 	double theta = 0;
 	int ox = map_x(0);
 	int oy = map_y(0);
@@ -267,7 +264,7 @@ place_grid(int layer)
 	term_apply_lp_properties(&grid_lp);
 	if (largest_polar_circle <= 0)
 	    largest_polar_circle = polar_radius(R_AXIS.max);
-	for (theta = 0; theta < 6.29; theta += polar_grid_angle) {
+	for (theta = 0; theta < 6.29; theta += theta_grid_angle) {
 	    int x = map_x(largest_polar_circle * cos(theta));
 	    int y = map_y(largest_polar_circle * sin(theta));
 	    draw_clip_line(ox, oy, x, y);
@@ -278,7 +275,7 @@ place_grid(int layer)
     /* POLAR GRID tickmarks along the perimeter of the outer circle */
     if (THETA_AXIS.ticmode) {
 	term_apply_lp_properties(&border_lp);
-	if (largest_polar_circle <= 0)
+	if (draw_border & 0x1000)
 	    largest_polar_circle = polar_radius(R_AXIS.max);
 	copy_or_invent_formatstring(&THETA_AXIS);
 	gen_tics(&THETA_AXIS, ttick_callback);
@@ -987,8 +984,11 @@ do_plot(struct curve_points *plots, int pcount)
 		plot_boxplot(this_plot, FALSE);
 		break;
 
-	    case PM3DSURFACE:
 	    case SURFACEGRID:
+		plot_polar_grid(this_plot);
+		break;
+
+	    case PM3DSURFACE:
 		int_warn(NO_CARET, "Can't use pm3d or surface for 2d plots");
 		break;
 
@@ -1267,12 +1267,9 @@ plot_lines(struct curve_points *plot)
     for (i = 0; i < plot->p_count; i++) {
 	xnow = plot->points[i].x;
 	ynow = plot->points[i].y;
-
-#ifdef USE_WATCHPOINTS
 	znow = plot->points[i].z;
-#else
-	(void)zprev; /* prevents warnings about unused variable */
-#endif
+
+	(void)zprev; /* prevents unused variable warning #ifndef USE_WATCHPOINTS */
 
 	/* rgb variable  -  color read from data column */
 	check_for_variable_color(plot, &plot->varcolor[i]);
@@ -2277,6 +2274,7 @@ plot_boxes(struct curve_points *plot, int xaxis_y)
 			break;
 		    case HT_CLUSTERED:
 		    case HT_ERRORBARS:
+		    case HT_NONE:
 			break;
 		    }
 		}
@@ -2306,6 +2304,7 @@ plot_boxes(struct curve_points *plot, int xaxis_y)
 
 		/* Variable color */
 		if (plot->plot_style == BOXES || plot->plot_style == BOXXYERROR
+		    || plot->plot_style == HISTOGRAMS
 		    || plot->plot_style == BOXERROR) {
 		    check_for_variable_color(plot, &plot->varcolor[i]);
 		}
@@ -2720,9 +2719,7 @@ plot_vectors(struct curve_points *plot)
 	} else {  /* ARROWS */
 	    double length;
 	    double angle = DEG2RAD * tail->yhigh;
-	    double aspect = (double)term->v_tic / (double)term->h_tic;
-	    if (strcmp(term->name, "windows") == 0)
-		aspect = 1.0;
+	    double aspect = effective_aspect_ratio();
 	    if (tail->xhigh > 0)
 		/* length > 0 is in x-axis coords */
 		length = map_x_double(tail->x + tail->xhigh) - x0;
@@ -4070,10 +4067,7 @@ plot_border()
 	    /* Full-width circular border is visually too heavy compared to the edges */
 	    polar_border.l_width = polar_border.l_width / 2.;
 	    term_apply_lp_properties(&polar_border);
-
-	    if (largest_polar_circle <= 0)
-		largest_polar_circle = polar_radius(R_AXIS.max);
-	    draw_polar_circle(largest_polar_circle);
+	    draw_polar_circle(polar_radius(R_AXIS.max));
 	    clip_area = clip_save;
 	}
 
@@ -4420,16 +4414,11 @@ do_ellipse( int dimensions, t_ellipse *e, int style, TBOOLEAN do_own_mapping )
     double A = e->extent.x / 2.0;	/* Major axis radius */
     double B = e->extent.y / 2.0;	/* Minor axis radius */
     struct position pos = e->extent;	/* working copy with axis info attached */
-    double aspect = (double)term->v_tic / (double)term->h_tic;
+    double aspect = effective_aspect_ratio();
 
     /* Choose how many segments to draw for this ellipse */
     int segments = 72;
     double ang_inc  =  M_PI / 36.;
-
-#ifdef _WIN32
-    if (strcmp(term->name, "windows") == 0)
-	aspect = 1.;
-#endif
 
     /* Find the center of the ellipse */
     /* If this ellipse is part of a plot - as opposed to an object -
@@ -4689,7 +4678,7 @@ process_image(void *plot, t_procimg_action action)
     int i;
     double p_start_corner[2], p_end_corner[2]; /* Points used for computing hyperplane. */
     int K = 0, L = 0;                          /* Dimensions of image grid. K = <scan line length>, L = <number of scan lines>. */
-    unsigned int ncols, nrows;		        /* EAM DEBUG - intended to replace K and L above */
+    unsigned int ncols, nrows;		       /* These are intended to replace K and L above */
     double p_mid_corner[2];                    /* Point representing first corner found, i.e. p(K-1) */
     double delta_x_grid[2] = {0, 0};           /* Spacings between points, two non-orthogonal directions. */
     double delta_y_grid[2] = {0, 0};
@@ -5536,3 +5525,81 @@ spidertick_callback(struct axis *axis, double place, char *text, int ticlevel,
 	    term_apply_lp_properties(&border_lp);
     }
 }
+
+
+#ifdef USE_POLAR_GRID
+/*
+ * Draw the polar grid elements that are within the requested
+ * range on theta and r.
+ * In this initial implementation each grid element is a quadrangle.
+ * If each wedge spans a large theta range (>10°? 5°?) it might be
+ * nice to subdivide into smaller wedges or expand the number of
+ * vertices along the top and bottom edges to make it smoother.
+ */
+static void
+plot_polar_grid(struct curve_points *plot)
+{
+    gpiPoint quad[4];	/* initial version uses only 4 vertices */
+    struct coordinate *p;
+    double x, y;
+    double tmin, tmax, rmin, rmax;
+    int fillstyle = style_from_fill(&plot->fill_properties);
+
+    /* This terminal cannot draw what we want */
+    if (!(term->filled_polygon))
+	return;
+
+    /* Theta clipping limits */
+    tmin = THETA_AXIS.min;
+    tmax = THETA_AXIS.max;
+    if ((tmax - tmin) >= 360.) {
+	tmin = 0.;
+	tmax = 360.;
+    }
+
+    /* Radial clipping limits */
+    rmin = GPMAX(R_AXIS.min, polar_grid.rmin);
+    rmax = GPMIN(R_AXIS.max, polar_grid.rmax);
+
+    /* Initialize wedge polygon vertices */
+    memset(quad, 0, 4*sizeof(gpiPoint));
+    quad[0].style = fillstyle;
+
+    for (int i=0; i < plot->p_count; i++) {
+	p = &plot->points[i];
+
+	/* Clip segment on r */
+	if (p->yhigh < rmin || p->ylow > rmax)
+	    continue;
+	if (p->ylow < rmin)
+	    p->ylow = rmin;
+	if (p->yhigh > rmax)
+	    p->yhigh = rmax;
+
+	/* Clip segment on theta */
+	if (in_theta_wedge(p->xlow, tmin, tmax)) {
+	    if (!in_theta_wedge(p->xhigh, tmin, tmax))
+		p->xhigh = tmax;
+	} else if (in_theta_wedge(p->xhigh, tmin, tmax)) {
+	    if (!in_theta_wedge(p->xlow, tmin, tmax))
+		p->xlow = tmin;
+	} else {
+	    continue;
+	}
+
+	polar_to_xy( p->xlow,  p->ylow,  &x, &y, FALSE);
+	quad[0].x = map_x(x); quad[0].y = map_y(y);
+	polar_to_xy( p->xhigh, p->ylow,  &x, &y, FALSE);
+	quad[1].x = map_x(x); quad[1].y = map_y(y);
+	polar_to_xy( p->xhigh, p->yhigh, &x, &y, FALSE);
+	quad[2].x = map_x(x); quad[2].y = map_y(y);
+	polar_to_xy( p->xlow,  p->yhigh, &x, &y, FALSE);
+	quad[3].x = map_x(x); quad[3].y = map_y(y);
+
+	set_color(cb2gray(p->z));
+	term->filled_polygon(4, quad);
+    }
+}
+#else	/* USE_POLAR_GRID */
+static void plot_polar_grid(struct curve_points *plot) {}
+#endif

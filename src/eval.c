@@ -128,6 +128,7 @@ const struct ft_entry ft[] =
     {"[]",  f_index},			/* for array variables only */
     {"||",  f_cardinality},		/* for array variables only */
     {"assign", f_assign},		/* assignment operator '=' */
+    {"eval", f_eval},			/* function block */
     {"jump",  f_jump},
     {"jumpz",  f_jumpz},
     {"jumpnz",  f_jumpnz},
@@ -449,24 +450,45 @@ Gstring(struct value *a, char *s)
     return (a);
 }
 
-/* Common interface for freeing data structures attached to a struct value.
- * Each of the type-specific routines will ignore values of other types.
- * FIXME: It may be better to call gpfree_array only for TEMP_ARRAYs,
- * otherwise an array passed in error as a function parameter may be wiped out.
+/* The rationale for introducing this routine was that multiple call sites
+ * wanted to write a new value to a variable that might already have one.
+ * free_value() was intended to consider all possible previous value types
+ * and free attached memory for types that had any.
+ *
+ * Caveat:  When freeing values popped from the evaluation stack,
+ * datablocks and permanent arrays must not be freed because these are
+ * calls by reference to a continuing global variable.
+ * So the caller must clear the type field before calling free_value.
  */
 void
 free_value(struct value *a)
 {
-    gpfree_string(a);
-    gpfree_datablock(a);
-    gpfree_array(a);
+    switch (a->type) {
+	case INTGR:
+	case CMPLX:
+			break;
+	case STRING:
+			gpfree_string(a);
+			break;
+	case ARRAY:
+			gpfree_array(a);
+			break;
+	case DATABLOCK:
+			gpfree_datablock(a);
+			break;
+	case FUNCTIONBLOCK:
+			gpfree_functionblock(a);
+			break;
+	case VOXELGRID: /* Should not happen! */
+	default:	/* INVALID_VALUE INVALID_NAME */
+			break;
+    }
     a->type = NOTDEFINED;
 }
 
-/* It is always safe to call gpfree_string with a->type is INTGR or CMPLX.
- * However it would be fatal to call it with a->type = STRING if a->string_val
- * was not obtained by a previous call to gp_alloc(), or has already been freed.
- * Thus 'a->type' is set to NOTDEFINED afterwards to make subsequent calls safe.
+/* It would be fatal to call gpfree_string with a->type = STRING if
+ * a->string_val has already been freed.
+ * Setting 'a->type' to NOTDEFINED makes subsequent calls safe.
  */
 void
 gpfree_string(struct value *a)
@@ -581,10 +603,15 @@ pop_or_convert_from_string(struct value *v)
 	char trailing = *eov;
 
 	/* If the string contains no decimal point, try to interpret it as an integer.
-	 * strtoll handles decimal, octal, and hexadecimal.
+	 * We treat a string starting with "0x" as a hexadecimal; everything else
+	 * as decimal.  So int("010") promotes to 10, not 8.
 	 */
 	if (strcspn(string, ".") == strlen(string)) {
-	    long long li = strtoll( string, &eov, 0 );
+	    long long li;
+	    if (string[0] == '0' && string[1] == 'x')
+		li = strtoll( string, &eov, 16 );
+	    else
+		li = strtoll( string, &eov, 10 );
 	    trailing = *eov;
 	    Ginteger(v, li);
 	}
@@ -601,7 +628,7 @@ pop_or_convert_from_string(struct value *v)
 	if (eov == string)
 	    int_error(NO_CARET,"Non-numeric string found where a numeric expression was expected");
 	if (trailing && !isspace(trailing))
-	    int_error(NO_CARET,"Trailing characters after numeric expression");
+	    int_warn(NO_CARET,"Trailing characters after numeric expression");
     }
     return(v);
 }
@@ -738,7 +765,13 @@ evaluate_at(struct at_type *at_ptr, struct value *val_ptr)
     val_ptr->type = NOTDEFINED;
 
     errno = 0;
-    reset_stack();
+
+    /* Normally the stack is cleared prior to each and every expression
+     * evaluation.   However doing so during execution of a function block
+     * can make the stack invalid when the function block exits.
+     */
+    if (!evaluate_inside_functionblock)
+	reset_stack();
 
     if (!evaluate_inside_using || !df_nofpe_trap) {
 	if (SETJMP(fpe_env, 1))
@@ -753,10 +786,14 @@ evaluate_at(struct at_type *at_ptr, struct value *val_ptr)
 
     if (errno == EDOM || errno == ERANGE)
 	undefined = TRUE;
-    else if (!undefined) {
-	(void) pop(val_ptr);
+
+    /* Pop value even if it is undefined.
+     * That seems preferable to leaving garbage on the stack.
+     */
+    if (s_p >= 0)
+	pop(val_ptr);
+    if (!evaluate_inside_functionblock)
 	check_stack();
-    }
 }
 
 void

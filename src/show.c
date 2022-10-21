@@ -670,7 +670,7 @@ show_command()
 	break;
 
     case S_THETA:
-	fprintf(stderr,"Theta increases %s with origin at %s of plot\n",
+	fprintf(stderr,"\tTheta increases %s with origin at %s of plot\n",
 		theta_direction > 0 ? "counterclockwise" : "clockwise",
 		theta_origin == 180 ? "left" : theta_origin ==  90 ? "top" :
 		theta_origin == -90 ? "bottom" : "right");
@@ -781,6 +781,9 @@ disp_at(struct at_type *curr_at, int level)
 	    break;
 	case DOLLARS:
 	    fprintf(stderr, " %d\n", (int)(arg->v_arg.v.int_val));
+	    break;
+	case EVAL:
+	    fprintf(stderr, " function block %s\n", arg->udv_arg->udv_name);
 	    break;
 	default:
 	    (void) putc('\n', stderr);
@@ -1040,7 +1043,19 @@ show_version(FILE *fp)
 #ifdef HAVE_EXTERNAL_FUNCTIONS
 		"+EXTERNAL_FUNCTIONS "
 #endif
+#ifdef USE_POLAR_GRID
+		"+POLARGRID "
+#else
+		"-POLARGRID "
+#endif
 	    "";
+
+	    const char *fblocks =
+#if defined(USE_FUNCTIONBLOCKS)
+		"+FUNCTIONBLOCKS ";
+#else
+		"-FUNCTIONBLOCKS ";
+#endif
 
 	    const char *unicodebuild =
 #if defined(_WIN32) && defined(UNICODE)
@@ -1049,11 +1064,13 @@ show_version(FILE *fp)
 		"";
 #endif
 
-	    sprintf(compile_options, "    %s%s\n    %s%s\n    %s%s%s%s\n    %s\n    %s%s%s%s\n",
+	    sprintf(compile_options,
+		    "    %s%s\n    %s%s\n    %s%s%s%s\n    %s\n    %s%s%s%s\n    %s\n",
 		    rdline, gnu_rdline, unicodebuild, plotoptions,
 		    complexfunc, libcerf, libamos, have_cexint,
 		    libgd,
-		    nocwdrc, x11, use_mouse, hiddenline
+		    nocwdrc, x11, use_mouse, hiddenline,
+		    fblocks
 		    );
 	}
 
@@ -1706,7 +1723,7 @@ show_grid()
 
     /* HBB 20010806: new storage method for grid options: */
     fprintf(stderr, "\t%s grid drawn at",
-	    (polar_grid_angle != 0) ? "Polar" : "Rectangular");
+	    (theta_grid_angle != 0) ? "Polar" : "Rectangular");
 #define SHOW_GRID(axis)						\
     if (axis_array[axis].gridmajor)				\
 	fprintf(stderr, " %s", axis_name(axis));	\
@@ -1730,9 +1747,9 @@ show_grid()
     fputc('\n', stderr);
     if (grid_vertical_lines)
 	fprintf(stderr, "\tVertical grid lines in 3D plots\n");
-    if (polar_grid_angle)
+    if (theta_grid_angle)
 	fprintf(stderr, "\tGrid radii drawn every %f %s\n",
-		polar_grid_angle / ang2rad,
+		theta_grid_angle / ang2rad,
 		(ang2rad == 1.0) ? "radians" : "degrees");
     if (grid_spiderweb)
 	fprintf(stderr, "\tGrid shown in spiderplots\n");
@@ -1935,6 +1952,8 @@ show_key()
 		break;
 	    }
 	}
+	fputs("  offset: ", stderr);
+	show_position(&key->offset, 2);
 	fputs("\n", stderr);
 	break;
     }
@@ -2788,7 +2807,27 @@ static void
 show_polar()
 {
     SHOW_ALL_NL;
-    fprintf(stderr, "\tpolar is %s\n", (polar) ? "ON" : "OFF");
+    fprintf(stderr, "\tpolar mode is %s\n", (polar) ? "ON" : "OFF");
+#ifdef USE_POLAR_GRID
+    if (1) {
+	fprintf(stderr,"\tpolar grid uses %d theta wedges and %d radial segments\n",
+		polar_grid.theta_segments, polar_grid.r_segments);
+	fprintf(stderr,"\tmasked by theta range [%g:%g] radial range [%g:",
+		THETA_AXIS.min, THETA_AXIS.max, polar_grid.rmin);
+	if (polar_grid.rmax < VERYLARGE)
+		fprintf(stderr,"%g]\n",polar_grid.rmax);
+	else
+		fprintf(stderr,"*]\n");
+	fprintf(stderr,"\tpolar gridding scheme %s ",
+		reverse_table_lookup(dgrid3d_mode_tbl, polar_grid.mode));
+	if (polar_grid.mode == DGRID3D_QNORM)
+		fprintf(stderr,"%d\n", polar_grid.norm_q);
+	else
+		fprintf(stderr,"%s scale %g\n",
+			polar_grid.kdensity ? "kdensity" : "", polar_grid.scale);
+    } else
+	fprintf(stderr,"\tno polar gridding\n");
+#endif /* USE_POLAR_GRID */
 }
 
 

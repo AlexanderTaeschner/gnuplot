@@ -35,6 +35,7 @@
 #include "alloc.h"
 #include "axis.h"
 #include "misc.h"
+#include "plot2d.h"
 #include "pm3d.h"	/* for is_plot_with_palette */
 
 #define ERRORBARTIC GPMAX((t->h_tic/2),1)
@@ -632,9 +633,14 @@ boundary(struct curve_points *plots, int count)
 	    R_AXIS.max = axis_array[FIRST_X_AXIS].max;
 	    int_warn(NO_CARET, "resetting rrange");
 	}
-	setup_tics(&axis_array[POLAR_AXIS], 10);
-    }
 
+	setup_tics(&axis_array[POLAR_AXIS], 10);
+
+	/* If setup_tics extends rrange to next tic then the previous
+	 * x/y range limits from polar_range_fiddling are out of date.
+	 */
+	polar_range_fiddling(&axis_array[FIRST_X_AXIS], &axis_array[FIRST_Y_AXIS]);
+    }
 
     /* Modify the bounding box to fit the aspect ratio, if any was given */
     if (aspect_ratio != 0.0) {
@@ -839,6 +845,7 @@ void
 do_key_bounds(legend_key *key)
 {
     struct termentry *t = term;
+    double dx, dy;
 
     key_height = key_title_height + key_title_extra
 		+ key_rows * key_entry_height + key->height_fix * key_entry_height;
@@ -955,6 +962,15 @@ do_key_bounds(legend_key *key)
 	    key->bounds.ytop += key_height;
 	key->bounds.ybot = key->bounds.ytop - key_height;
     }
+
+    /* Regardless of how the key was nominally positioned,
+     * the result can be manually tweaked by "set key offset dx, dy"
+     */
+    map_position_r(&key->offset, &dx, &dy, "key");
+    key->bounds.ytop += dy;
+    key->bounds.ybot += dy;
+    key->bounds.xleft += dx;
+    key->bounds.xright += dx;
 }
 
 /* Calculate positioning of components that make up the key box */
@@ -1152,6 +1168,8 @@ find_maxl_keys(struct curve_points *plots, int count, int *kcnt)
 	&&  !this_plot->title_position) {
 	    if (this_plot->plot_style == SPIDERPLOT && this_plot->plot_type != KEYENTRY)
 		; /* Nothing */
+	    if (this_plot->plot_style == HISTOGRAMS && this_plot->histogram->type == HT_STACKED_IN_TOWERS)
+		; /* These titles are placed as xtics rather than in the key */
 	    else {
 		ignore_enhanced(this_plot->title_no_enhanced);
 		len = estimate_strlen(this_plot->title, NULL);
@@ -1291,6 +1309,9 @@ do_key_sample(
 		do_ellipse(2, key_ellipse, 0, FALSE);
 	    }
 	    free(key_ellipse);
+
+	} else if (this_plot->plot_style == SURFACEGRID) {
+	    (*t->fillbox)(style,x,y,w,h);
 
 	} else if (w > 0) {    /* All other plot types with fill */
 	    if (style != FS_EMPTY)

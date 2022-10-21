@@ -90,6 +90,7 @@
 #include "term_api.h"
 #include "util.h"
 #include "variable.h"
+#include "voxelgrid.h"
 #include "external.h"
 
 #ifdef USE_MOUSE
@@ -154,6 +155,7 @@ static int find_clause(int *, int *);
 static void if_else_command(ifstate if_state);
 static void old_if_command(struct at_type *expr);
 static int report_error(int ierr);
+static void load_or_call_command( TBOOLEAN call );
 
 static int expand_1level_macros(void);
 
@@ -685,7 +687,13 @@ define()
 	if (result.type == ARRAY)
 	    make_array_permanent(&result);
 
-	/* Prevents memory leak if the variable name is re-used */
+	/* If the variable name was previously in use then depending on its
+	 * old type it may have attached memory that needs to be freed.
+	 * Note: supposedly the old variable type cannot be datablock because
+	 *       the syntax  $name = foo  is not accepted so we would not be here.
+	 *       However, weird cases like FOO = value($datablock) violate this rule
+	 *       and leave FOO as a datablock whose name does not start with $.
+	 */
 	udv = add_udv(start_token);
 	free_value(&udv->udv_value);
 	udv->udv_value = result;
@@ -1104,24 +1112,6 @@ iteration_early_exit()
  * Command parser functions
  */
 
-/* process the 'call' command */
-void
-call_command()
-{
-    char *save_file = NULL;
-
-    c_token++;
-    save_file = try_to_get_string();
-
-    if (!save_file)
-	int_error(c_token, "expecting filename");
-    gp_expand_tilde(&save_file);
-
-    /* Argument list follows filename */
-    load_file(loadpath_fopen(save_file, "r"), save_file, 2);
-}
-
-
 /* process the 'cd' command */
 void
 changedir_command()
@@ -1501,13 +1491,16 @@ do_command()
     } while (next_iteration(do_iterator));
     iteration_depth--;
 
+    /* FIXME:
+     * If any of the above exited via int_error() then this cleanup
+     * never happens and we leak memory for both clause and for the
+     * iterator itself.  But do_iterator cannot be static or global
+     * because do_command() can recurse.
+     */
     free(clause);
     end_clause();
     c_token = end_token;
 
-    /* FIXME:  If any of the above exited via int_error() then this	*/
-    /* cleanup never happens and we leak memory.  But do_iterator can	*/
-    /* not be static or global because do_command() can recurse.	*/
     do_iterator = cleanup_iteration(do_iterator);
     requested_break = FALSE;
     requested_continue = FALSE;
@@ -1690,17 +1683,30 @@ link_command()
 	rrange_to_xy();
 }
 
-/* process the 'load' command */
 void
 load_command()
 {
+    load_or_call_command( FALSE );
+}
 
+void
+call_command()
+{
+    load_or_call_command( TRUE );
+}
+
+/* The load and call commands are identical except that
+ * call may be followed by a bunch of command line arguments
+ */
+static void
+load_or_call_command( TBOOLEAN call )
+{
     c_token++;
     if (equals(c_token, "$") && isletter(c_token+1) && !equals(c_token+2,"[")) {
 	/* "load" a datablock rather than a file */
 	/* datablock_name will eventually be freed by lf_pop() */
 	char *datablock_name = gp_strdup(parse_datablock_name());
-	load_file(NULL, datablock_name, 6);
+	load_file(NULL, datablock_name, call ? 7 : 6);
     } else {
 	/* These need to be local so that recursion works. */
 	/* They will eventually be freed by lf_pop(). */
@@ -1709,8 +1715,11 @@ load_command()
 	if (!save_file)
 	    int_error(c_token, "expecting filename");
 	gp_expand_tilde(&save_file);
-	fp = strcmp(save_file, "-") ? loadpath_fopen(save_file, "r") : stdout;
-	load_file(fp, save_file, 1);
+	if (!call && !strcmp(save_file, "-"))
+	    fp = stdout;
+	else
+	    fp = loadpath_fopen(save_file, "r");
+	load_file(fp, save_file, call ? 2 : 1);
     }
 }
 
@@ -1782,6 +1791,81 @@ clause_reset_after_error()
 	FPRINTF((stderr,"CLAUSE RESET after error at depth %d\n",clause_depth));
     clause_depth = 0;
     iteration_depth = 0;
+}
+
+/* "local" is a modifier for introduction of a variable.
+ * The scope of the local variable is determined by the depth of the lf_push
+ * operation preceding its occurance.
+ * If a variable of that name already exists it is saved internally to
+ * a new variable GPLOCAL_xxx_NAME, where NAME was the original name and xxx
+ * is the depth of the lf_push/pop stack in which the "local" declaration
+ * is encountered.
+ * The original variable will be restored by the corresponding lf_pop.
+ */
+void
+local_command()
+{
+    int array_token = 0;
+
+    c_token++;
+    if (equals(c_token,"array"))
+	array_token = c_token++;
+
+    /* Has no effect if encountered at the top level */
+    if (lf_head) {
+	struct udvt_entry *udv = add_udv(c_token);
+
+	/* Keep original value and clear it from its original location */
+	shadow_one_variable(udv);
+
+	/* flag that at least some local variables will go out of scope on lf_pop */
+	lf_head->local_variables = TRUE;
+    }
+
+    /* Create new local variable with this name */
+    if (array_token) {
+	c_token = array_token;
+	array_command();
+    } else {
+	define();
+    }
+}
+
+/* helper routine for local_command and for setting up the
+ * initial state of function block evaluation
+ */
+void
+shadow_one_variable(struct udvt_entry *udv)
+{
+    struct udvt_entry *save_udv;
+    struct value save_value;
+    int save_name_len;
+    char *save_name;
+
+    save_value = udv->udv_value;
+    udv->udv_value.type = NOTDEFINED;
+
+    /* Create a shadow variable to hold the original state */
+    save_name_len = strlen(udv->udv_name) + strlen("GPLOCAL_xxx_") + 1;
+    save_name = gp_alloc(save_name_len, NULL);
+    snprintf(save_name, save_name_len, "GPLOCAL_%03d_%s",
+	    lf_head->depth, udv->udv_name);
+    save_udv = add_udv_by_name(save_name);
+    free(save_name);
+
+    /* If this is a duplicate "local" instance at the same depth,
+     * the previous value at this depth is dropped.
+     */
+    if (save_udv->udv_value.type != NOTDEFINED) {
+	int_warn(NO_CARET, "Duplicate 'local' declaration for %s\n",
+		udv->udv_name);
+	free_value(&save_value);
+	return;
+    }
+    /* If there really was such a variable that is now shadowed,
+     * save its original value. Otherwise the saved state is NOTDEFINED.
+     */
+    save_udv->udv_value = save_value;
 }
 
 /* helper routine to multiplex mouse event handling with a timed pause command */
@@ -1902,12 +1986,17 @@ pause_command()
 		/* Use of fprintf() triggers a bug in MinGW + SJIS encoding */
 		fputs(buf, stderr); fputc('\n', stderr);
 	    }
-	    /* cannot use EAT_INPUT_WITH here */
-	    do {
-		junk = getch();
-		if (ctrlc_flag)
-		    bail_to_command_line();
-	    } while (junk != EOF && junk != '\n' && junk != '\r');
+	    /* Note: cannot use EAT_INPUT_WITH here
+	     * FIXME: probably term->waitforinput is always correct, not just for qt
+	     */
+	    if (!strcmp(term->name,"qt"))
+		term->waitforinput(0);
+	    else
+		do {
+		    junk = getch();
+		    if (ctrlc_flag)
+			bail_to_command_line();
+		} while (junk != EOF && junk != '\n' && junk != '\r');
 	} else /* paused_for_mouse */
 # endif /* !WGP_CONSOLE */
 	{
@@ -2086,13 +2175,19 @@ print_set_output(char *name, TBOOLEAN datablock, TBOOLEAN append_p)
 	    }
 	}
 
+	/* We already know the name begins with $,
+	 * so the udv is either a new empty variable (no need to clear)
+	 * an existing datablock (append or clear according to flag)
+	 * or (probably by mistake) a voxel grid (clear before use).
+	 */
 	print_out_var = add_udv_by_name(name);
-	if (!append_p)
+	if (!append_p) {
 	    gpfree_datablock(&print_out_var->udv_value);
-	/* If this is not an existing datablock to be appended */
-	/* then make it a new empty datablock */
+	    gpfree_functionblock(&print_out_var->udv_value);
+	}
 	if (print_out_var->udv_value.type != DATABLOCK) {
 	    free_value(&print_out_var->udv_value);
+	    gpfree_vgrid(print_out_var);
 	    print_out_var->udv_value.type = DATABLOCK;
 	    print_out_var->udv_value.v.data_array = NULL;
 	}
@@ -2151,9 +2246,28 @@ print_command()
     screen_ok = FALSE;
     do {
 	++c_token;
-	if (equals(c_token, "$") && isletter(c_token+1) && !equals(c_token+2,"[")) {
+	if (equals(c_token, "$") && isletter(c_token+1)
+	&&  !equals(c_token+2,"[") && !equals(c_token+2,"(")) {
+	    char **line;
 	    char *datablock_name = parse_datablock_name();
-	    char **line = get_datablock(datablock_name);
+	    struct udvt_entry *block = get_udv_by_name(datablock_name);
+
+	    if (!block)
+		int_error(c_token, "no block named %s", datablock_name);
+#ifdef USE_FUNCTIONBLOCKS
+	    if (block->udv_value.type == FUNCTIONBLOCK
+	    &&  (print_out_var == NULL)) {
+		line = block->udv_value.v.functionblock.parnames;
+		fprintf(print_out, "function %s( ", datablock_name);
+		while (line && *line) {
+		    fprintf(print_out, "%s ", *line);
+		    line++;
+		}
+		fprintf(print_out, ")\n");
+		line = block->udv_value.v.functionblock.data_array;
+	    } else
+#endif	/* USE_FUNCTIONBLOCKS */
+		line = block->udv_value.v.data_array;
 
 	    /* Printing a datablock into itself would cause infinite recursion */
 	    if (print_out_var && !strcmp(datablock_name, print_out_name))
@@ -2202,6 +2316,7 @@ print_command()
 		len = strappend(&dataline, &size, len, a.v.string_val);
 	    else
 		fputs(a.v.string_val, print_out);
+	    gpfree_string(&a);
 	} else if (a.type == ARRAY) {
 	    struct value *array = a.v.value_array;
 	    if (dataline != NULL) {
@@ -2220,14 +2335,14 @@ print_command()
 	    }
 	    if (array[0].type == TEMP_ARRAY)
 		gpfree_array(&a);
-	    a.type = NOTDEFINED;  /* prevent free_value() below from clobbering a */
+	    a.type = NOTDEFINED;
 	} else {
 	    if (dataline != NULL)
 		len = strappend(&dataline, &size, len, value_to_str(&a, FALSE));
 	    else
 		disp_value(print_out, &a, FALSE);
 	}
-	free_value(&a);
+	/* Any other value types besides STRING and ARRAY that need memory freed? */
 
 	if (next_iteration(print_iterator)) {
 	    c_token = save_token;
@@ -2316,7 +2431,7 @@ refresh_request()
 	if (this_axis->linked_to_secondary)
 	    clone_linked_axes(this_axis, this_axis->linked_to_secondary);
 	else if (this_axis->linked_to_primary) {
-	    if (this_axis->linked_to_primary->autoscale != AUTOSCALE_BOTH)
+	    if ((this_axis->linked_to_primary->autoscale & AUTOSCALE_BOTH) != AUTOSCALE_BOTH)
 	    clone_linked_axes(this_axis, this_axis->linked_to_primary);
 	}
     }
@@ -2379,6 +2494,29 @@ reread_command()
     c_token++;
 }
 
+#ifdef USE_FUNCTIONBLOCKS
+/* 'return <expression>' clears or sets a return value and then acts
+ * like 'exit' to return to the caller immediately.  The only way that
+ * anything sees the return value is if the 'return' statement is
+ * executed inside a function block.
+ */
+void
+return_command()
+{
+    c_token++;
+    gpfree_string(&eval_return_value);
+    if (!END_OF_COMMAND) {
+	const_express(&eval_return_value);
+	if (eval_return_value.type == ARRAY) {
+	    make_array_permanent(&eval_return_value);
+	    eval_return_value.v.value_array[0].type = TEMP_ARRAY;
+	}
+    }
+    command_exit_requested = 1;
+}
+#else	/* USE_FUNCTIONBLOCKS */
+void return_command() {}
+#endif	/* USE_FUNCTIONBLOCKS */
 
 /* process the 'save' command */
 void
@@ -2592,8 +2730,7 @@ $PALETTE u 1:2 t 'red' w l lt 1 lc rgb 'red',\
 
     /* Store R/G/B/Int curves in a datablock */
     datablock = add_udv_by_name("$PALETTE");
-    if (datablock->udv_value.type != NOTDEFINED)
-	gpfree_datablock(&datablock->udv_value);
+    free_value(&datablock->udv_value);
     datablock->udv_value.type = DATABLOCK;
     datablock->udv_value.v.data_array = NULL;
 
