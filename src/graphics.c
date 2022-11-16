@@ -785,12 +785,12 @@ do_plot(struct curve_points *plots, int pcount)
 	y_axis = this_plot->y_axis;
 
 	/* Crazy corner case handling Bug #3499425 */
-	if (this_plot->plot_style == HISTOGRAMS)
-	    if ((!key_pass && key->front) &&  (prefer_line_styles)) {
+	if (prefer_line_styles
+	&&  (this_plot->plot_style == HISTOGRAMS) && (!key_pass && key->front)) {
 		struct lp_style_type ls;
 		lp_use_properties(&ls, this_plot->lp_properties.l_type+1);
 		this_plot->lp_properties.pm3d_color = ls.pm3d_color;
-	    }
+	}
 
 	term_apply_lp_properties(&(this_plot->lp_properties));
 
@@ -2458,13 +2458,9 @@ plot_points(struct curve_points *plot)
 		    && x <= plot_bounds.xright - p_width
 		    && y <= plot_bounds.ytop - p_height)) {
 
-		if ((plot->lp_properties.p_size == PTSZ_VARIABLE)
-		&&  (plot->plot_style == POINTSTYLE || plot->plot_style == LINESPOINTS
-		     || plot->plot_style == YERRORBARS))
-		    (*t->pointsize)(pointsize * plot->points[i].CRD_PTSIZE);
-
 		/* Feb 2016: variable point type */
 		if ((plot->plot_style == POINTSTYLE || plot->plot_style == LINESPOINTS
+		     || plot->plot_style == YERRORLINES
 		     || plot->plot_style == YERRORBARS)
 		&&  (plot->lp_properties.p_type == PT_VARIABLE)
 		&&  !(isnan(plot->points[i].CRD_PTTYPE))) {
@@ -2487,6 +2483,12 @@ plot_points(struct curve_points *plot)
 			term_apply_lp_properties(&(plot->lp_properties));
 		    }
 		}
+
+		if ((plot->lp_properties.p_size == PTSZ_VARIABLE)
+		&&  (plot->plot_style == POINTSTYLE || plot->plot_style == LINESPOINTS
+		     || plot->plot_style == YERRORLINES
+		     || plot->plot_style == YERRORBARS))
+		    (*t->pointsize)(pointsize * plot->points[i].CRD_PTSIZE);
 
 		/* rgb variable  -  color read from data column */
 		check_for_variable_color(plot, &plot->varcolor[i]);

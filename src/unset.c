@@ -35,6 +35,7 @@
 #include "axis.h"
 #include "command.h"
 #include "contour.h"
+#include "datablock.h"
 #include "datafile.h"
 #include "fit.h"
 #include "gp_hist.h"
@@ -431,6 +432,9 @@ unset_command()
     case S_WALL:
 	for (i=0; i<5; i++)
 	    unset_wall(i);
+	break;
+    case S_WARNINGS:
+	suppress_warnings = TRUE;
 	break;
     case S_RTICS:
 	unset_tics(&axis_array[POLAR_AXIS]);
@@ -1600,6 +1604,16 @@ unset_pm3d()
     if (func_style == PM3DSURFACE) func_style = LINES;
 }
 
+/* reset the spotlight controlled by 'set pm3d spot' */
+void
+reset_spotlight()
+{
+    pm3d_shade.spec2_Phong = 4.0;
+    pm3d_shade.spec2_rgb = 0xff0044;
+    pm3d_shade.spec2_rot_x = 50;
+    pm3d_shade.spec2_rot_z = 90;
+}
+
 
 /* process 'unset pointintervalbox' command */
 static void
@@ -1998,6 +2012,8 @@ reset_command()
 
     /* Reset session state as well as internal graphics state */
     if (equals(c_token, "session")) {
+	if (evaluate_inside_functionblock)
+	    int_error(c_token, "cannot reset session during function block evaluation");
 	clear_udf_list();
 	init_constants();
 	init_session();
@@ -2197,6 +2213,7 @@ reset_command()
     unset_pointsize();
     unset_pointintervalbox();
     pm3d_reset();
+    reset_spotlight();
     reset_colorbox();
     reset_palette();
     df_unset_datafile_binary();
@@ -2204,7 +2221,10 @@ reset_command()
     unset_histogram();
     unset_textbox_style();
     unset_watchpoint_style();
+
+#ifdef BACKWARD_COMPATIBILITY
     prefer_line_styles = FALSE;
+#endif
 
     reset_watches();
 

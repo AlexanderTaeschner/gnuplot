@@ -378,6 +378,7 @@ const struct gen_table set_tbl[] =
 
     { "z$ero", S_ZERO },
     { "watch$points", S_WATCH },
+    { "warn$ings", S_WARNINGS },
     { NULL, S_INVALID }
 };
 
@@ -473,6 +474,7 @@ const struct gen_table set_colorbox_tbl[] =
     { "def$ault",	S_COLORBOX_DEFAULT },
     { "u$ser",		S_COLORBOX_USER },
     { "at",		S_COLORBOX_USER },
+    { "bot$tom",	S_COLORBOX_BOTTOM },
     { "bo$rder",	S_COLORBOX_BORDER },
     { "bd$efault",	S_COLORBOX_BDEFAULT },
     { "nobo$rder",	S_COLORBOX_NOBORDER },
@@ -551,6 +553,7 @@ const struct gen_table set_pm3d_tbl[] =
     { "corners2c$olor",	S_PM3D_WHICH_CORNER },
     { "light$ing",	S_PM3D_LIGHTING_MODEL },
     { "nolight$ing",	S_PM3D_NOLIGHTING_MODEL },
+    { "spot$light",	S_PM3D_SPOTLIGHT },
     { NULL, S_PM3D_INVALID }
 };
 

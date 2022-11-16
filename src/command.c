@@ -1159,6 +1159,12 @@ eval_command()
 {
     char *command;
     c_token++;
+#ifdef USE_FUNCTIONBLOCKS
+    if (equals(c_token, "$") && isletter(c_token+1) && equals(c_token+2,"(")) {
+	(void)int_expression();	/* throw away any actual return value */
+	return;
+    }
+#endif
     command = try_to_get_string();
     if (!command)
 	int_error(c_token, "Expected command string");
@@ -1806,6 +1812,7 @@ void
 local_command()
 {
     int array_token = 0;
+    struct udvt_entry *udv = NULL;
 
     c_token++;
     if (equals(c_token,"array"))
@@ -1813,7 +1820,7 @@ local_command()
 
     /* Has no effect if encountered at the top level */
     if (lf_head) {
-	struct udvt_entry *udv = add_udv(c_token);
+	udv = add_udv(c_token);
 
 	/* Keep original value and clear it from its original location */
 	shadow_one_variable(udv);
@@ -1826,6 +1833,8 @@ local_command()
     if (array_token) {
 	c_token = array_token;
 	array_command();
+	if (udv && udv->udv_value.type == ARRAY)
+	    udv->udv_value.v.value_array[0].type = LOCAL_ARRAY;
     } else {
 	define();
     }
@@ -2166,13 +2175,9 @@ print_set_output(char *name, TBOOLEAN datablock, TBOOLEAN append_p)
 	}
     } else {
 	/* Make sure we will not overwrite the current input. */
-	LFS *frame = lf_head;
-	for (frame = lf_head; frame; frame = frame->prev) {
-	    if (frame->name && !strcmp(name, frame->name)) {
-		free(name);
-		int_error(NO_CARET, "Attempt to set print output to overwrite input %s",
-			frame->name);
-	    }
+	if (called_from(name)) {
+	    free(name);
+	    int_error(NO_CARET, "print output must not overwrite input");
 	}
 
 	/* We already know the name begins with $,

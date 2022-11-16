@@ -41,6 +41,7 @@
 #include "datablock.h"
 #include "encoding.h"
 #include "eval.h"
+#include "filters.h"
 #include "getcolor.h"
 #include "graph3d.h"
 #include "hidden3d.h"
@@ -1904,7 +1905,7 @@ eval_3dplots()
 		if (save_token != c_token)
 		    continue;
 
-		/* EXPERIMENTAL smoothing options for splot */
+		/* smoothing options for splot */
 		if (equals(c_token, "smooth")) {
 		    if (set_smooth)
 			duplication = TRUE;

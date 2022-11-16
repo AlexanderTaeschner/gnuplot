@@ -200,8 +200,9 @@ struct object default_ellipse = DEFAULT_ELLIPSE_STYLE;
 filledcurves_opts filledcurves_opts_data = EMPTY_FILLEDCURVES_OPTS;
 filledcurves_opts filledcurves_opts_func = EMPTY_FILLEDCURVES_OPTS;
 
-/* Prefer line styles over plain line types */
+#ifdef BACKWARD_COMPATIBILITY
 TBOOLEAN prefer_line_styles = FALSE;
+#endif
 
 /* If current terminal claims to be monochrome, don't try to send it colors */
 #define monochrome_terminal ((t->flags & TERM_MONOCHROME) != 0)
@@ -828,7 +829,7 @@ void
 default_arrow_style(struct arrow_style_type *arrow)
 {
     static const struct lp_style_type tmp_lp_style = 
-	{0, LT_DEFAULT, 0, DASHTYPE_SOLID, 0, 0, 1.0, 0.0, DEFAULT_P_CHAR,
+	{0, LT_SOLID, 0, DASHTYPE_SOLID, 0, 0, 1.0, 0.0, DEFAULT_P_CHAR,
 	DEFAULT_COLORSPEC, DEFAULT_DASHPATTERN};
 
     arrow->tag = -1;

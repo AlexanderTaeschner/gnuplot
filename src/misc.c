@@ -163,6 +163,11 @@ prepare_call(int calltype, udvt_entry *functionblock)
 		    udv->udv_value = eval_parameters[call_argc];
 		    if (udv->udv_value.type == STRING)
 			udv->udv_value.v.string_val = strdup(udv->udv_value.v.string_val);
+		    if (udv->udv_value.type == ARRAY) {
+			/* local arrays are freed only by lf_exit_scope() */
+			make_array_permanent(&(udv->udv_value));
+			udv->udv_value.v.value_array[0].type = LOCAL_ARRAY;
+		    }
 		    lf_head->local_variables = TRUE;
 		}
 	    }
@@ -585,6 +590,18 @@ lf_top()
     return (lf_head->fp);
 }
 
+/* Guard against deleting or overwriting a script we are running from */
+TBOOLEAN
+called_from(const char *name)
+{
+    LFS *frame = lf_head;
+    for (frame = lf_head; frame; frame = frame->prev) {
+	if (frame->name && !strcmp(name, frame->name))
+	    return TRUE;
+    }
+    return FALSE;
+}
+
 /* Clean up from error inside a "load" or "call" scope
  * (called from main).
  */
@@ -616,6 +633,12 @@ lf_exit_scope(int depth)
 	name = &(udv->udv_name[12]);
 	restored_udv = get_udv_by_name(name);
 	if (restored_udv) {
+	    if (restored_udv->udv_value.type == ARRAY) {
+		int subtype = restored_udv->udv_value.v.value_array[0].type;
+		if (subtype != TEMP_ARRAY && subtype != LOCAL_ARRAY)
+		    /* prevents free_value from deleting permanent array content */
+		    restored_udv->udv_value.type = NOTDEFINED;
+	    }
 	    free_value(&restored_udv->udv_value);
 	    restored_udv->udv_value = udv->udv_value;
 	    /* It is not sufficient to mark the shadow copy NOTDEFINED because if

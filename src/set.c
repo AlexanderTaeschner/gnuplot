@@ -174,6 +174,7 @@ static void set_style_parallel(void);
 static void set_style_spiderplot(void);
 static void set_spiderplot(void);
 static void parse_lighting_options(void);
+static void parse_spotlight_options(void);
 
 static const struct position default_position
 	= {first_axes, first_axes, first_axes, 0., 0., 0.};
@@ -442,6 +443,10 @@ set_command()
 	    break;
 	case S_WALL:
 	    set_wall();
+	    break;
+	case S_WARNINGS:
+	    c_token++;
+	    suppress_warnings = FALSE;
 	    break;
 	case S_SAMPLES:
 	    set_samples();
@@ -818,7 +823,7 @@ set_arrow()
 	    if (set_end) { duplication = TRUE; break; }
 	    this_arrow->type = arrow_end_oriented;
 	    c_token++;
-	    get_position_default(&this_arrow->end, first_axes, 1);
+	    get_position_default(&this_arrow->end, first_axes, TRUE, 1);
 	    set_end = TRUE;
 	    continue;
 	}
@@ -2593,7 +2598,7 @@ set_key()
 	case S_KEY_KEYWIDTH:
 	/* override automatic calculation of width */
 	    c_token++;
-	    get_position_default(&key->user_width, screen, 1);
+	    get_position_default(&key->user_width, screen, TRUE, 1);
 	    if (key->user_width.scalex != screen && key->user_width.scalex != graph) {
 		int_warn( c_token-2, "keywidth must be in graph or screen coordinates");
 		key->user_width.scalex = screen;
@@ -2604,7 +2609,7 @@ set_key()
 
 	case S_KEY_OFFSET:
 	    c_token++;
-	    get_position_default(&key->offset, character, 2);
+	    get_position_default(&key->offset, character, FALSE, 2);
 	    c_token--;  /* will be incremented again soon */
 	    break;
 
@@ -3492,6 +3497,21 @@ set_colorbox()
 	    case S_COLORBOX_DEFAULT: /* "def$ault" */
 		color_box.where = SMCOLOR_BOX_DEFAULT;
 		continue;
+	    /* color box where: bottom of page */
+	    /* Translates to
+	     *  set colorbox horizontal
+	     *      user origin screen 0.1, 0.07 size screen 0.8, 0.03
+	     */
+	    case S_COLORBOX_BOTTOM:
+		{
+		struct position origin = {screen, screen, screen, 0.1, 0.07, 0.0};
+		struct position size =   {screen, screen, screen, 0.8, 0.03, 0.0};
+		color_box.where = SMCOLOR_BOX_USER;
+		color_box.rotation = 'h';
+		color_box.origin = origin;
+		color_box.size = size;
+		}
+		continue;
 	    /* color box where: position by user */
 	    case S_COLORBOX_USER: /* "u$ser" */
 		color_box.where = SMCOLOR_BOX_USER;
@@ -3538,7 +3558,7 @@ set_colorbox()
 		    int_error(c_token, "expecting screen value [0 - 1]");
 		} else {
 		    /* FIXME: should be 2 but old save files may have 3 */
-		    get_position_default(&color_box.origin, screen, 3);
+		    get_position_default(&color_box.origin, screen, FALSE, 3);
 		}
 		c_token--;
 		continue;
@@ -3549,7 +3569,7 @@ set_colorbox()
 		    int_error(c_token, "expecting screen value [0 - 1]");
 		} else {
 		    /* FIXME: should be 2 but old save files may have 3 */
-		    get_position_default(&color_box.size, screen, 3);
+		    get_position_default(&color_box.size, screen, FALSE, 3);
 		}
 		c_token--;
 		continue;
@@ -3744,6 +3764,10 @@ set_pm3d()
 
 	    case S_PM3D_LIGHTING_MODEL:
 		parse_lighting_options();
+		continue;
+
+	    case S_PM3D_SPOTLIGHT:
+		parse_spotlight_options();
 		continue;
 
 	    } /* switch over pm3d lookup table */
@@ -4074,7 +4098,7 @@ set_obj(int tag, int obj_type)
 			get_position(&this_rect->tr);
 		    } else if (equals(c_token,"rto")) {
 			c_token++;
-			get_position_default(&this_rect->tr, this_rect->bl.scalex, 2);
+			get_position_default(&this_rect->tr, this_rect->bl.scalex, TRUE, 2);
 			if (this_rect->bl.scalex != this_rect->tr.scalex
 			||  this_rect->bl.scaley != this_rect->tr.scaley)
 			    int_error(c_token,"relative coordinates must match in type");
@@ -4207,7 +4231,7 @@ set_obj(int tag, int obj_type)
 			} else /* "rto" */ {
 			    int v = this_polygon->type;
 			    get_position_default(&this_polygon->vertex[v],
-						  this_polygon->vertex->scalex, 2);
+						  this_polygon->vertex->scalex, TRUE, 2);
 			    if (this_polygon->vertex[v].scalex != this_polygon->vertex[v-1].scalex
 			    ||  this_polygon->vertex[v].scaley != this_polygon->vertex[v-1].scaley)
 				int_error(c_token,"relative coordinates must match in type");
@@ -4661,6 +4685,8 @@ set_style()
     }
     case SHOW_STYLE_INCREMENT:
 	c_token++;
+	int_warn(c_token, "deprecated command");
+#ifdef BACKWARD_COMPATIBILITY
 	if (END_OF_COMMAND || almost_equals(c_token,"def$ault"))
 	    prefer_line_styles = FALSE;
 	else if (almost_equals(c_token,"u$serstyles"))
@@ -4668,6 +4694,9 @@ set_style()
 	else
 	    int_error(c_token,"unrecognized option");
 	c_token++;
+#else
+	while (!END_OF_COMMAND) c_token++;
+#endif
 	break;
     case SHOW_STYLE_BOXPLOT:
 	set_boxplot();
@@ -5078,7 +5107,7 @@ set_timestamp()
 
 	if (almost_equals(c_token,"off$set")) {
 	    c_token++;
-	    get_position_default(&(timelabel.offset), character, 3);
+	    get_position_default(&(timelabel.offset), character, TRUE, 3);
 	    continue;
 	}
 
@@ -5468,7 +5497,7 @@ set_tic_prop(struct axis *this_axis)
 	    } else if (almost_equals(c_token, "off$set")) {
 		++c_token;
 		get_position_default(&this_axis->ticdef.offset,
-				     character, 3);
+				     character, TRUE, 3);
 	    } else if (almost_equals(c_token, "nooff$set")) {
 		++c_token;
 		this_axis->ticdef.offset = default_offset;
@@ -6218,7 +6247,7 @@ parse_label_options( struct text_label *this_label, int ndim)
 
 	if (! set_offset && almost_equals(c_token, "of$fset")) {
 	    c_token++;
-	    get_position_default(&offset, character, ndim);
+	    get_position_default(&offset, character, TRUE, ndim);
 	    set_offset = TRUE;
 	    continue;
 	}
@@ -6392,6 +6421,45 @@ parse_lighting_options()
 	break;
     }
 
+    c_token--;
+}
+
+/*
+ * set pm3d spotlight {rot_x <phi>} {rot_z <psi>} {rgbcolor <color>}
+ * set pm3d spotlight default
+ */
+static void
+parse_spotlight_options()
+{
+    c_token++;
+    while (!END_OF_COMMAND) {
+	if (equals(c_token, "rot_x")) {
+	    c_token++;
+	    pm3d_shade.spec2_rot_x = real_expression();
+	    continue;
+	}
+	if (equals(c_token, "rot_z")) {
+	    c_token++;
+	    pm3d_shade.spec2_rot_z = real_expression();
+	    continue;
+	}
+	if (almost_equals(c_token, "rgb$color")) {
+	    c_token++;
+	    pm3d_shade.spec2_rgb = parse_color_name();
+	    continue;
+	}
+	if (almost_equals(c_token, "Phong")) {
+	    c_token++;
+	    pm3d_shade.spec2_Phong = fabs(real_expression());
+	    continue;
+	}
+	if (equals(c_token, "default")) {
+	    c_token++;
+	    reset_spotlight();
+	    continue;
+	}
+	break;
+    }
     c_token--;
 }
 

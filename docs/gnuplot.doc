@@ -373,6 +373,7 @@ C
 #b The `load` and `call` commands can input commands from a datablock as an
 ## alternative to reading them from a file.
 #b New syntax  `if ... else if ... else ...`
+#b `unset warnings` suppresses output of warning messages to the console.
 #end
 
 3 New terminals and terminal options
@@ -432,6 +433,7 @@ C
 ## number of columns available in the current line of data.  For example
 ## "plot FOO using 0:(column($# - 1))" plots the last-but-one field of each row.
 #b keyword `binvalue=avg` plots average, rather than sum, of binned data.
+#b `set colorbox bottom` places the color box underneath the plot.
 #b `set colorbox cbtics <linestyle>` affects cbtics but not other tics.
 #b Improved rendering of intersecting pm3d surfaces - overlapping surface tiles
 ## are split into two pieces along the line of intersection so that tiles
@@ -735,8 +737,6 @@ C
 #b The default format for axis labels is "% h" ("$%h$" for LaTeX terminals).
 ## This format is like the C standard format %g except that the exponential term,
 ## if present, is written using a superscript.  E.g. 1.2 x 10^5 rather than 1.2E05.
-#b Command scripts may place in-line data in a named data block for repeated
-## plotting. See `inline data`.
 #b Support for 32-bit Alpha channel + RGB color #AARRGGBB.  See `colorspec`.
 #b Support for HSV color space via a translation function hsv2rgb(H,S,V).
 #b Secondary axes (x2, y2) may be locked to the primary axis via a mapping
@@ -797,7 +797,7 @@ C
  variables and thus may either be referenced directly or expanded as macros,
  e.g. @ARG1.  The contents of ARG0 ... ARG9 may alternatively be accessed as
  array elements ARGV[0] ... ARGV[ARGC].  An older gnuplot convention of
- referencing call parameters as tokens $0 ... $9 is deprecated.
+ referencing call parameters as tokens $0 ... $9 is deprecated in version 5.
 
  * The optional bandwidth for the kernel density smoothing option is taken from
  a keyword rather than a data column.  See `smooth kdensity`.
@@ -3782,8 +3782,11 @@ C ... and restart the table:
  other types of persistent variables.  The end-of-data delimiter (EOD in the
  example) may be any sequence of alphanumeric characters.
 
+ For a parallel mechanism that stores executable commands rather than data in
+ a named block, see `function blocks`.
+
  The storage associated with named data blocks can be released using `undefine`
- command. `undefine $*` frees all named data blocks at once.
+ command. `undefine $*` frees all named data and function blocks at once.
 2 iteration
 ?iteration
 ?iterate
@@ -4001,7 +4004,7 @@ Ffigure_newsyntax
  `fillcolor palette <colormap>` maps the z coordinate of a plot element onto
  a previously saved named colormap instead of using the current palette.
  See `set colormap`.
- This option is EXPERIMENTAL. Details may change.
+
  If the colormap has a separate range associated with it, that range is used
  to map z values analogous to the use of cbrange to map the standard palette.
  If there is no separate range for this colormap then cbrange is used.
@@ -5502,7 +5505,7 @@ Ffigure_sparsematrix
  (see `sparse`) and it is also possible to mask out only a portion of the grid
  for display (see `masking`).  These pixel-based heat maps all have the property
  that each pixel in the map corresponds exactly to one original data value.
- Unless there are a large number of grid element, it is usually a good idea to
+ Unless there are a large number of grid elements, it is usually a good idea to
  render each rectangular element separately (`with image pixels`) so that
  smoothing or lossy compression is not applied to the resulting "image".
 
@@ -6355,6 +6358,7 @@ Ffigure_xerrorbars
       4 columns:  x  y  xlow  xhigh
 
  An additional input column (4th or 5th) may be used to provide variable color.
+ This style does not permit variable point properties.
 
 2 xyerrorbars
 ?plotting styles xyerrorbars
@@ -6379,8 +6383,8 @@ Ffigure_xyerrorbars
 
        plot 'data' using 1:2:($1-$3):($1+$3):4:5 with xyerrorbars
 
- An additional input column (5th or 7th) may be used to provide variable
- (per-datapoint) color information.
+ An additional input column (5th or 7th) may be used to provide variable color.
+ This style does not permit variable point properties.
 
 2 xerrorlines
 ?plotting styles xerrorlines
@@ -6399,6 +6403,7 @@ Ffigure_xerrorlines
       4 columns:  x  y  xlow  xhigh
 
  An additional input column (4th or 5th) may be used to provide variable color.
+ This style does not permit variable point properties.
 
 2 xyerrorlines
 ?plotting styles xyerrorlines
@@ -6424,8 +6429,8 @@ Ffigure_xyerrorlines
 
        plot 'data' using 1:2:($1-$3):($1+$3):4:5 with xyerrorlines
 
- An additional input column (5th or 7th) may be used to provide variable
- (per-datapoint) color information.
+ An additional input column (5th or 7th) may be used to provide variable color.
+ This style does not permit variable point properties.
 
 2 yerrorbars
 ?plotting styles yerrorbars
@@ -6477,7 +6482,8 @@ Ffigure_yerrorlines
       3 columns:  x  y  ydelta
       4 columns:  x  y  ylow  yhigh
 
- An additional input column (4th or 5th) may be used to provide variable color.
+ Additional input columns may be used to provide information such as variable
+ point size, point type, or color.
 
  See also
 ^ <a href="http://www.gnuplot.info/demo/mgr.html">
@@ -6680,13 +6686,8 @@ Ffigure_zerror
 ?call
  The `call` command is identical to the `load` command with one exception:
  the name of the file being loaded may be followed by up to nine parameters.
- EXPERIMENTAL: Commands can be read from a datablock rather than a file.
 
       call "inputfile" <param-1> <param-2> <param-3> ... <param-9>
-
- Previous versions of gnuplot performed macro-like substitution of the special
- tokens $0, $1, ... $9 with the literal contents of these parameters.
- This mechanism is now deprecated (see `call old-style`).
 
  Gnuplot now provides a set of string variables ARG0, ARG1, ..., ARG9 and an
  integer variable ARGC. When a `call` command is executed ARG0 is set to the
@@ -6703,6 +6704,13 @@ Ffigure_zerror
  In parallel the string parameters ARG1 ... ARG9 the passed parameters are
  stored in an array ARGV[9].  See `argv`.
 
+ DEPRECATED: Versions prior to 5.0 performed macro-like substitution of the
+ special tokens $0, $1, ... $9 with the literal contents of <param-1> ...
+ That older mechanism is now deprecated.
+
+ EXPERIMENTAL:  Function blocks (new in this version) provide a more flexible
+ alternative to `call`.  See `function blocks`.
+ 
 3 argv[ ]
 ?argv
 ?ARGV
@@ -6754,38 +6762,6 @@ Ffigure_zerror
 
       gnuplot -persist -c "script1.gp" "sin(x)" 1.23 "This is a plot title"
 
-3 old-style
-?commands call old-style
-?call old-style
- [DEPRECATED] This describes the call mechanism used by old versions of gnuplot.
-
-       call "<input-file>" <param-0> <param-1> ... <param-9>
-
- The name of the input file must be enclosed in quotes.
- As each line is read from the input file, it is scanned for the following
- special character sequences: $0 $1 $2 $3 $4 $5 $6 $7 $8 $9 $#.  If found, the
- sequence `$`+digit is replaced by the corresponding parameter from the `call`
- command line. Quote characters are not copied and string variable substitution
- is not performed. The character sequence `$#` is replaced by the number of
- passed parameters. `$` followed by any other character is treated as an escape
- sequence; use `$$` to get a single `$`.
-
- Example:
-
- If the file 'calltest.gp' contains the line:
-       print "argc=$# p0=$0 p1=$1 p2=$2 p3=$3 p4=$4 p5=$5 p6=$6 p7=x$7x"
-
- entering the command:
-       call 'calltest.gp' "abcd" 1.2 + "'quoted'" -- "$2"
-
- will display:
-       argc=7 p0=abcd p1=1.2 p2=+ p3='quoted' p4=- p5=- p6=$2 p7=xx
-
- NOTES: This use of the `$` character conflicts both with gnuplot's own syntax
- for datafile columns and with the use of `$` to indicate environmental
- variables in a unix-like shell. The special sequence `$#` was mis-interpreted
- as a comment delimiter in gnuplot versions 4.5 through 4.6.3.  Quote characters
- are ignored during substitution, so string constants are easily corrupted.
 2 clear
 ?commands clear
 ?clear
@@ -6840,11 +6816,12 @@ Ffigure_zerror
 2 evaluate
 ?commands evaluate
 ?evaluate
- The `evaluate` command executes gnuplot commands contained in a string.
- Newline characters are not allowed within the string.
+ The `evaluate` command executes gnuplot commands contained in a string
+ or in a function block.  Newline characters are not allowed within the string.
 
       evaluate "commands in a string constant"
       evaluate <commands produced by a string-valued expression>
+      evaluate $functionblock( ... arguments ... )
 
  This is especially useful for a repetition of similar commands.
 
@@ -7471,7 +7448,9 @@ Ffigure_zerror
  See `local` and `scope`.
 
  Once the function block is defined, you can invoke it by name anywhere that
- a normal function could be used.
+ a normal function could be used.  If the return value is not relevent, the
+ function block may be invoked by an "evaluate" command rather than as part
+ of an assignment expression.
 
  Example:
       function $sinc(arg) << EOF
@@ -7685,10 +7664,9 @@ Ffigure_zerror
 ?load
  The `load` command executes each line of the specified input file as if it
  had been typed in interactively.  Files created by the `save` command can
- later be `load`ed.  Any text file containing valid commands can be created
- and then executed by the `load` command.  Files being `load`ed may themselves
- contain `load` or `call` commands.  To `load` with arguments, see `call`.
- EXPERIMENTAL: Commands can be read from a datablock rather than a file.
+ later be `load`ed.  Any text file containing valid gnuplot commands can be
+ executed by a `load` command.  Files being loaded may themselves contain
+ `load` or `call` commands.  To pass arguments to a loaded file, see `call`.
 
  Syntax:
        load "<input-file>"
@@ -7711,6 +7689,13 @@ Ffigure_zerror
  The `load` command is performed implicitly on any file names given as
  arguments to `gnuplot`.  These are loaded in the order specified, and
  then `gnuplot` exits.
+
+ EXPERIMENTAL:  It is also possible to execute commands from lines of text
+ stored internally. See `function blocks`. A function block may be defined
+ in-line or in an external file. Once the function block has been loaded
+ the commands may be executed repeatedly using `evaluate` on the internal
+ copy rather than reloading the file.
+
 2 local
 ?local
 ?commands local
@@ -8716,7 +8701,6 @@ Ffigure_convex_hull
        plot 'data_file' using 1:2:(sw($3,100)) smooth acsplines
        splot 'data_file' using 1:2:3:(sw($4,100)) smooth acsplines
 
- EXPERIMENTAL:
  `splot ... smooth acsplines with lines` fits splines to the x, y, and z
  coordinates of successive data points.  Unlike the 2D case, the points are not
  sorted first so it is possible to fit splines to a trajectory containing loops.
@@ -10880,14 +10864,14 @@ Ffigure_smooth_path
 ?unset colorbox
 ?colorbox
 
- The color scheme, i.e. the gradient of the smooth color with min_z and
- max_z values of `pm3d`'s `palette`, is drawn in a color box unless `unset
- colorbox`.
+ For plots that use palette coloring, in particular pm3d plots, the palette
+ gradient is drawn in a color box next to the plot unless it is switched off
+ by `unset colorbox`.
 
        set colorbox
        set colorbox {
                   { vertical | horizontal } {{no}invert}
-                  { default | user }
+                  { default | bottom | user }
                   { origin x, y }
                   { size x, y }
                   { front | back }
@@ -10896,19 +10880,22 @@ Ffigure_smooth_path
        show colorbox
        unset colorbox
 
- Color box position can be `default` or `user`.  If the latter is specified the
- values as given with the `origin` and `size` subcommands are used. The box
- can be drawn after (`front`) or before (`back`) the graph or the surface.
+ The orientation of the color gradient is set by `vertical` or `horizontal`.
 
- The orientation of the color gradient can be switched by options `vertical`
- and `horizontal`.
+ The color box position can be `default` or `bottom` or `user`.
+ The `bottom` keyword is a convenience short cut equivalent to
 
- `origin x, y` and `size x, y` are used only in combination with the `user`
- option. The x and y values are interpreted as screen coordinates by default,
- and this is the only legal option for 3D plots. 2D plots, including splot with
- `set view map`, allow any coordinate system to be specified.  Try for example:
-     set colorbox horiz user origin .1,.02 size .8,.04
- which will draw a horizontal gradient somewhere at the bottom of the graph.
+      set colorbox horizontal user origin screen 0.1, 0.07 size 0.8, 0.03.
+
+ If the colorbox is placed underneath the plot, as it is with `bottom`,
+ it may be useful to reserve additional space for it: `set bmargin screen 0.2`.
+ 
+ `origin x, y` and `size x, y` are used to tailor the exact placement in
+ `user` or `bottom` positioning.  The x and y values are interpreted as screen
+ coordinates by default, and this is the only legal option for 3D plots.
+ 2D plots, including splot with `set view map`, allow any coordinate system.
+
+ `back`/`front` control whether the color box is draw before or after the plot.
 
  `border` turns the border on (this is the default). `noborder` turns the border
  off. If an positive integer argument is given after `border`, it is used as a
@@ -12404,19 +12391,25 @@ Ffigure_missing
  turned off by using the `notitle` keyword in the corresponding plot command.
  The text of the titles is controlled by the `set key autotitle` option or by
  the `title` keyword of individual `plot` and `splot` commands.
- Many options are available to control the placement and layout of the key.
 
- Syntax:
+ See `key placement` for syntax of options that affect where the key is placed.
+#TeX \\
+ See `key layout` for syntax of options that affect the content of the key.
+
+ Syntax (global options):
        set key {on|off} {default}
-             {{no}enhanced}
+             {font "<face>,<size>"} {{no}enhanced}
+             {{no}title "<text>" {<font or other text options>}}
              {{no}autotitle {columnheader}}
              {{no}box {<line properties>}} {{no}opaque {fc <colorspec>}}
              {width <width_increment>} {height <height_increment>}
-             {offset <dx>,<dy>}
        unset key
 
  By default the key is placed in the upper right inside corner of the graph.
- For placement options, see `key placement`.
+ The optional `font` becomes the default for all elements of the key.
+ You can provide an option title for the key as a whole that spans the full
+ width of the key at the top.  This title can use different font, color,
+ justification, and enhancement from individual plot titles.
 
  Each component in a plot command is represented in the key by a single line
  containing corresponding title text and a line or symbol or shape
@@ -12424,11 +12417,10 @@ Ffigure_missing
  explicitly in the plot command as `title "text"`.  Using the keyword `notitle`
  in the plot command will suppress generation of the entire line.
  If you want to suppress the text only, use `title ""` in the plot command.
+
  Contour plots generated additional entries in the key (see `cntrlabel`).
  You can add extra lines to the key by inserting a dummy plot command that uses
  the keyword `keyentry` rather than a filename or a function.  See `keyentry`.
- For options to customize the layout of the titles and samples in the key
- see `key layout`.
 
  A box can be drawn around the key (`box {...}`) with user-specified line
  properties.  The `height` and `width` increments (specified in character units)
@@ -12448,9 +12440,11 @@ Ffigure_missing
  or to individual plot titles.
 
  `set key default` restores the default key configuration.
-      set key fixed right top vertical Right noreverse enhanced autotitle
+      set key notitle
       set key nobox noopaque
+      set key fixed right top vertical Right noreverse enhanced autotitle
       set key noinvert samplen 4 spacing 1 width 0 height 0 
+      set key maxcolumns 0 maxrows 0
 
 4 3D key
 ?set key 3D
@@ -12489,7 +12483,6 @@ Ffigure_missing
  and draws a box around it with a thick border:
        set key left bottom Left title 'Legend' box lw 3
 
-#TeX \newpage
 4 extra key entries
 ?key entries
 ?keyentry
@@ -12603,19 +12596,24 @@ Ffigure_keyentry
                {lmargin | rmargin | tmargin | bmargin}
                {at <position>}}
                {left | right | center} {top | bottom | center}
+               {offset <dx>,<dy>}
 
  This section describes placement of the primary, auto-generated key.
  To construct a secondary key or place plot titles elsewhere, see
  `multiple keys`.
 
+#TeX \begin{minipage}{0.5\textwidth}
  To understand positioning, the best concept is to think of a region, i.e.,
  inside/outside, or one of the margins.  Along with the region, keywords
  `left/center/right` (l/c/r) and `top/center/bottom` (t/c/b) control where
  within the particular region the key should be placed.
-
- When in `inside` mode, the keywords `left` (l), `right` (r), `top` (t),
+ In `inside` mode, the keywords `left` (l), `right` (r), `top` (t),
  `bottom` (b), and `center` (c) push the key out toward the plot boundary as
- illustrated:
+ illustrated here:
+
+#TeX \end{minipage}
+#TeX \hspace{0.15\textwidth}
+#TeX \begin{minipage}{0.35\textwidth}
 
       t/l   t/c   t/r
 
@@ -12623,9 +12621,10 @@ Ffigure_keyentry
 
       b/l   b/c   b/r
 
+#TeX \end{minipage}
 
- When in `outside` mode, automatic placement is similar to the above
- illustration, but with respect to the view, rather than the graph boundary.
+ In `outside` mode, automatic placement is similar to the above illustration,
+ but with respect to the view, rather than the graph boundary.
  That is, a border is moved inward to make room for the key outside of
  the plotting area, although this may interfere with other labels and may
  cause an error on some devices.  The particular plot border that is moved
@@ -12635,10 +12634,18 @@ Ffigure_keyentry
  left or right border is moved inward appropriately.  When the stack direction
  is `horizontal`, the top or bottom border is moved inward appropriately.
 
+#TeX \begin{minipage}{0.5\textwidth}
  The margin syntax allows automatic placement of key regardless of stack
  direction.  When one of the margins `lmargin` (lm), `rmargin` (rm),
  `tmargin` (tm), and `bmargin` (bm) is combined with a single, non-conflicting
- direction keyword, the following illustrated positions may contain the key:
+ direction keyword, the key is positioned along the outside of the page
+ as shown here.
+ Keywords `above` and `over` are synonymous with `tmargin`.
+ Keywords `below` and `under` are synonymous with `bmargin`.
+
+#TeX \end{minipage}
+#TeX \hspace{0.1\textwidth}
+#TeX \begin{minipage}{0.4\textwidth}
 
            l/tm  c/tm  r/tm
 
@@ -12651,14 +12658,12 @@ Ffigure_keyentry
            l/bm  c/bm  r/bm
 
 
- Keywords `above` and `over` are synonymous with `tmargin`.  For version
- compatibility, `above` or `over` without an additional l/c/r or stack direction
- keyword uses `center` and `horizontal`.  Keywords `below` and `under` are
- synonymous with `bmargin`.  For compatibility, `below` or `under` without an
- additional l/c/r or stack  direction keyword uses `center` and `horizontal`.  A
- further compatibility issue is that `outside` appearing without an additional
- t/b/c or stack direction keyword uses `top`, `right` and `vertical` (i.e., the
- same as t/rm above).
+#TeX \end{minipage}
+
+ For version compatibility, `above`, `over`, `below`, or `under` without any
+ additional l/c/r or stack direction keyword uses `center` and `horizontal`.
+ The keyword `outside` without any additional t/b/c or stack direction keyword
+ uses `top`, `right` and `vertical` (i.e., the same as t/rm above).
 
  The <position> can be a simple x,y,z as in previous versions, but these can
  be preceded by one of five keywords (`first`, `second`, `graph`, `screen`,
@@ -13189,8 +13194,6 @@ Ffigure_multiple_keys
  useful for latex terminals, for example
       set micro "{\textmu}"
 
- This command is EXPERIMENTAL. Implementation details may change.
-
 3 minussign
 ?commands set minussign
 ?commands show minussign
@@ -13220,8 +13223,6 @@ Ffigure_multiple_keys
  It also is not necessary when using the postscript terminal because the
  postscript prologue output by gnuplot remaps the ascii hyphen code \055 to a
  different glyph named `minus`.
-
- This command is EXPERIMENTAL. Implementation details may change.
 
  Example (assumes utf8 locale):
 
@@ -14734,6 +14735,14 @@ Ffigure_palette2
 ?pm3d lighting
 ?pm3d nolighting
 ?set pm3d lighting
+?spotlight
+?pm3d spotlight
+?set pm3d spotlight
+ Syntax:
+      set pm3d lighting {primary <frac>} {specular <frac>} {spec2 <frac>}
+      set pm3d spotlight {rgb <color>} {rot_x <angle>} {rot_z <angle>}
+                         {Phong <value>} {default}
+
  By default the colors assigned to pm3d objects are not dependent on orientation
  or viewing angle. This state corresponds to `set pm3d nolighting`.
  The command `set pm3d lighting` selects a simple lighting model consisting of a
@@ -14744,15 +14753,21 @@ Ffigure_palette2
       set pm3d lighting primary 0.50 specular 0.0   # no highlights
       set pm3d lighting primary 0.50 specular 0.6   # strong highlights
  Solid-color pm3d surfaces tend to look very flat without specular highlights.
- Since the highlights from a single source only affect one side of the surface,
- a second spotlight source may be desirable to add specular highlights from the
- opposite direction.  This is controlled by "spec2 <contribution>".
- EXPERIMENTAL (details may change in a future version): The second spotlight is
- a pure red light source that by default contributes nothing (spec2 0.0).
+
+ Since highlights the primary source only affect one side of the surface,
+ it may help to add illumination from a second spotlight shining from another
+ direction.  The strength of this second spotlight is set by "spec2 <fraction>".
+ The second spotlight is included in the lighting model only if spec2 is greater
+ than zero.  The direction, color, and specular model is controlled by
+ "set pm3d spotlight".  Use and positioning of this spotlight is illustrated
+ in the interactive demo `spotlight.dem`.
  See also hidden_compare.dem
-^ <a href="http://www.gnuplot.info/demo_5.4/hidden_compare.html">
+^ <a href="http://www.gnuplot.info/demo/hidden_compare.html">
  (comparison of hidden3d and pm3d treatment of solid-color surfaces)
 ^ </a>
+ Example:
+      set pm3d lighting primary 0.8 spec 0.4 spec2 0.4
+      set pm3d spot rgb "blue"
 4 position
 ?pm3d position
 ?set pm3d position
@@ -15625,37 +15640,13 @@ Ffigure_polar_grid
        show style function
 4 set style increment
 ?commands set style increment
-?commands show style increment
 ?set style increment
-?show style increment
- `Note`:  This command has been deprecated.  Instead please use the newer
- command `set linetype`, which redefines the linetypes themselves rather
- than searching for a suitable temporary line style to substitute.
- See `set linetype`
-
- Syntax:
-       set style increment {default|userstyles}
-       show style increment
-
  By default, successive plots within the same graph will use successive
- linetypes from the default set for the current terminal type.
- However, choosing `set style increment user` allows you to step through
- the user-defined line styles rather than through the default linetypes.
+ linetypes.  `set style increment userstyles` changes this to step through
+ successive user-defined line styles instead.
 
- Example:
-
-       set style line 1 lw 2 lc rgb "gold"
-       set style line 2 lw 2 lc rgb "purple"
-       set style line 4 lw 1 lc rgb "sea-green"
-       set style increment user
-
-       plot f1(x), f2(x), f3(x), f4(x)
-
- should plot functions f1, f2, f4 in your 3 newly defined line styles.
- If a user-defined line style is not found then the corresponding default
- linetype is used instead.  E.g. in the example above, f3(x) will be plotted
- using the default linetype 3.
-
+ DEPRECATED.  Instead use `set linetype` to redefine a convenient range of
+ linetypes for the program to use.  See `set linetype`.
 4 set style line
 ?commands set style line
 ?commands unset style line
@@ -17977,10 +17968,10 @@ Ffigure_walls
  but requires an additional keyword `nonuniform` for text input data.
  See `nonuniform` for examples.
 
- The `sparse matrix` variant is EXPERIMENTAL. It defines a uniform grid into
- which any number of individual point values are read from the input file,
- one per line, in any order. This is primarily intended for the generation of
- heatmaps from incomplete data.
+ The `sparse matrix` variant defines a uniform grid into which any number of
+ individual point values are read from the input file, one per line,
+ in any order. This is primarily intended for the generation of heatmaps from
+ incomplete data.
  See `sparse` for examples.
 
 5 uniform matrix
@@ -18057,7 +18048,6 @@ Ffigure_walls
 ?sparse
  Syntax:
        sparse matrix=(cols,rows) origin=(x0,y0) dx=<delx> dy=<dely>
- EXPERIMENTAL (version 5.5)
 #TeX \\
  The `sparse` matrix variant defines a uniform grid as part of the
  `plot` or `splot` command line.  The grid is initially empty.
@@ -18644,6 +18634,13 @@ Ffigure_sparsematrix
  It is equivalent to `set terminal GNUTERM`.  However if the string in GNUTERM
  contains terminal options in addition to the bare terminal name, you may want
  to instead use `set terminal @GNUTERM`.
+3 warnings
+?unset warnings
+?set warnings
+ Warning messages (non-fatal errors) are normally printed to stderr after
+ echoing the command line that triggered the warning.
+ Warnings may be suppressed by the command `unset warnings`, and remain
+ suppressed until explicitly reenabled by `set warnings`.
 2 update
 ?commands update
 ?update

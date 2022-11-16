@@ -1623,7 +1623,6 @@ show_style()
 	show_styles("Functions", func_style);
 	show_linestyle(0);
 	show_fillstyle();
-	show_increment();
 	show_histogram();
 	show_textbox();
 	show_style_watchpoint();
@@ -2211,6 +2210,9 @@ show_palette_rgbformulae()
 }
 
 
+/*
+ * "show palette fit2rgbformulae" - DEPRECATED
+ */
 static void
 show_palette_fit2rgbformulae()
 {
@@ -2390,7 +2392,6 @@ show_palette_gradient()
 static void
 show_colornames(const struct gen_table *tbl)
 {
-    int i=0;
     while (tbl->key) {
 	/* Print color names and their rgb values, table with 1 column */
 	int r = ((tbl->value >> 16 ) & 255);
@@ -2400,7 +2401,6 @@ show_colornames(const struct gen_table *tbl)
 	fprintf( stderr, "\n  %-18s ", tbl->key );
 	fprintf(stderr, "#%02x%02x%02x = %3i %3i %3i", r,g,b, r,g,b);
 	++tbl;
-	++i;
     }
     fputs( "\n", stderr );
     ++c_token;
@@ -2608,12 +2608,6 @@ show_pm3d()
 	save_linetype(stderr, &(pm3d.border), FALSE);
 	fprintf(stderr,"\n");
     }
-    if (pm3d_shade.strength > 0) {
-	fprintf(stderr,"\tlighting primary component %g specular component %g",
-		pm3d_shade.strength, pm3d_shade.spec);
-	fprintf(stderr," second spot contribution %g\n",
-		pm3d_shade.spec2);
-    }
     fprintf(stderr,"\tsteps for bilinear interpolation: %d,%d\n",
 	 pm3d.interp_i, pm3d.interp_j);
     fprintf(stderr,"\tquadrangle color according to ");
@@ -2626,6 +2620,10 @@ show_pm3d()
 	case PM3D_WHICHCORNER_MAX: fputs("maximum of 4 corners\n", stderr); break;
 	case PM3D_WHICHCORNER_RMS: fputs("root mean square of 4 corners\n", stderr); break;
 	default: fprintf(stderr, "corner %i\n", pm3d.which_corner_color - PM3D_WHICHCORNER_C1 + 1);
+    }
+    if (pm3d_shade.strength > 0) {
+	fprintf(stderr, "\tLighting model:\n");
+	save_pm3d_lighting(stderr, "\t");
     }
 }
 
@@ -2915,11 +2913,15 @@ show_hidden3d()
 static void
 show_increment()
 {
+#ifdef BACKWARD_COMPATIBILITY
     fprintf(stderr,"\tPlot lines increment over ");
     if (prefer_line_styles)
 	fprintf(stderr, "user-defined line styles rather than default line types\n");
     else
 	fprintf(stderr, "default linetypes\n");
+#else
+    fprintf(stderr,"\t'set style increment' is deprecated\n");
+#endif
 }
 
 static void
