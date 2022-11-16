@@ -185,6 +185,7 @@
     <ClCompile Include="..\..\..\..\src\encoding.c" />
     <ClCompile Include="..\..\..\..\src\eval.c" />
     <ClCompile Include="..\..\..\..\src\external.c" />
+    <ClCompile Include="..\..\..\..\src\filters.c" />
     <ClCompile Include="..\..\..\..\src\fit.c" />
     <ClCompile Include="..\..\..\..\src\gadgets.c" />
     <ClCompile Include="..\..\..\..\src\getcolor.c" />
