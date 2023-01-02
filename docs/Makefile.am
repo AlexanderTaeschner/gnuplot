@@ -197,36 +197,33 @@ doc2ms_CPPFLAGS = -DALL_TERM_DOC $(AM_CPPFLAGS)
 ### PDF documentation can inset figures using either tikz+wrapfig or pdf+picins
 pdf_figures: $(GNUPLOT_EXE) $(srcdir)/plotstyles.gnu
 	$(AM_V_at)GNUPLOT_LIB=$(top_srcdir)/demo $(GNUPLOT_EXE) $(srcdir)/plotstyles.gnu
-	  rm -f gpinsetfigure.tex ; \
-	  ( echo "\usepackage{graphicx}" > gpinsetfigure.tex ; \
-	    echo "\usepackage{picins}" >> gpinsetfigure.tex ; \
-	    echo "\newcommand{\gpinsetfigure}[1]{" >> gpinsetfigure.tex ; \
-	    echo "  \parpic[r][rt]{\includegraphics[width=3in,keepaspectratio]{#1}}" >> gpinsetfigure.tex ; \
-	    echo "}" >> gpinsetfigure.tex ; \
-	  ) ; \
+	rm -f gpinsetfigure.tex
+	printf '%s\n' '\usepackage{graphicx}' \
+		'\usepackage{picins}' \
+		'\newcommand{\gpinsetfigure}[1]{' \
+		'  \parpic[r][rt]{\includegraphics[width=3in,keepaspectratio]{#1}}' \
+		'}' > gpinsetfigure.tex
 	$(AM_V_GEN)touch $@
-	$(AM_V_GEN)touch figurestyle
+	$(AM_V_at)touch figurestyle
 
 tikz_figures: $(GNUPLOT_EXE) $(srcdir)/plotstyles.gnu
 	$(AM_V_at)GNUPLOT_LIB=$(top_srcdir)/demo GNUTERM=tikz $(GNUPLOT_EXE) $(srcdir)/plotstyles.gnu
-	  rm -f gpinsetfigure.tex ; \
-	  ( echo "\usepackage{gnuplot-lua-tikz}" > gpinsetfigure.tex ; \
-	    echo "\usepackage{wrapfig}" >> gpinsetfigure.tex ; \
-	    echo "\newcommand{\gpinsetfigure}[1]{" >> gpinsetfigure.tex ; \
-	    echo "    \begin{wrapfigure}[10]{r}{3.0in}" >> gpinsetfigure.tex ; \
-	    echo "    \vspace{-20pt} \input{#1} \vspace{-20pt}" >> gpinsetfigure.tex ; \
-	    echo "    \end{wrapfigure}" >> gpinsetfigure.tex ; \
-	    echo "}" >> gpinsetfigure.tex ; \
-	  ) ; \
+	rm -f gpinsetfigure.tex
+	printf '%s\n' '\usepackage{gnuplot-lua-tikz}' \
+		'\usepackage{wrapfig}' \
+		'\newcommand{\gpinsetfigure}[1]{' \
+		'    \begin{wrapfigure}[10]{r}{3.0in}' \
+		'    \vspace{-20pt} \input{#1} \vspace{-20pt}' \
+		'    \end{wrapfigure}' \
+		'}' > gpinsetfigure.tex
 	$(AM_V_GEN)touch $@
-	$(AM_V_GEN)touch figurestyle
+	$(AM_V_at)touch figurestyle
 
 no_figures:
-	  rm -f gpinsetfigure.tex ; \
-	  ( echo "\newcommand{\gpinsetfigure}[1]{}" > gpinsetfigure.tex ; \
-	  ) ; \
+	rm -f gpinsetfigure.tex
+	printf '%s\n' '\newcommand{\gpinsetfigure}[1]{}' > gpinsetfigure.tex
 	$(AM_V_GEN)touch $@
-	$(AM_V_GEN)touch figurestyle
+	$(AM_V_at)touch figurestyle
 
 gpinsetfigure.tex: no_figures
 	$(AM_V_GEN) touch $@
@@ -290,7 +287,7 @@ gnuplot.ps: gnuplot.dvi
 # Known limitations:
 # - The title page is not completely translated.
 # - Only the original English keywords appear in the index and hyperlinks.
-# - gnuplot-tikz-ja.help is converted to utf8 but not actually included
+# - gnuplot-tikz-ja.help can be converted to utf8 but not actually included
 #   in the resulting *.tex file because this happens too late in the
 #   build process
 allterm-ja.h: $(CORETERM) $(LUA_HELP)
@@ -299,7 +296,6 @@ allterm-ja.h: $(CORETERM) $(LUA_HELP)
 	cp doc2rtf.c ja/docs
 	cp -r $(top_srcdir)/term $(TJ)
 	-( cd ja ; patch -p0 < ../term-ja.diff )
-	iconv -f EUC-JP -t UTF-8 < $(TJ)lua/gnuplot-tikz-ja.help > $(TJ)lua/gnuplot-tikz-ja.utf8
 	$(AM_V_GEN) for e in `grep -E "^[ 	]*START_HELP" $(JATERM) |\
 	     LC_ALL=C sort -f -t':' -k2` ; do \
 	  f=`echo $$e |cut -d\: -f1` ; s=`echo $$e | cut -d\: -f2` ;\
