@@ -450,9 +450,11 @@ wxtFrame::wxtFrame( const wxString& title, wxWindowID id )
 	toolbar->AddTool(Toolbar_CopyToClipboard, wxT("Copy"),
 				wxArtProvider::GetBitmap(wxART_PASTE, wxART_TOOLBAR),
 				wxT("Copy plot to clipboard"));
+#ifndef DISABLE_FILEBROWSERS
 	toolbar->AddTool(Toolbar_ExportToFile, wxT("Export"),
 				wxArtProvider::GetBitmap(wxART_FILE_SAVE_AS, wxART_TOOLBAR),
 				wxT("Export plot to file"));
+#endif
 #ifdef WXT_PRINT
 	toolbar->AddTool(Toolbar_Print, wxT("Print"),
 				wxArtProvider::GetBitmap(wxART_PRINT, wxART_TOOLBAR),

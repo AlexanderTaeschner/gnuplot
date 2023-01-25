@@ -1162,7 +1162,7 @@ show_version(FILE *fp)
 
 	/* configuraton options related to security */
 	fprintf(stderr, "Security-related configuration options:\n");
-	fprintf(stderr, "    %s %s %s %s\n",
+	fprintf(stderr, "    %s %s %s\n",
 #ifdef ENABLE_SHELL_COMMAND
 	"--enable-shell"
 #else
@@ -1180,11 +1180,18 @@ show_version(FILE *fp)
 #else
 	"--disable-backticks"
 #endif
-	,
+	);
+	fprintf(stderr, "    %s %s\n",
 #ifdef PIPES
 	"--enable-pipes"
 #else
 	"--disable-pipes"
+#endif
+	,
+#ifdef DISABLE_FILEBROWSERS
+	"--disable-filebrowsers"
+#else
+	"--enable-filebrowsers"
 #endif
 	);
 

@@ -795,7 +795,6 @@ AC_ARG_ENABLE(raise-console,dnl
                 [ Define to treat spacebar like any other keystroke. ])
   fi
 
-
 dnl  wxWidgets terminal
 
 dnl wxWidgets terminal needs C++
@@ -1104,6 +1103,12 @@ dnl               output filename given as "| shell-command"
 dnl --disable-pipes
 dnl             Reject filenames starting with "<" or "|". (some functionality is lost)
 dnl
+dnl --enable-filebrowsers
+dnl             wxt and qt terminals display an export widget that includes a file browser.
+dnl             (default)
+dnl --disable-filebrowsers
+dnl             wxt and qt terminals will not display an export widget.
+dnl
 AC_ARG_ENABLE(shell,dnl
   [
 Security-related settings:
@@ -1140,7 +1145,6 @@ fi
 AC_ARG_ENABLE(pipes,dnl
   [--enable-pipes                 allow piped input and output (default)
   --disable-pipes                do not allow piped input or output
-
   ], ,
   [ enable_pipes=yes
   ])
@@ -1149,6 +1153,20 @@ if test "$ac_cv_func_pclose" = yes -a "$ac_cv_func_popen" = yes ; then
   if test "$enable_pipes" != no; then
     AC_DEFINE(PIPES,1,[ Define if you want support for piping input/output using popen(). ])
   fi
+fi
+
+dnl Disable the file export widget in wxt and qt terminals
+dnl This may be an appropriate security measure if you do not want users
+dnl to be able to browse the file system via the export menus.
+AC_ARG_ENABLE(filebrowsers,dnl
+  [--enable-filebrowsers          wxt and qt export widgets include a file browser (default)
+  --disable-filebrowsers         wxt and qt terminals will not display an export widget
+
+  ],
+  test -z "$enable_filebrowsers" && enable_filebrowsers=no,)
+
+if test "$enable_filebrowsers" = no; then
+  AC_DEFINE(DISABLE_FILEBROWSERS,1, [ Define to omit export widgets from qt and wxt terminals.])
 fi
 
 dnl     ============================================================
@@ -1555,6 +1573,12 @@ if test "$enable_pipes" = no; then
 else
   AC_MSG_RESULT([  piped input/output:            piped input from filename "< shell-command"])
   AC_MSG_RESULT([                                 piped output to filename  "| shell-command"])
+fi
+
+if test "$enable_filebrowsers" = no; then
+  AC_MSG_RESULT([  file browsers:                 wxt and qt terminals do not display an export widget])
+else
+  AC_MSG_RESULT([  file browsers:                 present in wxt and qt export widgets (default)])
 fi
 
 AC_MSG_RESULT([])

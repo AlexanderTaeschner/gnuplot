@@ -51,6 +51,7 @@
 #include "QtGnuplotEvent.h"
 
 extern "C" {
+#include "../../config.h"	/* for DISABLE_FILEBROWSERS */
 #include "../mousecmn.h"
 }
 
@@ -96,19 +97,24 @@ QtGnuplotWindow::QtGnuplotWindow(int id, QtGnuplotEventHandler* eventHandler, QW
 	// Actions
 	QAction* copyToClipboardAction = new QAction(QIcon(":/images/clipboard"   ), tr("Copy to clipboard"), this);
 	QAction* printAction           = new QAction(QIcon(":/images/print"       ), tr("Print"            ), this);
+#ifndef DISABLE_FILEBROWSERS
 	QAction* exportAction          = new QAction(QIcon(":/images/export"      ), tr("Export"           ), this);
 	QAction* exportPdfAction       = new QAction(QIcon(":/images/exportPDF"   ), tr("Export to PDF"    ), this);
 	QAction* exportEpsAction       = new QAction(QIcon(":/images/exportVector"), tr("Export to EPS"    ), this);
 	QAction* exportSvgAction       = new QAction(QIcon(":/images/exportVector"), tr("Export to SVG"    ), this);
 	QAction* exportPngAction       = new QAction(QIcon(":/images/exportRaster"), tr("Export to image"  ), this);
+#endif
 	QAction* settingsAction        = new QAction(QIcon(":/images/settings"    ), tr("Settings"         ), this);
 	connect(copyToClipboardAction, SIGNAL(triggered()), m_widget, SLOT(copyToClipboard()));
 	connect(printAction,           SIGNAL(triggered()), this, SLOT(print()));
+#ifndef DISABLE_FILEBROWSERS
 	connect(exportPdfAction,       SIGNAL(triggered()), this, SLOT(exportToPdf()));
 	connect(exportEpsAction,       SIGNAL(triggered()), m_widget, SLOT(exportToEps()));
 	connect(exportSvgAction,       SIGNAL(triggered()), this, SLOT(exportToSvg()));
 	connect(exportPngAction,       SIGNAL(triggered()), this, SLOT(exportToImage()));
+#endif
 	connect(settingsAction,        SIGNAL(triggered()), this, SLOT(showSettingsDialog()));
+#ifndef DISABLE_FILEBROWSERS
 	QMenu* exportMenu = new QMenu(this);
 	exportMenu->addAction(copyToClipboardAction);
 	exportMenu->addAction(printAction);
@@ -123,6 +129,7 @@ QtGnuplotWindow::QtGnuplotWindow(int id, QtGnuplotEventHandler* eventHandler, QW
 	if (exportButton) {
 		connect(exportAction, SIGNAL(triggered(bool)), exportButton, SLOT(showMenu()));
 	}
+#endif
 	createAction(tr("Replot")       , 'e', ":/images/replot");
 	createAction(tr("Show grid")    , 'g', ":/images/grid");
 	createAction(tr("Previous zoom"), 'p', ":/images/zoomPrevious");
