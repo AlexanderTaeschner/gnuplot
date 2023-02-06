@@ -33,15 +33,6 @@
 /*
  * Changes:
  *
- * Feb 5, 1992  Jack Veenstra   (veenstra@cs.rochester.edu) Added support to
- * filter data values read from a file through a user-defined function before
- * plotting. The keyword "thru" was added to the "plot" command. Example
- * syntax: f(x) = x / 100 plot "test.data" thru f(x) This example divides all
- * the y values by 100 before plotting. The filter function processes the
- * data before any log-scaling occurs. This capability should be generalized
- * to filter x values as well and a similar feature should be added to the
- * "splot" command.
- *
  * 19 September 1992  Lawrence Crowl  (crowl@cs.orst.edu)
  * Added user-specified bases for log scaling.
  *
@@ -76,6 +67,8 @@
 #include "datafile.h"
 #include "getcolor.h"
 #include "gp_hist.h"
+#include "gplocale.h"
+#include "loadpath.h"
 #include "misc.h"
 #include "parse.h"
 #include "plot.h"
@@ -89,7 +82,6 @@
 #include "tables.h"
 #include "term_api.h"
 #include "util.h"
-#include "variable.h"
 #include "voxelgrid.h"
 #include "external.h"
 
@@ -477,7 +469,6 @@ do_line()
 	if (lf_head && lf_head->depth > 0) {
 	    /* This catches the case that we are inside a "load foo" operation
 	     * and therefore requesting interactive input is not an option.
-	     * FIXME: or is it?
 	     */
 	    int_error(NO_CARET, "Syntax error: missing block terminator }");
 	}
@@ -858,6 +849,7 @@ lower_command(void)
  * Arrays are declared using the syntax
  *    array A[size] { = [ element, element, ... ] }
  *    array A = [ .., .. ]
+ *    array A = <expression>     (only valid if <expression> returns an array)
  * where size is an integer and space is reserved for elements A[1] through A[size]
  * The size itself is stored in A[0].v.int_val.A
  * The list of initial values is optional.
@@ -897,7 +889,20 @@ array_command()
 		break;
 	}
 	nsize = est_size;
+    } else if (equals(c_token, "=")) {
+	/* array A = <expression> */
+	struct value a;
+	int save_token = ++c_token;
+	const_express(&a);
+	if (a.type != ARRAY) {
+	    free_value(&a);
+	    int_error(save_token, "not an array expression");
+	}
+	make_array_permanent(&a);
+	array->udv_value = a;
+	return;
     }
+
     if (nsize > 0)
 	init_array(array, nsize);
     else
@@ -1632,7 +1637,7 @@ link_command()
 	    return;
 	else
 	    secondary_axis->linked_to_primary = NULL;
-	/* FIXME: could return here except for the need to free link_udf->at */
+	/* can't return yet because we need to free link_udf->at */
 	linked = FALSE;
     } else {
 	linked = TRUE;
@@ -1915,9 +1920,6 @@ pause_command()
 	sleep_time = -1;
 	c_token++;
 
-/*	EAM FIXME - This is not the correct test; what we really want */
-/*	to know is whether or not the terminal supports mouse feedback */
-/*	if (term_initialised) { */
 	if (mouse_setting.on && term) {
 	    struct udvt_entry *current;
 	    int end_condition = 0;

@@ -234,7 +234,7 @@ boundary(struct curve_points *plots, int count)
 
     /* Polar (theta) tic labels need space at top and bottom of plot */
     if (THETA_AXIS.ticmode) {
-	/* FIXME:  Really 5% of polar grid radius, but we don't know that yet */
+	/* Really wants to be 5% of polar grid radius, but we don't know that yet */
 	ttic_textheight = 2. * t->v_char;
     }
 
@@ -940,12 +940,6 @@ do_key_bounds(legend_key *key)
     } else {
 	int x, y;
 
-	/* FIXME!!!
-	 * pm 22.1.2002: if key->user_pos.scalex or scaley == first_axes or second_axes,
-	 * then the graph scaling is not yet known and the box is positioned incorrectly;
-	 * you must do "replot" to avoid the wrong plot ... bad luck if output does not
-	 * go to screen
-	 */
 	map_position(&key->user_pos, &x, &y, "key");
 
 	/* Here top, bottom, left, right refer to the alignment with respect to point. */
@@ -1014,10 +1008,10 @@ do_key_layout(legend_key *key)
 	(void) estimate_strlen(key->title.text, &est_height);
 	key_title_height = est_height * t->v_char;
 	key_title_ypos = (key_title_height/2);
-	if (key->title.font)
-	    t->set_font("");
 	/* FIXME: empirical tweak. I don't know why this is needed */
 	key_title_ypos -= (est_lines-1) * t->v_char/2;
+	if (key->title.font)
+	    t->set_font((key->font) ? key->font : "");
     }
 
     if (key->reverse) {
@@ -1320,7 +1314,7 @@ do_key_sample(
 	    /* need_fill_border will set the border linetype, but candlesticks don't want it */
 	    if ((this_plot->plot_style == CANDLESTICKS && fs->border_color.type == TC_LT
 							&& fs->border_color.lt == LT_NODRAW)
-	    ||   style == FS_EMPTY
+	    ||   (style == FS_EMPTY && this_plot->plot_style != POLYGONS)
 	    ||   need_fill_border(fs)) {
 		newpath();
 		draw_clip_line( xl + key_sample_left,  yl - key_sample_height/4,

@@ -39,7 +39,7 @@
 #include "gadgets.h"
 #include "gp_time.h"
 #include "term_api.h"
-#include "variable.h"
+#include "gplocale.h"
 
 /* HBB 20000725: gather all per-axis variables into a struct, and set
  * up a single large array of such structs. Next step might be to use
@@ -317,11 +317,8 @@ extend_parallel_axis(int paxis)
 }
 
 /*
- * Most of the crashes found during fuzz-testing of version 5.1 were a
+ * Most of the crashes found during fuzz-testing of version 5 were a
  * consequence of an axis range being corrupted, i.e. NaN or Inf.
- * Corruption became easier with the introduction of nonlinear axes,
- * but even apart from that autoscaling bad data could cause a fault.
- * NB: Some platforms may need help with isnan() and isinf().
  */
 TBOOLEAN
 bad_axis_range(struct axis *axis)
@@ -612,7 +609,6 @@ copy_or_invent_formatstring(struct axis *this_axis)
 	    double axmax = this_axis->max;
 	    int precision = ceil(-log10(GPMIN(fabs(axmax-axmin),fabs(axmin))));
 	    /* FIXME: Does horrible things for large value of precision */
-	    /* FIXME: Didn't I have a better patch for this? */
 	    if ((axmin*axmax > 0) && 4 < precision && precision < 10)
 		sprintf(tempfmt, "%%.%df", precision);
 	}
@@ -749,7 +745,7 @@ make_tics(struct axis *this_axis, int guide)
     if (xr >= VERYLARGE) {
 	int_warn(NO_CARET, "%s axis range undefined or overflow, resetting to [0:0]",
 	    axis_name(this_axis->index));
-	/* FIXME: this used to be int_error but there were false positives
+	/* This used to be int_error but there were false positives
 	 * (bad range on unused axis).  However letting +/-VERYLARGE through
 	 * can overrun data structures for time conversions. min = max avoids this.
 	 */
@@ -885,9 +881,6 @@ round_outward(
 
     if (this_axis->tictype == DT_TIMEDATE) {
 	double ontime = time_tic_just(this_axis->timelevel, result);
-
-	/* FIXME: how certain is it that we don't want to *always*
-	 * return 'ontime'? */
 	if ((upwards && (ontime > result))
 	||  (!upwards && (ontime < result)))
 	    return ontime;
@@ -1062,7 +1055,7 @@ gen_tics(struct axis *this, tic_callback callback)
 		/* string constant that contains no format keys */
 		ticlabel = mark->label;
 	    } else if (this->index >= PARALLEL_AXES) {
-		/* FIXME: needed because axis->ticfmt is not maintained for parallel axes */
+		/* Needed because axis->ticfmt is not maintained for parallel axes */
 		gprintf(label, sizeof(label),
 			mark->label ? mark->label : this->formatstring,
 			log10_base, mark->position);
@@ -1104,7 +1097,7 @@ gen_tics(struct axis *this, tic_callback callback)
     /* series-tics, either TIC_COMPUTED ("autofreq") or TIC_SERIES (user-specified increment)
      *
      * We need to distinguish internal user coords from user coords.
-     * Now that we have nonlinear axes (as of version 5.2)
+     * Now that we have nonlinear axes
      *  	internal = primary axis, user = secondary axis
      *		TIC_COMPUTED ("autofreq") tries for equal spacing on primary axis
      *		TIC_SERIES   requests equal spacing on secondary (user) axis
@@ -1232,7 +1225,6 @@ gen_tics(struct axis *this, tic_callback callback)
 		    miniend = step;
  		}
 	    } else if (nonlinear(this) && this->ticdef.logscaling) {
-		/* FIXME: Not sure this works for all values of step */
 		ministart = ministep = step / (this->base - 1);
 		miniend = step;
 	    } else if (this->tictype == DT_TIMEDATE) {
@@ -2682,9 +2674,7 @@ extend_autoscaled_log_axis(AXIS *primary)
 }
 
 /*
- * gnuplot version 5.0 always maintained autoscaled range on x1
- * specifically, transforming from x2 coordinates if necessary.
- * In version 5.2 we track the x1 and x2 axis data limits separately.
+ * We track the x1 and x2 axis data limits separately.
  * However if x1 and x2 are linked to each other we must reconcile
  * their data limits before plotting.
  */
@@ -2760,7 +2750,26 @@ int
 map_y(double value)
 {
     double y = map_y_double(value);
-    if(isnan(y)) return intNaN;
+    if (isnan(y))
+	return intNaN;
+    return axis_map_toint(y);
+}
+
+/*
+ * This routine substitues for map_y() when drawing lines with
+ * option "sharpen".   It prevents extremely large values from
+ * being treated as UNDEFINED rather than OUTRANGE.
+ */
+int
+map_ysharp(double value)
+{
+    double y = map_y_double(value);
+    if (isnan(y))
+	return intNaN;
+    if (y >= (double)(INT_MAX))
+	return INT_MAX/2;
+    if (y <= (double)(-INT_MAX))
+	return -(INT_MAX/2);
 
     return axis_map_toint(y);
 }

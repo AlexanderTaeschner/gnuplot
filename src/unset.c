@@ -39,8 +39,10 @@
 #include "datafile.h"
 #include "fit.h"
 #include "gp_hist.h"
+#include "gplocale.h"
 #include "hidden3d.h"
 #include "jitter.h"
+#include "loadpath.h"
 #include "misc.h"
 #include "multiplot.h"
 #include "parse.h"
@@ -51,7 +53,6 @@
 #include "tabulate.h"
 #include "term_api.h"
 #include "util.h"
-#include "variable.h"
 #include "pm3d.h"
 #ifdef USE_MOUSE
 #include "mouse.h"
@@ -257,7 +258,7 @@ unset_command()
 	unset_hidden3d();
 	break;
     case S_HISTORY:
-	break; /* FIXME: reset to default values? */
+	break;
     case S_HISTORYSIZE:	/* Deprecated */
 	unset_historysize();
 	break;
@@ -357,14 +358,7 @@ unset_command()
 	    c_token++;
 	    break;
 	}
-	df_fortran_constants = FALSE;
-	unset_missing();
-	free(df_separators);
-	df_separators = NULL;
-	free(df_commentschars);
-	df_commentschars = gp_strdup(DEFAULT_COMMENTS_CHARS);
-	df_unset_datafile_binary();
-	df_columnheaders = FALSE;
+	reset_datafile();
 	break;
     case S_MICRO:
 	unset_micro();
@@ -839,6 +833,20 @@ reset_bars()
     bar_lp.flags = 0;
 }
 
+/* reset to default datafile properties */
+void
+reset_datafile()
+{
+        df_fortran_constants = FALSE;
+        unset_missing();
+        free(df_separators);
+        df_separators = NULL;
+        free(df_commentschars);
+        df_commentschars = gp_strdup(DEFAULT_COMMENTS_CHARS);
+        df_unset_datafile_binary();
+        df_columnheaders = FALSE;
+}
+
 /* process 'unset border' command */
 static void
 unset_border()
@@ -1039,13 +1047,8 @@ unset_fit()
 static void
 unset_grid()
 {
-    /* FIXME HBB 20000506: there is no command to explicitly reset the
-     * linetypes for major and minor gridlines. This function should
-     * do that, maybe... */
-    AXIS_INDEX i = 0;
-
     /* grid_selection = GRID_OFF; */
-    for (; i < NUMBER_OF_MAIN_VISIBLE_AXES; i++) {
+    for (AXIS_INDEX i = 0; i < NUMBER_OF_MAIN_VISIBLE_AXES; i++) {
 	axis_array[i].gridmajor = FALSE;
 	axis_array[i].gridminor = FALSE;
     }
@@ -1837,7 +1840,6 @@ unset_terminal()
 
     term_reset();
 
-    /* FIXME: change is correct but reported result is truncated */
     if (original_terminal && original_terminal->udv_value.type != NOTDEFINED) {
 	char *termname = gp_strdup(original_terminal->udv_value.v.string_val);
 	if (strchr(termname, ' '))

@@ -42,6 +42,7 @@
 #include "eval.h"
 #include "filters.h"
 #include "fit.h"
+#include "gplocale.h"
 #include "graphics.h"
 #include "interpol.h"
 #include "misc.h"
@@ -52,7 +53,6 @@
 #include "tabulate.h"
 #include "term_api.h"
 #include "util.h"
-#include "variable.h" /* For locale handling */
 #include "watch.h"
 
 /* minimum size of points[] in curve_points */
@@ -126,12 +126,14 @@ cp_alloc(int num)
     struct lp_style_type default_lp_properties = DEFAULT_LP_STYLE_TYPE;
 
     cp = (struct curve_points *) gp_alloc(sizeof(struct curve_points), "curve");
-    memset(cp,0,sizeof(struct curve_points));
+    memset(cp, 0, sizeof(struct curve_points));
 
     cp->p_max = (num >= 0 ? num : 0);
-    if (num > 0)
+    if (num > 0) {
 	cp->points = (struct coordinate *)
 	    gp_alloc(num * sizeof(struct coordinate), "curve points");
+	memset(cp->points, 0, num * sizeof(struct coordinate)); 
+    }
 
     /* Initialize various fields */
     cp->lp_properties = default_lp_properties;
@@ -164,7 +166,6 @@ cp_extend(struct curve_points *cp, int num)
 				/* true end in case two slots are used at once	*/
 				/* (e.g. redundant final point of closed curve)	*/
     } else {
-	/* FIXME: Does this ever happen?  Should it call cp_free() instead? */
 	free(cp->points);
 	cp->points = NULL;
 	cp->p_max = 0;
@@ -636,8 +637,7 @@ get_data(struct curve_points *current_plot)
 	if (current_plot->filledcurves_options.closeto == FILLEDCURVES_CLOSED) {
 	    if (current_plot->plot_smooth == SMOOTH_CSPLINES)
 		current_plot->plot_smooth = SMOOTH_PATH;
-	    if (current_plot->plot_smooth != SMOOTH_PATH
-	    &&  current_plot->plot_smooth != SMOOTH_SMOOTH_HULL) {
+	    if (current_plot->plot_smooth != SMOOTH_PATH) {
 		current_plot->plot_smooth = SMOOTH_NONE;
 		int_warn(NO_CARET, "only 'smooth path' or 'smooth cspline' is supported for closed curves");
 	    }
@@ -1112,7 +1112,7 @@ get_data(struct curve_points *current_plot)
 		    y2 = y1;
 		else
 		    y2 = current_plot->filledcurves_options.at;
-	    } else if (current_plot->plot_smooth == SMOOTH_SMOOTH_HULL) {
+	    } else if (current_plot->plot_filter == FILTER_CONVEX_HULL) {
 		y2 = y1;
 	    } else {
 		y2 = v[2];
@@ -1222,7 +1222,7 @@ get_data(struct curve_points *current_plot)
 	    coordval orientation = (j >= 5) ? v[4] : 0.0;
 	    coordval flag = (major_axis <= 0 || minor_axis <= 0) ?  DEFAULT_RADIUS : 0;
 
-	    if (j == 2)	/* FIXME: why not also for j == 3 or 4? */
+	    if ((j == 2) || (j == 3) || (j == 4))
 		orientation = default_ellipse.o.ellipse.orientation;
 
 	    store2d_point(current_plot, i++, x, y,
@@ -1802,7 +1802,7 @@ histogram_range_fiddling(struct curve_points *plot)
 			axis_array[FIRST_X_AXIS].min = xlow;
 		}
 		if (axis_array[FIRST_X_AXIS].autoscale & AUTOSCALE_MAX) {
-		    /* FIXME - why did we increment p_count on UNDEFINED points? */
+		    /* Why did we increment p_count on UNDEFINED points? */
 		    while (plot->p_count > 0
 			&& plot->points[plot->p_count-1].type == UNDEFINED) {
 			plot->p_count--;
@@ -2227,8 +2227,13 @@ eval_plots()
 	    define();
 	    if (equals(c_token,","))
 		c_token++;
-	    was_definition = TRUE;
-	    continue;
+	    if (equals(c_token,"for"))
+		/* fall through to iteration check at the end of the loop */
+		c_token--;
+	    else {
+		was_definition = TRUE;
+		continue;
+	    }
 
 	} else {
 	    int specs = 0;
@@ -2444,6 +2449,16 @@ eval_plots()
 		    continue;
 		}
 
+		/* "sharpen" applies only to function plots */
+		if (equals(c_token, "sharpen")) {
+		    if (this_plot->plot_type == FUNC)
+			this_plot->plot_filter = FILTER_SHARPEN;
+		    else
+			int_warn(c_token, "only function plots can be sharpened");
+		    c_token++;
+		    continue;
+		}
+
 		/* "convexhull" is unsmoothed; "smooth convexhull is smoothed */
 		if (equals(c_token, "convexhull")) {
 		    this_plot->plot_filter = FILTER_CONVEX_HULL;
@@ -2490,14 +2505,30 @@ eval_plots()
 			this_plot->plot_filter = FILTER_ZSORT;
 			break;
 		    case SMOOTH_SMOOTH_HULL:
-			this_plot->plot_smooth = SMOOTH_SMOOTH_HULL;
+			/* deprecated synonym for "convexhull smooth path" */
+			this_plot->plot_smooth = SMOOTH_PATH;
 			this_plot->plot_filter = FILTER_CONVEX_HULL;
-			parse_hull_options(this_plot);
+			this_plot->plot_style = LINES;	/* can override later */
 			break;
 		    case SMOOTH_NONE:
 		    default:
 			int_error(c_token, "unrecognized 'smooth' option");
 			break;
+		    }
+
+		    /* Handles "convexhull smooth path expand <scale>" */
+		    if (this_plot->plot_smooth == SMOOTH_PATH)
+			parse_hull_options(this_plot);
+
+		    /* Sanity check - very few smooth options work with polar coords */
+		    if (polar) {
+			switch(this_plot->plot_smooth) {
+			default:
+			    int_error(c_token, "this smooth option not possible with polar coordinates");
+			case SMOOTH_NONE:
+			case SMOOTH_PATH:
+			    break;
+			}
 		    }
 
 		    if (set_smooth)
@@ -2582,8 +2613,7 @@ eval_plots()
 		    ||  this_plot->plot_style == FILLSTEPS) {
 			/* read a possible option for 'with filledcurves' */
 			get_filledcurves_style_options(&this_plot->filledcurves_options);
-			if (this_plot->plot_filter == FILTER_CONVEX_HULL
-			||  this_plot->plot_smooth == SMOOTH_SMOOTH_HULL)
+			if (this_plot->plot_filter == FILTER_CONVEX_HULL)
 			    this_plot->filledcurves_options.closeto = FILLEDCURVES_CLOSED;
 		    }
 
@@ -2985,7 +3015,7 @@ eval_plots()
 
 	    /* We can skip a lot of stuff if this is not a real plot */
 	    if (this_plot->plot_type == KEYENTRY)
-		goto SKIPPED_EMPTY_FILE;
+		goto NOTHING_HERE_BUT_PLOT_TITLE;
 
 	    /* Initialize the label list in case the BOXPLOT style needs it to store factors */
 	    if (this_plot->plot_style == BOXPLOT) {
@@ -3182,7 +3212,6 @@ eval_plots()
 		    boxplot_range_fiddling(this_plot);
 		if (this_plot->plot_style == IMPULSES)
 		    impulse_range_fiddling(this_plot);
-		/* FIXME: not sure this is necessary.  Only for x2 or y2 axes? */
 		if (polar)
 		    polar_range_fiddling(&axis_array[this_plot->x_axis], &axis_array[this_plot->y_axis]);
 
@@ -3202,7 +3231,6 @@ eval_plots()
 		    cp_implode(this_plot);
 		    break;
 		case SMOOTH_ZSORT:
-		case SMOOTH_SMOOTH_HULL:
 		case SMOOTH_NONE:
 		case SMOOTH_PATH:
 		case SMOOTH_BEZIER:
@@ -3241,11 +3269,9 @@ eval_plots()
 		case SMOOTH_MONOTONE_CSPLINE:
 		    mcs_interp(this_plot);
 		    break;
-		case SMOOTH_SMOOTH_HULL:
-		    expand_hull(this_plot);
-		    gen_2d_path_splines(this_plot);
-		    break;
 		case SMOOTH_PATH:
+		    if (this_plot->plot_filter == FILTER_CONVEX_HULL)
+			expand_hull(this_plot);
 		    gen_2d_path_splines(this_plot);
 		    break;
 		case SMOOTH_NONE:
@@ -3268,12 +3294,14 @@ eval_plots()
 		    process_image(this_plot, IMG_UPDATE_AXES);
 		}
 
-		/* Feb 2022: Deferred evaluation of plot title
-		 * now that we know column headers (loaded in get_data)
-		 * and potentially stats from filters, smoothing and image processing.
-		 */
-		reevaluate_plot_title(this_plot);
-	    }
+	    }	/* plot_type == DATA */
+
+	    /* Deferred evaluation of plot title
+	     * now that we know column headers (loaded in get_data)
+	     * and potentially stats from filters, smoothing and image processing.
+	     */
+	    NOTHING_HERE_BUT_PLOT_TITLE:
+	    reevaluate_plot_title(this_plot);
 
 	    SKIPPED_EMPTY_FILE:
 	    /* Note position in command line for second pass */
@@ -3286,7 +3314,7 @@ eval_plots()
 		this_plot->sample_var2->udv_value = original_value_sample_var2;
 	    }
 
-	} /* !is_defn */
+	} /* !is_definition */
 
 	if (in_parametric) {
 	    if (equals(c_token, ",")) {
@@ -3414,8 +3442,13 @@ eval_plots()
 		define();
 		if (equals(c_token, ","))
 		    c_token++;
-		was_definition = TRUE;
-		continue;
+		if (equals(c_token,"for"))
+		    /* fall through to iteration check at the end of the loop */
+		    c_token--;
+		else {
+		    was_definition = TRUE;
+		    continue;
+		}
 
 	    } else {
 		struct at_type *at_ptr;
@@ -3509,8 +3542,10 @@ eval_plots()
 			    AXIS *vis = axis_array[SAMPLE_AXIS].linked_to_primary->linked_to_secondary;
 			    t = eval_link_function(vis, t_min + i * t_step);
 			} else {
-			    /* Zero is often a special point in a function domain. */
-			    /* Make sure we don't miss it due to round-off error.  */
+			    /* Zero is often a special point in a function domain.
+			     * Make sure we don't miss it due to round-off error.
+			     * See also the "sharpen" filter code.
+			     */
 			    if ((fabs(t) < 1.e-9) && (fabs(t_step) > 1.e-6))
 				t = 0.0;
 			}
@@ -3642,6 +3677,14 @@ eval_plots()
 		    this_plot->p_count = i;     /* samples_1 */
 		}
 
+		/* Most filters apply only to data plots.
+		 * "sharpen" is an exception that applies only to functions.
+		 */
+		if (this_plot->plot_filter == FILTER_SHARPEN) {
+		    if (this_plot->plot_style == LINES)
+			sharpen(this_plot);
+		}
+
 		/* skip all modifiers func / whole of data plots */
 		c_token = this_plot->token;
 
@@ -3725,9 +3768,7 @@ eval_plots()
     if (spiderplot)
 	spiderplot_range_fiddling(first_plot);
 
-    /* gnuplot version 5.0 always used x1 to track autoscaled range
-     * regardless of whether x1 or x2 was used to plot the data. 
-     * In version 5.2 we track the x1/x2 axis data limits separately.
+    /* We track the x1/x2 axis data limits separately.
      * However if x1 and x2 are linked to each other we must now
      * reconcile their data limits before plotting.
      */
@@ -3971,10 +4012,12 @@ parse_kdensity_options(struct curve_points *this_plot)
 static void
 parse_hull_options(struct curve_points *this_plot)
 {
-    this_plot->smooth_parameter = 0;
     if (equals(c_token,"expand")) {
 	c_token++;
-	this_plot->smooth_parameter = real_expression();
+	if (this_plot->plot_filter == FILTER_CONVEX_HULL)
+	    this_plot->smooth_parameter = real_expression();
+	else
+	    int_error(c_token-2, "'smooth path expand' only available for hulls");
     }
 }
 
@@ -4022,8 +4065,6 @@ parse_plot_title(struct curve_points *this_plot, char *xtitle, char *ytitle, TBO
 	} else if (equals(c_token,"at")) {
 	    *set_title = FALSE;
 	} else {
-	    int save_token = c_token;
-
 	    /* If the command is "plot ... notitle <optional title text>" */
 	    /* we can throw the result away now that we have stepped over it  */
 	    if (this_plot->title_is_suppressed) {
@@ -4045,24 +4086,6 @@ parse_plot_title(struct curve_points *this_plot, char *xtitle, char *ytitle, TBO
 	    } else { 
 		free_at(df_plot_title_at);
 		df_plot_title_at = perm_at();
-
-		/* We can evaluate the title for a function plot immediately */
-		/* FIXME: or this code could go into eval_plots() so that    */
-		/*        function and data plots are treated the same way.  */
-		if (this_plot->plot_type == FUNC || this_plot->plot_type == FUNC3D
-		||  this_plot->plot_type == VOXELDATA
-		||  this_plot->plot_type == KEYENTRY) {
-		    struct value a;
-		    evaluate_at(df_plot_title_at, &a);
-		    if (a.type == STRING) {
-			free(this_plot->title);
-			this_plot->title = a.v.string_val;
-		    } else {
-			int_warn(save_token, "expecting string for title");
-		    }
-		    free_at(df_plot_title_at);
-		    df_plot_title_at = NULL;
-		}
 	    }
 	}
 	if (equals(c_token,"at")) {
@@ -4141,6 +4164,8 @@ reevaluate_plot_title(struct curve_points *this_plot)
 		free_at(df_plot_title_at);
 		df_plot_title_at = NULL;
 	    }
+	} else {
+	    int_warn(NO_CARET, "plot title must be a string");
 	}
     }
 
@@ -4230,10 +4255,12 @@ grid_polar_data(struct curve_points *this_plot)
     /* Create the new grid structure and fill in grid point values
      * derived from the original data point values.
      */
+    this_plot->points = NULL;
+    cp_extend(this_plot, 0);
     this_plot->p_count = polar_grid.theta_segments * polar_grid.r_segments;
-    this_plot->points = gp_alloc( sizeof(coordinate) * this_plot->p_count, "polar grid");
-    point = this_plot->points;
+    cp_extend(this_plot, this_plot->p_count);
 
+    point = this_plot->points;
     for (i = 0, r = rmin; i < polar_grid.r_segments; i++, r += dr) {
 	for (j = 0, t = tmin; j < polar_grid.theta_segments; j++, t+=dt, point++) {
 	    opoint = old_points;

@@ -688,7 +688,7 @@ do_plot(struct curve_points *plots, int pcount)
     term_start_plot();
 
     /* Figure out if we need a colorbox for this plot */
-    set_plot_with_palette(0, MODE_PLOT); /* EAM FIXME - 1st parameter is a dummy */
+    set_plot_with_palette(0, MODE_PLOT);
 
     /* Compute boundary plot_bounds.{xleft|xright|ytop|ybot}.
      * Also calculate tics, since xtics depend on plot_bounds.xleft
@@ -953,17 +953,20 @@ do_plot(struct curve_points *plots, int pcount)
 		||  this_plot->filledcurves_options.closeto == FILLEDCURVES_ABOVE
 		||  this_plot->filledcurves_options.closeto == FILLEDCURVES_BELOW) {
 		    plot_betweencurves(this_plot);
-		} else if (!this_plot->plot_smooth &&
+
+		} else if (!this_plot->plot_smooth && !parametric &&
 		   (this_plot->filledcurves_options.closeto == FILLEDCURVES_ATY1
 		||  this_plot->filledcurves_options.closeto == FILLEDCURVES_ATY2
 		||  this_plot->filledcurves_options.closeto == FILLEDCURVES_ATR)) {
-		    /* Smoothing may have trashed the original contents	*/
-		    /* of the 2nd y data column, so piggybacking on the	*/
-		    /* code for FILLEDCURVES_BETWEEN will not work.	*/
-		    /* FIXME: Maybe piggybacking is always a bad idea?		*/
-		    /* IIRC the original rationale was to get better clipping	*/
-		    /* but the general polygon clipping code should now work.	*/
+		    /* Smoothing may have trashed the original contents of the
+		     * 2nd y data column, and parametric code never loaded it at all.
+		     * Either way piggybacking on FILLEDCURVES_BETWEEN will not work.
+		     * FIXME: Maybe piggybacking is always a bad idea?
+		     * IIRC the original rationale was to get better clipping
+		     * but the general polygon clipping code should now work.
+		     */
 		    plot_betweencurves(this_plot);
+
 		} else {
 		    plot_filledcurves(this_plot);
 		}
@@ -1261,7 +1264,7 @@ plot_lines(struct curve_points *plot)
 	return;
 
     /* Along-path smoothing wiped out the flags for INRANGE/OUTRANGE */
-    if (plot->plot_smooth == SMOOTH_PATH || plot->plot_smooth == SMOOTH_SMOOTH_HULL)
+    if (plot->plot_smooth == SMOOTH_PATH)
 	recheck_ranges(plot);
 
     for (i = 0; i < plot->p_count; i++) {
@@ -1271,8 +1274,13 @@ plot_lines(struct curve_points *plot)
 
 	(void)zprev; /* prevents unused variable warning #ifndef USE_WATCHPOINTS */
 
-	/* rgb variable  -  color read from data column */
-	check_for_variable_color(plot, &plot->varcolor[i]);
+	/* rgb variable or palette z  -  color is read from data column
+	 * Exception:
+	 *	If we are retracing the border of a filled curve or polygon
+	 *	the color has already been set to the border color.
+	 */
+	if (plot->plot_style != FILLEDCURVES && plot->plot_style != POLYGONS)
+	    check_for_variable_color(plot, &plot->varcolor[i]);
 
 	/* Only map and plot the point if it is well-behaved (not UNDEFINED).
 	 * Note that map_x or map_y can hit NaN during eval_link_function(),
@@ -1280,7 +1288,7 @@ plot_lines(struct curve_points *plot)
 	 */
 	if (plot->points[i].type != UNDEFINED) {
 	    x = map_x(xnow);
-	    y = map_y(ynow);
+	    y = map_ysharp(ynow);
 	    if (invalid_coordinate(x,y))
 		plot->points[i].type = UNDEFINED;
 	}
@@ -1298,7 +1306,7 @@ plot_lines(struct curve_points *plot)
 		    } else if (polar && clip_radial) {
 			draw_polar_clip_line(xprev, yprev, xnow, ynow );
 		    } else {
-			if (draw_clip_line( map_x(xprev), map_y(yprev), x, y)) {
+			if (draw_clip_line( map_x(xprev), map_ysharp(yprev), x, y)) {
 			    if (plot->watchlist)
 				watch_line(plot, xprev, yprev, zprev, xnow, ynow, znow);
 			} else {
@@ -1322,7 +1330,7 @@ plot_lines(struct curve_points *plot)
 			if (polar && clip_radial)
 			    draw_polar_clip_line(xprev, yprev, xnow, ynow );
 			else
-			    drawn = draw_clip_line( map_x(xprev), map_y(yprev), x, y);
+			    drawn = draw_clip_line( map_x(xprev), map_ysharp(yprev), x, y);
 		    }
 		} else if (prev == OUTRANGE) {
 		    /* from outrange to outrange */
@@ -1330,7 +1338,7 @@ plot_lines(struct curve_points *plot)
 			if (polar && clip_radial)
 			    draw_polar_clip_line(xprev, yprev, xnow, ynow );
 			else
-			    drawn = draw_clip_line( map_x(xprev), map_y(yprev), x, y);
+			    drawn = draw_clip_line( map_x(xprev), map_ysharp(yprev), x, y);
 		    }
 		} else {	/* prev == UNDEFINED */
 		    break;
@@ -1368,7 +1376,13 @@ finish_filled_curve(
     long side = 0;
     int i;
 
-    if (points <= 0) return;
+    if (points <= 0)
+	return;
+
+    /* plot with polygons fs empty really does mean empty (no fill) */
+    if (plot->plot_style == POLYGONS && plot->fill_properties.fillstyle == FS_EMPTY)
+	return;
+
     /* add side (closing) points */
     switch (filledcurves_options->closeto) {
 	case FILLEDCURVES_CLOSED:
@@ -1503,6 +1517,7 @@ plot_filledcurves(struct curve_points *plot)
 			axis_array[FIRST_Y_AXIS].min, axis_array[FIRST_Y_AXIS].max);
 	    break;
 	default:
+	case FILLEDCURVES_CLOSED:
 	    break;
     }
 

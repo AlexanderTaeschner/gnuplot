@@ -43,6 +43,7 @@
 #include "eval.h"
 #include "filters.h"
 #include "getcolor.h"
+#include "gplocale.h"
 #include "graph3d.h"
 #include "hidden3d.h"
 #include "interpol.h"
@@ -53,7 +54,6 @@
 #include "term_api.h"
 #include "tabulate.h"
 #include "util.h"
-#include "variable.h" /* For locale handling */
 #include "voxelgrid.h"
 
 #include "plot2d.h" /* Only for store_label() */
@@ -645,19 +645,15 @@ grid_nongrid_data(struct surface_points *this_plot)
     if (this_plot->num_iso_read == 0)
 	return;
 
-    /* Version 5.3 - allow gridding of separate color column so long as
+    /* Allow gridding of separate color column so long as
      * we don't need to generate splines for it
      */
     if (this_plot->pm3d_color_from_column && dgrid3d_mode == DGRID3D_SPLINES)
 	int_error(NO_CARET, "Spline gridding of a separate color column is not implemented");
 
-    /* Compute XY bounding box on the original data. */
-    /* FIXME HBB 20010424: Does this make any sense? Shouldn't we just
-     * use whatever the x and y ranges have been found to be, and
-     * that's that? The largest difference this is going to make is if
-     * we plot a datafile that doesn't span the whole x/y range
-     * used. Do we want a dgrid3d over the actual data rectangle, or
-     * over the xrange/yrange area? */
+    /* Compute XY bounding box on the original data.
+     * Otherwise the grid would change as you zoom.
+     */
     xmin = xmax = old_iso_crvs->points[0].x;
     ymin = ymax = old_iso_crvs->points[0].y;
     for (icrv = old_iso_crvs; icrv != NULL; icrv = icrv->next) {
@@ -998,11 +994,9 @@ get_3ddata(struct surface_points *this_plot)
 
 	    if (j == DF_UNDEFINED || j == DF_MISSING) {
 		cp->type = UNDEFINED;
-		/* Version 5.5 - Since version 5 2D plot modes store all available
-		 * info even if one of the requested columns is missing or undefined.
-		 * Now we extend this behavior to 3D processing also.
-		 * prior to May 2020 the next line was
-		 *    goto come_here_if_undefined;
+		/* Version 5.5
+		 * Store all available info even if one of the requested columns
+		 * is missing or undefined.
 		 */
 		j = df_no_use_specs;
 	    }
@@ -1474,9 +1468,6 @@ get_3ddata(struct surface_points *this_plot)
 	this_iso->next = new_icrvs;
     }
 
-    /* Deferred evaluation of plot title now that we know column headers */
-    reevaluate_plot_title( (struct curve_points *)this_plot );
-
     return retval;
 }
 
@@ -1656,8 +1647,13 @@ eval_3dplots()
 	    define();
 	    if (equals(c_token, ","))
 		c_token++;
-	    was_definition = TRUE;
-	    continue;
+	    if (equals(c_token,"for")) {
+		/* fall through to iteration check at the end of the loop */
+		c_token--;
+	    } else {
+		was_definition = TRUE;
+		continue;
+	    }
 
 	} else {
 	    int specs = -1;
@@ -2436,6 +2432,9 @@ eval_3dplots()
 			this_plot->plot_type, __LINE__);
 	    }
 
+	    /* Deferred evaluation of plot title now that we know column headers */
+	    reevaluate_plot_title( (struct curve_points *)this_plot );
+
 	    if (this_plot->plot_style == IMAGE
 	    ||  this_plot->plot_style == RGBIMAGE
 	    ||  this_plot->plot_style == RGBA_IMAGE) {
@@ -2608,8 +2607,13 @@ eval_3dplots()
 		define();
 		if (equals(c_token,","))
 		    c_token++;
-		was_definition = TRUE;
-		continue;
+		if (equals(c_token,"for")) {
+		    /* fall through to iteration check at the end of the loop */
+		    c_token--;
+		} else {
+		    was_definition = TRUE;
+		    continue;
+		}
 
 	    } else {
 		struct at_type *at_ptr;

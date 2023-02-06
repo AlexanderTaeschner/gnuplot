@@ -100,10 +100,7 @@ static TBOOLEAN reserve_quadrangles(int needed, int chunk);
 static gpdPoint *get_polygon(int size);
 static void free_polygonlist(void);
 
-#define PM3D_INTERSECTING_SURFACES
-#ifdef PM3D_INTERSECTING_SURFACES
 static void split_intersecting_surface_tiles(void);
-#endif
 
 /*
  * Utility routines.
@@ -380,9 +377,7 @@ void pm3d_depth_queue_flush(void)
     if (pm3d.direction != PM3D_DEPTH && !track_pm3d_quadrangles)
 	return;
 
-#ifdef PM3D_INTERSECTING_SURFACES
     split_intersecting_surface_tiles();
-#endif
 
     term->layer(TERM_LAYER_BEGIN_PM3D_FLUSH);
 
@@ -505,8 +500,9 @@ pm3d_plot(struct surface_points *this_plot, int at_which_z)
     if (this_plot->lp_properties.colormap)
 	private_colormap = this_plot->lp_properties.colormap;
 
-    /* Apply and save the user-requested line properties */
-    term_apply_lp_properties(&this_plot->lp_properties);
+    /* Feb 2023:  not necessary and may be counter-productive
+	term_apply_lp_properties(&this_plot->lp_properties);
+     */
 
     if (at_which_z != PM3D_AT_BASE && at_which_z != PM3D_AT_TOP && at_which_z != PM3D_AT_SURFACE)
 	return;
@@ -1188,7 +1184,7 @@ pm3d_add_polygon(struct surface_points *plot, gpdPoint corners[], int vertices)
     quadrangle *q;
 
     if (!plot || (plot->plot_style == ISOSURFACE))
-	/* FIXME: I have no idea how to estimate the number of facets for an isosurface */
+	/* I have no idea how to estimate the number of facets for an isosurface */
 	reserve_quadrangles(100, 1000);
     else
 	reserve_quadrangles(plot->iso_crvs->p_count, 0);
@@ -1877,7 +1873,6 @@ pm3d_reset_after_error()
     free_polygonlist();
 }
 
-#ifdef PM3D_INTERSECTING_SURFACES
 /*
  * Ethan Merritt Sep 2021
  * When two pm3d surfaces intersect, the intersection line is jagged because
@@ -2112,4 +2107,3 @@ split_intersecting_surface_tiles()
     }
 
 }
-#endif /* PM3D_INTERSECTING_SURFACES */

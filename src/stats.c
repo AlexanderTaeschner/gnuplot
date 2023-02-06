@@ -36,9 +36,9 @@
 #include "command.h"
 #include "datafile.h"
 #include "gadgets.h"  /* For polar and parametric flags */
+#include "gplocale.h" /* For locale handling */
 #include "matrix.h"   /* For vector allocation */
 #include "scanner.h"  /* To check for legal prefixes */
-#include "variable.h" /* For locale handling */
 #include "voxelgrid.h"
 
 #include "stats.h"
@@ -1001,7 +1001,7 @@ statsrequest(void)
 		}
 	    } /* if (need to extend storage space) */
 
-	    /* FIXME: ascii "matrix" input from df_readline via df_readbinary does not
+	    /* ascii "matrix" input from df_readline via df_readbinary does not
 	     * flag NaN values so we must check each returned value here
 	     */
 	    if (df_matrix && (i == 2) && isnan(v[1]))
