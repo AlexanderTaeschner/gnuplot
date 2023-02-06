@@ -190,6 +190,7 @@
     <ClCompile Include="..\..\..\..\src\gadgets.c" />
     <ClCompile Include="..\..\..\..\src\getcolor.c" />
     <ClCompile Include="..\..\..\..\src\gpexecute.c" />
+    <ClCompile Include="..\..\..\..\src\gplocale.c" />
     <ClCompile Include="..\..\..\..\src\graph3d.c" />
     <ClCompile Include="..\..\..\..\src\graphics.c" />
     <ClCompile Include="..\..\..\..\src\help.c" />
@@ -199,6 +200,7 @@
     <ClCompile Include="..\..\..\..\src\interpol.c" />
     <ClCompile Include="..\..\..\..\src\jitter.c" />
     <ClCompile Include="..\..\..\..\src\libcerf.c" />
+    <ClCompile Include="..\..\..\..\src\loadpath.c" />
     <ClCompile Include="..\..\..\..\src\matrix.c" />
     <ClCompile Include="..\..\..\..\src\misc.c" />
     <ClCompile Include="..\..\..\..\src\mouse.c" />
@@ -224,7 +226,6 @@
     <ClCompile Include="..\..\..\..\src\unset.c" />
     <ClCompile Include="..\..\..\..\src\util.c" />
     <ClCompile Include="..\..\..\..\src\util3d.c" />
-    <ClCompile Include="..\..\..\..\src\variable.c" />
     <ClCompile Include="..\..\..\..\src\version.c" />
     <ClCompile Include="..\..\..\..\src\voxelgrid.c" />
     <ClCompile Include="..\..\..\..\src\vplot.c" />
