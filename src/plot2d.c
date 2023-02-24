@@ -75,6 +75,7 @@ static int check_or_add_boxplot_factor(struct curve_points *plot, char* string, 
 static void add_tics_boxplot_factors(struct curve_points *plot);
 static void parse_kdensity_options(struct curve_points *this_plot);
 static void parse_hull_options(struct curve_points *this_plot);
+static int evaluate_iteration(struct curve_points *this_plot);
 
 #ifdef USE_POLAR_GRID
     static void grid_polar_data(struct curve_points *this_plot);
@@ -1006,7 +1007,11 @@ get_data(struct curve_points *current_plot)
 		ylow = v[1] - v[2];
 		yhigh = v[1] + v[2];
 	    }
-	    store2d_point(current_plot, i++, v[0], v[1],
+	    if (polar) /* Polar mode bars need both xlow/high and ylow/high */
+		store2d_point(current_plot, i++, v[0], v[1],
+					v[0], v[0], ylow, yhigh, -1.0);
+	    else
+		store2d_point(current_plot, i++, v[0], v[1],
 					var_ps, var_pt, ylow, yhigh, -1.0);
 	    break;
 	}
@@ -1478,8 +1483,8 @@ store2d_point(
 	break;
     case YERRORBARS:		/* auto-scale ylow yhigh */
     case YERRORLINES:		/* auto-scale ylow yhigh */
-	cp->CRD_PTSIZE = xlow;
-	cp->CRD_PTTYPE = xhigh;
+	cp->xlow = xlow;	/* really theta if polar; CRD_PTSIZE otherwise */
+	cp->xhigh = xhigh;	/* really theta if polar; CRD_PTTYPE otherwise */
 	STORE_AND_UPDATE_RANGE(cp->ylow, ylow, dummy_type, current_plot->y_axis,
 				current_plot->noautoscale, cp->ylow = -VERYLARGE);
 	STORE_AND_UPDATE_RANGE(cp->yhigh, yhigh, dummy_type, current_plot->y_axis,
@@ -2152,6 +2157,7 @@ eval_plots()
      * the xrange is defined.
      */
     plot_iterator = check_for_iteration();
+    warn_if_too_many_unbounded_iterations(plot_iterator);
     while (TRUE) {
 
 	/* Forgive trailing comma on a multi-element plot command */
@@ -2942,6 +2948,12 @@ eval_plots()
 				    "This plot style is not available in polar mode");
 	    }
 
+	    /* Rule out incompatible filter options */
+	    if (this_plot->plot_filter != FILTER_NONE) {
+		if (this_plot->plot_style == LABELPOINTS)
+		    int_error(NO_CARET, "label plots cannot use data filters");
+	    }
+
 	    /* If we got this far without initializing the fill style, do it now */
 	    if (this_plot->plot_style & PLOT_STYLE_HAS_FILL) {
 		if (!set_fillstyle) {
@@ -3088,7 +3100,7 @@ eval_plots()
 	    /* We can now do some checks that we deferred earlier */
 
 	    if (this_plot->plot_type == DATA) {
-		if (specs < 0) {
+		if (specs == DF_EOF) {
 		    /* Error check to handle missing or unreadable file */
 		    ++line_num;
 		    this_plot->plot_type = NODATA;
@@ -3153,7 +3165,10 @@ eval_plots()
 
 		/* actually get the data now */
 		if (get_data(this_plot) == 0) {
-		    if (!forever_iteration(plot_iterator))
+		    if (forever_iteration(plot_iterator)) {
+			flag_iteration_nodata(plot_iterator);
+			line_num--;
+		    } else
 			int_warn(NO_CARET,"Skipping data file with no valid points");
 		    this_plot->plot_type = NODATA;
 		    goto SKIPPED_EMPTY_FILE;
@@ -3168,6 +3183,8 @@ eval_plots()
 			    ninrange++;
 		    if (ninrange == 0) {
 			this_plot->plot_type = NODATA;
+			flag_iteration_nodata(plot_iterator);
+			line_num--;
 			goto SKIPPED_EMPTY_FILE;
 		    }
 		}
@@ -3324,19 +3341,10 @@ eval_plots()
 		break;
 	}
 
-	/* Iterate-over-plot mechanism */
-	if (empty_iteration(plot_iterator) && this_plot)
-	    this_plot->plot_type = NODATA;
-	if (forever_iteration(plot_iterator) && !this_plot)
-	    int_error(NO_CARET,"unbounded iteration in something other than a data plot");
-	else if (forever_iteration(plot_iterator) && (this_plot->plot_type == NODATA)) {
-	    FPRINTF((stderr,"Ending * iteration at %d\n",plot_iterator->iteration));
-	    /* Clearing the plot title ensures that it will not appear in the key */
-	    free (this_plot->title);
-	    this_plot->title = NULL;
-	} else if (forever_iteration(plot_iterator) && (this_plot->plot_type != DATA)) {
-	    int_error(NO_CARET,"unbounded iteration in something other than a data plot");
-	} else if (next_iteration(plot_iterator)) {
+	/* If we are in the middle of an iterated plot clause
+	 * go back and run it again.
+	 */
+	if (evaluate_iteration(this_plot)) {
 	    c_token = start_token;
 	    continue;
 	}
@@ -3345,6 +3353,7 @@ eval_plots()
 	if (equals(c_token, ",")) {
 	    c_token++;
 	    plot_iterator = check_for_iteration();
+	    warn_if_too_many_unbounded_iterations(plot_iterator);
 	} else
 	    break;
     }
@@ -3981,6 +3990,54 @@ parametric_fixup(struct curve_points *start_plot, int *plot_num)
     *last_pointer = free_list;
 }
 
+/*
+ * Track the progress of iteration inside a plot command.
+ * This became complicated enough to split out into a
+ * separate routine for readability.
+ * In the future a non-zero return value may carry more information.
+ *
+ * Return:
+ *	0 = no more in this iteration
+ *	    continue to the next plot clause
+ *  non-0 = iteration counters have been incremented
+ *	    loop back up to the next iteration
+ */
+static int
+evaluate_iteration( struct curve_points *this_plot )
+{
+    /* Iterate-over-plot mechanism */
+    if (empty_iteration(plot_iterator) && this_plot)
+	this_plot->plot_type = NODATA;
+    if (forever_iteration(plot_iterator) && !this_plot)
+	int_error(NO_CARET,
+		"unbounded iteration in something other than a data plot");
+
+    /* This handles the case a nested unbounded iteration.
+     * If the top level iteration is bounded, next_iteration will advance it.
+     * If the top level iteration is unbounded, next_iteration will warn and
+     * return FALSE.
+     */
+    if (plot_iterator && (forever_iteration(plot_iterator->next) < 0)
+    &&  (this_plot->plot_type == NODATA)) {
+	if (next_iteration(plot_iterator))
+	    return 1;
+    }
+
+    if (forever_iteration(plot_iterator)
+    &&  (this_plot->plot_type == NODATA)) {
+	/* Clearing the plot title ensures that it will not appear in the key */
+	free (this_plot->title);
+	this_plot->title = NULL;
+    } else if (forever_iteration(plot_iterator) && this_plot->plot_type != DATA) {
+	int_error(NO_CARET,
+		"unbounded iteration in something other than a data plot");
+    } else if (next_iteration(plot_iterator)) {
+	return 1;
+    }
+
+    /* This is the 'normal' return - no continuing iteration to handle */
+    return 0;
+}
 
 /*
  * handle optional keywords for
