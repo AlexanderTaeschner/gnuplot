@@ -32,6 +32,14 @@
   %     ,pdfkeywords={...}
   ]{hyperref}
 
+% Prevent error/warning messages
+%  "found PDF version '1.7' but at most version '1.5' allowed"
+% Unfortunately this mechanism is specific to pdflatex.
+% It is commented out here to allow use of lualatex or xelatex.
+% \pdfinclusionerrorlevel=1
+% \pdfminorversion=7
+% \pdfsuppresswarningpagegroup=1
+
 % This replaces the default ugly red boxes around hyperlinks
    \hypersetup{
      colorlinks   = true, %Colours links instead of ugly boxes
@@ -85,7 +93,7 @@
 %
 % Current gnuplot version as a macro
 %%
-\def\gpVersion{6.0}
+\def\gpVersion{6.1}
 \newbox\GpVersion \setbox\GpVersion=\hbox{\gpVersion}
 \def\gnuplotVersion{\usebox\GpVersion}
 
@@ -98,6 +106,11 @@
 \lhead[\thepage]{\leftmark}
 
 \def\gpCX{${_{\mathbb{^C}} }$}
+
+%
+% Words that may get hyphenated oddly if TeX is allowed to do so
+%
+\hyphenation{gnuplot windrose}
 
 \begin{document}
 
@@ -145,10 +158,11 @@
   Alexander Lehmann,
   Jérôme Lodewyck,\\
   Alexander Mai,
-  Bastian Märkisch, \\
-  Tatsuro Matsuoka,
+  Bastian Märkisch,
+  Tatsuro Matsuoka, \\
   Ethan A Merritt,
-  Petr Mikulík,\\
+  Petr Mikulík,
+  Hiroki Motoyoshi, \\
   Daniel Sebald,
   Carsten Steger,
   Shigeharu Takeno,\\
@@ -158,7 +172,7 @@
   Alex Woo,
   Johannes Zellner\\
   Copyright {\copyright} 1986 - 1993, 1998, 2004   Thomas Williams, Colin Kelley\\
-  Copyright {\copyright} 2004 - 2022  various authors\\
+  Copyright {\copyright} 2004 - 2023  various authors\\
 
   \vspace{2ex}
 
@@ -170,8 +184,8 @@
 
   \vspace{2ex}
 
-%  October 2022  Version 6.0
-   Version {\gpVersion} (pre-release alpha)
+%  March 2023  Version 6.1
+   Version {\gpVersion} (development snapshot)
 
    \end{center}
 \newpage

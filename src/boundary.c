@@ -1307,6 +1307,13 @@ do_key_sample(
 	} else if (this_plot->plot_style == SURFACEGRID) {
 	    (*t->fillbox)(style,x,y,w,h);
 
+        } else if (this_plot->plot_style == SECTORS && w > 0) {
+            do_sector(xl + key_point_offset, yl-key_sample_height, (3)*key_sample_height/4.0, (3+2)*key_sample_height/4.0, 120.0*DEG2RAD, 60.0*DEG2RAD, 1.0, style, FALSE);
+            /* Retrace the border if the style requests it */
+            if (need_fill_border(fs)) {
+                do_sector(xl + key_point_offset, yl-key_sample_height, (3)*key_sample_height/4.0, (3+2)*key_sample_height/4.0, 120.0*DEG2RAD, 60.0*DEG2RAD, 1.0, 0, FALSE);
+            }
+
 	} else if (w > 0) {    /* All other plot types with fill */
 	    if (style != FS_EMPTY)
 		(*t->fillbox)(style,x,y,w,h);
@@ -1398,6 +1405,7 @@ do_key_sample_point(
     struct termentry *t = term;
     int xl_save = xl;
     int yl_save = yl;
+    int interval = this_plot->lp_properties.p_interval;
 
     /* If the plot this title belongs to specified a non-standard place
      * for the key sample to appear, use that to override xl, yl.
@@ -1412,13 +1420,16 @@ do_key_sample_point(
 
     (t->layer)(TERM_LAYER_BEGIN_KEYSAMPLE);
 
-    if (this_plot->plot_style == LINESPOINTS
-	 &&  this_plot->lp_properties.p_interval < 0) {
+    if ((this_plot->plot_style == LINESPOINTS && interval < 0)
+    ||  (this_plot->plot_style & PLOT_STYLE_HAS_ERRORBAR)) {
 	t_colorspec background_fill = BACKGROUND_COLORSPEC;
-	(*t->set_color)(&background_fill);
-	(*t->pointsize)(pointsize * pointintervalbox);
-	(*t->point)(xl + key_point_offset, yl, 6);
-	term_apply_lp_properties(&this_plot->lp_properties);
+	if ((this_plot->lp_properties.p_type != -1)
+	&&  (pointintervalbox != 0)) {
+	    (*t->set_color)(&background_fill);
+	    (*t->pointsize)(pointsize * pointintervalbox);
+	    (*t->point)(xl + key_point_offset, yl, 6);
+	    term_apply_lp_properties(&this_plot->lp_properties);
+	}
     }
 
     if (this_plot->plot_style == BOXPLOT) {

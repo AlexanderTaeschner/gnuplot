@@ -81,6 +81,15 @@ int clabel_interval = 20;		/* label every 20th contour segment */
 int clabel_start = 5;			/*       starting with the 5th */
 char *clabel_font = NULL;		/* default to current font */
 
+/* control parameters for contourfill */
+t_contourfill contourfill = {
+    .mode = CFILL_AUTO,
+    .nslices = 5,
+    .tic_level = 0
+};
+static zslice *zslice_array;		/* shared by plot3d_contourfill and zslice_callback */
+static int current_slice = 0;		/* shared index to zslice_array */
+
 /* Draw the surface at all? (FALSE if only contours are wanted) */
 TBOOLEAN draw_surface = TRUE;
 /* Always create a gridded surface when lines are read from a data file */
@@ -133,6 +142,7 @@ static void plot3d_zerrorfill(struct surface_points * plot);
 static void plot3d_boxes(struct surface_points * plot);
 static void plot3d_vectors(struct surface_points * plot);
 static void plot3d_lines_pm3d(struct surface_points * plot);
+static void plot3d_contourfill(struct surface_points * plot);
 static void get_surface_cbminmax(struct surface_points *plot, double *cbmin, double *cbmax);
 static void cntr3d_impulses(struct gnuplot_contours * cntr, struct lp_style_type * lp);
 static void cntr3d_lines(struct gnuplot_contours * cntr, struct lp_style_type * lp);
@@ -151,6 +161,8 @@ static void xtick_callback(struct axis *, double place, char *text, int ticlevel
 static void ytick_callback(struct axis *, double place, char *text, int ticlevel,
 			   struct lp_style_type grid, struct ticmark *userlabels);
 static void ztick_callback(struct axis *, double place, char *text, int ticlevel,
+			   struct lp_style_type grid, struct ticmark *userlabels);
+static void zslice_callback(struct axis *, double place, char *text, int ticlevel,
 			   struct lp_style_type grid, struct ticmark *userlabels);
 
 static int find_maxl_cntr(struct gnuplot_contours * contours, int *count);
@@ -481,7 +493,7 @@ boundary3d(struct surface_points *plots, int count)
 		plot_bounds.xleft += key_width;
     }
 
-    /* Make room for the colorbar to the right of the plot */
+    /* Make room for the colorbox to the right of the plot */
     if (splot_map && is_plot_with_colorbox() && rmargin.scalex != screen) {
 	if ((color_box.where != SMCOLOR_BOX_NO) && (color_box.where != SMCOLOR_BOX_USER))
 	    plot_bounds.xright -= 0.1 * (plot_bounds.xright-plot_bounds.xleft);
@@ -1061,12 +1073,15 @@ do_3dplot(
 	}
     }
 
-
     /* DRAW SURFACES AND CONTOURS */
 
     if (!key_pass)
-    if (hidden3d && (hidden3d_layer == LAYER_BACK) && draw_surface
-    && (replot_mode != AXIS_ONLY_ROTATE)) {
+    if (hidden3d && draw_surface && (replot_mode != AXIS_ONLY_ROTATE)
+    &&  (hidden3d_layer == LAYER_BACK || hidden3d_layer == LAYER_DEPTHORDER)) {
+#ifdef HIDDEN3D_CACHE
+	if (pm3d.direction == PM3D_DEPTH)
+	    hidden3d_layer = LAYER_DEPTHORDER;
+#endif
 	(term->layer)(TERM_LAYER_BEFORE_PLOT);
 	plot3d_hidden(plots, pcount);
 	(term->layer)(TERM_LAYER_AFTER_PLOT);
@@ -1100,7 +1115,7 @@ do_3dplot(
 	    fprintf(stderr, "  Warning: Single isoline (scan) is not enough for a pm3d plot.\n\t   Hint: Missing blank lines in the data file? See 'help pm3d' and FAQ.\n");
 
 
-    pm3d_order_depth = (can_pm3d && !draw_contour && pm3d.direction == PM3D_DEPTH);
+    pm3d_order_depth = (can_pm3d && pm3d.direction == PM3D_DEPTH);
 
     /* TODO:
      *   During "refresh" from rotation it would be better to re-use previously
@@ -1127,8 +1142,10 @@ do_3dplot(
 	    (term->layer)(TERM_LAYER_BEFORE_PLOT);
 
 	    if (!key_pass && this_plot->plot_type != KEYENTRY)
-	    if (can_pm3d && PM3D_IMPLICIT == pm3d.implicit)
-		pm3d_draw_one(this_plot);
+	    if (can_pm3d && (pm3d.implicit == PM3D_IMPLICIT)) {
+		if (this_plot->plot_style != CONTOURFILL)
+		    pm3d_draw_one(this_plot);
+	    }
 
 	    lkey = (key->visible && this_plot->title && this_plot->title[0]
 				 && !this_plot->title_is_suppressed);
@@ -1242,10 +1259,10 @@ do_3dplot(
 		break;
 
 	    case ZERRORFILL:
-		/* Always draw filled areas even if we _also_ do hidden3d processing */
 		if (term->filled_polygon)
 		    plot3d_zerrorfill(this_plot);
 		term_apply_lp_properties(&(this_plot->lp_properties));
+		apply_pm3dcolor(&this_plot->fill_properties.border_color);
 		plot3d_lines(this_plot);
 		break;
 
@@ -1256,12 +1273,18 @@ do_3dplot(
 		    plot3d_impulses(this_plot);
 		break;
 
+	    case CONTOURFILL:
+		plot3d_contourfill(this_plot);
+		break;
+
 	    case PM3DSURFACE:
 		if (draw_this_surface) {
-		    if (can_pm3d && PM3D_IMPLICIT != pm3d.implicit) {
+		    if (can_pm3d && pm3d.implicit != PM3D_IMPLICIT) {
 			pm3d_draw_one(this_plot);
-			if (!pm3d_order_depth)
-			    pm3d_depth_queue_flush(); /* draw plot immediately */
+			/* Conditions under which we draw the surface immediately */
+			if (!pm3d_order_depth
+			||  ((draw_contour == CONTOUR_SRF) && !(this_plot->zclip)))
+			    pm3d_depth_queue_flush();
 		    }
 		}
 		break;
@@ -1308,6 +1331,7 @@ do_3dplot(
 	    case CANDLESTICKS:
 	    case BOXPLOT:
 	    case FINANCEBARS:
+	    case SECTORS:
 		/* These should have been caught in plot3d */
 		int_error(NO_CARET, "plot style not supported in 3D");
 		break;
@@ -1395,9 +1419,11 @@ do_3dplot(
 		break;
 
 	    case ZERRORFILL:
-		apply_pm3dcolor(&this_plot->fill_properties.border_color);
+		/* zerrorfill colors are weird (as in "backwards") */
+		apply_pm3dcolor(&this_plot->lp_properties.pm3d_color);
 		key_sample_fill(xl, yl, this_plot);
 		term_apply_lp_properties(&this_plot->lp_properties);
+		apply_pm3dcolor(&this_plot->fill_properties.border_color);
 		key_sample_line(xl, yl);
 		break;
 
@@ -1561,17 +1587,23 @@ do_3dplot(
 
 	} /* loop over surfaces */
 
-    if (!key_pass)
-    if (pm3d_order_depth || track_pm3d_quadrangles) {
-	pm3d_depth_queue_flush(); /* draw pending plots */
+    if (!key_pass) {
+	/* draw pending depth-sorted pm3d plots */
+	if (pm3d_order_depth || track_pm3d_quadrangles) {
+	    pm3d_depth_queue_flush();
+#ifdef HIDDEN3D_CACHE
+	    if (hidden3d)
+		flush_hidden3d_cache();
+#endif
+	}
     }
 
-    if (!key_pass)
-    if (hidden3d && (hidden3d_layer == LAYER_FRONT) && draw_surface
-    &&  (replot_mode != AXIS_ONLY_ROTATE)) {
-	(term->layer)(TERM_LAYER_BEFORE_PLOT);
-	plot3d_hidden(plots, pcount);
-	(term->layer)(TERM_LAYER_AFTER_PLOT);
+    if (!key_pass && (replot_mode != AXIS_ONLY_ROTATE)) {
+	if (hidden3d && draw_surface && hidden3d_layer == LAYER_FRONT) {
+	    (term->layer)(TERM_LAYER_BEFORE_PLOT);
+	    plot3d_hidden(plots, pcount);
+	    (term->layer)(TERM_LAYER_AFTER_PLOT);
+	}
     }
 
     /* Add labels that were defered until after depth-sorted pm3d surfaces */
@@ -1596,8 +1628,17 @@ do_3dplot(
 	/* draw_3d_graphbox(plots, pcount, FRONTGRID, LAYER_FRONT) */
 	;
 
-    else if (hidden3d || grid_layer == LAYER_FRONT)
+    else if (hidden3d || grid_layer == LAYER_FRONT) {
+#ifdef HIDDEN3D_CACHE
+	int save_hidden3d_layer = hidden3d_layer;
+	if (hidden3d_layer == LAYER_DEPTHORDER)
+	    hidden3d_layer = LAYER_BACK;
 	draw_3d_graphbox(plots, pcount, ALLGRID, LAYER_FRONT);
+	hidden3d_layer = save_hidden3d_layer;
+#else
+	draw_3d_graphbox(plots, pcount, ALLGRID, LAYER_FRONT);
+#endif
+    }
 
     else if (grid_layer == LAYER_BEHIND)
 	draw_3d_graphbox(plots, pcount, FRONTGRID, LAYER_FRONT);
@@ -2064,7 +2105,7 @@ plot3d_points(struct surface_points *plot)
 	    set_rgbcolor_const( plot->lp_properties.pm3d_color.lt );
 
 	for (i = 0; i < icrvs->p_count; i++) {
-	
+
 	    /* Only print 1 point per interval */
 	    if ((plot->plot_style == LINESPOINTS) && (interval) && (i % interval))
 		continue;
@@ -2389,10 +2430,6 @@ draw_3d_graphbox(struct surface_points *plot, int plot_num, WHICHGRID whichgrid,
     int x, y;		/* point in terminal coordinates */
     struct termentry *t = term;
     BoundingBox *clip_save = clip_area;
-
-    FPRINTF((stderr,
-	"draw_3d_graphbox: whichgrid = %d current_layer = %d border_layer = %d\n",
-	whichgrid,current_layer,border_layer));
 
     clip_area = &canvas;
     if (draw_border && splot_map) {
@@ -2863,7 +2900,7 @@ draw_3d_graphbox(struct surface_points *plot, int plot_num, WHICHGRID whichgrid,
 			v1.x -= 10. * t->h_tic * tic_unitx;
 			v1.y -= 10. * t->h_tic * tic_unity;
 		    }
-		
+
 		    if (!Y_AXIS.tic_in) {
 			v1.x -= tic_unitx * Y_AXIS.ticscale * t->v_tic;
 			v1.y -= tic_unity * Y_AXIS.ticscale * t->v_tic;
@@ -3372,6 +3409,7 @@ ztick_callback(
 	}
     }
 }
+
 
 static int
 map3d_getposition(
@@ -3966,6 +4004,7 @@ plot3d_zerrorfill(struct surface_points *plot)
  * changes this to draw real boxes (4 sides + top).
  * The boxes are drawn as pm3d rectangles. This means that depth-cueing
  * must be done with "set pm3d depth base" rather than with "set hidden3d".
+ * However the fill style can be set per-plot or taken from "set style fill".
  */
 static void
 plot3d_boxes(struct surface_points *plot)
@@ -3974,7 +4013,6 @@ plot3d_boxes(struct surface_points *plot)
     double dxl, dxh;		/* rectangle extent along X axis */
     double dyl, dyh;		/* rectangle extent along Y axis */
     double zbase, dz;		/* box base and height */
-    fill_style_type save_fillstyle;
 
     struct iso_curve *icrvs = plot->iso_crvs;
     gpdPoint corner[4];
@@ -3984,10 +4022,6 @@ plot3d_boxes(struct surface_points *plot)
      */
     if (pm3d_shade.strength > 0)
 	pm3d_init_lighting_model();
-
-    /* FIXME: fillstyle and border color always come from "set style fill" */
-    pm3d.border = plot->lp_properties;
-    pm3d.border.pm3d_color = default_fillstyle.border_color;
 
     while (icrvs) {
 	struct coordinate *points = icrvs->points;
@@ -4081,11 +4115,6 @@ plot3d_boxes(struct surface_points *plot)
 	icrvs = icrvs->next;
     }
 
-    /* FIXME The only way to get the pm3d flush code to see our fill */
-    /* style is to temporarily copy it to the global fillstyle.      */
-    save_fillstyle = default_fillstyle;
-    default_fillstyle = plot->fill_properties;
-
     /* By default we write out each set of boxes as it is seen.  */
     /* The other option is to let them accummulate and then sort */
     /* them together with all other pm3d elements to draw later. */
@@ -4094,9 +4123,6 @@ plot3d_boxes(struct surface_points *plot)
 	pm3d_depth_queue_flush();
 	pm3d.base_sort = FALSE;
     }
-
-    /* Restore global fillstyle */
-    default_fillstyle = save_fillstyle;
 }
 
 /*
@@ -4181,6 +4207,127 @@ plot3d_polygons(struct surface_points *plot)
     free(quad);
     quadmax = 0;
     quad = NULL;
+}
+
+/*
+ * splot SURFACE with contourfill
+ *
+ * The basic idea for this plot style is that a single plot structure
+ * describing a pm3d surface can be processed multiple times,
+ * each time selecting only the component quadrangles in a discrete
+ * band of z values.  This band is assigned a single fill color.
+ *
+ * In order for the quadrangles from multiple passes to be merged and
+ * depth-sorted, each quadrangle must retain an index value telling
+ * which pass it came from.  This is used after sorting to retrieve
+ * and apply the clipping limits and fillcolor belonging to that pass.
+ */
+static void
+plot3d_contourfill(struct surface_points *plot)
+{
+    /* Test code - split palette into N intervals, where N was set by
+     * a previous call to "set cntrparam levels N".
+     */
+    int level;
+    unsigned int rgbcolor;
+    struct axis *ticaxis;
+    int nslices = contourfill.nslices;
+    double z_axis_min = GPMIN(axis_array[FIRST_Z_AXIS].min, axis_array[FIRST_Z_AXIS].max);
+    double z_axis_max = GPMAX(axis_array[FIRST_Z_AXIS].min, axis_array[FIRST_Z_AXIS].max);
+    double zrange = z_axis_max - z_axis_min;
+    double zinc = zrange / nslices;
+
+    /* zslice_array is global so that it can be seen by zslice_callback().
+     * The pointer to it in the plot header (plot->zclip) is used by pm3d in
+     * clip_filled_polygon and in pm3d_depth_queue_flush.
+     * This allocation will be freed by sp_free at the end of plotting.
+     * The maximum number of slices is 100.
+     */
+    zslice *slice = gp_alloc( MAX_ZSLICES * sizeof(zslice), "contourfill" );
+    zslice_array = slice;
+    plot->zclip = slice;
+
+    /*
+     * Build a list of contour slices
+     */
+    switch(contourfill.mode) {
+
+	default:
+	case CFILL_AUTO:
+	    for (level = 0; level < nslices; level++) {
+		slice[level].zlow = z_axis_min + zinc * level;
+		slice[level].zhigh = slice[level].zlow + zinc;
+		rgbcolor = rgb_from_gray(cb2gray(slice[level].zlow + zinc/2.));
+		slice[level].color.type = TC_RGB;
+		slice[level].color.lt = rgbcolor;
+		slice[level].color.value = -1;
+	    }
+	    break;
+
+	case CFILL_ZTICS:
+	case CFILL_CBTICS:
+	    ticaxis = (contourfill.mode == CFILL_CBTICS)
+		    ? &axis_array[COLOR_AXIS] : &axis_array[FIRST_Z_AXIS];
+
+	    current_slice = 0;
+	    gen_tics(ticaxis, zslice_callback);
+	    nslices = current_slice;
+	    /* Extend top and bottom slice */
+	    slice[0].zlow = z_axis_min;
+	    slice[nslices-1].zhigh = z_axis_max;
+
+	    for (level = 0; level < nslices; level++) {
+		double zmid = (slice[level].zlow + slice[level].zhigh) / 2.;
+		rgbcolor = rgb_from_gray(cb2gray(zmid));
+		slice[level].color.type = TC_RGB;
+		slice[level].color.lt = rgbcolor;
+		slice[level].color.value = -1;
+	    }
+	    break;
+
+	case CFILL_LIST:
+	    int_error(NO_CARET, "list of contour slices not supported yet");
+	    break;
+    }
+
+    /*
+     * Process the pm3d surface once for each slice in the list
+     */
+    for (level = 0; level < nslices; level++) {
+	plot->zclip_index = level;
+	plot->fill_properties.border_color = slice[level].color;
+	pm3d_draw_one(plot);
+    }
+}
+
+/* helper routine for plot3d_contourfill */
+static void
+zslice_callback(
+    struct axis *this_axis, double place, char *text, int ticlevel,
+    struct lp_style_type grid, struct ticmark *userlabels)
+{
+    /* Clip to zrange, but only if it is known */
+    double zmin = (axis_array[FIRST_Z_AXIS].autoscale & AUTOSCALE_MIN)
+		? axis_array[FIRST_Z_AXIS].min
+		: axis_array[FIRST_Z_AXIS].set_min;
+    double zmax = (axis_array[FIRST_Z_AXIS].autoscale & AUTOSCALE_MAX)
+		? axis_array[FIRST_Z_AXIS].max
+		: axis_array[FIRST_Z_AXIS].set_max;
+    if (debug)
+	FPRINTF((stderr, "zslice %d: clip %g to [%g:%g]\n",
+		ticlevel, place, zmin, zmax));
+
+    if (!inrange(place,zmin,zmax))
+	return;
+
+    if (ticlevel != contourfill.tic_level)
+	return;
+    if (current_slice >= MAX_ZSLICES)
+	return;
+    if (current_slice > 0)
+	zslice_array[current_slice - 1].zhigh = place;
+    zslice_array[current_slice].zlow = place;
+    current_slice++;
 }
 
 

@@ -1,7 +1,7 @@
 /* GNUPLOT - filters.c */
 
 /*[
- * Copyright Ethan A Merritt 2013 - 2022
+ * Copyright Ethan A Merritt 2013 - 2023
  * All code in this file is dual-licensed.
  *
  * Gnuplot license:
@@ -62,20 +62,31 @@
 #include "filters.h"
 #include "interpol.h"
 #include "alloc.h"
+#include "datafile.h"	/* for blank_data_line */
 #include "plot2d.h"	/* for cp_extend() */
 #include "watch.h"	/* for bisect_target() */
 
-/* local prototypes */
+/*
+ * local prototypes
+ */
 
 static int do_curve_cleanup(struct coordinate *point, int npoints);
-static void winnow_interior_points (struct curve_points *plot);
+static void winnow_interior_points (struct curve_points *plot, t_cluster *cluster);
 static double fpp_SG5(struct coordinate *p);
-/*
- * EXPERIMENTAL
- * find outliers (distance from centroid > FOO * rmsd) in a cluster of points
- */
-static int find_cluster_outliers (struct coordinate *points, t_cluster *cluster);
+static void cluster_stats(struct coordinate *points, t_cluster *cluster);
 
+/* Variables related to clustering
+ * These really belong somewhere else, but the only routines so
+ * far that use cluster properties are the hull routines,
+ * so keep them together for now.
+ *	cluster_outlier_threshold sets criterion for finding outliers
+ *	    not currently settable
+ *	chi_shape_default_fraction sets the default choice of chi_length to
+ *			chi_shape_default_fraction * max(edgelengths)
+ *	    currently controlled by "set chi_shape fraction <value>"
+ */
+double cluster_outlier_threshold = 0.0;
+double chi_shape_default_fraction = 0.6;
 
 /*
  * EAM December 2013
@@ -191,7 +202,6 @@ mcs_interp(struct curve_points *plot)
 	    new_points[i].type = INRANGE;
 	else
 	    new_points[i].type = OUTRANGE;
-	/* FIXME:  simpler test for outrange would be sufficient */
 	y_axis = plot->y_axis;
 	store_and_update_range(&new_points[i].y, y, &new_points[i].type,
 		&Y_AXIS, plot->noautoscale);
@@ -578,7 +588,6 @@ gen_2d_path_splines( struct curve_points *plot )
     splined_points = gp_alloc( (plot->p_count + samples_1 * curves) * sizeof(struct coordinate), NULL );
     memset( splined_points, 0, (plot->p_count + samples_1 * curves) * sizeof(struct coordinate));
 
-
     first_point = 0;
     for (ic = 0; ic < curves; ic++) {
 	double t, tstep, tsum;
@@ -752,16 +761,13 @@ do_curve_cleanup( struct coordinate *point, int npoints )
 /*
  * convex_hull() replaces the original set of points with a subset that
  * delimits the convex hull of the original points.
+ * The hull is found using Graham's algorithm
+ *    RL Graham (1972), Information Processing Letters 1: 132–133.
  * winnow_interior_points() is a helper routine that can greatly reduce
  * processing time for large data sets but is otherwise not necessary.
- * expand_hull() pushes the hull points away from the centroid for the
- *	purpose of drawing a smooth bounding curve.
+ * expand_hull() pushes the hull segments away from the interior to
+ * produce a bounding curve exterior to all points.
  * - Ethan A Merritt 2021
- *
- * find_cluster_outliers() calculates the centroid of plot->points,
- *	and if cluster_outlier_threshold > 0 calculates the rmsd distance
- *	of all points to the centroid so that outliers can be flagged.
- * - Ethan A Merritt 2022
  */
 #define CROSS(p1,p2,p3) \
   ( ((p2)->x - (p1)->x) * ((p3)->y - (p2)->y) \
@@ -776,6 +782,10 @@ convex_hull(struct curve_points *plot)
     int np = plot->p_count;
     int ntop;
 
+    /* cluster is used to hold x/y ranges and centroid */
+    t_cluster cluster;
+    cluster.npoints = plot->p_count;
+
     /* Special cases */
     if (np < 3)
 	return;
@@ -786,29 +796,13 @@ convex_hull(struct curve_points *plot)
 	return;
     }
 
-    /* Find centroid (used by "smooth convexhull").
-     * Flag and remove outliers.
-     */
-    if (plot->plot_filter == FILTER_CONVEX_HULL) {
-	t_cluster cluster;
-	int outliers = 0;
-	/* FIXME:  Needs a set option or a plot keyword to choose threshold */
-	if (debug)
-	    cluster.threshold = 3.0;
-	else
-	    cluster.threshold = 0.0;
-	cluster.npoints = plot->p_count;
-	do {
-	    outliers = find_cluster_outliers(plot->points, &cluster);
-	    plot->filledcurves_options.at = cluster.cx;
-	    plot->filledcurves_options.aty = cluster.cy;
-	} while (outliers > 0);
-    }
+    /* Find x and y limits of points in the cluster.  */
+    cluster_stats(plot->points, &cluster);
 
     /* This is not strictly necessary, but greatly reduces the number
      * of points to be sorted and tested for the hull boundary.
      */
-    winnow_interior_points(plot);
+    winnow_interior_points(plot, &cluster);
 
     /* Sort the remaining points (probably only need to sort on x?) */
     qsort(plot->points, plot->p_count,
@@ -847,7 +841,6 @@ convex_hull(struct curve_points *plot)
     plot->p_count = np;
     plot->p_max = np;
 }
-#undef CROSS
 
 /*
  * winnow_interior_points() is an optional helper routine for convex_hull.
@@ -855,28 +848,22 @@ convex_hull(struct curve_points *plot)
  * points in a quadrilateral bounded by the four points with max/min x/y.
  */
 static void
-winnow_interior_points (struct curve_points *plot)
+winnow_interior_points (struct curve_points *plot, t_cluster *cluster)
 {
 #define TOLERANCE -1.e-10
 
     struct coordinate *p, *pp1, *pp2, *pp3, *pp4;
-    double xmin = VERYLARGE, xmax = -VERYLARGE;
-    double ymin = VERYLARGE, ymax = -VERYLARGE;
     struct coordinate *points = plot->points;
     double area;
     int i, np;
 
-    /* Find maximal extent on x and y, centroid */
+    /* Find points defining maximal extent on x and y */
     pp1 = pp2 = pp3 = pp4 = plot->points;
     for (p = plot->points; p < &(plot->points[plot->p_count]); p++) {
-	if (p->type == UNDEFINED)
-	    continue;
-	if (p->type == EXCLUDEDRANGE)	/* e.g. outlier or category mismatch */
-	    continue;
-	if (p->x < xmin) { xmin = p->x; pp1 = p; }
-	if (p->x > xmax) { xmax = p->x; pp3 = p; }
-	if (p->y < ymin) { ymin = p->y; pp4 = p; }
-	if (p->y > ymax) { ymax = p->y; pp2 = p; }
+	if (p->x == cluster->xmin) pp1 = p;
+	if (p->x == cluster->xmax) pp2 = p;
+	if (p->y == cluster->ymin) pp3 = p;
+	if (p->y == cluster->ymax) pp4 = p;
     }
 
     /* Ignore any points that lie inside the clockwise triangle bounded by pp1 pp2 pp3 */
@@ -920,92 +907,130 @@ winnow_interior_points (struct curve_points *plot)
 }
 
 /*
- * EXPERIMENTAL
- *
- * expand_hull() "inflates" a smooth convex hull by pushing each
- * perimeter point further away from the centroid of the bounded points.
- * FIXME: The expansion value is currently interpreted as a scale
- *        factor; i.e. 1.0 is no expansion.  It might be better to
- *	  instead accept a fixed value in user coordinates.
- * FIXME: A common term for this operation is "polygon offsetting".
- *	  There are several approaches to the problem, probably all
- *	  better than the one implemented here.
+ * expand_hull() "inflates" a convex or concave hull by displacing
+ * each edge away from the interior along its normal vector
+ * by requested distance d.
  */
 void
 expand_hull(struct curve_points *plot)
 {
+    struct coordinate *newpoints = NULL;
     struct coordinate *points = plot->points;
-    double xcent = plot->filledcurves_options.at;
-    double ycent = plot->filledcurves_options.aty;
     double scale = plot->smooth_parameter;
-    int i;
+    double d = fabs(scale);
+    int N = plot->p_count;
 
-    if (scale <=0 || scale == 1.0)
-	return;
+    struct coordinate *v1, *v2, *v3;
+    t_cluster cluster;
+    double winding;	/* +1 for clockwise -1 for anticlockwise */
+    int ni;
 
-    for (i=0; i<plot->p_count; i++) {
-	points[i].x = xcent + scale * (points[i].x - xcent);
-	points[i].y = ycent + scale * (points[i].y - ycent);
+    /* Determine whether the hull points are ordered clockwise or
+     * anticlockwise.  This allows easy determination of the interior
+     * side of each edge and the concave/convex status of each vertex.
+     */
+    cluster.npoints = N;
+    cluster_stats(points, &cluster);
+    v1 = &points[ (cluster.pin == 0) ? N-2 : cluster.pin-1 ];
+    v2 = &points[cluster.pin];
+    v3 = &points[cluster.pin + 1];
+
+    if (CROSS(v2,v1,v3) > 0)
+	winding = 1.0;
+    else
+	winding = -1.0;
+
+    /* Each edge of the hull is displaced outward by a constant amount d.
+     * At each convex vertex this replaces the original point with two
+     * points that are the vertices of a beveled join.
+     * At each concave vertex this displaces the original point toward
+     * the mouth of the concavity.
+     */
+    newpoints = gp_alloc(2*N * sizeof(struct coordinate), "expand hull");
+    ni = 0;
+    for (int i = 0; i < N; i++) {
+	double m1, m2, d2norm;
+	double dx1, dy1, dx2, dy2;
+
+	v1 = &points[ (i == 0) ? N-2 : i-1 ];
+	v2 = &points[i];
+	v3 = &points[ (i == N-1) ? 1 : i+1 ];
+
+	m1 = (v2->y - v1->y) / (v2->x - v1->x);	/* slope of v1v2 */
+	d2norm = d*d / (1/(m1*m1) + 1);
+	dx1 = copysign( sqrt(d2norm), -winding * (v2->y - v1->y) );
+	dy1 = copysign( sqrt(d*d - d2norm), winding * (v2->x - v1->x) );
+	m2 = (v3->y - v2->y) / (v3->x - v2->x);	/* slope of v2v3 */
+	d2norm = d*d / (1/(m2*m2) + 1);
+	dx2 = copysign( sqrt(d2norm), -winding * (v3->y - v2->y) );
+	dy2 = copysign( sqrt(d*d - d2norm), winding * (v3->x - v2->x) );
+
+	/* convex vertex */
+	if (winding * CROSS(v1,v2,v3) < 0) {
+	    newpoints[ni] = points[i];
+	    newpoints[ni].x = v2->x + dx1;
+	    newpoints[ni].y = v2->y + dy1;
+	    ni++;
+	    newpoints[ni] = points[i];
+	    newpoints[ni].x = v2->x + dx2;
+	    newpoints[ni].y = v2->y + dy2;
+	    ni++;
+
+	/* concave vertex (over-emphasizes steep holes) */
+	} else {
+	    double dnorm = d / sqrt((dx1+dx2)*(dx1+dx2) + (dy1+dy2)*(dy1+dy2));
+	    newpoints[ni] = points[i];
+	    newpoints[ni].x = v2->x + dnorm * (dx1 + dx2);
+	    newpoints[ni].y = v2->y + dnorm * (dy1 + dy2);
+	    ni++;
+	}
     }
+
+    /* Replace original point list with the new one */
+    cp_extend(plot, 0);
+    plot->points = newpoints;
+    plot->p_count = ni;
+    plot->p_max = 2*N;
 }
 
 /*
- * Find center of mass of plot->points.
+ * Find min, max, center of mass points in cluster held in plot->points.
  * All points not marked EXCLUDEDRANGE are assumed to be in a single cluster.
- * If a threshold has been set for cluster outlier detection, then flag
- * any points whose distance from the center of mass is greater than
- * threshold * cluster.rmsd.
- * Return the number of outliers found.
  */
-static int
-find_cluster_outliers( struct coordinate *points, t_cluster *cluster )
+static void
+cluster_stats( struct coordinate *points, t_cluster *cluster )
 {
     double xsum = 0;
     double ysum = 0;
-    double d2 = 0;
-    int i;
-    int outliers = 0;
     int excluded = 0;
 
-    for (i = 0; i < cluster->npoints; i++) {
+    cluster->xmin = cluster->ymin = VERYLARGE;
+    cluster->xmax = cluster->ymax = -VERYLARGE;
+    cluster->pin = -1;
+
+    for (int i = 0; i < cluster->npoints; i++) {
 	if (points[i].type == EXCLUDEDRANGE || points[i].type == UNDEFINED) {
 	    excluded++;
-	} else {
-	    xsum += points[i].x;
-	    ysum += points[i].y;
+	    continue;
 	}
+	xsum += points[i].x;
+	ysum += points[i].y;
+	if ((cluster->xmin == points[i].x)
+	&&  (points[i].y > points[cluster->pin].y))
+	    cluster->pin = i;
+	if (cluster->xmin > points[i].x) {
+	    cluster->xmin = points[i].x;
+	    cluster->pin = i;
+	    }
+	if (cluster->ymin > points[i].y)
+	    cluster->ymin = points[i].y;
+	if (cluster->xmax < points[i].x)
+	    cluster->xmax = points[i].x;
+	if (cluster->ymax < points[i].y)
+	    cluster->ymax = points[i].y;
     }
     cluster->cx = xsum / (cluster->npoints - excluded);
     cluster->cy = ysum / (cluster->npoints - excluded);
-
-    if (cluster->threshold <= 0)
-	return 0;
-
-    for (i = 0; i < cluster->npoints; i++) {
-	if (points[i].type == UNDEFINED)
-	    continue;
-	if (points[i].type == EXCLUDEDRANGE)
-	    continue;
-	d2 += (points[i].x - cluster->cx) * (points[i].x - cluster->cx)
-	    + (points[i].y - cluster->cy) * (points[i].y - cluster->cy);
-    }
-    cluster->rmsd = sqrt(d2 / cluster->npoints);
-    for (i = 0; i < cluster->npoints; i++) {
-	if (points[i].type == UNDEFINED)
-	    continue;
-	if (points[i].type == EXCLUDEDRANGE)
-	    continue;
-	d2 = (points[i].x - cluster->cx) *(points[i].x - cluster->cx)
-	   + (points[i].y - cluster->cy) *(points[i].y - cluster->cy);
-	if (sqrt(d2) > cluster->rmsd * cluster->threshold) {
-	    points[i].type = EXCLUDEDRANGE;
-	    outliers++;
-	}
-    }
-
-    FPRINTF((stderr, "find_cluster_outliers: rmsd = %g, %d outliers\n",
-	    cluster->rmsd, outliers));
-    return outliers;
 }
 
 /*
@@ -1052,9 +1077,7 @@ sharpen(struct curve_points *plot)
     cp_extend(plot, 1.5 * plot->p_count);
     p = plot->points;
 
-    /* DEBUG FIXME
-     * A more general solution is needed!
-     * We expect that sharpened peaks may go to +/- Infinity
+    /* We expect that sharpened peaks may go to +/- Infinity
      * and in fact the plot may already contain such points.
      * Because these were tagged UNDEFINED in store_and_update_range()
      * they will be lost when the points are sorted.
@@ -1109,7 +1132,7 @@ sharpen(struct curve_points *plot)
 	    newcount++;
 	}
     }
-    
+
     /* Equivalent search for maxima */
     for (int i = 4; i < plot->p_count-4; i++) {
 	TBOOLEAN criterion = FALSE;
@@ -1162,6 +1185,633 @@ fpp_SG5( struct coordinate *p )
 	return 0;
     fpp = 2.0 * (p-2)->y - (p-1)->y - 2.0 * p->y - (p+1)->y + 2.0 * (p+2)->y;
     fpp /= 7.0;
-    
+
     return fpp;
 }
+
+
+#ifdef WITH_CHI_SHAPES
+
+/*
+ * The routines in this section support the generation of concave hulls.
+ * Copyright Ethan A Merritt 2022
+ *
+ * Delaunay triangulation uses the Bowyer-Watson algorithm
+ *	A Bowyer (1981) Computer Journal 24:162.
+ *	DF Watson (1981) Computer Journal 24:167.
+ *
+ * Generation of χ-shapes follows the description in
+ *	M Duckham, L Kulik, M Worboys, and A Galton (2008)
+ *	Pattern Recognition 41: 3224_3236.
+ *
+ * Corresponding routines called as filter operations from plot2d.c
+ *	delaunay_triangulation( plot )
+ *	concave_hull( plot )
+ */
+
+typedef struct triangle {
+    int v1, v2, v3;	/* indices of vertices in array points[] */
+    double cx, cy;	/* center of circumcircle */
+    double r;		/* radius of circumcircle */
+    struct triangle *next;
+} triangle;
+
+typedef struct t_edge {
+    int v1, v2;		/* indices of the endpoints in array points[] */
+    double length;	/* used for χ-shapes */
+} t_edge;
+
+/*
+ * local prototypes for helper routines
+ */
+static triangle *insert_new_triangle( struct coordinate *points, int v1, int v2, int v3 );
+static void find_circumcircle( struct coordinate *points, triangle *t);
+static TBOOLEAN in_circumcircle( triangle *t, double x, double y );
+static void invalidate_triangle( triangle *prev, triangle *this );
+static void freeze_triangle( triangle *prev, triangle *this );
+static void delete_triangles( triangle *list_head );
+static int compare_edges(SORTFUNC_ARGS arg1, SORTFUNC_ARGS arg2);
+static double edge_length( t_edge *edge, struct coordinate *p );
+static void chi_reduction( struct curve_points *plot, double l_chi );
+static TBOOLEAN dig_one_hole( struct curve_points *plot, double l_chi );
+
+#define HULL_POINT 1
+
+/* List heads
+ * The lists these point to are freed and reinitialized on each call to
+ * delaunay_triangulation().  The constituent vertices of each triangle
+ * are stored as indices for the points array of the current plot.
+ * Therefore the lists are useful only in the context of the current plot,
+ * and only so long as the points are not overwritten, as indeed they
+ * are when replaced by a hull in concave_hull().
+ */
+static triangle good_triangles =   { .next = NULL };
+static triangle bad_triangles =    { .next = NULL };
+static triangle frozen_triangles = { .next = NULL };
+
+/* Similarly for an array containing line segments making up the
+ * perimeter of the triangulation.
+ */
+static t_edge *bounding_edges = NULL;
+static int n_bounding_edges = 0;
+static int max_bounding_edges = 0;
+
+/*
+ * Free local storage (called also from global reset command)
+ */
+void
+reset_hulls( TBOOLEAN reset )
+{
+    delete_triangles(&good_triangles);
+    delete_triangles(&bad_triangles);
+    delete_triangles(&frozen_triangles);
+    free(bounding_edges);
+    bounding_edges = NULL;
+    n_bounding_edges = 0;
+    max_bounding_edges = 0;
+    if (reset) {
+	chi_shape_default_fraction = 0.6;
+	del_udv_by_name("chi_length", FALSE);
+    }
+}
+
+/*
+ * Delaunay triangulation of a set of N points.
+ * The points are taken from the current plot structure.
+ * This is a filter operation; i.e. it is called from a gnuplot "plot"
+ * command after reading in data but before smoothing or plot generation.
+ * The resulting triangles are stored in a list with head good_triangles.
+ * The edges making up the convex hull are stored in array bounding_edges[].
+ * All points that lie on the hull are flagged by setting
+ *     point->extra = HULL_POINT
+ */
+void
+delaunay_triangulation( struct curve_points *plot )
+{
+    struct coordinate *points;
+    int N = plot->p_count;
+
+    t_edge *edges = NULL;
+    int nedges;
+    coordinate *p;
+    triangle *t, *prev;
+    triangle *frozen_tail = NULL;
+    int i;
+
+    /* Clear out any previous storage */
+    reset_hulls(FALSE);
+
+    /* Pull color out of the varcolor array and copy it into point.CRD_COLOR
+     * so that it isn't lost during sort.
+     */
+    if (plot->varcolor)
+	for (i = 0; i < plot->p_count; i++)
+	    plot->points[i].CRD_COLOR = plot->varcolor[i];
+
+    /* Sort the points on x.
+     * This allows us to reduce the time required from O(N^2) to
+     * approximately O(NlogN).
+     */
+    qsort(plot->points, N, sizeof(struct coordinate), compare_xyz);
+
+    /* Construct a triangle "sufficiently big" to enclose the set of points.
+     * That means each bounding vertex must be far enough away from the data
+     * points that a circumcircle does not catch extra data points.
+     * It turns out this is easier to guarantee if we start with two triangles.
+     */
+    {
+	double xmin = VERYLARGE, xmax = -VERYLARGE;
+	double ymin = VERYLARGE, ymax = -VERYLARGE;
+	double xdelta, ydelta, gap;
+
+	/* Allocate 4 additional points for the two triangles */
+	cp_extend(plot, N+4);
+	points = plot->points;
+
+	for (p = points; p < &points[N]; p++) {
+	    if (p->type == UNDEFINED)
+		continue;
+	    if (p->x < xmin) xmin = p->x;
+	    if (p->x > xmax) xmax = p->x;
+	    if (p->y < ymin) ymin = p->y;
+	    if (p->y > ymax) ymax = p->y;
+	}
+	xdelta = xmax - xmin;
+	ydelta = ymax - ymin;
+	/* Is 100 "sufficiently big"??? */
+	gap = 100. * GPMAX(xdelta,ydelta);
+
+	points[N].x   = xmin - gap;
+	points[N+1].x = xmax + gap;
+	points[N+2].x = xmin - gap;
+	points[N+3].x = xmax + gap;
+	points[N].y   = ymin - gap;
+	points[N+1].y = ymin - gap;
+	points[N+2].y = ymax + gap;
+	points[N+3].y = ymax + gap;
+	t = insert_new_triangle( points, N, N+1, N+2 );
+	find_circumcircle(points, t);
+	t = insert_new_triangle( points, N+1, N+2, N+3 );
+	find_circumcircle(points, t);
+    }
+
+    /* Add points one by one */
+    for (p = points; p < &points[N]; p++) {
+
+	/* Ignore undefined points. */
+	if (p->type == UNDEFINED)
+	    continue;
+
+	/* Also ignore duplicate points */
+	if (p->x == (p+1)->x && p->y == (p+1)->y)
+	    continue;
+
+	/* First step is to move all triangles for which the new point
+	 * violates the criterion "no other points in bounding circle"
+	 * to a separate list bad_triangles.
+	 */
+	delete_triangles(&bad_triangles);
+	prev = &good_triangles;
+	for (t = prev->next; t; t = prev->next) {
+	    if (in_circumcircle(t, p->x, p->y))
+		invalidate_triangle(prev, t);
+
+	    /* Points are sorted on x, so if the circumcircle of this
+	     * triangle is entirely to the left of the current point
+	     * we needn't check it for subsequent points either.
+	     */
+	    else if ((t->cx + t->r) < p->x) {
+		freeze_triangle(prev, t);
+		if (frozen_tail == NULL)
+		    frozen_tail = t;
+	    } else
+		prev = t;
+	}
+
+	/* I think this only happens if there is a duplicate point */
+	if (bad_triangles.next == NULL)
+	    continue;
+
+	/* Second step is to find the edges forming the perimeter
+	 * of the bad triangles.  An edge cannot appear twice.
+	 * If it does, flag both copies as -1.
+	 */
+	for (i = 0, t = bad_triangles.next; t; t = t->next)
+	    i++;
+	edges = gp_realloc(edges, 3*i * sizeof(t_edge), "delaunay edges");
+	for (i = 0, t = bad_triangles.next; t; t = t->next) {
+	    edges[i].v1 = (t->v1 > t->v2) ? t->v2 : t->v1;
+	    edges[i].v2 = (t->v1 > t->v2) ? t->v1 : t->v2;
+	    i++;
+	    edges[i].v1 = (t->v2 > t->v3) ? t->v3 : t->v2;
+	    edges[i].v2 = (t->v2 > t->v3) ? t->v2 : t->v3;
+	    i++;
+	    edges[i].v1 = (t->v3 > t->v1) ? t->v1 : t->v3;
+	    edges[i].v2 = (t->v3 > t->v1) ? t->v3 : t->v1;
+	    i++;
+	}
+	nedges = i;
+	qsort(edges, nedges, sizeof(t_edge), compare_edges);
+	for (i = 0; i < nedges-1; i++) {
+	    if (edges[i].v1 == edges[i+1].v1 && edges[i].v2 == edges[i+1].v2)
+		edges[i].v1 = edges[i+1].v1 = -1;
+	}
+
+	/* For each edge on the perimeter construct a new triangle
+	 * containing the new point as its third vertex.
+	 */
+	for (i = 0; i < nedges; i++) {
+	    if (edges[i].v1 >= 0) {
+		t = insert_new_triangle( points, edges[i].v1, edges[i].v2, p - points);
+		find_circumcircle(points, t);
+	    }
+	}
+    }
+
+    /* Merge frozen triangles back into the good triangle list */
+    if (frozen_tail) {
+	frozen_tail->next = good_triangles.next;
+	good_triangles.next = frozen_triangles.next;
+	frozen_triangles.next = NULL;
+	frozen_tail = NULL;
+    }
+
+    /* Remove any triangles that contain a vertex of the original "big triangle".
+     * The perimeter of the resulting tesselation can be found later by
+     * collecting one edge from each of the triangles left in the bad_triangles list.
+     */
+    delete_triangles(&bad_triangles);
+    prev = &good_triangles;
+    for (t = prev->next; t; t = prev->next) {
+	if ( (t->v1 >= N) || (t->v2 >= N) || (t->v3 >= N) )
+	    invalidate_triangle(prev, t);
+	else
+	    prev = t;
+    }
+
+    /* Flag the original points that lie on the bounding hull.
+     * The edges making up the hull remain in bounding_edges[]
+     * for use by a subsequent call to concave_hull().
+     */
+    for (i = 0; i < N; i++)
+	points[i].extra = 0;
+    for (i = 0, t = bad_triangles.next; t; t = t->next)
+	i++;
+    edges = gp_realloc(edges, 3*i * sizeof(t_edge), "delaunay edges");
+    max_bounding_edges = 3*i;
+    nedges = 0;
+    for (t = bad_triangles.next; t; t = t->next) {
+	int v1, v2;
+	v1 = (t->v1 >= N) ? t->v3 : t->v1;
+	v2 = (t->v2 >= N) ? t->v3 : t->v2;
+	if ((v1 == v2) || (v1 >= N) || (v2 >= N))
+	    continue;
+	edges[nedges].v1 = v1;
+	edges[nedges].v2 = v2;
+	points[v1].extra = HULL_POINT;
+	points[v2].extra = HULL_POINT;
+	edges[nedges].length = edge_length( &edges[nedges], plot->points );
+	nedges++;
+    }
+    bounding_edges = edges;
+    n_bounding_edges = nedges;
+
+}
+
+static void
+invalidate_triangle( triangle *prev, triangle *this )
+{
+    prev->next = this->next;
+    this->next = bad_triangles.next;
+    bad_triangles.next = this;
+}
+
+static void
+freeze_triangle( triangle *prev, triangle *this )
+{
+    prev->next = this->next;
+    this->next = frozen_triangles.next;
+    frozen_triangles.next = this;
+}
+
+static int
+compare_edges(SORTFUNC_ARGS e1, SORTFUNC_ARGS e2)
+{
+    t_edge *t1 = (t_edge *)e1;
+    t_edge *t2 = (t_edge *)e2;
+
+    if (t1->v1 > t2->v1)
+	return 1;
+    if (t1->v1 < t2->v1)
+	return -1;
+    if (t1->v2 > t2->v2)
+	return 1;
+    if (t1->v2 < t2->v2)
+	return -1;
+    return 0;
+}
+
+static triangle *
+insert_new_triangle( struct coordinate *points, int v1, int v2, int v3 )
+{
+    triangle *t = gp_alloc( sizeof(triangle), "triangle" );
+
+    if (v1 < v2 && v1 < v3) {
+	t->v1 = v1;
+	t->v2 = (v2 < v3) ? v2 : v3;
+	t->v3 = (v2 < v3) ? v3 : v2;
+    } else if (v2 < v1 && v2 < v3) {
+	t->v1 = v2;
+	t->v2 = (v1 < v3) ? v1 : v3;
+	t->v3 = (v1 < v3) ? v3 : v1;
+    } else {
+	t->v1 = v3;
+	t->v2 = (v1 < v2) ? v1 : v2;
+	t->v3 = (v1 < v2) ? v2 : v1;
+    }
+	
+    t->next = good_triangles.next;
+    good_triangles.next = t;
+
+    return t;
+}
+
+static void
+find_circumcircle( struct coordinate *points, triangle *t)
+{
+    double BB_x, BB_y, CC_x, CC_y, DD;
+    double cent_x, cent_y;
+
+    BB_x = points[t->v2].x - points[t->v1].x;
+    BB_y = points[t->v2].y - points[t->v1].y;
+    CC_x = points[t->v3].x - points[t->v1].x;
+    CC_y = points[t->v3].y - points[t->v1].y;
+
+    DD = 2. * (BB_x * CC_y - BB_y * CC_x);
+    cent_x = CC_y * (BB_x*BB_x + BB_y*BB_y) - BB_y * (CC_x*CC_x + CC_y*CC_y);
+    cent_x /= DD;
+    cent_y = BB_x * (CC_x*CC_x + CC_y*CC_y) - CC_x * (BB_x*BB_x + BB_y*BB_y);
+    cent_y /= DD;
+
+    t->r = sqrt( cent_x * cent_x + cent_y * cent_y );
+    t->cx = cent_x + points[t->v1].x;
+    t->cy = cent_y + points[t->v1].y;
+}
+
+static TBOOLEAN
+in_circumcircle( triangle *t, double x, double y )
+{
+    if ((t->cx - x)*(t->cx - x) + (t->cy - y)*(t->cy - y) < (t->r * t->r))
+	return TRUE;
+    else
+	return FALSE;
+}
+
+static void
+delete_triangles( triangle *list_head )
+{
+    triangle *next;
+    triangle *t = list_head->next;
+
+    while (t) {
+	next = t->next;
+	free(t);
+	t = next;
+    }
+    list_head->next = NULL;
+}
+
+static int
+compare_edgelength(SORTFUNC_ARGS e1, SORTFUNC_ARGS e2)
+{
+    if (((t_edge *)e1)->length > ((t_edge *)e2)->length)
+	return -1;
+    if (((t_edge *)e1)->length < ((t_edge *)e2)->length)
+	return 1;
+    return 0;
+}
+
+/* Adjust current perimeter of triangulated points by incrementally
+ * removing single edges to reveal a portion of the interior.
+ * Assume
+ *	plot->points contains the data points
+ *	bounding_edges[] contains the convex hull
+ *	l_chi is the characteristic length determining how far we trim
+ * Iterative algorithm
+ *	Sort bounding edges by length, i.e. bounding_edges[0] is the longest
+ *	If there is no removable edge with length > l_chi, stop.
+ *	Check whether longest edge belongs to a triangle with 3 exterior points
+ *	If so
+ *          mark edge as non-removable and continue
+ *	If not
+ *          Remove it to expose two new edges
+ *          Add the two newly exposed edges to the perimeter.
+ *          Remove triangle from good_triangles list.
+ * Note
+ *	On exit some lengths in bounding_edges have been overwritten with -1
+ */
+static void
+chi_reduction( struct curve_points *plot, double l_chi )
+{
+    /* Each edge removed exposes two others. We will increase max as necessary. */
+    bounding_edges = gp_realloc( bounding_edges, 2*n_bounding_edges*sizeof(t_edge),
+				"bounding_edges");
+    max_bounding_edges = 2*n_bounding_edges;
+
+    qsort(bounding_edges, n_bounding_edges, sizeof(t_edge), compare_edgelength);
+    while (dig_one_hole( plot, l_chi )) {
+	qsort(bounding_edges, n_bounding_edges, sizeof(t_edge), compare_edgelength);
+    }
+
+}
+
+static double
+edge_length( t_edge *edge, struct coordinate *p )
+{
+    double dx = p[edge->v1].x - p[edge->v2].x;
+    double dy = p[edge->v1].y - p[edge->v2].y;
+    return sqrt(dx*dx + dy*dy);
+}
+
+static void
+keep_edge( int i, int v1, int v2, struct coordinate *points)
+{
+    bounding_edges[i].v1 = v1;
+    bounding_edges[i].v2 = v2;
+    bounding_edges[i].length = edge_length(&bounding_edges[i], points);
+}
+
+static TBOOLEAN
+dig_one_hole( struct curve_points *plot, double l_chi )
+{
+    struct coordinate *p = plot->points;
+    triangle *t, *prev;
+
+    if (bounding_edges[0].length <= l_chi)
+	return FALSE;
+
+    /* Find the triangle this edge belongs to */
+    prev = &good_triangles;
+    for (t = prev->next; t; t = t->next) {
+	TBOOLEAN hit = FALSE;
+	if (bounding_edges[0].v1 == t->v1) {
+	    if (bounding_edges[0].v2 == t->v2) {
+		hit = TRUE;
+		if (p[t->v3].extra == HULL_POINT) {
+		    bounding_edges[0].length = -1;	/* Flag edge as not removeable */
+		} else {
+		    p[t->v3].extra = HULL_POINT;	/* Mark uncovered point exterior */
+		    keep_edge(0, t->v1, t->v3, p);
+		    keep_edge(n_bounding_edges, t->v2, t->v3, p);
+		    n_bounding_edges++;
+		    invalidate_triangle(prev, t);
+		}
+	    } else if (bounding_edges[0].v2 == t->v3) {
+		hit = TRUE;
+		if (p[t->v2].extra == HULL_POINT) {
+		    bounding_edges[0].length = -1;	/* Flag edge as not removeable */
+		} else {
+		    p[t->v2].extra = HULL_POINT;	/* Mark uncovered point exterior */
+		    keep_edge(0, bounding_edges[0].v1, t->v2, p);
+		    keep_edge( n_bounding_edges, t->v2, t->v3, p);
+		    n_bounding_edges++;
+		    invalidate_triangle(prev, t);
+		}
+	    }
+	} else if (bounding_edges[0].v1 == t->v2) {
+	    if (bounding_edges[0].v2 == t->v3) {
+		hit = TRUE;
+		if (p[t->v1].extra == HULL_POINT) {
+		    bounding_edges[0].length = -1;	/* Flag edge as not removeable */
+		} else {
+		    p[t->v1].extra = HULL_POINT;	/* Mark uncovered point exterior */
+		    keep_edge(0, t->v1, t->v2, p);
+		    keep_edge(n_bounding_edges, t->v1, t->v3, p);
+		    n_bounding_edges++;
+		    invalidate_triangle(prev, t);
+		}
+	    }
+	}
+
+	/* Replaced old perimeter segment with two new ones */
+	if (hit) {
+	    if (n_bounding_edges >= max_bounding_edges) {
+		max_bounding_edges *= 2;
+		bounding_edges = gp_realloc(bounding_edges, max_bounding_edges * sizeof(t_edge),
+					"bounding_edges");
+	    }
+	    return(TRUE);
+	}
+	/* Otherwise continue to search for triangle containing this edge */
+	prev = t;
+    }
+
+    return(FALSE);
+}
+
+
+void
+concave_hull( struct curve_points *plot )
+{
+    udvt_entry *udv;
+    int prev;
+    struct coordinate *newpoints;
+    double chi_length = 0.0;
+
+    /* Construct χ-shape */
+    udv = get_udv_by_name("chi_length");
+    if (udv && udv->udv_value.type == CMPLX)
+	chi_length = real(&(udv->udv_value));
+
+    /* No chi_length given, make a guesstimate */
+    if (chi_length <= 0) {
+	for (int ie = 0; ie < n_bounding_edges; ie++) {
+	    if (chi_length < bounding_edges[ie].length)
+		chi_length = bounding_edges[ie].length;
+	}
+	chi_length *= chi_shape_default_fraction;
+    }
+
+    chi_reduction( plot, chi_length );
+    fill_gpval_float("GPVAL_CHI_LENGTH", chi_length);
+
+    /* Replace original points with perimeter points as a closed curve.
+     * This wipes out bounding_edges as it goes.
+     */
+    newpoints = gp_alloc((n_bounding_edges + 1) * sizeof(struct coordinate), "concave hull");
+    newpoints[0] = plot->points[ bounding_edges[0].v1 ];
+    newpoints[1] = plot->points[ bounding_edges[0].v2 ];
+    prev = bounding_edges[0].v2;
+    bounding_edges[0].v1 = bounding_edges[0].v2 = -1;
+    for (int n = 2; n < n_bounding_edges; n++) {
+	for (int i = 1; i < n_bounding_edges; i++) {
+	    if (prev == bounding_edges[i].v1)
+		prev = bounding_edges[i].v2;
+	    else if (prev == bounding_edges[i].v2)
+		prev = bounding_edges[i].v1;
+	    else /* Not a match; keep looking */
+		continue;
+	    newpoints[n] = plot->points[prev];
+	    bounding_edges[i].v1 = bounding_edges[i].v2 = -1;
+	    break;
+	}
+    }
+    newpoints[n_bounding_edges] = newpoints[0];
+
+    cp_extend(plot, 0);
+    plot->p_max = n_bounding_edges+1;
+    plot->p_count = n_bounding_edges+1;
+    plot->points = newpoints;
+}
+
+/*
+ * filter option "delaunay"
+ *	plot POINTS using 1:2 delaunay with polygons fs empty
+ * Replace original list of points with a polygon representation
+ * of the individual triangles.
+ *
+ * This routine was written to help debug implementation of χ-shapes
+ * to generate a concave hull.  See "concave_hull.dem".
+ * It is currently undocumented as a separate filter option.
+ */
+void
+save_delaunay_triangles( struct curve_points *plot )
+{
+    struct coordinate *point = plot->points;
+    struct coordinate *newpoints = NULL;
+    double *newcolor = NULL;
+    triangle *t;
+    int outp;
+
+    /* Reserve space to store each triangle as three points
+     * plus one "empty" spacer.
+     */
+    for (outp = 0, t = good_triangles.next; t; t = t->next)
+	outp++;
+    newpoints = gp_alloc( 5 * outp * sizeof(struct coordinate), "delaunay filter" );
+
+    /* Copy full original point so that it retains any extra fields */
+    for (outp = 0, t = good_triangles.next; t; t = t->next) {
+	newpoints[outp++] = point[t->v1];
+	newpoints[outp++] = point[t->v2];
+	newpoints[outp++] = point[t->v3];
+	newpoints[outp++] = point[t->v1];
+	newpoints[outp++] = blank_data_line;
+    }
+
+    /* Make a new separate list of colors */
+    if (plot->varcolor) {
+	newcolor = gp_alloc( 5 * outp * sizeof(double), "delaunay colors" );
+	for (int i = 0; i < outp; i++)
+	    newcolor[i] = newpoints[i].CRD_COLOR;
+    }
+
+    /* Replace original point list with the new one */
+    cp_extend(plot, 0);
+    plot->points = newpoints;
+    plot->varcolor = newcolor;
+    plot->p_count = outp;
+    plot->p_max = outp;
+}
+
+#endif /* WITH_CHI_SHAPES */

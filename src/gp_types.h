@@ -126,6 +126,8 @@ typedef enum PLOT_STYLE {
     SPIDERPLOT   = 37*PLOT_STYLE_BITS + PLOT_STYLE_HAS_FILL + PLOT_STYLE_HAS_POINT,
     POLYGONS     = 38*PLOT_STYLE_BITS + PLOT_STYLE_HAS_FILL,
     POLYGONMASK  = 39*PLOT_STYLE_BITS,
+    SECTORS      = 40*PLOT_STYLE_BITS + PLOT_STYLE_HAS_LINE + PLOT_STYLE_HAS_FILL,
+    CONTOURFILL  = 41*PLOT_STYLE_BITS + PLOT_STYLE_HAS_FILL,
     PLOT_STYLE_NONE = -1
 } PLOT_STYLE;
 
@@ -153,6 +155,8 @@ typedef enum PLOT_FILTER {
     FILTER_NONE = 0,
     FILTER_BINS,
     FILTER_CONVEX_HULL,
+    FILTER_CONCAVE_HULL,
+    FILTER_DELAUNAY,
     FILTER_MASK,
     FILTER_ZSORT,
     FILTER_SHARPEN
@@ -220,7 +224,11 @@ typedef enum coord_type {
  * If the C compiler pads struct coordinate to an 8-byte boundary
  * (true for all the compilers I have tested) then there is a hole
  * that we might as well use to hold an extra coordinate property.
+ * The Delaunay triangulation code needs this extra storage.
  */
+#if defined(WITH_CHI_SHAPES) && !(defined(WITH_EXTRA_COORDINATE))
+  #define WITH_EXTRA_COORDINATE
+#endif
 #ifdef WITH_EXTRA_COORDINATE
   #define EXTRA_COORDINATE int extra;
 #else

@@ -232,6 +232,7 @@ sp_free(struct surface_points *sp)
 	}
 
 	free_at(sp->plot_function.at);
+	free(sp->zclip);
 
 	free(sp);
 	sp = next;
@@ -1017,7 +1018,8 @@ get_3ddata(struct surface_points *this_plot)
 		}
 
 		if (j == 2) {
-		    if (PM3DSURFACE != this_plot->plot_style)
+		    if (this_plot->plot_style != PM3DSURFACE
+		    &&  this_plot->plot_style != CONTOURFILL)
 			int_error(this_plot->token,
 				  "2 columns only possible with explicit pm3d style (line %d)",
 				  df_line_number);
@@ -1185,20 +1187,16 @@ get_3ddata(struct surface_points *this_plot)
 		track_pm3d_quadrangles = TRUE;
 
 	    } else if (this_plot->plot_style == BOXES) {
+
 		/* Pop last using value to use as variable color */
-		if (this_plot->fill_properties.border_color.type == TC_RGB
-		&&  this_plot->fill_properties.border_color.value < 0) {
+		if (this_plot->lp_properties.pm3d_color.type == TC_RGB
+		&&  this_plot->lp_properties.pm3d_color.value < 0) {
 		    color_from_column(TRUE);
 		    color = v[--j];
 
 		} else if (this_plot->fill_properties.border_color.type == TC_Z
 			&& j >= 4) {
-		    rgb255_color rgbcolor;
-		    unsigned int rgb;
-		    rgb255maxcolors_from_gray(cb2gray(v[--j]), &rgbcolor);
-		    rgb = (unsigned int)rgbcolor.r << 16
-			| (unsigned int)rgbcolor.g << 8
-			| (unsigned int)rgbcolor.b;
+		    unsigned int rgb = rgb_from_gray( cb2gray(v[--j]) );
 		    color_from_column(TRUE);
 		    color = rgb;
 
@@ -1325,14 +1323,6 @@ get_3ddata(struct surface_points *this_plot)
 				this_plot->noautoscale, {});
 			STORE_AND_UPDATE_RANGE(dummy, y + boxdepth, cp->type, y_axis,
 				this_plot->noautoscale, {});
-		    }
-		    /* We converted linetype colors (lc variable) to RGB colors on input.
-		     * Most plot styles do not do this.
-		     * When we later call check3d_for_variable_color it needs to know this.
-		     */
-		    if (this_plot->lp_properties.l_type == LT_COLORFROMCOLUMN) {
-			this_plot->lp_properties.pm3d_color.type = TC_RGB;
-			this_plot->lp_properties.pm3d_color.value = -1.0;
 		    }
 		}
 
@@ -1910,6 +1900,25 @@ eval_3dplots()
 		    continue;
 		}
 
+		/* Only pm3d quadrangles are affected by this so there should
+		 * eventually be some check on plot style
+		 */
+		if (equals(c_token, "zclip")) {
+		    double zlow, zhigh;
+		    t_colorspec color = DEFAULT_COLORSPEC;
+		    int start_token = ++c_token;
+		    if (!equals(c_token++,"["))
+			int_error(start_token, "expecting zclip [min:max]");
+		    zlow = parse_one_range_limit( -VERYLARGE );
+		    zhigh = parse_one_range_limit( VERYLARGE );
+		    free(this_plot->zclip);
+		    this_plot->zclip = gp_alloc( sizeof(struct zslice), "zslice" );
+		    this_plot->zclip->zlow = zlow;
+		    this_plot->zclip->zhigh = zhigh;
+		    this_plot->zclip->color = color;
+		    continue;
+		}
+
 		/* "mask" is currently implemented as if it were a smoothing
 		 * option, but giving it a separate keyword will make it easier
 		 * to separate later.
@@ -2051,7 +2060,6 @@ eval_3dplots()
 			set_lpstyle = TRUE;
 			continue;
 		    }
-
 		}
 
 		if (this_plot->plot_style != LABELPOINTS) {
@@ -2127,7 +2135,6 @@ eval_3dplots()
 			this_plot->fill_properties.fillstyle = default_fillstyle.fillstyle;
 			this_plot->fill_properties.filldensity = default_fillstyle.filldensity;
 			this_plot->fill_properties.fillpattern = 1;
-			this_plot->fill_properties.border_color = this_plot->lp_properties.pm3d_color;
 			parse_fillstyle(&this_plot->fill_properties);
 			set_fillstyle = TRUE;
 		    }
@@ -2221,16 +2228,21 @@ eval_3dplots()
 		}
 	    }
 
-	    /* If this plot style uses a fillstyle and we saw an explicit */
-	    /* fill color, save it in lp_properties now.                  */
-	    if ((this_plot->plot_style & PLOT_STYLE_HAS_FILL) && set_fillcolor)
-		this_plot->fill_properties.border_color = fillcolor;
-
-	    /* No fillcolor given; use the line color for fill also */
-	    if (((this_plot->plot_style & PLOT_STYLE_HAS_FILL) && !set_fillstyle)
-	    &&  !(this_plot->plot_style == PM3DSURFACE))
-		this_plot->fill_properties.border_color
-		    = this_plot->lp_properties.pm3d_color;
+	    /* If this plot style uses a fillstyle and we saw an explicit
+	     * fill color, save it in lp_properties now.
+	     * FIXME: make other plot styles work like BOXES.
+	     *        ZERRORFILL is weird.
+	     */
+	    if ((this_plot->plot_style & PLOT_STYLE_HAS_FILL) && set_fillcolor) {
+		if (this_plot->plot_style == ZERRORFILL) {
+		    this_plot->fill_properties.border_color = this_plot->lp_properties.pm3d_color;
+		    this_plot->lp_properties.pm3d_color = fillcolor;
+		} else if (this_plot->plot_style == BOXES) {
+		    this_plot->lp_properties.pm3d_color = fillcolor;
+		} else {
+		    this_plot->fill_properties.border_color = fillcolor;
+		}
+	    }
 
 	    /* Some low-level routines expect to find the pointflag attribute */
 	    /* in lp_properties (they don't have access to the full header).  */
@@ -2253,8 +2265,13 @@ eval_3dplots()
 		this_plot->labels->font = NULL;
 	    }
 
+	    /* Do not try to handle contours two different ways in the same plot */
+	    if (this_plot->plot_style == CONTOURFILL)
+		this_plot->opt_out_of_contours = TRUE;
+
 	    if (crnt_param == 0
 		&& this_plot->plot_style != PM3DSURFACE
+		&& this_plot->plot_style != CONTOURFILL
 		/* don't increment the default line/point properties if
 		 * this_plot is an EXPLICIT pm3d surface plot */
 		&& this_plot->plot_style != IMAGE
@@ -2815,6 +2832,12 @@ eval_3dplots()
 	    /* Allow individual surfaces to opt out of contouring */
 	    if (this_plot->opt_out_of_contours)
 		continue;
+
+	    if (contour_kind == CONTOUR_KIND_CUBIC_SPL) {
+		if (axis_array[FIRST_X_AXIS].log || axis_array[FIRST_Y_AXIS].log)
+		    int_warn(NO_CARET,
+			"use of cubic spline contours with log scale axes is not recommended");
+	    }
 
 	    if (!this_plot->has_grid_topology) {
 		int_warn(NO_CARET,"Cannot contour non grid data. Please use \"set dgrid3d\".");

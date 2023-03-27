@@ -842,6 +842,7 @@ df_tokenise(char *s)
 	    if ((*s == '\0') || (*s == '\n'))	{ /* Last field is empty */
 		df_column[df_no_cols].good = DF_MISSING;
 		df_column[df_no_cols].datum = not_a_number();
+		df_column[df_no_cols].position = NULL;
 		++df_no_cols;
 		break;
 	    }
@@ -1157,6 +1158,9 @@ df_open(const char *cmd_filename, int max_using, struct curve_points *plot)
 	parse_1st_row_as_headers = FALSE;
     /* Pseudofiles '+' and '++' can never have column headers */
     if (df_pseudodata > 0)
+	parse_1st_row_as_headers = FALSE;
+    /* Data pulled from an array also cannot have column headers  */
+    if (df_array)
 	parse_1st_row_as_headers = FALSE;
 
     if (!cmd_filename)
@@ -3165,7 +3169,8 @@ df_parse_string_field(char *field)
     int length;
 
     if (!field) {
-	return NULL;
+	/* treat missing string as empty string */
+	return strdup("");
     } else if (*field == '"') {
 	field++;
 	length = strcspn(field, "\"");
@@ -3504,12 +3509,14 @@ df_bin_default_columns default_style_cols[] = {
     {XYERRORLINES, 3, 1},
     {FILLEDCURVES, 1, 1},
     {PM3DSURFACE, 1, 2},
+    {CONTOURFILL, 1, 2},
     {LABELPOINTS, 1, 1},
     {HISTOGRAMS, 1, 0},
     {IMAGE, 1, 2},
     {RGBIMAGE, 3, 2},
     {RGBA_IMAGE, 4, 2},
     {CIRCLES, 2, 1},
+    {SECTORS, 4, 2},
     {ELLIPSES, 2, 3},
     {TABLESTYLE, 0, 0}
 };

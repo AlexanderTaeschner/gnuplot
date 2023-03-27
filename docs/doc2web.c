@@ -452,6 +452,34 @@ process_line(char *line, FILE *b, FILE *d)
 	    }
 	    break;
 	}
+
+    case 'D':		/* Link to figure in demo collection */
+	{		/* D demo_name <n> */
+			/* DB  inserts a break */
+	    char *demo;
+	    int figure = 1;
+
+	    if (line[1] == 'B') {
+		fprintf(b, "<br>\n");
+		break;
+	    }
+	    if (!sscanf(&line[2], "%ms", &demo))
+		break;
+	    sscanf(&line[strlen(demo)+3], "%d", &figure);
+	    fprintf(stderr, "Will include link to %s %d \n", demo, figure);
+
+            if (para) {
+		fprintf(b, "</p>");
+		fprintf(b, "<p align=\"center\">\n");
+		para = FALSE;
+	    }
+	    fprintf(b, "<a href=\"http://gnuplot.info/demo_6.1/%s.html\">\n", demo);
+            fprintf(b, "<img class=\"demo\" src=\"http://gnuplot.info/demo_6.1/%s.%d.png\" ", demo, figure);
+            fprintf(b, "alt=\"%s demo\" \\>\n", demo);
+	    fprintf(b, "</a>\n");
+            break;
+	}
+
     default:{
 	    if (isdigit((int)line[0])) {	/* start of section */
                 int newlevel = line[0]-'0';
@@ -476,6 +504,14 @@ process_line(char *line, FILE *b, FILE *d)
 	                fprintf(b, "</pre>\n");
 	            if (para)
 	                fprintf(b, "</p>\n");
+		}
+
+		/* Special case symlink for list of new features */
+		if (newlevel == 2) {
+		    if (!strncmp(&line[2], "New features", 12)) {
+			startpage = TRUE;	/* just to get the symlink processing! */
+			sectionname = "NewFeatures";
+		    }
 		}
 
 		para = FALSE;	/* not in a paragraph */

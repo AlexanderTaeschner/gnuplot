@@ -186,6 +186,7 @@ const struct gen_table set_tbl[] =
     { "cntrl$abel", S_CNTRLABEL },
     { "colormap$s", S_COLORMAP },
     { "cont$ours", S_CONTOUR },
+    { "contourfill", S_CONTOURFILL },
     { "cornerp$oles", S_CORNERPOLES },
     { "dasht$ype", S_DASHTYPE },
     { "dt", S_DASHTYPE },
@@ -753,6 +754,7 @@ const struct gen_table plotstyle_tbl[] =
     { "rgbima$ge", RGBIMAGE },
     { "rgba$lpha", RGBA_IMAGE },
     { "cir$cles", CIRCLES },
+    { "sec$tors", SECTORS },
     { "ell$ipses", ELLIPSES },
     { "sur$face", SURFACEGRID },
     { "parallel$axes", PARALLELPLOT },
@@ -760,6 +762,7 @@ const struct gen_table plotstyle_tbl[] =
     { "table", TABLESTYLE },
     { "zerror$fill", ZERRORFILL },
     { "mask", POLYGONMASK },
+    { "contourfill", CONTOURFILL },
     { NULL, PLOT_STYLE_NONE }
 };
 

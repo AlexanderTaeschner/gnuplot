@@ -442,14 +442,14 @@ MousePosToGraphPosReal(int xx, int yy, double *x, double *y, double *x2, double 
     if (plot_bounds.xright == plot_bounds.xleft)
 	*x = *x2 = VERYLARGE;	/* protection */
     else {
-	*x = AXIS_MAPBACK(FIRST_X_AXIS, xx);
-	*x2 = AXIS_MAPBACK(SECOND_X_AXIS, xx);
+	*x = axis_mapback(&axis_array[FIRST_X_AXIS], xx);
+	*x2 = axis_mapback(&axis_array[SECOND_X_AXIS], xx);
     }
     if (plot_bounds.ytop == plot_bounds.ybot)
 	*y = *y2 = VERYLARGE;	/* protection */
     else {
-	*y = AXIS_MAPBACK(FIRST_Y_AXIS, yy);
-	*y2 = AXIS_MAPBACK(SECOND_Y_AXIS, yy);
+	*y = axis_mapback(&axis_array[FIRST_Y_AXIS], yy);
+	*y2 = axis_mapback(&axis_array[SECOND_Y_AXIS], yy);
     }
     FPRINTF((stderr, "POS: xx=%i, yy=%i  =>  x=%g  y=%g\n", xx, yy, *x, *y));
 
@@ -3048,13 +3048,13 @@ recalc_ruler_pos()
 	ruler.px = -1;
     else {
 	P = ruler.x;
-	ruler.px = AXIS_MAP(FIRST_X_AXIS, P);
+	ruler.px = axis_map(&axis_array[FIRST_X_AXIS], P);
     }
     if (axis_array[FIRST_Y_AXIS].log && ruler.y < 0)
 	ruler.py = -1;
     else {
 	P = ruler.y;
-	ruler.py = AXIS_MAP(FIRST_Y_AXIS, P);
+	ruler.py = axis_map(&axis_array[FIRST_Y_AXIS], P);
     }
     MousePosToGraphPosReal(ruler.px, ruler.py, &dummy, &dummy, &ruler.x2, &ruler.y2);
 }

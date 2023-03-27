@@ -15,7 +15,7 @@ C
 ^  Ed Kubaitis, Russell Lang, Timothée Lecomte,<br>
 ^  Alexander Lehmann, Alexander Mai, Bastian Märkisch,<br>
 ^  Tatsuro Matsuoka, Ethan A Merritt, Petr Mikulík,<br>
-^  Carsten Steger, Shigeharu Takeno,<br>
+^  Hiroki Motoyoshi, Carsten Steger, Shigeharu Takeno,<br>
 ^  Tom Tkacik, Jos Van der Woude,<br>
 ^  James R. Van Zandt, Alex Woo, Johannes Zellner<br>
 ^</p>
@@ -72,7 +72,7 @@ C
 ?introduction
 ?
  `Gnuplot` is a portable command-line driven graphing utility for Linux, OS/2,
- MS Windows, OSX, VMS, and many other platforms. The source code is copyrighted
+ MS Windows, macOS, and many other platforms. The source code is copyrighted
  but freely distributed (i.e., you don't have to pay for it). It was originally
  created to allow scientists and students to visualize mathematical functions
  and data interactively, but has grown to support many non-interactive uses
@@ -278,15 +278,35 @@ C
 ## of the Voigt profile. See `VP`, `VP_fwhm`.
 #end
 
-3 New plot style
-?new style
+3 New plot styles
+?new styles
 #start
 #b The plot style `with surface` works in 2D polar coordinates to produce
 ## a solid-fill gridded representation of the plane, colored by weighted
-## contributions from an arbitrary set of input points. This is analagous to
+## contributions from an arbitrary set of input points. This is analogous to
 ## the use of `dgrid3d` and style `with pm3d` to produce a 3D gridded surface.
 ## See `set polar grid` and `polar heatmap`.
+#b New 2D plot style `with sectors` is an alternative to generating a full
+## polar gridded surface.  For each input data points it generates a single
+## annular wedge in a conceptual polar grid.  Unlike polar mode `with surface`
+## it can be used in either a polar or cartesian coordinate graph.
+#b Plot style `with lines` now has a filter option `sharpen`.  This filter
+## detects spikes in a function plot that appear truncated in the output
+## because the peak lies between two x-coordinates at which the function has
+## been sampled.  It adds a new sample point at the location of each such peak.
+## See `filters`.
+#b 3D plot style `with pm3d` accepts an optional modifier `zclip [zmin:zmax]`
+## that selects only a slice of the full surface.  Successive plots with
+## incremental changes to the clipping limits can be used to animate a
+## cross sectional cutaway view in 3D or to create a filled area contour map
+## in 2D projection.
 #end
+D polargrid 4
+DB
+D windrose 1
+D sectors 4
+DB
+D sharpen 1
 
 3 Hulls, masks, and smoothing
 ?new hulls
@@ -295,6 +315,11 @@ C
 ## new filter `convexhull`.  A path-smoothed bounding curve can be plotted
 ## as a filled area using "convexhull smooth path with filledcurves".
 ## See `convexhull`.
+#b An alternative experimental filter `concavehull` generates a bounding
+## polygon that is not necessarily convex; instead it forms a χ-shape
+## determined by a characteristic length parameter that controls the degree
+## of concavity.  This essentially draws a blob around the data points.
+## See `concavehull`.
 #b A convex hull or other polygon can be used as a mask to display only
 ## selected portions of a pm3d surface or an image plot.
 ## See new plot style `with mask` (defines a mask) and keyword `mask`
@@ -306,6 +331,9 @@ C
 #b Smoothing options apply to plotting `with filledcurves` {above|below|between}.
 #b New keyword `period` for smoothing periodic data. See `smooth kdensity`.
 #end
+D convex_hull 2
+D mask_pm3d 3
+D smooth_path 2
 
 3 Named palettes
 ?new colormaps
@@ -322,21 +350,8 @@ C
 #b Palettes read from a file or datablock (`set palette file`) may be specified
 ## either using fractional color components or 24-bit packed RGB values.
 #end
-
-3 New plot styles
-?new styles
-#start
-#b The plot style `with surface` works in 2D polar coordinates to produce
-## a solid-fill gridded representation of the plane, colored by weighted
-## contributions from an arbitrary set of input points. This is analogous to
-## the use of `dgrid3d` and style `with pm3d` to produce a 3D gridded surface.
-## See `set polar grid` and `polar heatmap`.
-#b Plot style `with lines` now has a filter option `sharpen`.  This filter
-## detects spikes in a function plot that appear truncated in the output
-## because the peak lies between two x-coordinates at which the function has
-## been sampled.  It adds a new sample point at the location of each such peak.
-## See `filters`.
-#end
+D named_palettes 4
+D viridis 1
 
 3 New data formats
 ?new data_formats
@@ -432,6 +447,7 @@ C
 #b New function `weekdate_cdc(year, week, day)` converts CDC standard week date
 ## to calendar time.
 #end
+D epi_data 1
 
 3 Other new features
 ?new features
@@ -449,6 +465,8 @@ C
 #b Improved rendering of intersecting pm3d surfaces - overlapping surface tiles
 ## are split into two pieces along the line of intersection so that tiles
 ## from one surface do not incorrectly protrude though the other surface.
+#b User-controlled spotlight added to the pm3d lighting model.
+## See `set pm3d spotlight`.
 #b New options to force total key width and number of columns. See `key layout`.
 #b `set pm3d border retrace` draws a border around each pm3d quadrangle in the
 ## same color as the filled area.  In principle this should have no visible
@@ -1013,7 +1031,7 @@ C  need @ in table, so end and restart the table !
 
  You can specify a character by its Unicode code point as \U+hhhh, where hhhh
  is the 4 or 5 character hexadecimal code point. For example the code point for
- the infinity symbol is \U+221E.  This will be converted to a UTF-8 byte
+ the infinity symbol ∞ is \U+221E.  This will be converted to a UTF-8 byte
  sequence on output if appropriate.  In a UTF-8 environment this mechanism
  is not needed for printable special characters since they are handled in a
  text string like any other character. However it is useful for combining forms
@@ -3372,7 +3390,6 @@ C ... and restart the table:
 
  On many systems libgd can also use generic font handling provided by the
  fontconfig tools (see `fontconfig`).
-
  On most systems without fontconfig, libgd provides access to Adobe fonts
  (*.pfa *.pfb) and to TrueType fonts (*.ttf).  You must give the name of the
  font file, not the name of the font inside it, in the form "<face> {,<size>}".
@@ -3389,7 +3406,6 @@ C ... and restart the table:
  To request a default font size at the same time:
       set term png font "arial,11"
 
- Both TrueType and Adobe Type 1 fonts are fully scalable and rotatable.
  If no specific font is requested in the "set term" command, gnuplot checks
  the environmental variable GNUPLOT_DEFAULT_GDFONT.
 3 postscript  (also encapsulated postscript *.eps)
@@ -4616,6 +4632,7 @@ Ffigure_watchpoints
       # determining which of the two previous defined styles to use
       plot DATA using 1:2:3:4:5 with arrows arrowstyle variable
 
+#TeX \newpage
 2 Bee swarm plots
 ?beeswarm
 ?bee swarm
@@ -4679,7 +4696,7 @@ Ffigure_boxerrorbars
  coordinate that extends from the plane at z=0 to the given z coordinate.
  The width of the box on x can be provided in a separate input column or via
  `set boxwidth`.  The depth of the box on y is controlled by `set boxdepth`.
- Boxes do not automatically expand to touch each other as in 2D plots.
+ Boxes do not automatically expand to touch each other.
 3 2D boxes
 ?style boxes 2D
 ?boxes 2D
@@ -4755,8 +4772,8 @@ Ffigure_3Dboxes
 
  3D boxes are processed as pm3d quadrangles rather than as surfaces. Because of
  this the front/back order of drawing is not affected by `set hidden3d`.
- Similarly if you want each box face to have a border you must use
- `set pm3d border` rather than `set style fill border`.  See `set pm3d`.
+ See `set pm3d`.  In gnuplot version 6 the edges of the box are colored by
+ the border color of the plot's fill style; this is a change from version 5.
  For best results use a combination of `set pm3d depthorder base` and
  `set pm3d lighting`.
 
@@ -4812,7 +4829,6 @@ Ffigure_boxplot
  These default properties may be changed using the `set style boxplot` command.
  See `set style boxplot`, `bars`, `boxwidth`, `fillstyle`, `candlesticks`.
 
-#TeX \newpage
 2 boxxyerror
 ?plotting styles boxxyerror
 ?style boxxyerror
@@ -5197,15 +5213,26 @@ Ffigure_histeps
  Several of gnuplot's plot styles can be used to create heat maps. The choice
  of which style to use is dictated by the type of data.
 
-Ffigure_sparsematrix
+Ffigure_heatmap
+ Pixel-based heat maps all have the property that each pixel in the map
+ corresponds exactly to one original data value.
  The pixel-based image styles require a regular rectangular grid of data values;
- see `with image`.  However it is possible to deal with some missing grid values
+ see `with image`.  However it is possible to handle missing grid values
  (see `sparse`) and it is also possible to mask out only a portion of the grid
- for display (see `masking`).  These pixel-based heat maps all have the property
- that each pixel in the map corresponds exactly to one original data value.
- Unless there are a large number of grid elements, it is usually a good idea to
+ for display (see `masking`).
+ Unless there are a large number of grid elements, it is usually good to
  render each rectangular element separately (`with image pixels`) so that
  smoothing or lossy compression is not applied to the resulting "image".
+
+Ffigure_sector_heatmap
+ A polar equivalent to image pixel-based heat maps can be generated using 2D
+ plot style `sectors`.  Each input point corresponds to exactly one annular
+ sector of a polar grid, equivalent to a pixel.  Unlike the polar grid surface
+ option described below, any number of individual grid sectors may be provided.
+ This plot style can be used in either polar or cartesian coordinate plots
+ to place polar sectors anywhere on the graph.  The figure here shows two halves
+ of a polar heat map displaced across the origin by +/- Δx on a cartesian
+ coordinate plot.  See `with sectors`.
 
 Ffigure_mask
  If the data points do not constitute a regular rectangular grid, they can often
@@ -5478,6 +5505,7 @@ Ffigure_newhist
 ^ <a href="http://www.gnuplot.info/demo/histogram_colors.html">
  histogram_colors.dem
 ^ </a>
+D histogram_colors 1
 
 2 image
 ?plotting styles image
@@ -5916,13 +5944,74 @@ Ffigure_polygons
 ?style rgbimage
 ?with rgbimage
  See `image`.
+2 sectors
+?plotting styles sectors
+?with sectors
+?sectors
+?windrose
+Ffigure_sector_definition
+ The 2D plotting style `with sectors` renders one annular segment ("sector")
+ for each line of input data.  The shape of each sector is described by four
+ required data values.  An additional pair of data values can be included to
+ specify the origin of the annulus this sector is taken from.
+ A per-sector color may be provided in an additional column.
+ 
+ The plot style itself can be used in either cartesian or polar mode
+ (`set polar`).  The units and interpretation for the azimuth and the
+ sector angle are controlled using `set angles` and `set theta`.
+
+ Columns 1 and 2 specify the azimuth (theta) and radius (r) of one corner
+ of the sector.
+#TeX \newline
+ Columns 3 and 4 specify the angular and radial extents of the sector
+ ("sector_angle" and "annular_width").
+#TeX \newline
+ Columns 5 and 6, if present, specify the coordinates of the center of the
+ annulus (default [0,0]).  The interpretation is [x,y] in cartesian mode
+ and [theta,r] in polar mode.
+ 
+ Syntax:
+     plot DATA {using specifier} {units xy | units xx | units yy}
+
+ using specifier
+     4 columns: azimuth radius sector_angle annular_width
+     5 columns: azimuth radius sector_angle annular_width color
+     6 columnd: azimuth radius sector_angle annular_width center_x center_y
+     7 columns: azimuth radius sector_angle annular_width center_x center_y color
+
+ Note that if the x and y axis scales are not equal, the envelope of the full
+ annulus in x/y coordinates will appear as an ellipse rather than a circle.
+ The annulus envelope and thus the apparent sector annular width can be adjusted
+ to correct for unequal axis scales using the same mechanism as for ellipses.
+ Adding `units xx` to the command line causes the sector to be rendered as if
+ the current x axis scale applied equally to both x and y.
+ Similarly `units yy` causes the sector to be rendered as if the current
+ y axis scale applied equally to both x and y.
+ See `set isotropic`, `set style ellipse`.
+
+Ffigure_windrose
+ Plotting with sectors can provide polar coordinate equivalents for the
+ cartesian plot styles `boxes` (see wind rose figure), `boxxyerror` and
+ `image pixels` (see example in `heatmaps`).  Because sector plots are
+ compatible with cartesian mode plot layout, multiple plots can be placed
+ at different places on a single graph, which would not be possible for
+ other polar mode plot styles.
+
+ An example of using sectors to create a wind rose in shown here.
+ Other applications include polar heatmaps, dial charts, pie/donut charts,
+ and annular error boxes for data points in polar coordinates.
+ Worked examples for all of these are given in the 
+^ <a href="http://www.gnuplot.info/demo/sectors.html">
+ sectors demo.
+^ </a>
+
 2 spiderplot
 ?plotting styles spiderplot
 ?with spiderplot
 ?spiderplot
 ?radar chart
  Spider plots are essentially parallel axis plots in which the axes are arranged
- radially rather than vertically. Such plots are sometimes called `rader charts`.
+ radially rather than vertically. Such plots are sometimes called `radar charts`.
  In gnuplot this requires working within a coordinate system established by the
  command `set spiderplot`, analogous to `set polar` except that the angular
  coordinate is determined implicitly by the parallel axis number. The appearance,
@@ -6057,6 +6146,8 @@ Ffigure_xerrorbars
  (x,y), a line is drawn from (xlow,y) to (xhigh,y) or from (x-xdelta,y) to
  (x+xdelta,y), depending on how many data columns are provided.  The appearance
  of the tic mark at the ends of the bar is controlled by `set errorbars`.
+ The clearance between the point and the error bars is controlled by
+ `set pointintervalbox`.
  The basic style requires either 3 or 4 columns:
 
       3 columns:  x  y  xdelta
@@ -6077,7 +6168,9 @@ Ffigure_xyerrorbars
  from (x-xdelta,y) to (x+xdelta,y) or from (x,ylow) to (x,yhigh) and from
  (xlow,y) to (xhigh,y), depending upon the number of data columns provided.
  The appearance of the tic mark at the ends of the bar is controlled by
- `set errorbars`.  Either 4 or 6 input columns are required.
+ `set errorbars`.  The clearance between the point and the error bars is
+ controlled by `set pointintervalbox`.
+ Either 4 or 6 input columns are required.
 
       4 columns:  x  y  xdelta  ydelta
       6 columns:  x  y  xlow  xhigh  ylow  yhigh
@@ -6091,6 +6184,7 @@ Ffigure_xyerrorbars
  An additional input column (5th or 7th) may be used to provide variable color.
  This style does not permit variable point properties.
 
+#TeX \newpage
 2 xerrorlines
 ?plotting styles xerrorlines
 ?style xerrorlines
@@ -7940,14 +8034,15 @@ Ffigure_zerror
                           {every <every list>}
                           {skip <number-of-lines>}
                           {using <using list>}
-                          {convexhull}
+                          {convexhull} {concavehull}
                           {smooth <option>}
                           {bins <options>}
                           {mask}
                           {volatile} {zsort} {noautoscale}
 
  The modifiers `binary`, `index`, `every`, `skip`, `using`, `smooth`, `bins`,
- `mask`, `convexhull`, and `zsort` are discussed separately.  In brief
+ `mask`, `convexhull`, `concavehull`, and `zsort` are discussed separately.
+ In brief
 #start
 #b `skip N` tells the program to ignore N lines at the start of the input file
 #b `binary` indicates that the file contains binary data rather than text
@@ -8175,8 +8270,8 @@ Ffigure_zerror
  In general the purpose of a filter is to replace the original full set of 
  input points with a selected subset of points, possibly modified, regrouped,
  or reordered,
- The filters currently supported are `bins`, `convexhull`, `mask`, `sharpen`,
- and `zsort`.
+ The filters currently supported are `bins`, `convexhull`, `concavehull`,
+ `mask`, `sharpen`, and `zsort`.
 5 bins
 ?commands plot datafile filters bins
 ?plot datafile filters bins
@@ -8239,10 +8334,11 @@ Ffigure_zerror
 ?convexhull
 
  Convexhull is not a plot style. It can appear either alone as a filter 
- keyword or in combination with `smooth path`.
+ keyword or in combination with `smooth path` and/or `expand <increment>`.
 
       plot FOO using x:y convexhull
-      plot FOO using x:y convexhull smooth path {expand <scale>}
+      plot FOO using x:y convexhull smooth path
+      plot FOO using x:y convexhull expand <increment> {smooth path}
 
 Ffigure_convex_hull
  The points in FOO are replaced by a subset of the original points that
@@ -8258,10 +8354,64 @@ Ffigure_convex_hull
  points to generate a smooth closed curve (see `smooth path`). By default
  this smoothed curve runs through the bounding points.
 
- EXPERIMENTAL: The optional `expand` keyword and scale factor shift the
- guide points away from the centroid so that for scale values greater than
- 1.0 the smoothed curve is outside all data points. This procedure is not
- very satisfactory and will be replaced in a later gnuplot version.
+ The optional `expand` keyword and increment shift the edge segments of
+ the hull away from the interior by an incremental distance.
+ The displaced segments are then connected using miter joins; this means
+ that each vertex of the original hull is replaced by two vertices, since
+ there is now a gap between the to adjoining edges.
+
+5 concavehull
+?commands plot datafile filters concavehull
+?commands plot datafile concavehull
+?plot datafile filters concavehull
+?datafile filters concavehull
+?plot filters concavehull
+?filters concavehull
+?concavehull
+
+ EXPERIMENTAL (implementation details may change in a future release).
+ Present only if your copy of gnuplot was configured --enable-chi-shapes.
+
+ Concavehull is not a plot style. It is a filter that finds a bounding
+ polygon, a "hull",  of the input data points and replaces the original points
+ with an ordered subset of points that lie along the perimeter of this polygon.
+ Unlike the convex hull, which is uniquely defined for any set of points, more
+ than one concave hull is possible.  Various schemes for selecting a concave
+ hull exist; gnuplot generates hulls that are χ-shapes as defined by
+ Duckham et al. (2008) Patttern Recognition 41:3224-3236.
+
+Ffigure_concave_hull_1
+ For a given set of points, a χ-shape is generated by iterative removal of
+ triangles from the Delaunay triangulation.  Each iteration removes a single
+ triangle subject to the criteria: (1) A triangle is only eligible for
+ removal if this would not reduce the connectivity of the bounded shape to
+ contact at a single point; (2) one edge of the triangle is the longest segment
+ of the current perimeter; (3) this edge is longer than a pre-selected
+ characteristic length parameter that fully determines the χ-shape.
+ In gnuplot this characteristic length parameter is taken from user variable
+ `chi_length`.  Iteration stops when there are no remaining eligible triangles.
+ If `chi_length` is large, no triangles are removed and the χ-shape is the
+ original perimeter, i.e. the convex hull.  As `chi_length` is reduced,
+ more and more triangles are removed and the resulting shape becomes
+ increasingly less convex.  Too-small values of `chi_length` are undesirable.
+
+Ffigure_concave_hull_2
+ Appropriate choice of `chi_length` depends strongly on the density and
+ distribution of the input data points.  If no value for `chi_length` has
+ been set by the user, gnuplot will choose one automatically but there is
+ no guarantee that this value is suitable for your data.  For the data used
+ in the figures shown here gnuplot would choose chi_length=22.6 by default,
+ which is 0.6 of the length of the longest edge in the convex hull.
+ You can change the fraction of the longest edge used as a default with the
+ command `set chi_shape fraction <value>`
+
+ The value of `chi_length` used in the current plot, whether provided by the
+ user or chosen by the program, is saved to variable GPVAL_CHI_LENGTH.
+
+ The optional `expand` keyword and increment shift each edge segment of the
+ hull away from the interior by a fixed distance.  This creates a new set of
+ points describing a closed curve that lies outside all of the original points.
+ It can be combined with `smooth path`.
 
 5 mask
 ?commands plot datafile filters mask
@@ -8299,6 +8449,7 @@ Ffigure_convex_hull
  truncated to apparent minimal y values between 0.02 and 0.20. 
  Adding the "sharpen" keyword produces instead a correct representation of
  the function with periodic sharp minima that reach y=0.
+D sharpen 1
 
 5 zsort
 ?commands plot datafile filters zsort
@@ -8401,7 +8552,7 @@ Ffigure_convex_hull
  Syntax:
        smooth {unique | frequency | fnormal | cumulative | cnormal
               | csplines | acsplines | mcsplines  bezier | sbezier
-              | path {expand <scale>}
+              | path
               | kdensity {bandwidth} {period}
               | unwrap}
 
@@ -8563,13 +8714,6 @@ Ffigure_smooth_path
 ^ <a href="http://www.gnuplot.info/demo_6.0/smooth_path.html">
  smooth_path.dem
 ^ </a>
-
- If the set of points being smoothed was generated using the `convexhull`
- filter, an additional keyword `expand` is accepted together with a scale
- factor for the expansion.  See `convexhull`.
- Example:
-      plot DATA convexhull smooth path expand 1.1 with filledcurves, \
-           DATA with points
 5 sbezier
 ?commands plot datafile smooth sbezier
 ?plot datafile smooth sbezier
@@ -9078,9 +9222,9 @@ Ffigure_smooth_path
 5 cbticlabels
 ?using cbticlabels
  EXPERIMENTAL (details may change in a future release version)
- 2D plots: colorbar labels are placed at the palette coordinate used by the
+ 2D plots: colorbox labels are placed at the palette coordinate used by the
  plot for variable coloring "lc palette z".
- 3D plots: colorbar labels are placed at the z coordinate of the point.
+ 3D plots: colorbox labels are placed at the z coordinate of the point.
  Note that in the case of a 3D heat map with variable color that does not
  match z, this is probably not the correct label.
  See also `plot using xticlabels`.
@@ -10319,6 +10463,23 @@ Ffigure_smooth_path
  It sets the extent of each box along the y axis, i.e. its thickness.
  `set boxdepth square` will try to choose a y extent that gives the appearance
  of a square cross section independent of the axis scales on x and y.
+3 chi_shapes
+?command set chi_shapes
+?set chi_shapes
+?command unset chi_shapes
+?unset chi_shapes
+?chi_shapes
+      set chi_shapes fraction <value>
+      unset chi_shapes
+
+ The concave hull filter creates χ-shapes defined by a characteristic length
+ chi_length.  If no chi_length variable has been set, it chooses a value equal
+ to a fraction of the longest edge in the bounding polygon (the convex hull).
+ The fraction defaults to 0.6 but can be changed using this command. 
+ Choosing a value of 1.0 will reduce the resulting hull to the convex hull.
+ Smaller values will produce increasingly concave hulls. See `concavehull`.
+ The `unset chi_shapes` command restores the fraction to 0.6 and undefines
+ the chi_length variable.
 3 color
 ?commands set color
 ?set color
@@ -10635,6 +10796,8 @@ Ffigure_smooth_path
 ^ <a href="http://www.gnuplot.info/demo/discrete.html">
  contours with user defined levels demo (discrete.dem).
 ^ </a>
+D contours 5
+D discrete 3
 3 color box
 ?commands set colorbox
 ?commands show colorbox
@@ -10802,6 +10965,7 @@ Ffigure_colornames
       set linetype 5 dt 5        # always use this dash pattern with linetype 5
       set dashtype 66 "..-"      # define a new dashtype using a string
  See also `dashtype`.
+D dashtypes 2
 3 datafile
 ?set datafile
 ?show datafile
@@ -11160,6 +11324,9 @@ Ffigure_dgrid3d
 ^ <a href="http://www.gnuplot.info/demo/heatmap_points.html">
  heatmap_points
 ^ </a>
+D heatmap_points 1
+D heatmap_points 2
+D heatmap_points 3
 
 3 dummy
 ?commands set dummy
@@ -12014,6 +12181,7 @@ Ffigure_dgrid3d
  normally, making the resulting display hard to understand.  Therefore, the
  default option of `bentover` will turn it visible in this case.  If you don't
  want that, you may choose `nobentover` instead.
+D hidden 6
  See also
 ^ <a href="http://www.gnuplot.info/demo/hidden.html">
  hidden line removal demo (hidden.dem)
@@ -12576,7 +12744,7 @@ Ffigure_multiple_keys
     `tc lt <n>` sets the text color to that of line type <n>.
     `tc ls <n>` sets the text color to that of line style <n>.
     `tc palette z` selects a palette color corresponding to the label z position.
-    `tc palette cb <val>` selects a color corresponding to <val> on the colorbar.
+    `tc palette cb <val>` selects a color corresponding to <val> on the colorbox.
     `tc palette fraction <val>`, with 0<=val<=1, selects a color corresponding to
         the mapping [0:1] to grays/colors of the `palette`.
     `tc rgb "#RRGGBB"` or `tc rgb "0xRRGGBB"` sets an arbitrary 24-bit RGB color.
@@ -14014,9 +14182,8 @@ Ffigure_palette2
  Syntax:
        set palette  defined { ( <gray1> <color1> {, <grayN> <colorN>}... ) }
 
- <grayX> are gray values which are mapped to [0,1] and <colorX> are the
- corresponding rgb colors.  The color can be specified in three different
- ways:
+ where N ≥ 2 and <grayN> are gray values which are mapped to [0,1].
+ The corresponding rgb color <colorN> can be specified in three different ways:
 
       <color> :=  { <r> <g> <b> | '<color-name>' | '#rrggbb' }
 
@@ -14120,6 +14287,7 @@ Ffigure_palette2
  brightness (luminance).  The colormap version used in gnuplot is based on
        "Viridis - Colorblind-Friendly Color Maps for R", Garnier et al (2021)
        https://CRAN.R-project.org/package=viridis
+D viridis 1
 4 colormap
 ?commands set palette colormap
 ?palette colormap
@@ -14438,15 +14606,52 @@ Ffigure_palette2
 
  See also help for `set palette`, `set cbrange`, `set colorbox`,
  and the demo file `demo/pm3d.dem`.
-4 implicit
-?pm3d implicit
+
+4 with pm3d (pm3d explicit)
 ?pm3d explicit
 ?with pm3d
 ?splot with pm3d
- A pm3d color surface is drawn if the splot command specifies `with pm3d`,
- if the data or function `style` is set to pm3d globally, or if the pm3d mode is
- `set pm3d implicit`.  In the latter two cases, the pm3d surface is draw in
- addition to the mesh produced by the style specified in the plot command. E.g.
+?plotting styles pm3d
+?splot with pm3d zclip
+?pm3d zclip
+?zclip
+
+ Syntax
+      splot DATA using (x):(y):(z){:(color)} with pm3d
+                 {fs|fillstyle <fillstyle>} {fc|fillcolor <colorspec>}
+                 {zclip [zmin:zmax]}
+
+ The rendering properties of all pm3d surfaces are controlled using
+ `set pm3d`.  By default the full surface is rendered as a grid of
+ quadrangles, each colored by the palette color mapped to that z coordinate.
+ If you provide a fourth input column, the palette mapping uses that value
+ rather than z.  See `pm3d fillcolor`, `pm3d color_assignment`.
+
+ When you explicitly use `with pm3d` in the plot command rather than using
+ another plot style while `set pm3 implicit` is active, additional rendering
+ options are possible.  This allows you to use separate coloring schemes for
+ different surfaces in the same plot.
+ 
+ EXPERIMENTAL: This gnuplot version introduces an option `zclip` that
+ clips the generated surface smoothly at a pair of limiting z values.
+ The example below animates gradual removal of the top portion of a
+ two-color 3D surface.
+      set style line 101 lc "gray"
+      set style line 102 lc "blue"
+      set pm3d depthorder
+      do for [i=0:N] {
+          splot f(x,y) with pm3d fillcolor ls 101 zclip [* : zmax-(i*delta)] 
+          pause 0.2  # 1/5 second between animation frames
+      }
+
+4 pm3d implicit
+?pm3d implicit
+
+ A pm3d color surface is drawn if the splot command explicitly specifies
+ `with pm3d`, if the data or function `style` is set to pm3d globally,
+ or if the pm3d mode is `set pm3d implicit`.  For the latter two cases
+ the pm3d surface is draw in addition to the mesh produced by the style
+ specified in the plot command. E.g.
        splot 'fred.dat' with lines, 'lola.dat' with lines
  would draw both a mesh of lines and a pm3d surface for each data set.
  If the option `explicit` is on (or `implicit` is off) only plots specified
@@ -14543,6 +14748,7 @@ Ffigure_palette2
  Example:
       set pm3d lighting primary 0.8 spec 0.4 spec2 0.4
       set pm3d spot rgb "blue"
+D spotlight 1
 4 position
 ?pm3d position
 ?set pm3d position
@@ -16227,6 +16433,7 @@ Ffigure_polar_grid
       set ttics -180, 30, 180
       set ttics add ("Theta = 0" 0)
       set ttics font ":Italic" rotate
+D ttics 3
 3 urange
 ?commands set urange
 ?commands show urange
@@ -18326,6 +18533,7 @@ Ffigure_sparsematrix
  It also plots the apparent net intensity as calculated using NTSC coefficients
  to map RGB onto a grayscale.  The command also loads the profile values into a
  datablock named $PALETTE.
+D viridis 1
 2 toggle
 ?commands toggle
 ?toggle

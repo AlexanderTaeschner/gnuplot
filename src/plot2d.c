@@ -581,6 +581,11 @@ get_data(struct curve_points *current_plot)
 	max_cols = 6;
 	break;
 
+    case SECTORS:	/* 3 + possible variable color, or 4 + possible variable color */
+	min_cols = 4;
+	max_cols = 7;
+	break;
+
     case ELLIPSES:
 	min_cols = 2; /* x, y, major axis, minor axis */
 	max_cols = 6; /* + optional angle, possible variable color */
@@ -815,6 +820,9 @@ get_data(struct curve_points *current_plot)
 			    break;
 	    case CIRCLES:
 			    if (j == 5 || j < 3) int_error(NO_CARET,errmsg);
+			    break;
+	    case SECTORS:
+			    if (j < 4) int_error(NO_CARET,errmsg);
 			    break;
 	    case ELLIPSES:
 	    case BOXES:
@@ -1110,14 +1118,21 @@ get_data(struct curve_points *current_plot)
 	     */
 	    coordval y1 = v[1];
 	    coordval y2;
-	    coordval w = 0.0;	/* only needed for SMOOTH_ACSPLINES) */
+	    coordval w;
+
+	    if (current_plot->plot_smooth == SMOOTH_ACSPLINES)
+		w = 1.0;
+	    else
+		w = 0.0;
+
 	    if (j==2) {
 		if (current_plot->filledcurves_options.closeto == FILLEDCURVES_CLOSED
 		||  current_plot->filledcurves_options.closeto == FILLEDCURVES_DEFAULT)
 		    y2 = y1;
 		else
 		    y2 = current_plot->filledcurves_options.at;
-	    } else if (current_plot->plot_filter == FILTER_CONVEX_HULL) {
+	    } else if ((current_plot->plot_filter == FILTER_CONVEX_HULL)
+		   ||  (current_plot->plot_filter == FILTER_CONCAVE_HULL)) {
 		y2 = y1;
 	    } else {
 		y2 = v[2];
@@ -1211,6 +1226,21 @@ get_data(struct curve_points *current_plot)
 	    }
 	    store2d_point(current_plot, i++, x, y,
 			  xlow, xhigh, arc_begin, arc_end, radius);
+	    break;
+	}
+
+	case SECTORS:
+	{   /*  corner_azimuth corner_radius sector_angle annulus_width
+                corner_azimuth corner_radius sector_angle annulus_width center_x center_y
+	     */
+	    coordval x = (j >= 6) ? v[4] : 0.0; /* center_x */
+	    coordval y = (j >= 6) ? v[5] : 0.0; /* center_y */
+	    coordval xlow  = v[0];              /* corner_azimuth */
+	    coordval xhigh = v[1];              /* corner_radius */
+	    coordval ylow  = v[2];              /* sector_angle */
+	    coordval yhigh = v[3];              /* annulus_width */
+	    store2d_point(current_plot, i++, x, y,
+			  xlow, xhigh, ylow, yhigh, 0.0);
 	    break;
 	}
 
@@ -1340,6 +1370,7 @@ get_data(struct curve_points *current_plot)
 
 	/* These exist for 3D (splot) but not for 2D (plot) */
 	case PM3DSURFACE:
+	case CONTOURFILL:
 	case ZERRORFILL:
 	case ISOSURFACE:
 	    int_error(NO_CARET, "This plot style only available for splot");
@@ -1436,6 +1467,9 @@ store2d_point(
 	    xlow = x - radius;
 	    xhigh = x + radius;
 
+	}
+	else if (current_plot->plot_style == SECTORS) {
+            ;
 	} else {
 	    /* Jan 2017 - now skipping range check on rhigh, rlow */
 	    (void) polar_to_xy(xhigh, yhigh, &xhigh, &yhigh, FALSE);
@@ -1509,6 +1543,12 @@ store2d_point(
 	cp->xhigh = yhigh;	/* arc end */
 	if (fabs(ylow) > 1000. || fabs(yhigh) > 1000.) /* safety check for insane arc angles */
 	    cp->type = UNDEFINED;
+	break;
+    case SECTORS:
+        cp->xlow  = xlow;
+        cp->xhigh = xhigh;
+        cp->ylow  = ylow;
+        cp->yhigh = yhigh;
 	break;
     case ELLIPSES:
 	/* We want to pass the parameters to the ellipse drawing routine as they are, 
@@ -2465,12 +2505,31 @@ eval_plots()
 		    continue;
 		}
 
-		/* "convexhull" is unsmoothed; "smooth convexhull is smoothed */
 		if (equals(c_token, "convexhull")) {
 		    this_plot->plot_filter = FILTER_CONVEX_HULL;
 		    c_token++;
 		    continue;
 		}
+
+#ifdef WITH_CHI_SHAPES
+		if (equals(c_token, "concavehull")) {
+		    this_plot->plot_filter = FILTER_CONCAVE_HULL;
+		    c_token++;
+		    continue;
+		}
+		/* This was added to help debug concave hulls.
+		 * Should we keep and document this as a filter?
+		 */
+		if (equals(c_token, "delaunay")) {
+		    this_plot->plot_filter = FILTER_DELAUNAY;
+		    c_token++;
+		    continue;
+		}
+#endif
+
+		if (this_plot->plot_filter == FILTER_CONVEX_HULL
+		||  this_plot->plot_filter == FILTER_CONCAVE_HULL)
+		    parse_hull_options(this_plot);
 
 		/* deal with smooth */
 		if (almost_equals(c_token, "s$mooth")) {
@@ -2521,10 +2580,6 @@ eval_plots()
 			int_error(c_token, "unrecognized 'smooth' option");
 			break;
 		    }
-
-		    /* Handles "convexhull smooth path expand <scale>" */
-		    if (this_plot->plot_smooth == SMOOTH_PATH)
-			parse_hull_options(this_plot);
 
 		    /* Sanity check - very few smooth options work with polar coords */
 		    if (polar) {
@@ -2619,7 +2674,8 @@ eval_plots()
 		    ||  this_plot->plot_style == FILLSTEPS) {
 			/* read a possible option for 'with filledcurves' */
 			get_filledcurves_style_options(&this_plot->filledcurves_options);
-			if (this_plot->plot_filter == FILTER_CONVEX_HULL)
+			if ((this_plot->plot_filter == FILTER_CONVEX_HULL)
+			||  (this_plot->plot_filter == FILTER_CONCAVE_HULL))
 			    this_plot->filledcurves_options.closeto = FILLEDCURVES_CLOSED;
 		    }
 
@@ -2704,7 +2760,7 @@ eval_plots()
 		}
 
 		/* pick up the special 'units' keyword the 'ellipses' style allows */
-		if (this_plot->plot_style == ELLIPSES) {
+		if (this_plot->plot_style == ELLIPSES || this_plot->plot_style == SECTORS) {
 		    int stored_token = c_token;
 		    
 		    if (!set_ellipseaxes_units)
@@ -2939,6 +2995,7 @@ eval_plots()
 		case FILLEDCURVES:
 		case LABELPOINTS:
 		case CIRCLES:
+		case SECTORS:
 		case YERRORBARS:
 		case YERRORLINES:
 		case SURFACEGRID:
@@ -3197,14 +3254,30 @@ eval_plots()
 		}
 		if (this_plot->plot_filter == FILTER_CONVEX_HULL) {
 		    convex_hull(this_plot);
+		    if (this_plot->smooth_parameter != 0)
+			expand_hull(this_plot);
 		}
 		if (this_plot->plot_filter == FILTER_ZSORT) {
 		    zsort_points(this_plot);
 		    zrange_points(this_plot);
 		}
+
 #ifdef USE_POLAR_GRID
 		if (this_plot->plot_style == SURFACEGRID) {
 		    grid_polar_data(this_plot);
+		}
+#endif
+
+#ifdef WITH_CHI_SHAPES
+		if (this_plot->plot_filter == FILTER_CONCAVE_HULL) {
+		    delaunay_triangulation(this_plot);
+		    concave_hull(this_plot);
+		    if (this_plot->smooth_parameter != 0)
+			expand_hull(this_plot);
+		}
+		if (this_plot->plot_filter == FILTER_DELAUNAY) {
+		    delaunay_triangulation(this_plot);
+		    save_delaunay_triangles(this_plot);
 		}
 #endif
 
@@ -3287,8 +3360,6 @@ eval_plots()
 		    mcs_interp(this_plot);
 		    break;
 		case SMOOTH_PATH:
-		    if (this_plot->plot_filter == FILTER_CONVEX_HULL)
-			expand_hull(this_plot);
 		    gen_2d_path_splines(this_plot);
 		    break;
 		case SMOOTH_NONE:
@@ -4071,10 +4142,9 @@ parse_hull_options(struct curve_points *this_plot)
 {
     if (equals(c_token,"expand")) {
 	c_token++;
-	if (this_plot->plot_filter == FILTER_CONVEX_HULL)
+	if ((this_plot->plot_filter == FILTER_CONVEX_HULL)
+	||  (this_plot->plot_filter == FILTER_CONCAVE_HULL))
 	    this_plot->smooth_parameter = real_expression();
-	else
-	    int_error(c_token-2, "'smooth path expand' only available for hulls");
     }
 }
 

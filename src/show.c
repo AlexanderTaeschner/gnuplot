@@ -44,6 +44,7 @@
 #include "datablock.h"
 #include "datafile.h"
 #include "eval.h"
+#include "filters.h"
 #include "fit.h"
 #include "gp_time.h"
 #include "graphics.h"
@@ -239,6 +240,9 @@ show_command()
     case S_CNTRPARAM:
     case S_CNTRLABEL:
 	show_contour();
+	break;
+    case S_CONTOURFILL:
+	save_contourfill(stderr);
 	break;
     case S_DEBUG:
 	fprintf(stderr,"debug level is %d\n",debug);
@@ -684,15 +688,17 @@ show_command()
 	show_watchpoints();
 	break;
 
-    /* HBB 20010525: 'set commands' that don't have an
-     * accompanying 'show' version, for no particular reason: */
-    /* --- such case now, all implemented. */
-
     case S_INVALID:
-	error_message = "Unrecognized option. See 'help show'.";
-	break;
     default:
-	error_message = "invalid or deprecated syntax";
+#ifdef WITH_CHI_SHAPES
+	if (almost_equals(c_token,"chi$_shapes")) {
+	    fprintf(stderr,"Default χ-shape parameter = %g of longest edge in convex hull\n",
+		chi_shape_default_fraction);
+	    c_token++;
+	    break;
+	}
+#endif
+	error_message = "Unrecognized option.";
 	break;
     }
 
@@ -1056,6 +1062,13 @@ show_version(FILE *fp)
 		"-FUNCTIONBLOCKS ";
 #endif
 
+	    const char *chi_shapes =
+#if defined(WITH_CHI_SHAPES)
+		"+CHI_SHAPES ";
+#else
+		"-CHI_SHAPES ";
+#endif
+
 	    const char *unicodebuild =
 #if defined(_WIN32) && defined(UNICODE)
 		"+UNICODE  ";
@@ -1064,12 +1077,12 @@ show_version(FILE *fp)
 #endif
 
 	    sprintf(compile_options,
-		    "    %s%s\n    %s%s\n    %s%s%s%s\n    %s\n    %s%s%s%s\n    %s\n",
+		    "    %s%s\n    %s%s\n    %s%s%s%s\n    %s\n    %s%s%s%s\n    %s%s\n",
 		    rdline, gnu_rdline, unicodebuild, plotoptions,
 		    complexfunc, libcerf, libamos, have_cexint,
 		    libgd,
 		    nocwdrc, x11, use_mouse, hiddenline,
-		    fblocks
+		    fblocks, chi_shapes
 		    );
 	}
 
@@ -2985,7 +2998,7 @@ show_mtics(struct axis *axis)
 	break;
     case MINI_USER:
 	fprintf(stderr, "\
-\tminor %stics are drawn with %d subintervals between major xtic marks\n",
+\tminor %stics are drawn with %d subintervals between major tic marks\n",
 		name, axis->mtic_freq);
 	break;
     case MINI_TIME:
