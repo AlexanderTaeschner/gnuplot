@@ -92,7 +92,7 @@
       </PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>HAVE_CONFIG_H;USE_MOUSE;USE_WATCHPOINTS;WXWIDGETS;HAVE_CAIROPDF;HAVE_CAIROEPS;HAVE_LIBGD;HAVE_GD_H;HAVE_GD_GIF;GIF_ANIMATION;HAVE_GD_PNG;HAVE_GD_JPEG;HAVE_GD_TTF;HAVE_LIBPNG;WXUSINGDLL;GNUPLOT_PS_DIR="share\\PostScript";PIPES;WGP_CONSOLE;WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>HAVE_CONFIG_H;USE_MOUSE;USE_WATCHPOINTS;USE_POLAR_GRID;WXWIDGETS;HAVE_CAIROPDF;HAVE_CAIROEPS;HAVE_LIBGD;HAVE_GD_H;HAVE_GD_GIF;GIF_ANIMATION;HAVE_GD_PNG;HAVE_GD_JPEG;HAVE_GD_TTF;HAVE_LIBPNG;WXUSINGDLL;GNUPLOT_PS_DIR="share\\PostScript";PIPES;WGP_CONSOLE;WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>$(SolutionDir)..\..\..\src;$(SolutionDir)..\..\..\term;$(SolutionDir);$(_ZVcpkgInstalledDir)$(VcpkgTriplet)\include\cairo;$(_ZVcpkgInstalledDir)$(VcpkgTriplet)\include\glib-2.0;$(_ZVcpkgInstalledDir)$(VcpkgTriplet)\lib\glib-2.0\include;$(_ZVcpkgInstalledDir)$(VcpkgTriplet)\include\pango-1.0;$(_ZVcpkgInstalledDir)$(VcpkgTriplet)\include\harfbuzz;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
     </ClCompile>
@@ -110,7 +110,7 @@
       </PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>HAVE_CONFIG_H;USE_MOUSE;USE_WATCHPOINTS;WXWIDGETS;HAVE_CAIROPDF;HAVE_CAIROEPS;HAVE_LIBGD;HAVE_GD_H;HAVE_GD_GIF;GIF_ANIMATION;HAVE_GD_PNG;HAVE_GD_JPEG;HAVE_GD_TTF;HAVE_LIBPNG;WXUSINGDLL;GNUPLOT_PS_DIR="share\\PostScript";PIPES;WGP_CONSOLE;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>HAVE_CONFIG_H;USE_MOUSE;USE_WATCHPOINTS;USE_POLAR_GRID;WXWIDGETS;HAVE_CAIROPDF;HAVE_CAIROEPS;HAVE_LIBGD;HAVE_GD_H;HAVE_GD_GIF;GIF_ANIMATION;HAVE_GD_PNG;HAVE_GD_JPEG;HAVE_GD_TTF;HAVE_LIBPNG;WXUSINGDLL;GNUPLOT_PS_DIR="share\\PostScript";PIPES;WGP_CONSOLE;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>$(SolutionDir)..\..\..\src;$(SolutionDir)..\..\..\term;$(SolutionDir);$(_ZVcpkgInstalledDir)$(VcpkgTriplet)\include\cairo;$(_ZVcpkgInstalledDir)$(VcpkgTriplet)\include\glib-2.0;$(_ZVcpkgInstalledDir)$(VcpkgTriplet)\lib\glib-2.0\include;$(_ZVcpkgInstalledDir)$(VcpkgTriplet)\include\pango-1.0;$(_ZVcpkgInstalledDir)$(VcpkgTriplet)\include\harfbuzz;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
     </ClCompile>

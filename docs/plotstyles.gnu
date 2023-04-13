@@ -730,7 +730,7 @@ set title "Ag 108 decay data"
 set xlabel "Time (sec)" 
 set ylabel "Rate" 
 Shadecolor = "#80E0A080"
-plot demo . 'silver.dat' using 1:($2+$3):($2-$3) with filledcurve fc rgb Shadecolor title "Shaded error region", \
+plot 'silver.dat' using 1:($2+$3):($2-$3) with filledcurve fc rgb Shadecolor title "Shaded error region", \
      '' using 1:2 smooth mcspline lw 1.5  title "Monotonic spline through data"     
 #
 # Histograms
@@ -787,12 +787,12 @@ set linetype 14 lc rgb "gray70"
 set style fill solid 1.0 border -1
 
 plot newhistogram lt 11, \
-     demo . 'histopt.dat' using 1 title column, \
+     'histopt.dat' using 1 title column, \
      '' using 2 title column
 } else {
 # patterned fill for pdf
 # set style fill pattern
-plot demo . 'histopt.dat' using 1 title column, \
+plot 'histopt.dat' using 1 title column, \
      '' using 2 title column
 }
 
@@ -814,7 +814,7 @@ set paxis 4 range [-1:15]
 set paxis 4 tics  auto 1 left offset 5
 
 set style data parallelaxes
-plot demo . 'silver.dat' using 2:(int($0/25)) lt 1 lc variable, '' using 3, '' using 1, '' using ($3/2)
+plot 'silver.dat' using 2:(int($0/25)) lt 1 lc variable, '' using 3, '' using 1, '' using ($3/2)
 
 #
 # Filled curves
@@ -874,7 +874,7 @@ set style line 2 lc "forest-green" pt 7 ps 0.5
 set xrange [-30:30]
 set yrange [-30:30]
 
-plot for [i=0:1] demo.'hull.dat' index i with points ls (i+1), \
+plot for [i=0:1] 'hull.dat' index i with points ls (i+1), \
      for [i=0:1] '' index i convexhull with filledcurve ls (i+1)
 
 #
@@ -952,7 +952,7 @@ set style fill transparent solid 0.5
 set xyplane at 1
 set key opaque box
 
-splot for [k=5:1:-1] demo.'silver.dat' using 1:(k):2:3 with zerror lt black fc lt k title "k = ".k
+splot for [k=5:1:-1] 'silver.dat' using 1:(k):2:3 with zerror lt black fc lt k title "k = ".k
 
 reset
 
@@ -1067,7 +1067,7 @@ unset key
 set view 60,33,1.5
 set pm3d depth
 set pm3d border lc "black" lw 1.5
-splot demo . "icosahedron.dat" with polygons fs transparent solid 0.8 fc bgnd
+splot "icosahedron.dat" with polygons fs transparent solid 0.8 fc bgnd
 reset
 
 # Along-path cubic spline smoothing
