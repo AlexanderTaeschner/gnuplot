@@ -894,7 +894,6 @@ PS_options()
 	    break;
 	case PS_SOLIDE:
 	case PS_DASHED:
-	    /* Version 5 always allows dashes */
 	    ps_params->solid = FALSE;
 	    c_token++;
 	    break;
@@ -1020,7 +1019,7 @@ PS_options()
 			new_ps_fontfile->fontfile_fullname = NULL;
 		    } else
 #endif
-		    {	/* New search order (version 5.3) */
+		    {	/* New search order (version 5.4) */
 
 			/* (1) try absolute path or current directory */
 			/* (2) fontpath_fullname will also check loadpath directories */
@@ -4848,19 +4847,8 @@ PS_COMMON_DOC1
 " is deleted from the list of embedded files.  `nofontfiles` cleans the list",
 " of embedded fonts.",
 "",
-" Examples:",
-"       set terminal postscript default       # old postscript",
-"       set terminal postscript enhanced      # old enhpost",
-"       set terminal postscript landscape 22  # old psbig",
-"       set terminal postscript eps 14        # old epsf1",
-"       set terminal postscript eps 22        # old epsf2",
-"       set size 0.7,1.4; set term post portrait color \"Times-Roman\" 14",
-"       set term post \"VAGRoundedBT_Regular\" 14 fontfile \"bvrr8a.pfa\"",
-"",
-" Linewidths and pointsizes may be changed with `set style line`.",
-"",
 " The `postscript` driver supports about 70 distinct pointtypes, selectable",
-" through the `pointtype` option on `plot` and `set style line`.",
+" through the `pointtype` option on `plot` and `set linetype`.",
 "",
 " Several possibly useful files about `gnuplot`'s PostScript are included",
 " in the /docs/psdoc subdirectory of the `gnuplot` distribution and at the",
@@ -4927,19 +4915,21 @@ PS_COMMON_DOC1
 " option can be used multiple times in order to include more than one font",
 " file.",
 "",
-" The search order used to find font files is",
+" The search order for find font files is",
 " (1) absolute pathname or current working directory",
 " (2) any of the directories specified by `set loadpath`",
 " (3) the directory specified by `set fontpath`",
 " (4) the directory given in environmental variable GNUPLOT_FONTPATH.",
-" NB: This is a CHANGE from earlier versions of gnuplot.",
 "",
-" For using the encapsulated font file you have to specify the font name",
-" (which normally is not the same as the file name). When embedding a",
+" To use the encapsulated font file you have to specify the font name,",
+" which normally is not the same as the file name. When embedding a",
 " font file by using the `fontfile` option in interactive mode, the ",
-" font name is printed on the screen. E.g.",
-"    Font file 'p052004l.pfb' contains the font 'URWPalladioL-Bold'. Location:",
-"    /usr/lib/X11/fonts/URW/p052004l.pfb",
+" font name is printed on the screen.",
+"",
+" Example:",
+"    set term post \"VAGRoundedBT_Regular\" 14 fontfile \"bvrr8a.pfa\"",
+"      Font file 'bvrr8a.pfa' contains the font 'VAGRoundedBT_Regular'.",
+"      Location: /usr/share/fonts/Type1/bvrr8a.pfa",
 "",
 " When using pfa or pfb fonts, you can also find it out by looking into the",
 " font file. There is a line similar to \"/FontName /URWPalladioL-Bold def\".",
