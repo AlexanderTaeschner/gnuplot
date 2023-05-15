@@ -360,36 +360,6 @@ AC_ARG_WITH(gihdir,dnl
   GIHDIR="$withval",
   GIHDIR="$pkgdatadir/$VERSION_MAJOR")
 
-dnl TODO: simplify, update ggi support
-dnl new ggi driver
-GGI_SUPPORT=no
-AC_ARG_WITH(ggi,dnl
-[  --with-ggi[=DIR]          enable the ggi driver],
-  [if test "$withval" != no; then
-     if test -d $withval/include; then
-       CPPFLAGS="$CPPFLAGS -I$withval/include"
-     fi
-     if test -d $withval/lib; then
-       LDFLAGS="$LDFLAGS -L$withval/lib"
-     fi
-     AC_CHECK_LIB(ggi,ggiInit,
-       [TERMLIBS="-lggi $TERMLIBS"
-        AC_DEFINE(USE_GGI_DRIVER,1,
-                  [ Define this to build the General Graphics Interface (ggi) driver. ])
-        GGI_SUPPORT=yes
-	dnl check for customized libxmi (xmiInit not in normal libxmi)
-        AC_CHECK_LIB(xmi,xmiInit,
-          [TERMLIBS="-lxmi $TERMLIBS"
-           AC_CHECK_HEADERS(ggi/xmi.h)])
-        dnl check if libggiwmh and ggi/wmh.h are found
-        AC_CHECK_LIB(ggiwmh,ggiWmhInit,
-          [TERMLIBS="-lggiwmh $TERMLIBS"
-           AC_CHECK_HEADERS(ggi/wmh.h,,
-             AC_MSG_WARN([found ggiwmh library but not ggi/wmh.h
-please add path to ggi/wmh.h to CPPFLAGS in Makefile]))
-          ])])
-   fi])
-
 dnl Use builtin readline or GNU readline or NetBSD editline
 AC_ARG_WITH(readline,dnl
 [  --with-readline=builtin  use the built-in readline
@@ -541,6 +511,19 @@ please add path to history.h to CPPFLAGS in Makefile]))
   LIBS="$_libs"
 fi
 dnl end readline
+
+dnl the "qsort" provided by macOS is not stable (items that evaluate equal are not
+dnl guaranteed to retain their original ordering).
+dnl This option allows you to replace it with mergesort, if found,
+dnl or add code in gnuplot to make the sort stable with respect to pm3d depthorder
+AC_CHECK_FUNCS(mergesort, have_stable_sort=yes)
+AC_CHECK_FUNCS(gnu_get_libc_version, have_stable_sort=yes)
+AC_ARG_ENABLE(stable-sort, dnl
+[  --enable-stable-sort    guarantee that pm3d depth-sorting retains object order],
+  [AC_DEFINE(WITH_STABLE_SORT,1,
+             [ Define if qsort on your O/S is unstable and that bothers you. ])
+  ]
+  ,)
 
 dnl check presence of z library
 dnl TODO: path to zlib includes; -lz -lm specified multiple times
@@ -733,20 +716,19 @@ dnl end caca
 
 dnl Process rest of with and enable options
 
-dnl without-extra-coordinate may leave a hole in "struct coordinate"
-AC_ARG_WITH(extra-coordinate,dnl
-[  --without-extra-coordinate    leave possible hole in struct coordinate],,)
-if test "$with_extra_coordinate" != no; then
-     AC_DEFINE(WITH_EXTRA_COORDINATE,1,
-               [ Define to make use of otherwise empty space in struct coordinate ])
-fi
-
 dnl EXPERIMENTAL support for concave hulls via Delaunay triangulation and chi-shapes
 AC_ARG_ENABLE(chi-shapes,dnl
 [  --disable-chi-shapes    no support for Delaunay triangulation or chi-shapes],,)
 if test "$enable_chi_shapes" != no; then
     AC_DEFINE(WITH_CHI_SHAPES,1,
               [ Define to support Delaunay triangulation and chi-shapes ])
+fi
+dnl without-extra-coordinate may leave a hole in "struct coordinate"
+AC_ARG_ENABLE(extra-coordinate,dnl
+[  --disable-extra-coordinate    leave possible hole in struct coordinate],,)
+if test "$enable_extra_coordinate" != no -o "$enable_chi_shapes" != no; then
+     AC_DEFINE(WITH_EXTRA_COORDINATE,1,
+               [ Define to make use of otherwise empty space in struct coordinate ])
 fi
 
 dnl Whether we want to create the LaTeX tutorial
@@ -1258,16 +1240,6 @@ AC_MSG_RESULT([    sixeltek (not needed for sixel graphics output to vt100-serie
 AC_MSG_RESULT([])
 AC_MSG_RESULT([  Platform-specific, legacy, or specialized terminals omitted by default:])
 
-if test "$GGI_SUPPORT" = yes; then
-  if test "$ac_cv_header_ggi_xmi_h" = yes; then
-    AC_MSG_RESULT([    ggi       : yes   (with pm3d support)])
-  else
-    AC_MSG_RESULT([    ggi       : yes   (no pm3d support, requires ggi xmi library)])
-  fi
-else
-  AC_MSG_RESULT([    ggi       :  no   (use --with-ggi to enable, requires libggi)])
-fi
-
 if test "$with_gpic" = yes; then
   AC_MSG_RESULT([    gpic      : yes])
 else
@@ -1432,6 +1404,14 @@ else
   AC_MSG_RESULT([  Command-line history file:                       no])
 fi
 
+if test "${enable_stable_sort}" = yes; then
+  AC_MSG_RESULT([  Add code to ensure pm3d depth sorting is stable: yes])
+elif test "${have_stable_sort}" = yes; then
+  AC_MSG_RESULT([  Add code to ensure pm3d depth sorting is stable: no (not needed)])
+else
+  AC_MSG_RESULT([  Add code to ensure pm3d depth sorting is stable: no])
+fi
+
 if test "$enable_mouse" = yes; then
   AC_MSG_RESULT([  Mouse support in interactive terminals:          yes])
 else
@@ -1502,7 +1482,6 @@ if test "$enable_chi_shapes" != no; then
 else
   AC_MSG_RESULT([  Support concave hulls:                           no (--enable-chi-shapes to enable)])
 fi
-
 
 AC_MSG_RESULT([])
 AC_MSG_RESULT([gnuplot will install the following additional materials:])

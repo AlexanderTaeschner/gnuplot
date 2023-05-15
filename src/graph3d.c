@@ -85,7 +85,8 @@ char *clabel_font = NULL;		/* default to current font */
 t_contourfill contourfill = {
     .mode = CFILL_AUTO,
     .nslices = 5,
-    .tic_level = 0
+    .tic_level = 0,
+    .firstlinetype = -1
 };
 static zslice *zslice_array;		/* shared by plot3d_contourfill and zslice_callback */
 static int current_slice = 0;		/* shared index to zslice_array */
@@ -1484,8 +1485,8 @@ do_3dplot(
 
 			    /* First contour line type defaults to surface linetype + 1  */
 			    /* but can be changed using 'set cntrparams firstlinetype N' */
-			    if (contour_firstlinetype > 0)
-				contour_linetype = contour_firstlinetype + ic - 2;
+			    if (contour_params.firstlinetype > 0)
+				contour_linetype = contour_params.firstlinetype + ic - 2;
 			    else
 				contour_linetype = this_plot->hidden3d_top_linetype + ic;
 
@@ -4229,8 +4230,8 @@ plot3d_contourfill(struct surface_points *plot)
      * a previous call to "set cntrparam levels N".
      */
     int level;
-    unsigned int rgbcolor;
     struct axis *ticaxis;
+    struct lp_style_type contour_lp;
     int nslices = contourfill.nslices;
     double z_axis_min = GPMIN(axis_array[FIRST_Z_AXIS].min, axis_array[FIRST_Z_AXIS].max);
     double z_axis_max = GPMAX(axis_array[FIRST_Z_AXIS].min, axis_array[FIRST_Z_AXIS].max);
@@ -4257,10 +4258,15 @@ plot3d_contourfill(struct surface_points *plot)
 	    for (level = 0; level < nslices; level++) {
 		slice[level].zlow = z_axis_min + zinc * level;
 		slice[level].zhigh = slice[level].zlow + zinc;
-		rgbcolor = rgb_from_gray(cb2gray(slice[level].zlow + zinc/2.));
 		slice[level].color.type = TC_RGB;
-		slice[level].color.lt = rgbcolor;
 		slice[level].color.value = -1;
+		if (contourfill.firstlinetype > 0) {
+		    lp_use_properties(&contour_lp, contourfill.firstlinetype + level);
+		    slice[level].color.lt = rgb_from_colorspec(&contour_lp.pm3d_color);
+		} else {
+		    double zmid = slice[level].zlow + zinc/2.;
+		    slice[level].color.lt = rgb_from_gray(cb2gray(zmid));
+		}
 	    }
 	    break;
 
@@ -4277,11 +4283,15 @@ plot3d_contourfill(struct surface_points *plot)
 	    slice[nslices-1].zhigh = z_axis_max;
 
 	    for (level = 0; level < nslices; level++) {
-		double zmid = (slice[level].zlow + slice[level].zhigh) / 2.;
-		rgbcolor = rgb_from_gray(cb2gray(zmid));
 		slice[level].color.type = TC_RGB;
-		slice[level].color.lt = rgbcolor;
 		slice[level].color.value = -1;
+		if (contourfill.firstlinetype > 0) {
+		    lp_use_properties(&contour_lp, contourfill.firstlinetype + level);
+		    slice[level].color.lt = rgb_from_colorspec(&contour_lp.pm3d_color);
+		} else {
+		    double zmid = (slice[level].zlow + slice[level].zhigh) / 2.;
+		    slice[level].color.lt = rgb_from_gray(cb2gray(zmid));
+		}
 	    }
 	    break;
 

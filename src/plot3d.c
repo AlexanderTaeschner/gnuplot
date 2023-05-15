@@ -986,10 +986,13 @@ get_3ddata(struct surface_points *this_plot)
 
 	    if (j == DF_UNDEFINED || j == DF_MISSING) {
 		cp->type = UNDEFINED;
-		/* Version 5.5
-		 * Store all available info even if one of the requested columns
-		 * is missing or undefined.
+		/* Version 6: Store all available info even if one of the
+		 * requested columns is missing or undefined.
+		 * FIXME: However dgrid3d cannot deal with z = NaN or Inf.
+		 *        Fall back to ignoring it as version 5 did.
 		 */
+		if (dgrid3d && isnan(v[2]))
+		    goto come_here_if_undefined;
 		j = df_no_use_specs;
 	    }
 	    if (j == DF_COMPLEX_VALUE) {
@@ -2176,7 +2179,9 @@ eval_3dplots()
 	    this_plot->title_is_automated = FALSE;
 	    if (!set_title) {
 		this_plot->title_no_enhanced = TRUE; /* filename or function cannot be enhanced */
-		if (key->auto_titles == FILENAME_KEYTITLES) {
+		if (key->auto_titles == COLUMNHEAD_KEYTITLES) {
+		    this_plot->title_is_automated = TRUE;
+		} else if (key->auto_titles == FILENAME_KEYTITLES) {
 		    m_capture(&(this_plot->title), start_token, end_token);
 		    if (crnt_param == 2)
 			xtitle = this_plot->title;
@@ -2833,7 +2838,7 @@ eval_3dplots()
 	    if (this_plot->opt_out_of_contours)
 		continue;
 
-	    if (contour_kind == CONTOUR_KIND_CUBIC_SPL) {
+	    if (contour_params.kind == CONTOUR_KIND_CUBIC_SPL) {
 		if (axis_array[FIRST_X_AXIS].log || axis_array[FIRST_Y_AXIS].log)
 		    int_warn(NO_CARET,
 			"use of cubic spline contours with log scale axes is not recommended");

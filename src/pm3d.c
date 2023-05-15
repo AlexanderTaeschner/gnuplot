@@ -51,6 +51,9 @@ typedef struct {
     short index;		/* Index into from_plot->zclip, if it exists */
 				/* this is really the fillstyle if this is an object */
     short type;			/* QUAD_TYPE_NORMAL or QUAD_TYPE_LARGEPOLYGON etc */
+#ifdef WITH_2ND_SORTKEY
+    int sequence;		/* The original order of added quadrangles */
+#endif
 } quadrangle;
 
 #define QUAD_TYPE_NORMAL   0
@@ -362,6 +365,12 @@ compare_quadrangles(const void* v1, const void* v2)
 	return 1;
     else if (q1->depth < q2->depth)
 	return -1;
+#ifdef WITH_2ND_SORTKEY
+    else if (q1->sequence > q2->sequence)
+	return 1;
+    else if (q1->sequence < q2->sequence)
+	return -1;
+#endif
     else
 	return 0;
 }
@@ -398,7 +407,6 @@ pm3d_depth_queue_flush(void)
 	    cliptorange(zbase, Z_AXIS.min, Z_AXIS.max);
 
 	for (qp = quadrangles, qe = &quadrangles[current_quadrangle]; qp != qe; qp++) {
-	    double z = 0;
 	    double zmean = 0;
 
 	    if (qp->type == QUAD_TYPE_LARGEPOLYGON) {
@@ -416,14 +424,12 @@ pm3d_depth_queue_flush(void)
 		else
 		    map3d_xyz(gpdPtr->x, gpdPtr->y, gpdPtr->z, &out);
 		zmean += out.z;
-		if (i == 0 || out.z > z)
-		    z = out.z;
 	    }
 
 	    qp->depth = zmean / nv;
 	}
 
-	qsort(quadrangles, current_quadrangle, sizeof (quadrangle), compare_quadrangles);
+	gp_qsort(quadrangles, current_quadrangle, sizeof (quadrangle), compare_quadrangles);
 
 	for (qp = quadrangles, qe = &quadrangles[current_quadrangle]; qp != qe; qp++) {
 
@@ -536,7 +542,7 @@ pm3d_plot(struct surface_points *this_plot, int at_which_z)
 
     scanA = this_plot->iso_crvs;
 
-    pm3d_rearrange_scan_array(this_plot, &scan_array, &scan_array_n, &invert, (struct iso_curve ***) 0, (int *) 0, (int *) 0);
+    pm3d_rearrange_scan_array(this_plot, &scan_array, &scan_array_n, &invert, NULL, NULL, NULL);
 
     interp_i = pm3d.interp_i;
     interp_j = pm3d.interp_j;
@@ -605,8 +611,6 @@ pm3d_plot(struct surface_points *this_plot, int at_which_z)
 	if (needed_quadrangles > 0)
 	    reserve_quadrangles(needed_quadrangles, 0);
     }
-
-    /* pm3d_rearrange_scan_array(this_plot, (struct iso_curve***)0, (int*)0, &scan_array, &invert); */
 
 #if 0
     /* debugging: print scan_array */
@@ -1037,6 +1041,16 @@ pm3d_plot(struct surface_points *this_plot, int at_which_z)
 			    }
 			}
 
+			/* FIXME: overwriting the z coordinates loses the option to
+			 * do smooth clipping on z in the top/bottom planes
+			 */
+			if (at_which_z == PM3D_AT_BASE)
+			    corners[0].z = corners[1].z = corners[2].z = corners[3].z
+				= base_z;
+			else if (at_which_z == PM3D_AT_TOP)
+			    corners[0].z = corners[1].z = corners[2].z = corners[3].z
+				= ceiling_z;
+
 			if (pm3d.direction == PM3D_DEPTH) {
 			    /* copy quadrangle */
 			    quadrangle* qp = &quadrangles[current_quadrangle];
@@ -1053,6 +1067,9 @@ pm3d_plot(struct surface_points *this_plot, int at_which_z)
 			    }
 			    qp->index = this_plot->zclip_index;
 			    qp->type = QUAD_TYPE_NORMAL;
+#ifdef WITH_2ND_SORTKEY
+			    qp->sequence = current_quadrangle;
+#endif
 			    current_quadrangle++;
 			} else {
 			    if (pm3d_shade.strength > 0 || color_from_rgbvar)
@@ -1061,10 +1078,6 @@ pm3d_plot(struct surface_points *this_plot, int at_which_z)
 				set_rgbcolor_var(rgb_from_colormap(gray, private_colormap));
 			    else
 				set_color(gray);
-			    if (at_which_z == PM3D_AT_BASE)
-				corners[0].z = corners[1].z = corners[2].z = corners[3].z = base_z;
-			    else if (at_which_z == PM3D_AT_TOP)
-				corners[0].z = corners[1].z = corners[2].z = corners[3].z = ceiling_z;
 			    filled_polygon(this_plot, this_plot->zclip_index, corners, 4);
 			}
 		    }
@@ -1094,6 +1107,9 @@ pm3d_plot(struct surface_points *this_plot, int at_which_z)
 		    }
 		    qp->index = this_plot->zclip_index;
 		    qp->type = QUAD_TYPE_NORMAL;
+#ifdef WITH_2ND_SORTKEY
+		    qp->sequence = current_quadrangle;
+#endif
 		    current_quadrangle++;
 		}
 	    } /* interpolate between points */
@@ -1194,7 +1210,11 @@ pm3d_add_polygon(struct surface_points *plot, gpdPoint corners[], int vertices)
     else
 	reserve_quadrangles(plot->iso_crvs->p_count, 0);
 
-    q = &quadrangles[current_quadrangle++];
+    q = &quadrangles[current_quadrangle];
+#ifdef WITH_2ND_SORTKEY
+    q->sequence = current_quadrangle;
+#endif
+    current_quadrangle++;
     memcpy(q->vertex.corners, corners, 4*sizeof(gpdPoint));
     q->from_plot = plot;
     if (plot)
@@ -1645,9 +1665,20 @@ filled_polygon(struct surface_points *from_plot, int index, gpdPoint *corners, i
 	clipcorners = gp_realloc( clipcorners, (2*max_vertices) * sizeof(gpdPoint), "filled_polygon");
     }
 
-    if ((pm3d.clip == PM3D_CLIP_Z)
-    &&  (pm3d_plot_at != PM3D_AT_BASE && pm3d_plot_at != PM3D_AT_TOP)) {
-	int new = clip_filled_polygon( from_plot, index, corners, clipcorners, nv );
+    /* pm3d_plot_at is always 0 when we are called from pm3d depthorder
+     * processing so it cannot be used to distinguish top/bottom quadrangles
+     * (pm3d at [tb]) from surface quadrangles (pm3d at s).
+     * The original z values have been replaced by base_z or ceiling_z,
+     * so we can identify base plane quadrangles by testing for z == base_z.
+     * FIXME: However that means it is too late to get smooth z clipping for
+     *        the top/bottom plane contents.
+     */
+    if (pm3d.clip == PM3D_CLIP_Z) {
+	int new = 0;
+	if (corners[0].z == base_z)
+	    new = 0;
+	else
+	    new = clip_filled_polygon( from_plot, index, corners, clipcorners, nv );
 	if (new < 0) {	/* All vertices out of range */
 	    return;
 	}
@@ -1995,7 +2026,7 @@ split_intersecting_surface_tiles()
 	return;
 
     /* Sort quadrangles on x and y */
-    qsort(quadrangles, current_quadrangle, sizeof(quadrangle), compare_xy_quad);
+    gp_qsort(quadrangles, current_quadrangle, sizeof(quadrangle), compare_xy_quad);
 
     /* Step through the list of quadrangles.
      * For each quadrangle look ahead to find another with the same [x,y] corners.
@@ -2099,6 +2130,9 @@ split_intersecting_surface_tiles()
 		    qnew->gray = qt->gray;
 		    qnew->index = qt->index;
 		    qnew->qcolor = qt->qcolor;
+#ifdef WITH_2ND_SORTKEY
+		    qnew->sequence = qt->sequence;
+#endif
 
 		    qnew->vertex.corners[0] = piece1[0];
 		    qnew->vertex.corners[1] = piece1[1];
@@ -2125,6 +2159,9 @@ split_intersecting_surface_tiles()
 		    qnew->gray = qt->gray;
 		    qnew->index = qt->index;
 		    qnew->qcolor = qt->qcolor;
+#ifdef WITH_2ND_SORTKEY
+		    qnew->sequence = qt->sequence;
+#endif
 
 		    qnew->vertex.corners[0] = piece2[0];
 		    qnew->vertex.corners[1] = piece2[1];

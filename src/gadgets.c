@@ -872,9 +872,16 @@ apply_head_properties(struct arrow_style_type *arrow_properties)
 double effective_aspect_ratio(void)
 {
 #ifdef _WIN32
-    if (strcmp(term->name, "windows") == 0)
-	return 1.0;
+    if (strcmp(term->name, "windows") == 0) {
+	double xscale = (axis_array[FIRST_X_AXIS].term_upper - axis_array[FIRST_X_AXIS].term_lower)
+			/ (axis_array[FIRST_X_AXIS].max - axis_array[FIRST_X_AXIS].min);
+	double yscale = (axis_array[FIRST_Y_AXIS].term_upper - axis_array[FIRST_Y_AXIS].term_lower)
+			/ (axis_array[FIRST_Y_AXIS].max - axis_array[FIRST_Y_AXIS].min);
+	double aspect_ratio = fabs(yscale/xscale);
+	return aspect_ratio;
+    }
 #endif
+
     return (double)term->v_tic / (double)term->h_tic;
 }
 
@@ -987,18 +994,23 @@ write_label(int x, int y, struct text_label *this_label)
 	    if (textbox->opaque) {
 		apply_pm3dcolor(&textbox->fillcolor);
 		(*term->boxed_text)(0,0, TEXTBOX_BACKGROUNDFILL);
-		apply_pm3dcolor(&(this_label->textcolor));
-		/* Init for each of fill and border */
-		if (!textbox->noborder)
-		    (*term->boxed_text)(x + htic, y + vtic, TEXTBOX_INIT);
-		if (this_label->rotate && (*term->text_angle) (this_label->rotate)) {
-		    write_multiline(x + htic, y + vtic, this_label->text,
-				this_label->pos, justify, this_label->rotate,
-				this_label->font);
-		    (*term->text_angle) (0);
-		} else {
-		    write_multiline(x + htic, y + vtic, this_label->text,
-				this_label->pos, justify, 0, this_label->font);
+		/* The epslatex/cairolatex terminals reuse a previously saved textbox
+		 * so explicitly re-writing it here is at best redundant.
+		 */
+		if ((term->flags & TERM_REUSES_BOXTEXT) == 0) {
+		    apply_pm3dcolor(&(this_label->textcolor));
+		    /* Init for each of fill and border */
+		    if (!textbox->noborder)
+			(*term->boxed_text)(x + htic, y + vtic, TEXTBOX_INIT);
+		    if (this_label->rotate && (*term->text_angle) (this_label->rotate)) {
+			write_multiline(x + htic, y + vtic, this_label->text,
+				    this_label->pos, justify, this_label->rotate,
+				    this_label->font);
+			(*term->text_angle) (0);
+		    } else {
+			write_multiline(x + htic, y + vtic, this_label->text,
+				    this_label->pos, justify, 0, this_label->font);
+		    }
 		}
 	    }
 

@@ -559,6 +559,9 @@ main(int argc_orig, char **argv)
 	clause_reset_after_error();
 	lf_reset_after_error();
 
+	/* We are certainly no longer in a plot command */
+	inside_plot_command = FALSE;
+
 	SET_CURSOR_ARROW;
 
 #ifdef VMS
@@ -760,7 +763,6 @@ init_session()
 	/* Reset program variables not handled by 'reset' */
 	overflow_handling = INT64_OVERFLOW_TO_FLOAT;
 	suppress_warnings = FALSE;
-	reset_datafile();
 
 	/* Reset voxel data structures if supported */
 	init_voxelsupport();

@@ -77,6 +77,7 @@ static void unset_clip(void);
 static void unset_cntrparam(void);
 static void unset_cntrlabel(void);
 static void unset_contour(void);
+static void unset_contourfill(void);
 static void unset_dashtype(void);
 static void unset_dgrid3d(void);
 static void unset_dummy(void);
@@ -224,6 +225,9 @@ unset_command()
 	break;
     case S_CONTOUR:
 	unset_contour();
+	break;
+    case S_CONTOURFILL:
+	unset_contourfill();
 	break;
     case S_CORNERPOLES:
 	cornerpoles = FALSE;
@@ -849,14 +853,15 @@ reset_bars()
 void
 reset_datafile()
 {
-        df_fortran_constants = FALSE;
-        unset_missing();
-        free(df_separators);
-        df_separators = NULL;
-        free(df_commentschars);
-        df_commentschars = gp_strdup(DEFAULT_COMMENTS_CHARS);
-        df_unset_datafile_binary();
-        df_columnheaders = FALSE;
+    df_init();
+    df_fortran_constants = FALSE;
+    unset_missing();
+    free(df_separators);
+    df_separators = NULL;
+    free(df_commentschars);
+    df_commentschars = gp_strdup(DEFAULT_COMMENTS_CHARS);
+    df_unset_datafile_binary();
+    df_columnheaders = FALSE;
 }
 
 /* process 'unset border' command */
@@ -934,13 +939,13 @@ unset_clip()
 static void
 unset_cntrparam()
 {
-    contour_pts = DEFAULT_NUM_APPROX_PTS;
-    contour_kind = CONTOUR_KIND_LINEAR;
-    contour_order = DEFAULT_CONTOUR_ORDER;
-    contour_levels = DEFAULT_CONTOUR_LEVELS;
-    contour_levels_kind = LEVELS_AUTO;
-    contour_firstlinetype = 0;
-    contour_sortlevels = FALSE;
+    contour_params.npoints = DEFAULT_NUM_APPROX_PTS;
+    contour_params.kind = CONTOUR_KIND_LINEAR;
+    contour_params.order = DEFAULT_CONTOUR_ORDER;
+    contour_params.levels = DEFAULT_CONTOUR_LEVELS;
+    contour_params.levels_kind = LEVELS_AUTO;
+    contour_params.firstlinetype = 0;
+    contour_params.sortlevels = FALSE;
 }
 
 /* process 'unset cntrlabel' command */
@@ -950,11 +955,19 @@ unset_cntrlabel()
     clabel_onecolor = FALSE;
     clabel_start = 5;
     clabel_interval = 20;
-    strcpy(contour_format, "%8.3g");
+    strcpy(contour_params.format, "%8.3g");
     free(clabel_font);
     clabel_font = NULL;
 }
 
+static void
+unset_contourfill()
+{
+    contourfill.mode = CFILL_AUTO;
+    contourfill.nslices = 5;
+    contourfill.tic_level = 0;
+    contourfill.firstlinetype = -1;
+}
 
 /* process 'unset contour' command */
 static void
@@ -2025,13 +2038,15 @@ reset_command()
 
     c_token++;
 
+    /* This would be asking for trouble */
+    if (evaluate_inside_functionblock)
+	int_error(NO_CARET, "cannot 'reset' during function block evaluation");
+
     /* This is the expression evaluation stack */
     reset_stack();
 
     /* Reset session state as well as internal graphics state */
     if (equals(c_token, "session")) {
-	if (evaluate_inside_functionblock)
-	    int_error(c_token, "cannot reset session during function block evaluation");
 	clear_udf_list();
 	init_constants();
 	init_session();
@@ -2222,6 +2237,7 @@ reset_command()
     unset_contour();
     unset_cntrparam();
     unset_cntrlabel();
+    unset_contourfill();
     unset_zero();
     unset_dgrid3d();
     unset_ticslevel();
@@ -2256,12 +2272,8 @@ reset_command()
     if (multiplot)
 	multiplot_reset();
 
-    unset_missing();
-    free(df_separators);
-    df_separators = NULL;
-    free(df_commentschars);
-    df_commentschars = gp_strdup(DEFAULT_COMMENTS_CHARS);
-    df_init();
+    /* reset everything to do with "set datafile" */
+    reset_datafile();
 
     { /* Preserve some settings for `reset`, but not for `unset fit` */
 	verbosity_level save_verbosity = fit_verbosity;
