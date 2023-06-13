@@ -240,13 +240,14 @@ static struct {
     double    dashfraction;	/* Where in a dot-dash pattern we left off */
     /* Variables for animated gif support: */
     TBOOLEAN  animate;		/* Only gif supports animation */
-				/* But sixel treats it as synonym for "anchor" */
+    TBOOLEAN  anchor;		/* sixel and kitty treat it as synonym for "anchor" */
     int       loop_count;	/* Number of times to repeat sequence */
     int       frame_count;	/* Number of frames in animation */
     int       frame_delay;	/* Time between frames in .01 seconds */
     TBOOLEAN  frame_optimization;
     gdImagePtr previous_image;	/* Needed to encode animation as a series of deltas */
-} png_state;
+} png_state
+= {.anchor = TRUE};
 
 #define PNG_USE_TRANSPARENT 1
 #define PNG_USE_INTERLACE   2
@@ -264,6 +265,7 @@ enum PNG_id {
     PNG_TRUECOLOR, PNG_NOTRUECOLOR,
     PNG_LINEWIDTH, PNG_BUTT, PNG_ROUNDED, PNG_DASHLENGTH,
     GIF_ANIMATE, GIF_DELAY, GIF_LOOP, GIF_NOOPT, GIF_OPT,
+    PNG_ANCHOR, PNG_SCROLL,
     PNG_OTHER
 };
 
@@ -307,7 +309,8 @@ static struct gen_table PNG_opts[] =
     { "notrue$color", PNG_NOTRUECOLOR },
     { "linew$idth", PNG_LINEWIDTH },
     { "anim$ate", GIF_ANIMATE }, /* gif animation options */
-    { "anchor", GIF_ANIMATE },   /* sixel drawn at top left of window */
+    { "anchor", PNG_ANCHOR },   /* sixel/kitty image drawn at top left */
+    { "scroll", PNG_SCROLL },   /* sixel/kitty image scrolls with text */
     { "delay", GIF_DELAY },
     { "loop", GIF_LOOP },
     { "noopt$imize", GIF_NOOPT },
@@ -914,13 +917,30 @@ PNG_options()
 		PNG_dashlength_factor = 1.0;
 	    break;
 
+	/* anchor/scroll choice for sixel and kitty in-terminal output */
+	case PNG_ANCHOR:
+	    c_token++;
+	    png_state.anchor = TRUE;
+	    break;
+	case PNG_SCROLL:
+	    c_token++;
+	    png_state.anchor = FALSE;
+	    break;
+
 	/* parse gif animation options */
 	case GIF_ANIMATE:
-	    if (strncmp("gif",term->name,3) == 0)
-		gif_anim_option = 1;
-	    else if (strncmp("sixel",term->name,5) != 0)
-		int_error(c_token,"This terminal does not support animation");
 	    c_token++;
+	    if (strncmp("gif",term->name,3) == 0) {
+		gif_anim_option = 1;
+	    } else if (strncmp("sixel",term->name,5) == 0) {
+		png_state.anchor = TRUE;
+		break;
+	    } else if (strncmp("kitty",term->name,5) == 0) {
+		png_state.anchor = TRUE;
+		break;
+	    } else {
+		int_error(c_token,"This terminal does not support animation");
+	    }
 	    png_state.animate = TRUE;
 	    png_state.frame_count = 0;
 	    png_state.frame_delay = 10;
@@ -1108,14 +1128,17 @@ PNG_options()
     sprintf(term_options + strlen(term_options),
 	png_state.capbutt ? "butt " : "rounded ");
 
+    if ((strncmp("kitty",term->name,5) == 0)
+    ||  (strncmp("sixel",term->name,5) == 0)) {
+	sprintf(term_options + strlen(term_options),
+		png_state.anchor ? "anchor " : "scroll ");
+    }
+
     if (png_state.animate) {
-	if (strncmp("sixel",term->name,5) == 0)
-	    sprintf(term_options + strlen(term_options), "anchor ");
-	else
-	    sprintf(term_options + strlen(term_options),
-		"animate delay %d loop %d %soptimize ",
-		png_state.frame_delay, png_state.loop_count,
-		png_state.frame_optimization ? "" : "no");
+	sprintf(term_options + strlen(term_options),
+	    "animate delay %d loop %d %soptimize ",
+	    png_state.frame_delay, png_state.loop_count,
+	    png_state.frame_optimization ? "" : "no");
     }
 
     sprintf(term_options + strlen(term_options),
@@ -2939,8 +2962,8 @@ SIXELGD_text()
 {
     image_do_crop();
 
-    /* The 'animate' option makes each plot write in place rather than scrolling */
-    if (png_state.animate)
+    /* The 'anchor' option restarts each plot at the top left */
+    if (png_state.anchor)
 	fprintf(gpoutfile,  "\033[H");
 
     /* maximum number of palette colors (256), no truecolor images, fill optimization */
@@ -2968,7 +2991,7 @@ TERM_TABLE_START(sixelgd_driver)
     PNG_boxfill,
     PNG_linewidth,
 #ifdef USE_MOUSE
-    0, 0, 0, 0, 0, /* no mouse support */
+    term_waitforinput, 0, 0, 0, 0, /* pseudo-mousing during "pause mouse" */
 #endif
     PNG_make_palette,
     0, /* previous_palette() ... no, single array of 256 colours for PNG */
@@ -3005,7 +3028,7 @@ START_HELP(sixelgd)
 "              {linewidth <lw>} {dashlength <dl>}",
 "              {tiny | small | medium | large | giant}",
 "              {font \"<face> {,<pointsize>}\"} {fontscale <scale>}",
-"              {size <x>,<y>} {animate|anchor} {{no}transparent}",
+"              {size <x>,<y>} {anchor|scroll} {{no}transparent}",
 "              {background <rgb_color>}",
 "",
 " The `sixel` output format was originally used by DEC terminals and printers.",
@@ -3046,20 +3069,165 @@ START_HELP(sixelgd)
 " to support sixel graphics). Sixel support in the KDE konsole terminal",
 " was added in version 22.04.0.",
 "",
-"?set terminal sixelgd animate",
-"?set term sixelgd animate",
-"?term sixelgd animate",
-"?set terminal sixelgd anchor",
-"?set term sixelgd anchor",
-"?term sixelgd anchor",
-"      set term sixel animate",
-"      set term sixel anchor",
-"",
-" The `animate` option resets the cursor position to the terminal top left at",
-" the start of every plot so that successive plots overwrite the same area on",
-" the screen rather than having earlier plots scroll off the top. This can be",
-" used to create an in-place animation. `anchor` has the same effect.",
+" By default (`anchor`) each plot is drawn by overwriting the area at the top",
+" left of the window.  This allows redrawing to create an in-place animation",
+" and pseudo-mousing using the arrow keys during `pause mouse`.",
+" The `scroll` option instead starts each plot at the current cursor position",
+" so that successive plots scroll with any intervening text.",
 ""
 END_HELP(sixelgd)
 #endif /* TERM_HELP */
 #endif /* WITH_GD_SIXEL */
+
+#ifdef HAVE_KITTY_TERM
+#ifdef TERM_REGISTER
+register_term(kittygd)
+#endif
+
+#ifdef TERM_PROTO
+TERM_PUBLIC void KITTYGD_text(void);
+#define GOT_NEXT_PROTO
+#endif
+
+#ifndef TERM_PROTO_ONLY
+
+#ifdef TERM_BODY
+
+typedef struct KITTYGD_io_ctx {
+  struct gdIOCtx gdio;
+  base64s *b64;
+} KITTYGD_io_ctx;
+
+static void
+KITTYGD_putc(struct gdIOCtx *ctx, int ch) {
+  unsigned char real_ch = ch;
+  base64s *b64 = ((KITTYGD_io_ctx *)ctx)->b64;
+  piecemeal_write_base64_data(&real_ch, 1, b64);
+}
+
+static int
+KITTYGD_putbuf(struct gdIOCtx *ctx, const void *buf, int n) {
+  base64s *b64 = ((KITTYGD_io_ctx *)ctx)->b64;
+  piecemeal_write_base64_data(buf, n, b64);
+  return n;
+}
+
+/*
+ * All functions except the final write to file
+ * are actually performed by the PNG driver code
+ */
+TERM_PUBLIC void
+KITTYGD_text()
+{
+    base64s *b64;
+    KITTYGD_io_ctx ioctx;
+    image_do_crop();
+
+    /* The 'anchor' option makes each plot write in place rather than scrolling */
+    if (png_state.anchor)
+	fprintf(gpoutfile,  "\033[H");
+
+    kitty_init(KITTY_FORMAT_PNG);
+    b64 = gp_alloc(sizeof(base64s), "base64s");
+    init_base64_state_data(b64, kitty_writechar, NULL);
+
+    ioctx.gdio.putC = KITTYGD_putc;
+    ioctx.gdio.putBuf = KITTYGD_putbuf;
+    ioctx.b64 = b64;
+
+    gdImagePngCtx(png_state.image, &(ioctx.gdio));
+    piecemeal_write_base64_data_finish(b64);
+    free(b64);
+    kitty_flush(FALSE);
+    fputc('\n', gpoutfile);
+    gdImageDestroy(png_state.image);
+}
+
+#endif /* TERM_BODY */
+
+#ifdef TERM_TABLE
+
+TERM_TABLE_START(kittygd_driver)
+    "kittygd", "kitty in-terminal graphics using libgd",
+    GREG_XMAX, GREG_YMAX, PNG_VCHAR, PNG_HCHAR,
+    PNG_TICSIZE, PNG_TICSIZE, PNG_options, PNG_init, PNG_reset,
+    KITTYGD_text, null_scale, PNG_graphics, PNG_move, PNG_vector,
+    PNG_linetype, PNG_put_text, PNG_text_angle,
+    PNG_justify_text, PNG_point, do_arrow, PNG_set_font,
+    PNG_pointsize,
+    TERM_CAN_MULTIPLOT|TERM_BINARY|TERM_ALPHA_CHANNEL|TERM_LINEWIDTH|TERM_FONTSCALE,
+    0 /*suspend*/, 0 /*resume*/,
+    PNG_boxfill,
+    PNG_linewidth,
+#ifdef USE_MOUSE
+    term_waitforinput, 0, 0, 0, 0, /* pseudo-mousing */
+#endif
+    PNG_make_palette,
+    0, /* previous_palette() ... no, single array of 256 colours for PNG */
+    PNG_set_color,
+    PNG_filled_polygon,
+    PNG_image,
+    ENHGD_OPEN, ENHGD_FLUSH, do_enh_writec,
+    NULL,		/* layering */
+    NULL,		/* path */
+    0.0,		/* tscale */
+    NULL		/* hypertext */
+    , ENHGD_boxed_text
+TERM_TABLE_END(kittygd_driver)
+
+#undef LAST_TERM
+#define LAST_TERM kittygd_driver
+
+#endif /* TERM_TABLE */
+#endif /* TERM_PROTO_ONLY */
+
+
+#ifdef TERM_HELP
+START_HELP(kittygd)
+"1 kittygd",
+"?commands set terminal kittygd",
+"?set terminal kittygd",
+"?set term kittygd",
+"?terminal kittygd",
+"?term kittygd",
+"?kittygd",
+" Syntax:",
+"       set terminal kittygd",
+"                    {{no}enhanced} {{no}truecolor} {rounded|butt}",
+"                    {linewidth <lw>} {dashlength <dl>}",
+"                    {font \"<face> {,<pointsize>}\"} {fontscale <scale>}",
+"                    {size <x>,<y>} {anchor|scroll}",
+"                    {background <rgb_color>}",
+"",
+" The `kittygd` terminal generates in-window output on terminal emulators",
+" that support the kitty graphics protocol.  The plot is composed using the",
+" gdlib library. By default the library creates a 24-bit RGB png image that",
+" is mapped down onto 256 colors (`truecolor`) for output.",
+" `notruecolor` restricts the output to fewer colors but there is no obvious",
+" advantage to this.",
+" Transparent fill styles require the `truecolor` option. See `fillstyle`.",
+" If your copy of gnuplot was built with support for cairo graphics,",
+" the `kittycairo` terminal may be preferable.",
+"",
+" This terminal processes labels and other text using enhanced formatting",
+" by default. See `enhanced`.",
+"",
+" The width of al lines in the pot can be modified by the factor <lw> specified",
+" in `linewidth`. The font size can similarly be uniformly modified by the",
+" scale factor provided in `fontscale`.  For discussion of font and text",
+" encoding options, see the `png` terminal.",
+"",
+" `butt` instructs the driver to use a line drawing method that does",
+" not overshoot the desired end point of a line.  This setting is only",
+" relevant for line widths greater than 1.  The alternative is `rounded`,",
+" which produces somewhat more uniform curved lines but can be much slower.",
+"",
+" The size of the plot is given in screen pixels.",
+" By default (`anchor`) each new plot is drawn starting at the top left of the",
+" window.  This is useful for animation or pseudo-mousing using the keyboard",
+" (see `pseudo-mousing`).  The `scroll` option instead plots at the current",
+" cursor position so that successive plots scroll with the terminal text.", 
+""
+END_HELP(kittygd)
+#endif /* TERM_HELP */
+#endif /* WITH_GD_KITTY */

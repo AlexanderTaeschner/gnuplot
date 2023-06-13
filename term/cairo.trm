@@ -159,6 +159,7 @@ typedef struct cairo_params_t {
     float ps;
     enum CAIROTRM_id output;	/* format of the graphics produced by cairolatex */
     int resolution;             /* in dpi; CAIROLATEX_PNG only */
+    TBOOLEAN anchor;		/* TRUE = anchor kitty output to top left */
 } cairo_params_t;
 
 #define CAIROEPS_PARAMS_DEFAULT { \
@@ -196,7 +197,7 @@ static const cairo_params_t cairopdf_params_default = CAIROPDF_PARAMS_DEFAULT;
 #define CAIROPNG_PARAMS_DEFAULT { \
     CAIROTERM_PNG, PIXELS, FALSE, FALSE, 1.0, {1.,1.,1.}, 0xffffff, \
     FALSE, BUTT, FALSE, FALSE, NULL, \
-    12, 1.0, 640., 480., 1.0, 1.0, 1.0, FALSE \
+    12, 1.0, 640., 480., 1.0, 1.0, 1.0, FALSE, 0, TRUE\
 }
 static cairo_params_t cairopng_params = CAIROPNG_PARAMS_DEFAULT;
 static const cairo_params_t cairopng_params_default = CAIROPNG_PARAMS_DEFAULT;
@@ -271,7 +272,7 @@ TERM_PUBLIC void cairotrm_options()
 	char tmp_term_options[MAX_LINE_LEN+1] = "";
 
 	/* Initialize terminal-dependent values */
-	if (strcmp(term->name, "pngcairo") == 0) {
+	if ((strcmp(term->name, "pngcairo") == 0) || (strcmp(term->name, "kittycairo") == 0)) {
 	    cairo_params = &cairopng_params;
 	    cairo_params_default = &cairopng_params_default;
 	} else if (strcmp(term->name, "epscairo") == 0) {
@@ -341,7 +342,7 @@ TERM_PUBLIC void cairotrm_options()
 			break;
 		case CAIROTRM_SIZE:
 			c_token++;
-			if (!strcmp(term->name,"pngcairo"))
+			if (!strcmp(term->name,"pngcairo") || !strcmp(term->name, "kittycairo"))
 			    cairo_params->explicit_units = parse_term_size(&cairo_params->width, &cairo_params->height, PIXELS);
 #ifdef HAVE_WEBP
 			else if (!strcmp(term->name,"webp"))
@@ -553,6 +554,20 @@ TERM_PUBLIC void cairotrm_options()
 				break;
 			}
 #endif
+#ifdef HAVE_KITTY_TERM
+			if (strncmp(term->name, "kitty", 5) == 0) {
+			    if (equals(c_token, "animate") || equals(c_token, "anchor")) {
+				c_token++;
+				cairo_params->anchor = TRUE;
+				break;
+			    }
+			    if (equals(c_token, "scroll")) {
+				c_token++;
+				cairo_params->anchor = FALSE;
+				break;
+			    }
+			}
+#endif
 
 		default:
 			int_error(c_token, "unrecognized terminal option");
@@ -612,6 +627,10 @@ TERM_PUBLIC void cairotrm_options()
 
 	if (cairo_params->crop)
 		strncat(term_options, " crop", sizeof(term_options)-strlen(term_options)-1);
+
+	if (strncmp(term->name,"kitty",5) == 0)
+	    strncat(term_options, cairo_params->anchor ? " anchor" : " scroll",
+		sizeof(term_options)-strlen(term_options)-1);
 
 	strncat(term_options, cairo_params->enhanced ? " enhanced" : " noenhanced",
 		sizeof(term_options)-strlen(term_options)-1);
@@ -714,7 +733,8 @@ void cairotrm_init()
 
 	/* do a sanity check for once */
 	if (strcmp(term->name, "epscairo") && strcmp(term->name, "cairolatex") &&
-	    strcmp(term->name, "pdfcairo") && strcmp(term->name, "pngcairo"))
+	    strcmp(term->name, "pdfcairo") && strcmp(term->name, "pngcairo") &&
+            strcmp(term->name, "kittycairo"))
 		int_error(c_token,"Unrecognized cairo terminal");
 
 	/* cairolatex requires a file */
@@ -758,7 +778,7 @@ void cairotrm_init()
 		plot.polygons_saturate = FALSE;
 		/* Empirical correction to make pdf output look more like wxt and png */
 		plot.dashlength /= 2;
-	} else if (!strcmp(term->name,"pngcairo")) {
+	} else if (!strcmp(term->name,"pngcairo") || !strcmp(term->name, "kittycairo")) {
 		surface = cairo_image_surface_create( CAIRO_FORMAT_ARGB32,
 				plot.device_xmax /*double width_in_points*/,
 				plot.device_ymax /*double height_in_points*/);
@@ -1073,7 +1093,24 @@ void cairotrm_text()
 			cairo_surface_write_to_png_stream(surface,
 				(cairo_write_func_t)cairostream_write, cairostream_error);
 		}
-	}
+#ifdef HAVE_KITTY_TERM
+        } else if (strcmp(term->name, "kittycairo") == 0) {
+          base64s *b64;
+          cairo_surface_t *surface = cairo_get_target(plot.cr);
+          /* TODO: crop */
+	  /* Draw starting at top left of screen */
+	  if (cairo_params->anchor)
+		fprintf(gpoutfile,  "\033[H");
+          kitty_init(KITTY_FORMAT_PNG);
+          b64 = gp_alloc(sizeof(base64s), "base64s");
+          init_base64_state_data(b64, kitty_writechar, NULL);
+          cairo_surface_write_to_png_stream(surface, cairo_write_base64_callback, b64);
+          piecemeal_write_base64_data_finish(b64);
+          free(b64);
+          kitty_flush(FALSE);
+          fputc('\n', gpoutfile);
+#endif
+        }
 
 	FPRINTF((stderr,"status = %s\n",cairo_status_to_string(cairo_status(plot.cr))));
 
@@ -1514,6 +1551,36 @@ TERM_TABLE_END (pngcairo_driver)
 #undef LAST_TERM
 #define LAST_TERM pngcairo_driver
 
+#ifdef HAVE_KITTY_TERM
+TERM_TABLE_START (kittycairo_driver)
+    "kittycairo", "kitty in-terminal graphics using cairo",
+    /* the following values are overridden by cairotrm_graphics */
+    1 /* xmax */ , 1 /* ymax */ , 1 /* vchar */ , 1 /* hchar */ ,
+    1 /* vtic */ , 1 /* htic */ ,
+    cairotrm_options, cairotrm_init, cairotrm_reset, cairotrm_text, null_scale, cairotrm_graphics,
+    cairotrm_move, cairotrm_vector, cairotrm_linetype, cairotrm_put_text,
+    cairotrm_text_angle, cairotrm_justify_text,
+    cairotrm_point, do_arrow, cairotrm_set_font,
+    cairotrm_pointsize,
+    TERM_BINARY|TERM_CAN_DASH|TERM_ALPHA_CHANNEL|TERM_LINEWIDTH|TERM_FONTSCALE|TERM_POINTSCALE,
+    0 /* suspend */, 0 /* resume */, cairotrm_fillbox, cairotrm_linewidth,
+#ifdef USE_MOUSE
+    term_waitforinput, 0, 0, 0, 0,
+#endif
+    cairotrm_make_palette, 0 /* cairotrm_previous_palette */, cairotrm_set_color, cairotrm_filled_polygon
+    , cairotrm_image
+    , cairotrm_enhanced_open, cairotrm_enhanced_flush, cairotrm_enhanced_writec
+    , 0, 0, 1.0
+    , NULL /* hypertext */
+    , cairotrm_boxed_text
+    , NULL /* modify_plots */
+    , cairotrm_dashtype
+TERM_TABLE_END (kittycairo_driver)
+
+#undef LAST_TERM
+#define LAST_TERM kittycairo_driver
+#endif /* HAVE_KITTY_TERM */
+
 #endif /* TERM_TABLE */
 #endif /* TERM_PROTO_ONLY */
 
@@ -1720,10 +1787,8 @@ START_HELP(pdfcairo)
 "                      {background <rgbcolor>}",
 "                      {size <XX>{unit},<YY>{unit}}",
 "",
-" This terminal supports an enhanced text mode, which allows font and other",
-" formatting commands (subscripts, superscripts, etc.) to be embedded in labels",
-" and other text strings. The enhanced text mode syntax is shared with other",
-" gnuplot terminal types. See `enhanced` for more details.",
+" This terminal processes labels and other text using enhanced formatting",
+" by default.  See `enhanced`.",
 "",
 " The width of all lines in the plot can be modified by the factor <lw>",
 " specified in `linewidth`. The default linewidth is 0.5 points.",
@@ -1732,35 +1797,33 @@ START_HELP(pdfcairo)
 " `rounded` sets line caps and line joins to be rounded;",
 " `butt` is the default, butt caps and mitered joins.",
 "",
-" The default size for the output is 5 inches x 3 inches. The `size` option",
+" The default size for output is 5 inches x 3 inches. The `size` option",
 " changes this to whatever the user requests. By default the X and Y sizes are",
 " taken to be in inches, but other units are possible (currently only cm).",
-" Screen coordinates always run from 0.0 to 1.0 along the full length of the",
-" plot edges as specified by the `size` option.",
-"",
-" <font> is in the format \"FontFace,FontSize\", i.e. the face and the size",
+" `font` is in the format \"FontFace,FontSize\", i.e. the face and the size",
 " comma-separated in a single string. FontFace is a usual font face name, such",
 " as \'Arial\'. If you do not provide FontFace, the pdfcairo terminal will use",
 " \'Sans\'. FontSize is the font size, in points. If you do not provide it,",
 " the pdfcairo terminal will use a nominal font size of 12 points.",
 " However, the default fontscale parameter for this terminal is 0.5,",
-" so the apparent font size is smaller than this if the pdf output is",
-" viewed at full size.",
-"    For example :",
+" so the apparent font size is smaller than the nominal point size if the pdf",
+" output is viewed at full size.",
+"",
+"    Examples :",
 "       set term pdfcairo font \"Arial,12\"",
-"       set term pdfcairo font \"Arial\" # to change the font face only",
-"       set term pdfcairo font \",12\" # to change the font size only",
+"       set term pdfcairo font \"Serif\" # to change the font face only",
+"       set term pdfcairo font \",14\" # to change the font size only",
 "       set term pdfcairo font \"\" # to reset the font name and size",
 "",
 " The fonts are retrieved from the usual fonts subsystems. Under Windows,",
 " those fonts are to be found and configured in the entry \"Fonts\" of the",
 " control panel. Under UNIX, they are handled by \"fontconfig\".",
 "",
-" Pango, the library used to layout the text, is based on utf-8. Thus, the pdfcairo",
-" terminal has to convert from your encoding to utf-8. The default input",
-" encoding is based on your \'locale\'. If you want to use another encoding,",
-" make sure gnuplot knows which one you are using. See `encoding` for more",
-" details.",
+" Pango, the library used to process the text, is based on utf-8.",
+" The pdfcairo terminal will convert from your encoding to utf-8 if needed.",
+" The assumed input encoding is taken from your \'locale\'. If your text actually",
+" uses a different encoding, make sure gnuplot knows which one you are using.",
+" See `encoding` for more details.",
 "",
 " Pango may give unexpected results with fonts that do not respect the unicode",
 " mapping. With the Symbol font, for example, the pdfcairo terminal will use the map",
@@ -1776,12 +1839,9 @@ START_HELP(pdfcairo)
 " OpenOffice Symbol fonts, and remove the Microsoft one.",
 " Other non-conform fonts, such as \"wingdings\" have been observed working.",
 "",
-" The rendering of the plot cannot be altered yet. To obtain the best output",
-" possible, the rendering involves two mechanisms : antialiasing and",
-" oversampling.",
-" Antialiasing allows to display non-horizontal and non-vertical lines",
-" smoother.",
-" Oversampling combined with antialiasing provides subpixel accuracy,",
+" The rendering of the plot involves two mechanisms : antialiasing and",
+" oversampling.  Antialiasing produces smoother non-horizontal and non-vertical",
+" lines.  Oversampling combined with antialiasing provides subpixel accuracy,",
 " so that gnuplot can draw a line from non-integer coordinates. This avoids",
 " wobbling effects on diagonal lines ('plot x' for example).",
 ""
@@ -1863,5 +1923,49 @@ START_HELP(pngcairo)
 " supported by the cairo and pango libraries.",
 ""
 END_HELP(pngcairo)
+
+#ifdef HAVE_KITTY_TERM
+START_HELP(kittycairo)
+"1 kittycairo",
+"?set terminal kittycairo",
+"?terminal kittycairo",
+"?set term kittycairo",
+"?term kittycairo",
+"?kittycairo",
+" The `kittycairo` terminal generates in-window output on terminal emulators",
+" that support the kitty graphics protocol.  The actual drawing is done via",
+" cairo, a 2D graphics library, and pango, a library for text rendering.",
+" The kitty protocol is an alternative to sixel graphics, with the advantage",
+" of support for 24-bit RGB colors and slightly lower required bandwidth to",
+" transfer the image data between computer and terminal in a remote session.",
+"",
+" Syntax:",
+"         set terminal kittycairo",
+"                      {{no}enhanced} {mono|color}",
+"                      {font <font>} {fontscale <scale>}",
+"                      {linewidth <lw>} {rounded|butt|square} {dashlength <dl>}",
+"                      {background <rgbcolor>}",
+"                      {size <XX>,<YY>} {anchor|scroll}",
+"",
+" This terminal processes labels and other text using enhanced formatting",
+" by default.  See `enhanced`.",
+"",
+" The width of all lines in the plot can be modified by the factor <lw>",
+" specified in `linewidth`.  The font size can similarly be uniformly modified",
+" the scale factor provided by `fontscale`.  For discussion of font and text",
+" encoding options, see the `pdfcairo` terminal."
+"",
+" The option `rounded` sets line caps and line joins to be rounded;",
+" `butt` is the default, producing butt caps and mitered joins.",
+"",
+" The size of the plot is given in screen pixels.  By default (`anchor`) each",
+" plot is drawn at the top left of the terminal window.  This is useful for",
+" animation or pseudo-mousing using the keyboard (see `pseudo-mousing`).",
+" `scroll` instead starts each plot at the current cursor position so that it",
+" scrolls with the terminal text.",
+""
+END_HELP(kittycairo)
+#endif /* HAVE_KITTY_TERM */
+
 #endif /* TERM_HELP */
 

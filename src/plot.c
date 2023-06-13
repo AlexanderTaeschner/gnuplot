@@ -62,17 +62,6 @@
 # include <io.h>
 #endif
 
-#ifdef VMS
-# include "vms.h"
-# ifndef __GNUC__
-#  include <unixio.h>
-# endif
-# include <smgdef.h>
-# include <ssdef.h>
-extern smg$create_virtual_keyboard();
-extern smg$create_key_table();
-#endif /* VMS */
-
 #ifdef _WIN32
 # include <windows.h>
 # include "win/winmain.h"
@@ -92,14 +81,17 @@ extern smg$create_key_table();
 /* BSD editline
 */
 #ifdef HAVE_LIBEDITLINE
-# include <editline/readline.h>
+#  include <editline/readline.h>
+#  ifdef GNUPLOT_HISTORY
+#    include <histedit.h>
+#  endif
 #endif
 
 /* enable gnuplot history with readline */
 #ifdef GNUPLOT_HISTORY
-# ifndef GNUPLOT_HISTORY_FILE
-#  define GNUPLOT_HISTORY_FILE "~/.gnuplot_history"
-# endif
+#  ifndef GNUPLOT_HISTORY_FILE
+#    define GNUPLOT_HISTORY_FILE "~/.gnuplot_history"
+#  endif
 /*
  * expanded_history_filename points to the value from 'tilde_expand()',
  * which expands '~' to the user's home directory, or $HOME.
@@ -384,15 +376,6 @@ main(int argc_orig, char **argv)
 	}
     }
 
-#ifdef X11
-    /* the X11 terminal removes tokens that it recognizes from argv. */
-    {
-	int n = X11_args(argc, argv);
-	argv += n;
-	argc -= n;
-    }
-#endif
-
     setbuf(stderr, (char *) NULL);
 
 #ifdef HAVE_SETVBUF
@@ -452,24 +435,8 @@ main(int argc_orig, char **argv)
 	}
     }
 
-    /* Need this before show_version is called for the first time */
-
-    if (interactive)
-	show_version(stderr);
-    else
-	show_version(NULL); /* Only load GPVAL_COMPILE_OPTIONS */
-
-    update_gpval_variables(3);  /* update GPVAL_ variables available to user */
-
 #ifdef VMS
-    /* initialise screen management routines for command recall */
-    {
-    unsigned int ierror;
-    if (ierror = smg$create_virtual_keyboard(&vms_vkid) != SS$_NORMAL)
-	done(ierror);
-    if (ierror = smg$create_key_table(&vms_ktid) != SS$_NORMAL)
-	done(ierror);
-    }
+    vms_init_screen();
 #endif /* VMS */
 
     if (!SETJMP(command_line_env, 1)) {
@@ -495,12 +462,34 @@ main(int argc_orig, char **argv)
 	 * the generic terminal shutdown in term_reset to be executed before
 	 * any terminal specific cleanup requested by individual terminals.
 	 */
+	/* Need this before show_version is called for the first time */
 	init_terminal();
 	push_terminal(0);	/* remember the initial terminal */
 	gp_atexit(term_reset);
 
+#ifdef X11
+	/* the X11 terminal removes tokens that it recognizes from argv. */
+	if (term && !strcmp(term->name, "x11")) {
+	    int n = X11_args(argc, argv);
+	    argv += n;
+	    argc -= n;
+	}
+#endif
+
+	/* Version 6:  defer splash page until after initialization */
+	if (interactive)
+	    show_version(stderr);
+	else
+	    show_version(NULL); /* Only load GPVAL_COMPILE_OPTIONS */
+
+	/* update GPVAL_ variables available to user */
+	update_gpval_variables(3);
+
 	/* Execute commands in ~/.gnuplot */
 	init_session();
+
+	if (interactive)
+	   fprintf(stderr, "\n\tTerminal type is now %s\n", term->name);
 
 	if (interactive && term != 0) {		/* not unknown */
 #ifdef GNUPLOT_HISTORY
@@ -527,7 +516,7 @@ main(int argc_orig, char **argv)
 	    /*
 	     * It is safe to ignore the return values of 'atexit()' and
 	     * 'on_exit()'. In the worst case, there is no history of your
-	     * current session and you have to type all again in your next
+	     * current session and you have to type it all again in your next
 	     * session.
 	     */
 	    gp_atexit(wrapper_for_write_history);
