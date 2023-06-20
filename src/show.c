@@ -2395,6 +2395,9 @@ show_palette()
 	  case SMPAL_COLOR_MODE_VIRIDIS:
 	    fputs( "\tgradient named viridis\n", stderr );
 	    break;
+	  case SMPAL_COLOR_MODE_MAGMA:
+	    fputs( "\tgradient named magma\n", stderr );
+	    break;
 	  case SMPAL_COLOR_MODE_FUNCTIONS:
 	    fputs("\tcolor mapping is done by user defined functions\n",stderr);
 	    if (sm_palette.Afunc.at && sm_palette.Afunc.definition)

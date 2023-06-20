@@ -74,8 +74,10 @@ typedef enum {
     SMPAL_COLOR_MODE_FUNCTIONS = 'f', /* user defined transforms */
     SMPAL_COLOR_MODE_GRADIENT = 'd',  /* interpolated table:
 				       * explicitly defined or read from file */
+				/* The rest of these are named palettes */
     SMPAL_COLOR_MODE_CUBEHELIX = 'c',
-    SMPAL_COLOR_MODE_VIRIDIS = 'v'
+    SMPAL_COLOR_MODE_VIRIDIS = 'v',
+    SMPAL_COLOR_MODE_MAGMA = 'm'
 } palette_color_mode;
 
 /*

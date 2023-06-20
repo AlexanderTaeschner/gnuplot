@@ -1739,7 +1739,8 @@ X11_make_palette(t_sm_palette *palette)
 	}
 
     colorMode = palette->colorMode;
-    if (colorMode == SMPAL_COLOR_MODE_VIRIDIS)
+    if (colorMode == SMPAL_COLOR_MODE_VIRIDIS
+    ||  colorMode == SMPAL_COLOR_MODE_MAGMA)
 	colorMode = SMPAL_COLOR_MODE_GRADIENT;
 
     fprintf(X11_ipc, "%c %c %c %c %d\n",
@@ -1757,6 +1758,7 @@ X11_make_palette(t_sm_palette *palette)
 	break;
     case SMPAL_COLOR_MODE_GRADIENT:
     case SMPAL_COLOR_MODE_VIRIDIS:
+    case SMPAL_COLOR_MODE_MAGMA:
         transmit_gradient(palette->gradient, palette->gradient_num, palette->gradient_type);
 	break;
     case SMPAL_COLOR_MODE_CUBEHELIX:

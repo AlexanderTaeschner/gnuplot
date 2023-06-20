@@ -879,6 +879,8 @@ set isosamples %d, %d",
       fputs( "gray\n", fp );
     } else if (sm_palette.colorMode == SMPAL_COLOR_MODE_VIRIDIS) {
       fputs( "viridis\n", fp );
+    } else if (sm_palette.colorMode == SMPAL_COLOR_MODE_MAGMA) {
+      fputs( "magma\n", fp );
     } else {
       fputs( "color model ", fp );
       switch( sm_palette.cmodel ) {
