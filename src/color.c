@@ -152,7 +152,8 @@ make_palette()
     if (CHECK_SMPAL_IS_DISCRETE_GRADIENT) {
 	sm_palette.colors = sm_palette.gradient_num;
     } else if (sm_palette.use_maxcolors > 0) {
-	if (sm_palette.colorMode == SMPAL_COLOR_MODE_GRADIENT)
+	if (sm_palette.colorMode == SMPAL_COLOR_MODE_GRADIENT
+	||  sm_palette.colorMode == SMPAL_COLOR_MODE_VIRIDIS)
 	    sm_palette.colors = i;	/* EAM Sep 2010 - could this be a constant? */
 	else if (i > sm_palette.use_maxcolors)
 	    sm_palette.colors = sm_palette.use_maxcolors;
@@ -337,6 +338,83 @@ draw_inside_color_smooth_box_postscript()
 }
 
 
+static int colorbox_steps()
+{
+    if ( sm_palette.use_maxcolors != 0 )
+        return sm_palette.use_maxcolors;
+    if ( sm_palette.gradient_num > 128 )
+        return sm_palette.gradient_num;
+
+    /* I think that nobody can distinguish more colours drawn in the palette */
+    return 128;
+}
+
+
+static void
+colorbox_bounds( // out
+                 gpiPoint* corners,
+                 int*      xy_from,
+                 int*      xy_to,
+                 double*   xy_step,
+                 // in
+                 const int steps)
+{
+    if (color_box.rotation == 'v') {
+	corners[0].x = corners[3].x = color_box.bounds.xleft;
+	corners[1].x = corners[2].x = color_box.bounds.xright;
+	*xy_from = color_box.bounds.ybot;
+	*xy_to = color_box.bounds.ytop;
+
+        if(xy_step)
+            *xy_step = (color_box.bounds.ytop - color_box.bounds.ybot) / (double)steps;
+    } else {
+	corners[0].y = corners[1].y = color_box.bounds.ybot;
+	corners[2].y = corners[3].y = color_box.bounds.ytop;
+	*xy_from = color_box.bounds.xleft;
+	*xy_to = color_box.bounds.xright;
+        if(xy_step)
+            *xy_step = (color_box.bounds.xright - color_box.bounds.xleft) / (double)steps;
+    }
+}
+
+static void
+colorbox_draw_polygon(// output
+                      gpiPoint* corners,
+                      // input
+                      const int xy,
+                      const int xy2,
+                      const int xy_to)
+{
+    if (color_box.rotation == 'v') {
+        corners[0].y = corners[1].y = xy;
+        corners[2].y = corners[3].y = GPMIN(xy_to,xy2+1);
+    } else {
+        corners[0].x = corners[3].x = xy;
+        corners[1].x = corners[2].x = GPMIN(xy_to,xy2+1);
+    }
+
+    /* print the rectangle with the given colour */
+    if (default_fillstyle.fillstyle == FS_EMPTY)
+        corners->style = FS_OPAQUE;
+    else
+        corners->style = style_from_fill(&default_fillstyle);
+    term->filled_polygon(4, corners);
+}
+
+
+static void colorbox_next_step(// output
+                               int* xy,
+                               int* xy2,
+                               // input
+                               const int xy_from,
+                               const int i,
+                               const double xy_step)
+{
+    /* Start from one pixel beyond the previous box */
+    *xy = *xy2;
+    *xy2 = xy_from + (int) (xy_step * (i + 1));
+}
+
 /* plot a colour smooth box bounded by the terminal's integer coordinates
    [x_from,y_from] to [x_to,y_to].
    This routine is for non-postscript files and for the Mixed color gradient type
@@ -344,41 +422,27 @@ draw_inside_color_smooth_box_postscript()
 static void
 draw_inside_colorbox_bitmap_mixed()
 {
-    int steps;
     int i, j, xy, xy2, xy_from, xy_to;
     int jmin = 0;
     double xy_step, gray, range;
     gpiPoint corners[4];
 
-    steps = 128; /* I think that nobody can distinguish more colours drawn in the palette */
+    const int steps = colorbox_steps();
 
-    if ( sm_palette.use_maxcolors != 0 ) {
-        steps = sm_palette.use_maxcolors;
-    } else if ( sm_palette.gradient_num > 128 ) {
-	steps = sm_palette.gradient_num;
-    }
-
-    if (color_box.rotation == 'v') {
-	corners[0].x = corners[3].x = color_box.bounds.xleft;
-	corners[1].x = corners[2].x = color_box.bounds.xright;
-	xy_from = color_box.bounds.ybot;
-	xy_to = color_box.bounds.ytop;
-	xy_step = (color_box.bounds.ytop - color_box.bounds.ybot) / (double)steps;
-    } else {
-	corners[0].y = corners[1].y = color_box.bounds.ybot;
-	corners[2].y = corners[3].y = color_box.bounds.ytop;
-	xy_from = color_box.bounds.xleft;
-	xy_to = color_box.bounds.xright;
-	xy_step = (color_box.bounds.xright - color_box.bounds.xleft) / (double)steps;
-    }
+    colorbox_bounds( // out
+                     corners,
+                     &xy_from,
+                     &xy_to,
+                     &xy_step,
+                     // in
+                     steps);
 
     range = (xy_to - xy_from);
 
     for (i = 0, xy2 = xy_from; i < steps; i++) {
 
-	/* Start from one pixel beyond the previous box */
-	xy = xy2;
-	xy2 = xy_from + (int) (xy_step * (i + 1));
+	colorbox_next_step(&xy,&xy2,
+	                   xy_from,i,xy_step);
 
 	/* Set the colour for the next range increment */
 	/* FIXME - The "1 +" seems wrong, yet it improves the placement in gd */
@@ -406,19 +470,8 @@ draw_inside_colorbox_bitmap_mixed()
 		    break;
 	    }
 
-	if (color_box.rotation == 'v') {
-	    corners[0].y = corners[1].y = xy;
-	    corners[2].y = corners[3].y = GPMIN(xy_to,xy2+1);
-	} else {
-	    corners[0].x = corners[3].x = xy;
-	    corners[1].x = corners[2].x = GPMIN(xy_to,xy2+1);
-	}
-	/* print the rectangle with the given colour */
-	if (default_fillstyle.fillstyle == FS_EMPTY)
-	    corners->style = FS_OPAQUE;
-	else
-	    corners->style = style_from_fill(&default_fillstyle);
-	term->filled_polygon(4, corners);
+	colorbox_draw_polygon(corners,
+	                      xy,xy2,xy_to);
     }
 }
 
@@ -435,18 +488,14 @@ draw_inside_colorbox_bitmap_discrete ()
     gpiPoint corners[4];
 
     steps = sm_palette.gradient_num;
+    colorbox_bounds( // out
+                     corners,
+                     &xy_from,
+                     &xy_to,
+                     NULL,
+                     // in
+                     steps);
 
-    if (color_box.rotation == 'v') {
-	corners[0].x = corners[3].x = color_box.bounds.xleft;
-	corners[1].x = corners[2].x = color_box.bounds.xright;
-	xy_from = color_box.bounds.ybot;
-	xy_to = color_box.bounds.ytop;
-    } else {
-	corners[0].y = corners[1].y = color_box.bounds.ybot;
-	corners[2].y = corners[3].y = color_box.bounds.ytop;
-	xy_from = color_box.bounds.xleft;
-	xy_to = color_box.bounds.xright;
-    }
     range = (xy_to - xy_from);
 
     for (i = 0; i < steps-1; i++) {
@@ -469,62 +518,36 @@ draw_inside_colorbox_bitmap_discrete ()
         gray = sm_palette.gradient[i1].pos;
         set_color(gray);
 
-	if (color_box.rotation == 'v') {
-	    corners[0].y = corners[1].y = xy;
-	    corners[2].y = corners[3].y = GPMIN(xy_to,xy2+1);
-	} else {
-	    corners[0].x = corners[3].x = xy;
-	    corners[1].x = corners[2].x = GPMIN(xy_to,xy2+1);
-	}
-	/* print the rectangle with the given colour */
-	if (default_fillstyle.fillstyle == FS_EMPTY)
-	    corners->style = FS_OPAQUE;
-	else
-	    corners->style = style_from_fill(&default_fillstyle);
-	term->filled_polygon(4, corners);
+	colorbox_draw_polygon(corners,
+	                      xy,xy2,xy_to);
     }
 }
 
-/* plot a colour smooth box bounded by the terminal's integer coordinates
-   [x_from,y_from] to [x_to,y_to].
-   This routine is for non-postscript files and for the Smooth color gradient type
+/* plot a single gradient to the colorbox at [x_from,y_from] to [x_to,y_to].
+ * This routine is for non-postscript files and for the Smooth color gradient type.
+ * It uses term->filled_polygon() to build the gradient, one box per color segment.
  */
 static void
-draw_inside_colorbox_bitmap_smooth()
+draw_inside_colorbox_bitmap_smooth__filled_polygon()
 {
-    int steps;
     int i, xy, xy2, xy_from, xy_to;
     double xy_step, gray;
     gpiPoint corners[4];
 
-    /* Determins the steps for rectangles boxes from palette's color number specification. */
+    const int steps = colorbox_steps();
 
-    steps = 128; /* I think that nobody can distinguish more colours drawn in the palette */
-
-    if ( sm_palette.use_maxcolors != 0 ) {
-        steps = sm_palette.use_maxcolors;
-    } else if ( sm_palette.gradient_num > 128 ) {
-	steps = sm_palette.gradient_num;
-    }
-
-    if (color_box.rotation == 'v') {
-	corners[0].x = corners[3].x = color_box.bounds.xleft;
-	corners[1].x = corners[2].x = color_box.bounds.xright;
-	xy_from = color_box.bounds.ybot;
-	xy_to = color_box.bounds.ytop;
-	xy_step = (color_box.bounds.ytop - color_box.bounds.ybot) / (double)steps;
-    } else {
-	corners[0].y = corners[1].y = color_box.bounds.ybot;
-	corners[2].y = corners[3].y = color_box.bounds.ytop;
-	xy_from = color_box.bounds.xleft;
-	xy_to = color_box.bounds.xright;
-	xy_step = (color_box.bounds.xright - color_box.bounds.xleft) / (double)steps;
-    }
+    colorbox_bounds( // out
+                     corners,
+                     &xy_from,
+                     &xy_to,
+                     &xy_step,
+                     // in
+                     steps);
 
     for (i = 0, xy2 = xy_from; i < steps; i++) {
 
-	xy = xy2;
-	xy2 = xy_from + (int) (xy_step * (i + 1));
+	colorbox_next_step(&xy,&xy2,
+	                   xy_from,i,xy_step);
 
 	gray = i / (double)steps;
 
@@ -535,21 +558,72 @@ draw_inside_colorbox_bitmap_smooth()
 	    gray = 1 - gray;
         set_color(gray);
 
-	if (color_box.rotation == 'v') {
-	    corners[0].y = corners[1].y = xy;
-	    corners[2].y = corners[3].y = GPMIN(xy_to,xy2+1);
-	} else {
-	    corners[0].x = corners[3].x = xy;
-	    corners[1].x = corners[2].x = GPMIN(xy_to,xy2+1);
-	}
-	/* print the rectangle with the given colour */
-	if (default_fillstyle.fillstyle == FS_EMPTY)
-	    corners->style = FS_OPAQUE;
-	else
-	    corners->style = style_from_fill(&default_fillstyle);
-	term->filled_polygon(4, corners);
+	colorbox_draw_polygon(corners,
+	                      xy,xy2,xy_to);
     }
 }
+
+/* plot a single gradient to the colorbox at [x_from,y_from] to [x_to,y_to].
+ * This routine is for non-postscript files and for the Smooth color gradient type.
+ * It uses term->image() render the gradient, one pixel per color segment.
+ */
+static void
+draw_inside_colorbox_bitmap_smooth__image()
+{
+    gpiPoint corners[4] = {
+         {.x = color_box.bounds.xleft,  .y = color_box.bounds.ytop},
+         {.x = color_box.bounds.xright, .y = color_box.bounds.ybot},
+         {.x = color_box.bounds.xleft,  .y = color_box.bounds.ytop},
+         {.x = color_box.bounds.xright, .y = color_box.bounds.ybot}
+    };
+
+    const int steps = colorbox_steps();
+
+    coordval image[3*steps];
+
+    FPRINTF((stderr, "...using draw_inside_colorbox_bitmap_smooth__image\n"));
+
+    for (int i = 0; i < steps; i++) {
+	rgb_color rgb1;
+        double gray = (double)i / (double)(steps-1);
+
+	if ( sm_palette.use_maxcolors != 0 ) {
+	    gray = quantize_gray(gray);
+	}
+	if (sm_palette.positive == SMPAL_NEGATIVE)
+	    gray = 1 - gray;
+
+        // Need to unconditionally invert this for some reason
+        if (color_box.rotation == 'v')
+            gray = 1 - gray;
+
+        rgb1maxcolors_from_gray( gray, &rgb1 );
+        image[3*i + 0] = rgb1.r;
+        image[3*i + 1] = rgb1.g;
+        image[3*i + 2] = rgb1.b;
+    }
+
+
+    if (color_box.rotation == 'v')
+        term->image(1, steps, image, corners, IC_RGB);
+    else
+        term->image(steps, 1, image, corners, IC_RGB);
+}
+
+static void
+draw_inside_colorbox_bitmap_smooth()
+{
+    /* The primary beneficiary of the image variant is cairo + pdf,
+     * since it avoids banding artifacts in the filled_polygon variant.
+     * FIXME: if this causes problems for other terminal types we can
+     *        switch the condition to if (!strcmp(term->name,"pdfcairo"))
+     */
+    if ((term->flags & TERM_COLORBOX_IMAGE))
+        draw_inside_colorbox_bitmap_smooth__image();
+    else
+        draw_inside_colorbox_bitmap_smooth__filled_polygon();
+}
+
 
 static void
 cbtick_callback(
@@ -774,20 +848,14 @@ draw_color_smooth_box(int plot_mode)
 
     if (sm_palette.gradient_type == SMPAL_GRADIENT_TYPE_DISCRETE) {
         draw_inside_colorbox_bitmap_discrete();
-    } 
-    else {
+    } else {
         /* The PostScript terminal has an Optimized version */
-        if ((term->flags & TERM_IS_POSTSCRIPT) != 0) {
+        if ((term->flags & TERM_IS_POSTSCRIPT) != 0)
             draw_inside_color_smooth_box_postscript();
-        }
-        else {
-            if (sm_palette.gradient_type == SMPAL_GRADIENT_TYPE_SMOOTH) {
-                draw_inside_colorbox_bitmap_smooth();
-            }
-            else {
-                draw_inside_colorbox_bitmap_mixed();
-            }
-        }
+        else if (sm_palette.gradient_type == SMPAL_GRADIENT_TYPE_SMOOTH)
+	    draw_inside_colorbox_bitmap_smooth();
+	else
+	    draw_inside_colorbox_bitmap_mixed();
     }
 
     term->layer(TERM_LAYER_END_COLORBOX);
@@ -1519,9 +1587,9 @@ set_palette()
 	    case S_PALETTE_VIRIDIS: {
 		CHECK_TRANSFORM;
 		set_palette_by_name(VIRIDIS);
-		sm_palette.colorMode = SMPAL_COLOR_MODE_GRADIENT;
+		sm_palette.colorMode = SMPAL_COLOR_MODE_VIRIDIS;
                 sm_palette.gradient_type = SMPAL_GRADIENT_TYPE_SMOOTH;
-		pm3d_last_set_palette_mode = SMPAL_COLOR_MODE_GRADIENT;
+		pm3d_last_set_palette_mode = SMPAL_COLOR_MODE_VIRIDIS;
 		continue;
 	    }
 	    case S_PALETTE_COLORMAP: { /* colormap */

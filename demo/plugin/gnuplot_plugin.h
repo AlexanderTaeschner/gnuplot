@@ -1,14 +1,25 @@
 /*
  * DATA_TYPES and struct value must match definitions in
  * #include <gp_types.h>
+ * This file matches the source gnuplot version 6.1
  */
+#ifndef GNUPLOT_PLUGIN_H
+#define GNUPLOT_PLUGIN_H
+
+#define PLUGIN_VERSION 6.1
+
 #include <inttypes.h>		/* C99 type definitions */
 enum DATA_TYPES {
 	INTGR=1,
 	CMPLX,
 	STRING,
 	DATABLOCK,
+	FUNCTIONBLOCK,
 	ARRAY,
+	COLORMAP_ARRAY,
+	TEMP_ARRAY,
+	LOCAL_ARRAY,
+	VOXELGRID,
 	NOTDEFINED,	/* exists, but value is currently undefined */
 	INVALID_VALUE,	/* used only for error return by external functions */
 	INVALID_NAME	/* used only to trap errors in linked axis function definition */
@@ -45,6 +56,9 @@ typedef struct value {
 /* prototype for a plugin function */
 DLLEXPORT void *gnuplot_init(struct value(*)(int, struct value *, void *));
 DLLEXPORT void gnuplot_fini(void *);
+
+/* report gnuplot version number that this plugin was built for */
+DLLEXPORT double gnuplot_version(void) {return PLUGIN_VERSION;}
 
 /* Check that the number of parameters declared in the gnuplot import
  * statement matches the actual number of parameters in the exported
@@ -83,3 +97,4 @@ __inline__ static int IVAL(struct value v)
 }
 
 #undef NaN
+#endif /* GNUPLOT_PLUGIN_H */
