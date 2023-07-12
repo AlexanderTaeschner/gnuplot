@@ -579,7 +579,7 @@ draw_inside_colorbox_bitmap_smooth__image()
 
     const int steps = colorbox_steps();
 
-    coordval image[3*steps];
+    coordval *image =(coordval*) gp_alloc(3 * steps, "image");
 
     FPRINTF((stderr, "...using draw_inside_colorbox_bitmap_smooth__image\n"));
 
