@@ -579,7 +579,7 @@ draw_inside_colorbox_bitmap_smooth__image()
 
     const int steps = colorbox_steps();
 
-    coordval *image =(coordval*) gp_alloc(3 * steps, "image");
+    coordval *image =(coordval*) gp_alloc(3 * steps * sizeof(coordval), "image");
 
     FPRINTF((stderr, "...using draw_inside_colorbox_bitmap_smooth__image\n"));
 
@@ -608,6 +608,8 @@ draw_inside_colorbox_bitmap_smooth__image()
         term->image(1, steps, image, corners, IC_RGB);
     else
         term->image(steps, 1, image, corners, IC_RGB);
+
+    free(image);
 }
 
 static void
