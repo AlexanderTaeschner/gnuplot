@@ -338,7 +338,8 @@ draw_inside_color_smooth_box_postscript()
 }
 
 
-static int colorbox_steps()
+static int
+colorbox_steps()
 {
     if ( sm_palette.use_maxcolors != 0 )
         return sm_palette.use_maxcolors;
@@ -558,8 +559,7 @@ draw_inside_colorbox_bitmap_smooth__filled_polygon()
 	    gray = 1 - gray;
         set_color(gray);
 
-	colorbox_draw_polygon(corners,
-	                      xy,xy2,xy_to);
+	colorbox_draw_polygon(corners, xy,xy2,xy_to);
     }
 }
 
@@ -576,10 +576,15 @@ draw_inside_colorbox_bitmap_smooth__image()
          {.x = color_box.bounds.xleft,  .y = color_box.bounds.ytop},
          {.x = color_box.bounds.xright, .y = color_box.bounds.ybot}
     };
+    coordval *image;
+    int steps;
 
-    const int steps = colorbox_steps();
+    if (0 < sm_palette.use_maxcolors && sm_palette.use_maxcolors <= 128)
+	steps = floor(1000.0/sm_palette.use_maxcolors) * sm_palette.use_maxcolors;
+    else
+	steps = colorbox_steps();
 
-    coordval *image =(coordval*) gp_alloc(3 * steps * sizeof(coordval), "image");
+    image = gp_alloc(sizeof(coordval)*3*steps, "colorbox");
 
     FPRINTF((stderr, "...using draw_inside_colorbox_bitmap_smooth__image\n"));
 
@@ -587,13 +592,12 @@ draw_inside_colorbox_bitmap_smooth__image()
 	rgb_color rgb1;
         double gray = (double)i / (double)(steps-1);
 
-	if ( sm_palette.use_maxcolors != 0 ) {
+	if ( sm_palette.use_maxcolors != 0 )
 	    gray = quantize_gray(gray);
-	}
 	if (sm_palette.positive == SMPAL_NEGATIVE)
 	    gray = 1 - gray;
 
-        // Need to unconditionally invert this for some reason
+        /* y axis terminal coordinates run top-to-bottom */
         if (color_box.rotation == 'v')
             gray = 1 - gray;
 
@@ -602,7 +606,6 @@ draw_inside_colorbox_bitmap_smooth__image()
         image[3*i + 1] = rgb1.g;
         image[3*i + 2] = rgb1.b;
     }
-
 
     if (color_box.rotation == 'v')
         term->image(1, steps, image, corners, IC_RGB);
@@ -617,8 +620,6 @@ draw_inside_colorbox_bitmap_smooth()
 {
     /* The primary beneficiary of the image variant is cairo + pdf,
      * since it avoids banding artifacts in the filled_polygon variant.
-     * FIXME: if this causes problems for other terminal types we can
-     *        switch the condition to if (!strcmp(term->name,"pdfcairo"))
      */
     if ((term->flags & TERM_COLORBOX_IMAGE))
         draw_inside_colorbox_bitmap_smooth__image();
@@ -674,31 +675,8 @@ cbtick_callback(
     }
 
     /* draw tic */
-    if (len != 0) {
-	int lt = color_box.cbtics_lt_tag;
-	if (lt <= 0)
-	    lt = color_box.border_lt_tag;
-	if (lt > 0) {
-	    lp_style_type lp = border_lp;
-	    lp_use_properties(&lp, lt);
-	    term_apply_lp_properties(&lp);
-	}
 	(*term->move) (x1, y1);
 	(*term->vector) (x2, y2);
-	if (this_axis->ticmode & TICS_MIRROR) {
-	    if (color_box.rotation == 'h') {
-		y1 = color_box.bounds.ytop;
-		y2 = color_box.bounds.ytop + len;
-	    } else {
-		x1 = color_box.bounds.xleft;
-		x2 = color_box.bounds.xleft - len;
-	    }
-	    (*term->move) (x1, y1);
-	    (*term->vector) (x2, y2);
-	}
-	if (lt != 0)
-	    term_apply_lp_properties(&border_lp);
-    }
 
     /* draw label */
     if (text) {
@@ -751,6 +729,19 @@ cbtick_callback(
 			    this_axis->ticdef.font);
 	}
 	term_apply_lp_properties(&border_lp);	/* border linetype */
+    }
+
+    /* draw tic on the mirror side */
+    if (this_axis->ticmode & TICS_MIRROR) {
+	if (color_box.rotation == 'h') {
+	    y1 = color_box.bounds.ytop;
+	    y2 = color_box.bounds.ytop + len;
+	} else {
+	    x1 = color_box.bounds.xleft;
+	    x2 = color_box.bounds.xleft - len;
+}
+	(*term->move) (x1, y1);
+	(*term->vector) (x2, y2);
     }
 }
 
