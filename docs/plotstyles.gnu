@@ -1450,7 +1450,7 @@ set cntrlabel onecolor
 unset colorbox; unset hidden3d; unset key
 set tics format ""
 set palette viridis
-set contourfill ztics level 0
+set contourfill ztics
 set pm3d scansauto border retrace
 set sample 51; set isosample 51
 set view map

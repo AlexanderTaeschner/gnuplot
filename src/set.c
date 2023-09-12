@@ -1441,20 +1441,10 @@ set_contourfill(void)
     } else if (equals(c_token, "ztics")) {
 	c_token++;
 	contourfill.mode = CFILL_ZTICS;
-	contourfill.tic_level = 0;
-	if (equals(c_token, "level")) {
-	    c_token++;
-	    contourfill.tic_level = int_expression();
-	}
 
     } else if (equals(c_token, "cbtics")) {
 	c_token++;
 	contourfill.mode = CFILL_CBTICS;
-	contourfill.tic_level = 0;
-	if (equals(c_token, "level")) {
-	    c_token++;
-	    contourfill.tic_level = int_expression();
-	}
 
     } else if (almost_equals(c_token, "pal$ette")) {
 	c_token++;

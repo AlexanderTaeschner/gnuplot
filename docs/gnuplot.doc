@@ -11155,21 +11155,19 @@ Ffigure_colornames
 
  Syntax:
       set contourfill auto N          # split zrange evenly into N slices
-      set contourfill ztics <level>   # slice at each z axis tick matching level
-      set contourfill cbtics <level>  # slice at each cb axis tick matching level
+      set contourfill ztics           # slice at each z axis major tick
+      set contourfill cbtics          # slice at each cb axis major tick
       set contourfill {palette | firstlinetype N}
 
  The default is `set contourfill auto 5 palette`, which splits the current
  z range into five equal slices (6 bounding planes) and assigns each slice
  the palette mapped color of its midpoint z value.
 
- The options `ztics` or `cbtics` place split zrange by slicing at major axis
- tick (level 0) or minor tick (level 1) or tick at some other level set
- explicitly by the user.  For example to slice specifically at z=2.5, z=7 and
- z=10 independent of the major and minor tics you could use the commands below.
-      set ztics add ("floor" 2.5 3, "boundary X" 7 3, "ceiling" 10 3)
-      set contourfill ztics 3
-      set ztics scale 1, 0.5, 0, 0, 0
+ The options `ztics` or `cbtics` place split zrange by slicing at major ticks
+ along that axis.  For example to slice specifically at z=2.5, z=7 and z=10
+ you could use the commands below.
+      set ztics add ("floor" 2.5, "boundary X" 7, "ceiling" 10)
+      set contourfill ztics
 
  If you do not want to use palette coloring for the sections, you can choose
  any arbitrary range of successive linetypes and assign them the desired color

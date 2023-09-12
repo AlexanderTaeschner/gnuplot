@@ -1979,9 +1979,9 @@ save_contourfill(FILE *fp)
     if (contourfill.mode == CFILL_AUTO)
 	fprintf(fp, "auto %d\n", contourfill.nslices);
     else if (contourfill.mode == CFILL_ZTICS)
-	fprintf(fp, "ztics level %d\n", contourfill.tic_level);
+	fprintf(fp, "ztics\n");
     else if (contourfill.mode == CFILL_CBTICS)
-	fprintf(fp, "cbtics level %d\n", contourfill.tic_level);
+	fprintf(fp, "cbtics\n");
     if (contourfill.firstlinetype > 0)
 	fprintf(fp, "set contourfill firstlinetype %d\n", contourfill.firstlinetype);
     else
