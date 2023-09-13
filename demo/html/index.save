@@ -1,6 +1,8 @@
 <html><head><title>Demos for gnuplot version 6.1</title>
 
-<link text="text/css" href="gnuplot_demo.css" rel="stylesheet"></head><body>
+<meta charset="UTF-8">
+<link text="text/css" href="gnuplot_demo.css" rel="stylesheet">
+</head><body>
 
 
 <h2 align=center>Demos for gnuplot version 6.1 (pngcairo terminal)<br>
