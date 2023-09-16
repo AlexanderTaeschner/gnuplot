@@ -2135,7 +2135,7 @@ plot_hsteps (struct curve_points *plot)
 	    }
 	    if (varcolor && (varcolor[i] != varcolor[i+1])) /* checking color gap */
 		gap[i] |= HSTEPS_GAP_COLOR;
-	    if (points[i].xhigh != points[i+1].xlow)        /* checking point gap */
+	    if (map_x(points[i].xhigh) != map_x(points[i+1].xlow))        /* checking point gap */
 		gap[i] |= HSTEPS_GAP_POINT;
 	} else 				            /* point and color gap if point is not valid */
 	    gap[i] |= (HSTEPS_GAP_POINT|HSTEPS_GAP_COLOR);
