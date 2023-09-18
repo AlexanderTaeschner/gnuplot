@@ -5032,6 +5032,24 @@ Ffigure_contourfill
       set view map
       splot g(x,y) with contourfill, g(x,y) with lines nosurface
 
+2 dots
+?plotting styles dots
+?style dots
+?with dots
+?dots
+Ffigure_dots
+ The `dots` style plots a tiny dot at each point; this is useful for scatter
+ plots with many points.  Either 1 or 2 columns of input data are required in
+ 2D.  Three columns are required in 3D.
+
+ For some terminals (post, pdf) the size of the dot can be controlled by
+ changing the linewidth.
+
+      1 column    y         # x is row number
+      2 columns:  x  y
+      3 columns:  x  y  z   # 3D only (splot)
+
+#TeX \newpage
 2 ellipses
 ?plotting styles ellipses
 ?style ellipses
@@ -5085,23 +5103,6 @@ Ffigure_ellipses
      plot 'data' using 1:2:3:4:(0):0 with ellipses
 
  See also `set object ellipse`, `set style ellipse` and `fillstyle`.
-
-2 dots
-?plotting styles dots
-?style dots
-?with dots
-?dots
-Ffigure_dots
- The `dots` style plots a tiny dot at each point; this is useful for scatter
- plots with many points.  Either 1 or 2 columns of input data are required in
- 2D.  Three columns are required in 3D.
-
- For some terminals (post, pdf) the size of the dot can be controlled by
- changing the linewidth.
-
-      1 column    y         # x is row number
-      2 columns:  x  y
-      3 columns:  x  y  z   # 3D only (splot)
 
 2 filledcurves
 ?plotting styles filledcurves
@@ -5967,13 +5968,7 @@ Ffigure_parallel
      plot $DATA using col1{:varcol1} {at <xpos>} {<line properties}, \
           $DATA using col2, ...
 
- CHANGE: Version 5.4 of gnuplot introduced a change in the syntax for plot style
- parallelaxes.  The revised syntax allows an unlimited number of parallel axes.
-
-      gnuplot 5.2:   plot $DATA using 1:2:3:4:5 with parallelaxes
-      gnuplot 5.4:   plot for [col=1:5] $DATA using col with parallelaxes
-
- The new syntax also allows explicit placement of the parallel vertical axes
+ The `at` keyword allows explicit placement of the parallel vertical axes
  along the x axis as in the example below.  If no explicit x coordinate is
  provide axis N will be placed at x=N.
 
@@ -6018,9 +6013,7 @@ Ffigure_points
  pointsize` may be used to change the default size of all points. The point type
  defaults to that of the linetype. See `linetypes`.  If no `using` spec is found
  in the plot command, input data columns are interpreted implicitly in the order
-      x y pointsize pointtype color
- Any columns beyond the first two (x and y) are optional; they correspond to
- additional plot properties `pointsize variable`, `pointtype variable`, etc.
+ `x y pointsize pointtype color` as described below.
 
  The first 8 point types are shared by all terminals. Individual terminals may
  provide a much larger number of distinct point types. Use the `test` command
@@ -6034,22 +6027,35 @@ Ffigure_points
       plot f(x) with points pt "#"
       plot d(x) with points pt "\U+2299"
 
+3 variable point properties
 ?points variable
 ?with points variable
 =variable
 ?variable
 ?pointtype variable
 ?pointsize variable
- When using the keywords `pointtype`, `pointsize`, or `linecolor` in a plot
- command, the additional keyword `variable` may be given instead of a number.
- In this case the corresponding properties of each point are assigned by
- additional columns of input data. Variable pointsize is always taken from the
- first additional column provided in a `using` spec.  Variable color is always
- taken from the last additional column. See `colorspec`. If all three properties
- are specified for each point, the order of input data columns is thus
+ Plot styles that contain a point symbol optionally accept addtional data
+ columns in the `using` specifier to control the appearance of that point.
+ This is indicated by modifying the keywords `pointtype`, `pointsize`, or
+ `linecolor` in the plot command with the additional keyword `variable`
+ rather than providing a number.
+ Plot style `with labels` also accepts a variable text rotation angle.
+ Example:
+      # Input data provides [x,y] in columns 1:2
+      # point size is given in column 5
+      # RGB color is given as hexadecimal value in column 4
+      # all points use pointtype 7
+        plot DATA using 1:2:5:4 with points lc rgb variable ps variable pt 7
 
-      plot DATA using x:y:pointsize:pointtype:color \
-           with points lc variable pt variable ps variable
+ If more than one variable property is specified, columns are interpreted in
+ the order below regardless of the order of keywords in the plot command.
+
+     textrotation : pointsize : pointtype : color
+
+ Thus in the example above "lc rgb variable" appears first in the plot command
+ but the color is taken from the final column (4) given by `using`.
+ Variable color is always taken from the last additional column.
+ There are several methods of specifying variable color. See `colorspec`.
 
  Note: for information on user-defined program variables, see `variables`.
 2 polygons
