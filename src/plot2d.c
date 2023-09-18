@@ -561,9 +561,9 @@ get_data(struct curve_points *current_plot)
 
     case LABELPOINTS:
 	/* 3 column data: X Y Label */
-	/* extra columns allow variable pointsize, pointtype, and/or rotation */
+	/* extra columns allow variable rotation, pointsize, pointtype, textcolor */
 	min_cols = 3;
-	max_cols = 6;
+	max_cols = 7;
 	expect_string( 3 );
 	break;
 
@@ -1501,9 +1501,10 @@ store2d_point(
 	    double radius = (xhigh - xlow)/2.0;
 	    xlow = x - radius;
 	    xhigh = x + radius;
-
-	}
-	else if (current_plot->plot_style == SECTORS) {
+	} else if (current_plot->plot_style == POINTSTYLE
+		|| current_plot->plot_style == LABELPOINTS
+		|| current_plot->plot_style == LINESPOINTS
+		|| current_plot->plot_style == SECTORS) {
             ;
 	} else {
 	    /* Jan 2017 - now skipping range check on rhigh, rlow */
