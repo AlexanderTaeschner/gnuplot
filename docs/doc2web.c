@@ -317,6 +317,9 @@ process_line(char *line, FILE *b, FILE *d)
     case '?':			/* interactive help entry */
             if ((line2[1] != NUL) && (line2[1] != ' ') && (line2[1] != '?')) {
 #ifdef CREATE_INDEX
+		/* The "term{inal}" index entries don't work because we move that section */
+		if (!strcmp(&(line2[1]),"term") || !strcmp(&(line2[1]),"terminal"))
+		    break;
 		/* Only keep single-word entries */
 		if (!strchr( &(line2[1]), ' ' )) {
 		    fprintf(d, "<li><a href=\"%s.html\" target=\"_parent\">", location);

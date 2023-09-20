@@ -57,5 +57,19 @@ splot  $HULL using 1:2:(0) with mask, \
        'mask_pm3d.dat' using 1:2:3 mask with pm3d
 
 unset multiplot
+
+# same thing as a png image for fallback if browser does not support webp
+set term png font "Calisto MT,12" size 600,400
+set output './html/figure_mask.png'
+set multiplot layout 1,2 spacing 0.0 margins 0.05,0.95,0.0,0.85
+set title "Cluster of points\n defining the mask region"
+splot  'mask_pm3d.dat' using 1:2:3 with pm3d, \
+       'mask_pm3d.dat' using 1:2:(0) nogrid with points pt 7 ps .5 lc "black"
+set pm3d interp 3,3
+set title "pm3d surface masked by\nconvex hull of the cluster"
+splot  $HULL using 1:2:(0) with mask, \
+       'mask_pm3d.dat' using 1:2:3 mask with pm3d
+unset multiplot
+
 reset
 

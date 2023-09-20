@@ -18882,8 +18882,8 @@ D viridis 1
  if/else statements.  See also `do`, `continue`, `break`.
 1 Terminal types
 ^ <h2> Terminal Types </h2>
-2 complete list of terminals
 ?complete list of terminals
+2 complete list of terminals
 ?terminal
 ?term
  Gnuplot supports a large number of output formats. These are selected by
