@@ -19,6 +19,7 @@ set samples 51
 set pm3d border lt -1 lw 0.5
 set pm3d depth
 
+sinc(x) = (x==0) ? 1.0 : sin(x) / x
 f(x,y) = sinc( sqrt(x*x + y*y) )
 
 set label 1 "set palette cubehelix\nmaxcolors 7"
