@@ -85,6 +85,8 @@ void get_image_options(t_image *image);
 
 int parse_dashtype(struct t_dashtype *dt);
 
+void parse_hsteps (enum PLOT_STYLE plot_style, hsteps_opts *hso, filledcurves_opts *fco);
+
 /* State information for load_file(), to recover from errors
  * and properly handle recursive load_file calls
  */

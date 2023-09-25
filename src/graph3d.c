@@ -1202,6 +1202,7 @@ do_3dplot(
 	    case FILLSTEPS:
 	    case FSTEPS:
 	    case HISTEPS:
+	    case HSTEPS:
 	    case SURFACEGRID:
 	    case LINES:
 		if (draw_this_surface) {
@@ -1365,6 +1366,7 @@ do_3dplot(
 		case FILLSTEPS:
 		case FSTEPS:
 		case HISTEPS:
+		case HSTEPS:
 		case SURFACEGRID:
 		case LINES:
 		    /* Normal case (surface) */
@@ -4341,7 +4343,7 @@ zslice_callback(
     if (!inrange(place,zmin,zmax))
 	return;
 
-    if (ticlevel != contourfill.tic_level)
+    if (ticlevel != contourfill.tic_level)	/* Currently always 0 */
 	return;
     if (current_slice >= MAX_ZSLICES)
 	return;

@@ -290,6 +290,9 @@ C
 ## polar gridded surface.  For each input data point it generates a single
 ## annular wedge in a conceptual polar grid.  Unlike polar mode `with surface`
 ## it can be used in either a polar or cartesian coordinate graph.
+#b New 2D plot style `with hsteps` allows construction of step-like plots with
+## a variety of representations in addition to those offered by existing styles
+## `steps`, `histeps`, `fsteps`, and `fillsteps`.  See `hsteps`.
 #b Plot style `with lines` now has a filter option `sharpen`.  This filter
 ## detects spikes in a function plot that appear truncated in the output
 ## because the peak lies between two x-coordinates at which the function has
@@ -316,6 +319,9 @@ D sharpen 1
 D iris 2
 DB
 D contourfill 4
+DB
+D logic_timing 1
+D rank_sequence 1
 
 3 Hulls, masks, and smoothing
 ?new hulls
@@ -5026,6 +5032,24 @@ Ffigure_contourfill
       set view map
       splot g(x,y) with contourfill, g(x,y) with lines nosurface
 
+2 dots
+?plotting styles dots
+?style dots
+?with dots
+?dots
+Ffigure_dots
+ The `dots` style plots a tiny dot at each point; this is useful for scatter
+ plots with many points.  Either 1 or 2 columns of input data are required in
+ 2D.  Three columns are required in 3D.
+
+ For some terminals (post, pdf) the size of the dot can be controlled by
+ changing the linewidth.
+
+      1 column    y         # x is row number
+      2 columns:  x  y
+      3 columns:  x  y  z   # 3D only (splot)
+
+#TeX \newpage
 2 ellipses
 ?plotting styles ellipses
 ?style ellipses
@@ -5079,23 +5103,6 @@ Ffigure_ellipses
      plot 'data' using 1:2:3:4:(0):0 with ellipses
 
  See also `set object ellipse`, `set style ellipse` and `fillstyle`.
-
-2 dots
-?plotting styles dots
-?style dots
-?with dots
-?dots
-Ffigure_dots
- The `dots` style plots a tiny dot at each point; this is useful for scatter
- plots with many points.  Either 1 or 2 columns of input data are required in
- 2D.  Three columns are required in 3D.
-
- For some terminals (post, pdf) the size of the dot can be controlled by
- changing the linewidth.
-
-      1 column    y         # x is row number
-      2 columns:  x  y
-      3 columns:  x  y  z   # 3D only (splot)
 
 2 filledcurves
 ?plotting styles filledcurves
@@ -5547,6 +5554,128 @@ Ffigure_newhist
 ^ </a>
 D histogram_colors 1
 
+2 hsteps
+?plotting styles hsteps
+?style hsteps
+?with hsteps
+?hsteps
+ The 2D plotting style `with hsteps` renders a horizontal line segment ("step")
+ for each data point.  The step may extend to the left, to the right, or to
+ both sides of the point's x-coordinate.
+ Additional keywords control the lines connecting adjacent steps and option
+ area fill between the step and a baseline y value.
+
+ Syntax:
+      plot <data> with hsteps
+                          {forward|backward}
+                          {baseline|pillars|link|nolink}
+                          {{above|below} y=<baseline>}
+                          {offset <y-offset>}
+
+      2 columns:  x  y
+      3 columns:  x  y  width
+
+ This plot style requires 2 or 3 columns of data.  Additional input columns can
+ be used to provide variable line or fill colors (see `rgbcolor variable`).
+ The x values of the input data are assumed to be monotonic.
+
+ If the width of each step is not explicitly given through a third input
+ column, each segment’s width is calculated so that it abuts the adjacent
+ horizontal segments.  A negative value in column 3 will be treated as a
+ request for a full-width step.
+
+ The `forward` and `backward` keywords can be used to specify the direction
+ in which the horizontal segment extends from the given x coordinate.
+ If neither is specified, the horizontal segment extends on both sides
+ of the given x-value halfway to the x-value of the next adjacent point.
+ However, for the first and last points, where there are no corresponding outer
+ adjacent points, the horizontal segments are extrapolated using distances to
+ the adjacent inner points (see `histeps`, `boxes`).
+
+ The default (`baseline`) and `pillar` variants employ a baseline y value.
+ If not provided in the plot command, the baseline is taken to be y=0.
+ If the plot command uses a fill style, the baseline also serves to 
+ delimit one boundary of the fill area.
+ Four style variants are possible.
+
+Ffigure_hsteps_baseline
+ `baseline` (default): If there is no gap along x between adjacent steps,
+ they are connected by a vertical line segment between them.  This produces
+ a curve like the `steps`, `histeps`, or `fsteps` styles.  If there is a gap
+ between steps, usually because the width is less than the point spacing,
+ the connecting line drops to the baseline and continues along it before
+ rising again.  This produces a sequence of rectangular pulses.
+
+      set xzeroaxis
+      plot $data using 1:2 with hsteps
+      plot $data using 1:2:(0.5) with hsteps
+
+Ffigure_hsteps_pillar
+ `pillar`: At each end of each step a vertical line is drawn to the baseline.
+ Note that no horizontal line segments are drawn at the baseline.
+
+      plot $data using 1:2       with hsteps pillar
+      plot $data using 1:2:(0.5) with hsteps pillar
+      plot $data using 1:2:(0.5) \
+                 with hsteps pillar above fc "blue", \
+           $data using 1:2:(0.5) \
+                 with hsteps pillar below fc "red"
+
+#TeX \vspace{6ex}
+
+Ffigure_hsteps_nolink
+ `nolink`: No connecting line is drawn between adjacent steps.
+ Baseline and fill properties are not relevant to this variant.
+
+     plot $data using 1:2 with hsteps nolink, \
+          $data using 1:2 with hsteps nolink forward, \
+          $data using 1:2 with hsteps nolink backward, \
+          $data using 1:2 with points pt "|"
+
+#TeX \vspace{9ex}
+
+Ffigure_hsteps_link
+ `link`: Adjacent steps steps are connected by a single straight line segment.
+ Depending on the step widths, this line may be diagonal rather than vertical.
+
+ Example: The `link` variant can be superimposed onto the `pillar` variant to
+ produce a stacked histogram plot in which category boundaries are connected.
+
+      set style line 11 lw 2 lc "gray" dt "."
+      set style line 12 lw 2 lc variable
+      plot $data using 1:3:(0.5)   ls 11 with hsteps link, \
+           $data using 1:3:(0.5):1 ls 12 with hsteps pillar fs solid 0.7 border, \
+           $data using 1:4:(0.5)   ls 11 with hsteps link, \
+           $data using 1:4:(0.5):1 ls 12 with hsteps pillar fs transparent pattern 1 border
+
+3 offset
+Ffigure_hsteps_offset
+?with hsteps offset
+?hsteps offset
+ The offset value modifies any of the `with hsteps` variants by adding an
+ increment to the y value of both the data point itself (column 2) and the
+ baseline of the plot it appears in.  An example of use is to draw a logic
+ circuit timing chart in which pulse waveforms are aligned vertically.
+ In general the offset can be used to stack plots from multiple data sets
+ that share a common range of y values.
+
+      # bit(k,char) is a function that returns 0 or 1
+      # for the state of bit k in an ASCII character
+      set style fill solid 0.2 border
+      plot for [k=1:8] STR using 1:(bit(k,STR[$1])):(0.5) \
+           with hsteps fillcolor "black" offset k
+
+3 missing data
+?with hsteps missing-data
+?hsteps missing-data
+ In the hsteps style, empty lines, NaN values, and missing data have distinct
+ meanings.  If an empty line is present in the data, the data series is reset
+ at that point.  This is analogous to a blank line causing a break to start a
+ new curve in the case of `with lines`.  If an x-value contains NaN, it is
+ processed in the same manner as an empty line.  If the x-value is valid but
+ the y-value contains NaN, no horizontal line is drawn for that particular data
+ point but the x-value is still used if needed to estimate the step width.
+
 2 image
 ?plotting styles image
 ?style image
@@ -5839,13 +5968,7 @@ Ffigure_parallel
      plot $DATA using col1{:varcol1} {at <xpos>} {<line properties}, \
           $DATA using col2, ...
 
- CHANGE: Version 5.4 of gnuplot introduced a change in the syntax for plot style
- parallelaxes.  The revised syntax allows an unlimited number of parallel axes.
-
-      gnuplot 5.2:   plot $DATA using 1:2:3:4:5 with parallelaxes
-      gnuplot 5.4:   plot for [col=1:5] $DATA using col with parallelaxes
-
- The new syntax also allows explicit placement of the parallel vertical axes
+ The `at` keyword allows explicit placement of the parallel vertical axes
  along the x axis as in the example below.  If no explicit x coordinate is
  provide axis N will be placed at x=N.
 
@@ -5890,9 +6013,7 @@ Ffigure_points
  pointsize` may be used to change the default size of all points. The point type
  defaults to that of the linetype. See `linetypes`.  If no `using` spec is found
  in the plot command, input data columns are interpreted implicitly in the order
-      x y pointsize pointtype color
- Any columns beyond the first two (x and y) are optional; they correspond to
- additional plot properties `pointsize variable`, `pointtype variable`, etc.
+ `x y pointsize pointtype color` as described below.
 
  The first 8 point types are shared by all terminals. Individual terminals may
  provide a much larger number of distinct point types. Use the `test` command
@@ -5906,22 +6027,35 @@ Ffigure_points
       plot f(x) with points pt "#"
       plot d(x) with points pt "\U+2299"
 
+3 variable point properties
 ?points variable
 ?with points variable
 =variable
 ?variable
 ?pointtype variable
 ?pointsize variable
- When using the keywords `pointtype`, `pointsize`, or `linecolor` in a plot
- command, the additional keyword `variable` may be given instead of a number.
- In this case the corresponding properties of each point are assigned by
- additional columns of input data. Variable pointsize is always taken from the
- first additional column provided in a `using` spec.  Variable color is always
- taken from the last additional column. See `colorspec`. If all three properties
- are specified for each point, the order of input data columns is thus
+ Plot styles that contain a point symbol optionally accept addtional data
+ columns in the `using` specifier to control the appearance of that point.
+ This is indicated by modifying the keywords `pointtype`, `pointsize`, or
+ `linecolor` in the plot command with the additional keyword `variable`
+ rather than providing a number.
+ Plot style `with labels` also accepts a variable text rotation angle.
+ Example:
+      # Input data provides [x,y] in columns 1:2
+      # point size is given in column 5
+      # RGB color is given as hexadecimal value in column 4
+      # all points use pointtype 7
+        plot DATA using 1:2:5:4 with points lc rgb variable ps variable pt 7
 
-      plot DATA using x:y:pointsize:pointtype:color \
-           with points lc variable pt variable ps variable
+ If more than one variable property is specified, columns are interpreted in
+ the order below regardless of the order of keywords in the plot command.
+
+     textrotation : pointsize : pointtype : color
+
+ Thus in the example above "lc rgb variable" appears first in the plot command
+ but the color is taken from the final column (4) given by `using`.
+ Variable color is always taken from the last additional column.
+ There are several methods of specifying variable color. See `colorspec`.
 
  Note: for information on user-defined program variables, see `variables`.
 2 polygons
@@ -11027,21 +11161,19 @@ Ffigure_colornames
 
  Syntax:
       set contourfill auto N          # split zrange evenly into N slices
-      set contourfill ztics <level>   # slice at each z axis tick matching level
-      set contourfill cbtics <level>  # slice at each cb axis tick matching level
+      set contourfill ztics           # slice at each z axis major tick
+      set contourfill cbtics          # slice at each cb axis major tick
       set contourfill {palette | firstlinetype N}
 
  The default is `set contourfill auto 5 palette`, which splits the current
  z range into five equal slices (6 bounding planes) and assigns each slice
  the palette mapped color of its midpoint z value.
 
- The options `ztics` or `cbtics` place split zrange by slicing at major axis
- tick (level 0) or minor tick (level 1) or tick at some other level set
- explicitly by the user.  For example to slice specifically at z=2.5, z=7 and
- z=10 independent of the major and minor tics you could use the commands below.
-      set ztics add ("floor" 2.5 3, "boundary X" 7 3, "ceiling" 10 3)
-      set contourfill ztics 3
-      set ztics scale 1, 0.5, 0, 0, 0
+ The options `ztics` or `cbtics` place split zrange by slicing at major ticks
+ along that axis.  For example to slice specifically at z=2.5, z=7 and z=10
+ you could use the commands below.
+      set ztics add ("floor" 2.5, "boundary X" 7, "ceiling" 10)
+      set contourfill ztics
 
  If you do not want to use palette coloring for the sections, you can choose
  any arbitrary range of successive linetypes and assign them the desired color
@@ -12926,8 +13058,9 @@ Ffigure_multiple_keys
 ?show linetype
  The `set linetype` command allows you to redefine the basic linetypes used
  for plots.  The command options are identical to those for "set style line".
- Unlike line styles, redefinitions by `set linetype` are persistent;  they
- are not affected by `reset`.
+ Unlike line styles, redefinitions by `set linetype` are persistent.
+ They are not affected by `reset`.  However the initial linetype properties
+ are restored by `reset session`.
 
  For example, whatever linetypes one and two look like to begin with, if you
  redefine them like this:
@@ -18749,8 +18882,8 @@ D viridis 1
  if/else statements.  See also `do`, `continue`, `break`.
 1 Terminal types
 ^ <h2> Terminal Types </h2>
-2 complete list of terminals
 ?complete list of terminals
+2 complete list of terminals
 ?terminal
 ?term
  Gnuplot supports a large number of output formats. These are selected by

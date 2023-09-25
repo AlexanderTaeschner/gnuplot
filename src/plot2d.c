@@ -534,9 +534,13 @@ get_data(struct curve_points *current_plot)
 	break;
 
     case BOXES:
+    case HSTEPS:
+	/* 1 column: y coordinate only */
+	/* 2 columns: x and y coordinates */
+	/* 3 columns: x and y coordinates and width */
+	/* extra columns allow variable colors */
 	min_cols = 1;
 	max_cols = 4;
-
 	break;
 
     case FILLEDCURVES:
@@ -546,6 +550,8 @@ get_data(struct curve_points *current_plot)
 	break;
 
     case IMPULSES:	/* 2 + possible variable color */
+    case HISTEPS:
+    case FILLSTEPS:
     case POLYGONS:
     case LINES:
     case DOTS:
@@ -555,9 +561,9 @@ get_data(struct curve_points *current_plot)
 
     case LABELPOINTS:
 	/* 3 column data: X Y Label */
-	/* extra columns allow variable pointsize, pointtype, and/or rotation */
+	/* extra columns allow variable rotation, pointsize, pointtype, textcolor */
 	min_cols = 3;
-	max_cols = 6;
+	max_cols = 7;
 	expect_string( 3 );
 	break;
 
@@ -1112,6 +1118,35 @@ get_data(struct curve_points *current_plot)
 	    break;
 	}
 
+	case HSTEPS:
+	{
+	   /* 2 columns: x y
+	    * 3 columns: x y width
+	    */
+	    coordval xlow  = v[0];
+	    coordval xhigh = v[0];
+	    coordval ylow  = v[1] + current_plot->hsteps_options.offset;
+	    coordval yhigh = v[1] + current_plot->hsteps_options.offset;
+	    coordval width = -1.0;
+	    if (j == 2) {
+		/* We cannot calculate xlow/xhigh yet since they
+		 * depend on both adjacent segments.
+		 */
+	    } else if ( j == 3 && v[2] >= 0 ) {
+		/* Setting: direction */
+		int hsteps_type = current_plot->hsteps_options.direction;
+		double anchor = ( hsteps_type == HSTEPS_DIR_FORWARD )  ? 0 :
+				( hsteps_type == HSTEPS_DIR_BACKWARD ) ? 1 :
+					                                0.5;
+		width = v[2];
+		xlow  = v[0] - anchor*width;
+		xhigh = v[0] + (1.0-anchor)*width;
+	    }
+	    store2d_point(current_plot, i++, v[0], v[1],
+			    xlow, xhigh, ylow, yhigh, width);
+	    break;
+	}
+
 	case FILLEDCURVES:
 	{   /* 2 columns:  x y
 	     * 3 columns:  x y1 y2
@@ -1466,9 +1501,10 @@ store2d_point(
 	    double radius = (xhigh - xlow)/2.0;
 	    xlow = x - radius;
 	    xhigh = x + radius;
-
-	}
-	else if (current_plot->plot_style == SECTORS) {
+	} else if (current_plot->plot_style == POINTSTYLE
+		|| current_plot->plot_style == LABELPOINTS
+		|| current_plot->plot_style == LINESPOINTS
+		|| current_plot->plot_style == SECTORS) {
             ;
 	} else {
 	    /* Jan 2017 - now skipping range check on rhigh, rlow */
@@ -2670,14 +2706,21 @@ eval_plots()
 			int_error(c_token, "\"with\" allowed only after parametric function fully specified");
 		    this_plot->plot_style = get_style();
 
-		    if (this_plot->plot_style == FILLEDCURVES
-		    ||  this_plot->plot_style == FILLSTEPS) {
+		    if (this_plot->plot_style == FILLEDCURVES) {
 			/* read a possible option for 'with filledcurves' */
 			get_filledcurves_style_options(&this_plot->filledcurves_options);
 			if ((this_plot->plot_filter == FILTER_CONVEX_HULL)
 			||  (this_plot->plot_filter == FILTER_CONCAVE_HULL))
 			    this_plot->filledcurves_options.closeto = FILLEDCURVES_CLOSED;
 		    }
+
+		    if (this_plot->plot_style == HSTEPS
+		    ||  this_plot->plot_style == STEPS
+		    ||  this_plot->plot_style == FSTEPS
+		    ||  this_plot->plot_style == FILLSTEPS
+		    ||  this_plot->plot_style == HISTEPS)
+			parse_hsteps(this_plot->plot_style, &(this_plot->hsteps_options),
+					&(this_plot->filledcurves_options));
 
 		    if (this_plot->plot_style == IMAGE
 		    ||  this_plot->plot_style == RGBIMAGE
@@ -2870,9 +2913,10 @@ eval_plots()
 		    if (equals(c_token,"fs") || almost_equals(c_token,"fill$style")) {
 			if (this_plot->plot_style == SPIDERPLOT)
 			    this_plot->fill_properties = spiderplot_style.fillstyle;
-			else
+			else {
 			    this_plot->fill_properties = default_fillstyle;
-			this_plot->fill_properties.fillpattern = pattern_num;
+			    this_plot->fill_properties.fillpattern = pattern_num;
+			}
 			parse_fillstyle(&this_plot->fill_properties);
 			set_fillstyle = TRUE;
 		    }
@@ -2895,6 +2939,18 @@ eval_plots()
 		break; /* unknown option */
 
 	    } /* while (!END_OF_COMMAND) */
+
+	    /* This allows substitution of HSTEPS for older step modes that
+	     * were set by default with "set style {data|func}"
+	     */
+	    if (!set_with) {
+		if (this_plot->plot_style == STEPS
+		||  this_plot->plot_style == FSTEPS
+		||  this_plot->plot_style == FILLSTEPS
+		||  this_plot->plot_style == HISTEPS)
+		    parse_hsteps(this_plot->plot_style, &(this_plot->hsteps_options),
+					&(this_plot->filledcurves_options));
+	    }
 
 	    if (duplication)
 		int_error(c_token, "duplicated or contradicting arguments in plot options");
@@ -3018,9 +3074,10 @@ eval_plots()
 		if (!set_fillstyle) {
 		    if (this_plot->plot_style == SPIDERPLOT)
 			this_plot->fill_properties = spiderplot_style.fillstyle;
-		    else
+		    else {
 			this_plot->fill_properties = default_fillstyle;
-		    this_plot->fill_properties.fillpattern = pattern_num;
+			this_plot->fill_properties.fillpattern = pattern_num;
+		    }
 		    parse_fillstyle(&this_plot->fill_properties);
 		}
 		if ((this_plot->fill_properties.fillstyle == FS_PATTERN)

@@ -1084,12 +1084,18 @@ if test "${enable_qt}" = yes ; then
           UIC=${QT6LOC}/uic
           MOC=${QT6LOC}/moc
           RCC=${QT6LOC}/rcc
-      else
+      elif test "x${UIC}" = "x"; then
           UIC=uic-qt6
           MOC=moc-qt6
           RCC=rcc-qt6
       fi
-      LRELEASE=lrelease-qt6
+      QT6BIN=`$PKG_CONFIG --variable=bindir Qt6Core`
+      if test "x${QT6BIN}" != "x"; then
+          LRELEASE=${QT6BIN}/lrelease
+      elif test "x${LRELEASE}" = "x"; then
+          LRELEASE=lrelease-qt6
+      fi
+
       CXXFLAGS="$CXXFLAGS -fPIC"
       AC_MSG_RESULT([The Qt terminal will use Qt6.])
       QTVER="6"

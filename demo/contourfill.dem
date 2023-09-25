@@ -19,6 +19,7 @@ set samples 51
 set pm3d border lt -1 lw 0.5
 set pm3d depth
 
+sinc(x) = (x==0) ? 1.0 : sin(x) / x
 f(x,y) = sinc( sqrt(x*x + y*y) )
 
 set label 1 "set palette cubehelix\nmaxcolors 7"
@@ -44,11 +45,10 @@ reset
 # Illustrate work in progress on new plot style "with contourfill"
 # The style options are
 #   set contourfill
-#	auto N			N evenly spaced slices spanning zrange
-#       ztics {level L} 	slice boundary at every ztic with level L
-#	cbtics {level L}	slice boundary at every cbtic with level L
+#	auto N		N evenly spaced slices spanning zrange
+#       ztics   	slice boundary at every z axis major tic
+#	cbtics  	slice boundary at every cb axis major tic
 #
-# The tics level L defaults to 0 (major tics).
 # cbtics are still active even if the colorbox isn't shown,
 # so an arbitrary set of slice boundaries can be constructe via
 #   set cbtics ( z1, z2, z3, z4, ... )
