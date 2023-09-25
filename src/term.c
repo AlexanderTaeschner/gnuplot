@@ -508,20 +508,15 @@ term_initialise()
 void
 term_start_plot()
 {
-    FPRINTF((stderr, "term_start_plot()\n"));
-
     if (!term_initialised)
 	term_initialise();
 
     if (!term_graphics) {
-	FPRINTF((stderr, "- calling term->graphics()\n"));
 	(*term->graphics) ();
 	term_graphics = TRUE;
     } else if (multiplot && term_suspended) {
-	if (term->resume) {
-	    FPRINTF((stderr, "- calling term->resume()\n"));
+	if (term->resume)
 	    (*term->resume) ();
-	}
 	term_suspended = FALSE;
     }
 
@@ -1276,7 +1271,7 @@ static void
 graphics_null()
 {
     fprintf(stderr,
-	    "WARNING: Plotting with an 'unknown' terminal.\n"
+	    "WARNING: Plotting with 'unknown' terminal.\n"
 	    "No output will be generated. Please select a terminal with 'set terminal'.\n");
 }
 
@@ -1556,7 +1551,8 @@ set_term()
 
     if (!t) {
 	change_term("unknown", 7);
-	int_error(c_token-1, "unknown or ambiguous terminal type; type just 'set terminal' for a list");
+	int_warn(c_token-1, "unknown or ambiguous terminal type; type 'set terminal' for a list");
+	return term;
     }
 
     /* otherwise the type was changed */
@@ -1624,6 +1620,8 @@ change_term(const char *origname, int length)
     term_initialised = FALSE;
 
     /* check that optional fields are initialised to something */
+    if (term->options == 0)
+	term->options = options_null;
     if (term->text_angle == 0)
 	term->text_angle = null_text_angle;
     if (term->justify_text == 0)
