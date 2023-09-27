@@ -1692,12 +1692,16 @@ init_terminal()
     gnuterm = getenv("GNUTERM");
     if (gnuterm != (char *) NULL) {
 	/* April 2017 - allow GNUTERM to include terminal options */
+	char *set_term_command;
+	char *semicolon = NULL;
 	char *set_term = "set term ";
-	char *set_term_command = gp_alloc(strlen(set_term) + strlen(gnuterm) + 4, NULL);
+	/* scrub any extraneous commands possibly hidden in GNUTERM */
+	if ( (semicolon = strchr(gnuterm, ';')) != NULL)
+	    *semicolon = '\0';
+	set_term_command = gp_alloc(strlen(set_term) + strlen(gnuterm) + 4, NULL);
 	strcpy(set_term_command, set_term);
 	strcat(set_term_command, gnuterm);
-	do_string(set_term_command);
-	free(set_term_command);
+	do_string_and_free(set_term_command);
 	/* replicate environmental variable GNUTERM for internal use */
 	Gstring(&(add_udv_by_name("GNUTERM")->udv_value), gp_strdup(gnuterm));
 	term_on_entry = FALSE;
