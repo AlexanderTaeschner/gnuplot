@@ -147,18 +147,23 @@ new_block( enum DATA_TYPES type )
 	datablock->udv_value.v.functionblock.parnames = NULL;
 	datablock->udv_value.v.functionblock.data_array = NULL;
 	if (equals(c_token, "(")) {
-	    int dummy_num = 0;
-	    datablock->udv_value.v.functionblock.parnames
-		= gp_alloc( 10*sizeof(char *), "function block");
-	    memset(datablock->udv_value.v.functionblock.parnames, 0, 10*sizeof(char *));
-	    do {
+	    if (equals(c_token+1, ")")) {
+		/* Empty parentheses OK */
+		c_token += 2;
+	    } else {
+		int dummy_num = 0;
+		datablock->udv_value.v.functionblock.parnames
+		    = gp_alloc( 10*sizeof(char *), "function block");
+		memset(datablock->udv_value.v.functionblock.parnames, 0, 10*sizeof(char *));
+		do {
+		    c_token++;
+		    m_capture(&(datablock->udv_value.v.functionblock.parnames[dummy_num++]),
+			    c_token, c_token);
+		} while (equals(++c_token, ",") && (dummy_num < 9));
+		if (!equals(c_token, ")"))
+		    int_error(c_token, "expecting ')'");
 		c_token++;
-		m_capture(&(datablock->udv_value.v.functionblock.parnames[dummy_num++]),
-			c_token, c_token);
-	    } while (equals(++c_token, ",") && (dummy_num < 9));
-	    if (!equals(c_token, ")"))
-		int_error(c_token, "expecting ')'");
-	    c_token++;
+	    }
 	}
     } else { /* Must be a datablock */
 	datablock->udv_value.type = DATABLOCK;
