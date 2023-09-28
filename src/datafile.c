@@ -1436,6 +1436,8 @@ df_open(const char *cmd_filename, int max_using, struct curve_points *plot)
 
     /* Special filenames '-' '+' '++' '$DATABLOCK' */
     if (*df_filename == '-' && strlen(df_filename) == 1) {
+	if (evaluate_inside_functionblock)
+	    int_error(1, "cannot use pseudofile '-' inside a function block");
 	plotted_data_from_stdin = TRUE;
 	volatile_data = TRUE;
 	data_fp = lf_top();

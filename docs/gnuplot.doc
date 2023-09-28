@@ -7511,6 +7511,7 @@ Ffigure_zerror
  Limitations:
 #start
 #b Data blocks and function blocks cannot be defined inside a function block.
+#b Pseudofile '-' cannot be used to read data inside a function block.
 #b These commands cannot be executed inside a function block:
 ##   `reset`, `shell`, `!<shell command>`.
 #b A `plot`, `replot`, `splot`, `refresh`, `stats`, `vfill`, or `fit` command
@@ -9069,6 +9070,7 @@ Ffigure_smooth_path
 4 special-filenames
 ?special-filenames
 ?special_filenames
+?pseudofiles
 ?commands plot datafile special-filenames
 ?plot datafile special-filenames
 ?plot special-filenames
@@ -9076,8 +9078,9 @@ Ffigure_smooth_path
 ?data special-filenames
 ?special-filenames ++
 ?special-filenames +
-?+
-?++
+?'-'
+?'+'
+?'++'
  There are a few filenames that have a special meaning:  '', '-', '+' and '++'.
 
  The empty filename '' tells gnuplot to re-use the previous input file in the
