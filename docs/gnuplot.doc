@@ -6708,6 +6708,10 @@ Ffigure_zerror
 
  In this example ARGV[1] and ARGV[2] have the full precision of a floating point
  variable.  ARG2 lost precision in being stored as a string using format "%g".
+
+ ARGC and a corresponding array ARGV[ARGC] are also available to code inside a
+ function block call.  However invocation of a function block does not create
+ string variables ARG1,... .
 3 Example
 ?call example
 ?commands call example
@@ -7470,10 +7474,12 @@ Ffigure_zerror
       gnuplot> plot $sinc(x) with lines title "sinc(x) as a function block"
 
  It is not necessary to specify a list of named arguments to a function block
- at the time it is declared. Arguments to the function passed from the command
- line can be also be accessed from inside the function block as ARGV[1] etc,
- as they would be for a `call` command.  See `ARGV`.  This allows defining a
- function block that can operate on a variable number of arguments.
+ at the time it is declared. The number and values of arguments to the function
+ passed from the command line can be be accessed from inside the function block
+ as an integer variable ARGC and a corresponding array ARGV[ARGC].  See `ARGV`.
+ This allows defining a function block that can operate on a variable number
+ of arguments.  Unlike loading a file via a `call` statement, arguments are
+ not repackaged as string variables (e.g. ARG1).
 
  Example:
       function $max << EOF
