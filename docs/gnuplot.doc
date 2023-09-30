@@ -411,7 +411,8 @@ D viridis 1
 ## Session command history is saved to $XDG_STATE_HOME/gnuplot_history.
 ## If these files are not found, $HOME/.gnuplot and $HOME/.gnuplot_history
 ## are used as in previous gnuplot versions.
-#b `unset warnings` suppresses output of warning messages to the console.
+#b `unset warnings` suppresses output of warning messages to stderr.
+#b `warn "message"` prints filename, line number and message to stderr.
 #b Exception handling for the "fit" command.  Control always returns to the
 ## next line of input, even in the case of fit errors.  On return, FIT_ERROR is
 ## non-zero if an error occurred. This allows scripted recovery from a bad fit.
@@ -9962,6 +9963,8 @@ Ffigure_smooth_path
 ?printerr
  `printerr` is the same as `print` except that output is always sent to stderr
  even while redirection from a prior `set print` command remains in effect.
+ Use the `warn` command instead if you want the output to include the current
+ filename (or function block name) and line number.
 2 pwd
 ?commands pwd
 ?pwd
@@ -18815,8 +18818,9 @@ D viridis 1
       unset warnings
 
  Warning messages for non-fatal errors are normally printed to stderr after
- echoing the command line that triggered the warning.
+ echoing the file name, line number, and command line that triggered the warning.
  Warnings may be suppressed by the command `unset warnings`.
+ A warning may be generated on demand by the command `warn "message"`.
  They remain suppressed until explicitly reenabled by `set warnings`.
 2 update
 ?commands update
@@ -18879,6 +18883,15 @@ D viridis 1
  current voxel grid.
  To reset a single voxel to zero, use `voxel(x,y,z) = 0`.
  To reset the entire grid to zero, use `vclear`.
+2 warn
+?warn
+?commands warn
+ Syntax:
+       warn "message"
+ The `warn` command is essentially the same as `printerr` except that it
+ prepends the current filename or function block name and the current line
+ number before printing the requested message to stderr.
+ Unlike `printerr` the output from `warn` is suppressed by `unset warnings`.
 2 While
 ?while
 ?commands while

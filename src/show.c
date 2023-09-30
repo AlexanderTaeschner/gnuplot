@@ -179,6 +179,7 @@ static void show_ticdef(AXIS_INDEX);
 static void show_ticdefp(struct axis *);
        void show_position(struct position * pos, int ndim);
 static void show_functions(void);
+static void show_warnings(void);
 
 static int var_show_all = 0;
 
@@ -433,6 +434,9 @@ show_command()
 	break;
     case S_WALL:
 	save_walls(stderr);
+	break;
+    case S_WARNINGS:
+	show_warnings();
 	break;
     case S_ANGLES:
 	show_angles();
@@ -3593,6 +3597,15 @@ show_ticdefp(struct axis *this_axis)
     if (this_axis->ticdef.font && *this_axis->ticdef.font) {
         fprintf(stderr,"\t  font \"%s\"\n", this_axis->ticdef.font);
     }
+}
+
+static void
+show_warnings()
+{
+    if (suppress_warnings)
+	fprintf(stderr, "\tno warnings are printed\n");
+    else
+	fprintf(stderr, "\twarnings are printed to stderr\n");
 }
 
 /* called by show_tics */
