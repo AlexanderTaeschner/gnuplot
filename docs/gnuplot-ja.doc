@@ -1,5 +1,5 @@
-C RCS $Id: gnuplot-ja.doc,v 1.795 2023-08-29 12:50:16+09 shige Exp $
-C corresponding original gnuplot.doc at 2023-08-28
+C RCS $Id: gnuplot-ja.doc,v 1.796 2023-09-28 18:09:02+09 shige Exp $
+C corresponding original gnuplot.doc at 2023-09-26
 C
 C Copyright (C) 1986 - 1993, 1998, 1999, 2000, 2001, 2004   Thomas Williams, Colin Kelley et al.
 C
@@ -352,6 +352,9 @@ C 行が長いのは、できればなんとかしたい
 ## 成する別の仕組みです。これは概念上の極座標格子内に、各入力データ点毎
 ## に丸い扇片をひとつ生成します。極座標モードでの `with surface` とは違
 ## い、これは極座標グラフでも直交座標グラフでも使用できます。
+#b 新しい 2 次元描画スタイル `with hsteps` は、存在するスタイル `steps`,
+## `histeps`, `fsteps`, `fillsteps` が提供するもの、およびさらなる表現
+## の多様性を持つ step 系のグラフを生成できます。
 #b 描画スタイル `with lines` には、現在フィルタオプション `sharpen` が
 ## あります。このフィルタは関数グラフでスパイクを検出しますが、そのピー
 ## クは関数から標本として取った 2 つの x 座標の間にあるため、出力では不
@@ -378,6 +381,9 @@ D sharpen 1
 D iris 2
 DB
 D contourfill 4
+DB
+D logic_timing 1
+D rank_sequence 1
 
 3 凸包とマスクと平滑化 (Hulls, masks, and smoothing)
 ?new hulls
@@ -4814,8 +4820,8 @@ Ffigure_boxerrorbars
 ?boxes 2D
 
  `plot with boxes` は、基本的に 2 列、または 3 列のデータを使用します。
- さらに入力列を追加すると、それは variable 行や塗り潰し色の情報として使
- 用します。以下参照: `rgbcolor variable`。
+ さらに入力列を追加すると、それは、可変線色や塗り潰し色の情報として使用
+ します。以下参照: `rgbcolor variable`。
 
       2 列:  x  y
       3 列:  x  y  x_width
@@ -5117,6 +5123,24 @@ Ffigure_contourfill
       set view map
       splot g(x,y) with contourfill, g(x,y) with lines nosurface
 
+2 dots
+?plotting styles dots
+?style dots
+?with dots
+?dots
+Ffigure_dots
+ `dots` スタイルは各点に小さなドットを描画します。これはたくさんの点か
+ らなる散布図の描画に便利でしょう。2 次元描画では 1 列、または 2 列の入
+ 力データが、3 次元描画では 3 列のデータが必要です。
+
+ 出力形式によっては (post, pdf など)、ドットの大きさは linewidth を変更
+ することで制御できることもあります。
+
+      1 列:  y         # x は行番号
+      2 列:  x  y
+      3 列:  x  y  z   # 3D のみ (splot)
+
+#TeX \newpage
 2 ellipses
 ?plotting styles ellipses
 ?style ellipses
@@ -5168,23 +5192,6 @@ Ffigure_ellipses
      plot 'data' using 1:2:3:4:(0):0 with ellipses
 
  以下も参照: `set object ellipse`, `set style ellipse`, `fillstyle`。
-
-2 dots
-?plotting styles dots
-?style dots
-?with dots
-?dots
-Ffigure_dots
- `dots` スタイルは各点に小さなドットを描画します。これはたくさんの点か
- らなる散布図の描画に便利でしょう。2 次元描画では 1 列、または 2 列の入
- 力データが、3 次元描画では 3 列のデータが必要です。
-
- 出力形式によっては (post, pdf など)、ドットの大きさは linewidth を変更
- することで制御できることもあります。
-
-      1 列:  y         # x は行番号
-      2 列:  x  y
-      3 列:  x  y  z   # 3D のみ (splot)
 
 2 filledcurves
 ?plotting styles filledcurves
@@ -5640,6 +5647,126 @@ Ffigure_newhist
  にあります。
 D histogram_colors 1
 
+2 hsteps
+?plotting styles hsteps
+?style hsteps
+?with hsteps
+?hsteps
+ 2 次元描画スタイル `with hsteps` は、各データ点に対し一つの水平線分
+ ("step" (段)) を描画します。この段は、データ点の x 座標の左側、ある
+ いは右側、あるいは両側へ延ばすことができます。
+ 追加キーワードで、隣接する段と接続する線や、段とベースラインとなる
+ y の値との間を塗り潰すためのオプションを制御します。
+
+ 書式:
+      plot <data> with hsteps
+                          {forward|backward}
+                          {baseline|pillars|link|nolink}
+                          {{above|below} y=<baseline>}
+                          {offset <y-offset>}
+
+      2 列:  x  y
+      3 列:  x  y  width
+
+ この描画スタイルには 2 列か 3 列のデータが必要です。さらに入力列を追加
+ すると、それは可変線色や塗り潰し色の情報として使用します (以下参照:
+ `rgbcolor variable`)。入力データの x の値は、単調であると仮定します。
+
+ 各段の幅を 3 列目の入力列として明示的には与えなかった場合、各線分の幅
+ は、隣接する水平線分と接触するように計算します。3 列目が負の値の場合は
+ 全幅の段の要求として処理します。
+
+ キーワード `forward`, `backward` は、指定した x 座標から水平線分を延長
+ する方向を指定するのに使用します。どちらも指定しない場合は水平線分は与
+ えられた x の値から両側へ、隣接する次の点の x の値との中点まで延長しま
+ す。しかし、始点と終点では、対応する外側の隣接点がないので、水平線分は
+ 内側の隣接点との距離を利用して外側への延長幅を外挿します (以下参照:
+ `histeps`, `boxes`)。
+
+ デフォルト (`baseline`) と、その変種の `pillar` は、ベースラインとなる
+ y の値を使用します。plot コマンドで何も指定しなければ、ベースラインは
+ y=0 となります。plot コマンドが塗り潰しスタイルを使用する場合、ベース
+ ラインは塗り潰し領域の一つの境界を定めることにもなります。
+ 4 つの変種が利用可能です。
+
+Ffigure_hsteps_baseline
+ `baseline` (デフォルト): x 方向に隣接する段との間に隙間がない場合、そ
+ れらを垂直線分で接続します。これは、スタイル `steps`, `histeps`,
+ `fsteps` のような曲線を生成します。段の間に隙間がある場合、通常は点の
+ 隙間よりも段の幅が小さいので、それらを接続する線は一旦ベースラインまで
+ 落とし、そしてその上を進んでから再び上に上がります。これは、長方形パル
+ スの列を生成します。
+
+      set xzeroaxis
+      plot $data using 1:2 with hsteps
+      plot $data using 1:2:(0.5) with hsteps
+
+Ffigure_hsteps_pillar
+ `pillar`: 各段の端で、ベースラインへの垂直線を描きます。ベースライン上
+ には水平線分を一切描かないことに注意してください。
+
+      plot $data using 1:2       with hsteps pillar
+      plot $data using 1:2:(0.5) with hsteps pillar
+      plot $data using 1:2:(0.5) \
+                 with hsteps pillar above fc "blue", \
+           $data using 1:2:(0.5) \
+                 with hsteps pillar below fc "red"
+
+#TeX \vspace{6ex}
+
+Ffigure_hsteps_nolink
+ `nolink`: 隣接する段の間の線は何も描きません。この変種に対しては、ベー
+ スラインと塗り潰しの属性とは何の関連もありません。
+
+     plot $data using 1:2 with hsteps nolink, \
+          $data using 1:2 with hsteps nolink forward, \
+          $data using 1:2 with hsteps nolink backward, \
+          $data using 1:2 with points pt "|"
+
+#TeX \vspace{9ex}
+
+Ffigure_hsteps_link
+ `link`: 隣接する段を、一本の真っ直ぐな線分で接続します。段の幅によって
+ は、その線は垂直でなくむしろ斜めになります。
+
+ 例: 変種 `link` を変種 `pillar` に重ねることで、カテゴリの境界同士を線
+ で接続するような積み上げ型ヒストグラムグラフを生成できます。
+
+      set style line 11 lw 2 lc "gray" dt "."
+      set style line 12 lw 2 lc variable
+      plot $data using 1:3:(0.5)   ls 11 with hsteps link, \
+           $data using 1:3:(0.5):1 ls 12 with hsteps pillar \
+             fs solid 0.7 border, \
+           $data using 1:4:(0.5)   ls 11 with hsteps link, \
+           $data using 1:4:(0.5):1 ls 12 with hsteps pillar \
+             fs transparent pattern 1 border
+
+3 offset
+Ffigure_hsteps_offset
+?with hsteps offset
+?hsteps offset
+ オフセット値は、データ点それ自身 (2 列目) とグラフに現れるベースライン
+ の両方に y の値に増分を追加することで、`with hsteps` の任意の変種を修
+ 正します。例えば、論理回路のタイミングチャートを描くときに、パルス波形
+ を垂直方向に位置合わせするのに使えます。一般には、y の値の範囲を共有す
+ る複数のデータ集合の積み上げグラフにオフセットが利用できます。
+
+      # bit(k,char) は、アスキー文字の k bit の状態に応じて
+      # 0 か 1 を返す関数
+      set style fill solid 0.2 border
+      plot for [k=1:8] STR using 1:(bit(k,STR[$1])):(0.5) \
+           with hsteps fillcolor "black" offset k
+
+3 missing data
+?with hsteps missing-data
+?hsteps missing-data
+ 描画スタイル hstep では、空行、NaN 値、欠損データは異なる意味を持ちま
+ す。データに空行がある場合は、データの連続列をその点でリセットします。
+ これは、`with lines` の場合に空行が新しい曲線の開始を中断するのと同様
+ です。x の値が NaN の場合、それは空行の場合と同じ処理を行います。x の
+ 値が有効で、y の値が NaN の場合は、そのデータ点には水平線は描きません
+ が、x の値は、段の幅の評価で必要な場合に使用します。
+
 2 image
 ?plotting styles image
 ?style image
@@ -5938,16 +6065,9 @@ Ffigure_parallel
      plot $DATA using col1{:varcol1} {at <xpos>} {<line properties}, \
           $DATA using col2, ...
 
- 変更: gnuplot バージョン 5.4 では、描画スタイル parallelaxes の書式を
- 変更しています。改良された書式では、平行座標軸数の制限をなくすことが可
- 能です。
-
-      gnuplot 5.2:   plot $DATA using 1:2:3:4:5 with parallelaxes
-      gnuplot 5.4:   plot for [col=1:5] $DATA using col with parallelaxes
-
- 新しい書式では、以下の例に見られるように、平行座標軸の x 軸位置での明
- 示的な配置も可能になっています。明示的な x 座標指定がなければ、N 番目
- の軸は x=N の場所に置かれます。
+ キーワード `at` で、以下の例に見られるように、平行座標軸の x 軸位置で
+ の明示的な配置も可能になっています。明示的な x 座標指定がなければ、N
+ 番目の軸は x=N の場所に置かれます。
 
       array xpos[5] = [1, 5, 6, 7, 11, 12]
       plot for [col=1:5] $DATA using col with parallelaxes at xpos[col]
@@ -5990,11 +6110,8 @@ Ffigure_points
  `points` スタイルは各点に小さな記号を表示します。すべての記号のデフォ
  ルトの大きさを変更するにはコマンド `set pointsize` を使います。デフォ
  ルトの点種は、線種と同じものになります。以下参照: `linetypes`。plot コ
- マンドに `using` 指定がない場合は、入力データ列は暗黙のうちに
-      x y pointsize pointtype color
- の順で解釈されます。最初の 2 つ (x, y) の後ろのすべての列は省略可能で、
- それらは追加の描画属性 `pointsize variable`, `pointtype variable` 等に
- 対応します。
+ マンドに `using` 指定がない場合は、入力データ列を暗黙のうちに、以下で
+ 説明するように `x y pointsize pointtype color` の順で解釈します。
 
  最初の 8 つの点種は、すべての出力形式で共通ですが、より多くの点種を個
  別にサポートする出力形式もあります。現在の出力形式の設定でどのような点
@@ -6008,22 +6125,37 @@ Ffigure_points
       plot f(x) with points pt "#"
       plot d(x) with points pt "\U+2299"
 
+3 可変点属性 (variable point properties)
 ?points variable
 ?with points variable
 =variable
 ?variable
 ?pointtype variable
 ?pointsize variable
- plot コマンド上でキーワード `pointtype`, `pointsize`, `linecolor` を使
- う際、番号の代わりにキーワード `variable` を追加することができます。こ
- の場合、各点の対応する属性値を入力データの追加列から取得します。可変
- (variable) pointsize 値は、常に `using` 指定で与えられる最初の追加列か
- ら取り、可変 color 値は、常に最後の追加列から取ります。以下参照:
- `colorspec`。各点に対して 3 つの属性をすべて指定する場合は、入力データ
- 列指定の順番は以下のようになります。
+ 点 (point) 記号を含む描画スタイルでは、オプションとして追加データ列を
+ `using` 指定で受け取ることでその点の見た目を制御することができます。こ
+ れは、plot コマンド上でキーワード `pointtype`, `pointsize`, `linecolor`
+ を使う際に、番号の代わりにキーワード `variable` を追加することで指示し
+ ます。
+ 描画スタイル `with labels` でも、可変文字列回転角を受け取ることができ
+ ます。
+ 例:
+      # 入力データは、列 1:2 で [x,y] を与え
+      # 点のサイズは 5 列目で与え
+      # RGB 色は 4 列目で 16 進数値として与え
+      # すべての点は pointtype 7 を使用
+        plot DATA using 1:2:5:4 with points lc rgb variable ps variable pt 7
 
-      plot DATA using x:y:pointsize:pointtype:color \
-           with points lc variable pt variable ps variable
+ 2 つ以上の可変 (variable) 属性を指定すると、plot コマンド内のキーワー
+ ドの順とは無関係に、以下の順で列を解釈します。
+
+     textrotation : pointsize : pointtype : color
+     (文字列の回転角) : (点のサイズ) : (点の種類) : (色)
+
+ よって、上の例では、"lc rgb variable" は plot コマンドの最初に現れてい
+ ますが、色は `using` 指定の最後の列 (4) から取ります。可変色 (variable
+ color) 指定は、常に最後の追加列から取ります。可変色を指定するには、い
+ くつかの方法があります。以下参照: `colorspec`。
 
  注意: 「ユーザ定義変数」の方の variable に関する情報については、以下
  参照: `variables`。
@@ -11188,22 +11320,19 @@ Ffigure_colornames
 
  書式:
       set contourfill auto N          # zrange を N 等分した断片に
-      set contourfill ztics <level>   # 各 z 軸刻みの位置で切り分け
-      set contourfill cbtics <level>  # 各 cb 軸刻みの位置で切り分け
+      set contourfill ztics           # z 軸の各主目盛りで切り分け
+      set contourfill cbtics          # cb 軸の各主目盛りで切り分け
       set contourfill {palette | firstlinetype N}
 
  デフォルトは `set contourfill auto 5 palette` で、これは現在の z 軸の
  範囲を 5 等分し (6 つの平面で区切る)、各断片にその z の中点に対応する
  パレットの色を割り当てます。
 
- オプション `ztics`, `cbtics` は、zrange の分割を、主目盛り (レベル 0)
- による切り分け、または副目盛り (レベル 1)、またはユーザが明示して指定
- する他のレベルの目盛りの集合による切り分けに配置します。例えば、主目盛
- り、副目盛りとは独立に z=2.5, z=7, z=10 に指定して切り分けるには、以下
+ オプション `ztics`, `cbtics` は、zrange の分割を、その軸の主目盛りの位
+ 置で行います。例えば、z=2.5, z=7, z=10 に指定して切り分けるには、以下
  のコマンドを使用します。
-      set ztics add ("floor" 2.5 3, "boundary X" 7 3, "ceiling" 10 3)
-      set contourfill ztics 3
-      set ztics scale 1, 0.5, 0, 0, 0
+      set ztics add ("floor" 2.5, "boundary X" 7, "ceiling" 10)
+      set contourfill ztics
 
  断片の色付けにパレットを使いたくない場合は、任意連続する線種の範囲を選
  択し、それらに望む色の列を割り当てることができます。
@@ -19021,8 +19150,8 @@ D viridis 1
  と一緒に使うことはできません。以下も参照: `do`, `continue`, `break`。
 1 出力形式 (Terminal)
 ^ <h2> Terminal Types </h2>
-2 出力形式の一覧
 ?complete list of terminals
+2 出力形式の一覧
 ?terminal
 ?term
  gnuplot はとても多くの出力形式をサポートしています。これらは、適切な
