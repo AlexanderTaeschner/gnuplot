@@ -86,6 +86,7 @@ struct at_type * create_call_column_at(char *);
 struct at_type * create_call_columnhead(void);
 struct udvt_entry * add_udv(int t_num);
 struct udft_entry * add_udf(int t_num);
+struct udvt_entry * add_udv_local(int t_num, char *name, int locality);
 void cleanup_udvlist(void);
 int is_function(int t_num);
 

@@ -871,6 +871,12 @@ lower_command(void)
 void
 array_command()
 {
+local_array_command( 0 );
+}
+
+void
+local_array_command( int depth )
+{
     int nsize = 0;	/* Size of array when we leave */
     int est_size = 0;	/* Estimated size */
     TBOOLEAN empty_array = FALSE;
@@ -881,7 +887,10 @@ array_command()
     /* Create or recycle a udv containing an array with the requested name */
     if (!isletter(++c_token))
 	int_error(c_token, "illegal variable name");
-    array = add_udv(c_token++);
+    if (depth > 0)
+	array = add_udv_local(c_token++, NULL, depth);
+    else
+	array = add_udv(c_token++);
 
     if (equals(c_token, "[")) {
 	c_token++;
@@ -1817,12 +1826,11 @@ clause_reset_after_error()
 
 /* "local" is a modifier for introduction of a variable.
  * The scope of the local variable is determined by the depth of the lf_push
- * operation preceding its occurance.
- * If a variable of that name already exists it is saved internally to
- * a new variable GPLOCAL_xxx_NAME, where NAME was the original name and xxx
- * is the depth of the lf_push/pop stack in which the "local" declaration
- * is encountered.
- * The original variable will be restored by the corresponding lf_pop.
+ * operation preceding its occurance.  This is indicated by storing
+ * lf_head->depth as the locality of the new variable.
+ * When a variable is retrieved by name, a name match with locality matching
+ * the current depth is chosen in preference to a global variable (locality 0).
+ * The local variable will be delete by the corresponding lf_pop.
  */
 void
 local_command()
@@ -1835,11 +1843,11 @@ local_command()
 	array_token = c_token++;
 
     /* Has no effect if encountered at the top level */
-    if (lf_head) {
-	udv = add_udv(c_token);
-
-	/* Keep original value and clear it from its original location */
-	shadow_one_variable(udv);
+    if (lf_head && lf_head->depth > 0) {
+	/* Define a new variable with this name
+	 * and locality equal to the current depth
+	 */
+	udv = add_udv_local(c_token, NULL, lf_head->depth);
 
 	/* flag that at least some local variables will go out of scope on lf_pop */
 	lf_head->local_variables = TRUE;
@@ -1848,49 +1856,12 @@ local_command()
     /* Create new local variable with this name */
     if (array_token) {
 	c_token = array_token;
-	array_command();
+	local_array_command(lf_head->depth);
 	if (udv && udv->udv_value.type == ARRAY)
 	    udv->udv_value.v.value_array[0].type = LOCAL_ARRAY;
     } else {
 	define();
     }
-}
-
-/* helper routine for local_command and for setting up the
- * initial state of function block evaluation
- */
-void
-shadow_one_variable(struct udvt_entry *udv)
-{
-    struct udvt_entry *save_udv;
-    struct value save_value;
-    int save_name_len;
-    char *save_name;
-
-    save_value = udv->udv_value;
-    udv->udv_value.type = NOTDEFINED;
-
-    /* Create a shadow variable to hold the original state */
-    save_name_len = strlen(udv->udv_name) + strlen("GPLOCAL_xxx_") + 1;
-    save_name = gp_alloc(save_name_len, NULL);
-    snprintf(save_name, save_name_len, "GPLOCAL_%03d_%s",
-	    lf_head->depth, udv->udv_name);
-    save_udv = add_udv_by_name(save_name);
-    free(save_name);
-
-    /* If this is a duplicate "local" instance at the same depth,
-     * the previous value at this depth is dropped.
-     */
-    if (save_udv->udv_value.type != NOTDEFINED) {
-	int_warn(NO_CARET, "Duplicate 'local' declaration for %s\n",
-		udv->udv_name);
-	free_value(&save_value);
-	return;
-    }
-    /* If there really was such a variable that is now shadowed,
-     * save its original value. Otherwise the saved state is NOTDEFINED.
-     */
-    save_udv->udv_value = save_value;
 }
 
 /* helper routine to multiplex mouse event handling with a timed pause command */

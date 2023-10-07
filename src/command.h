@@ -144,6 +144,7 @@ void restore_prompt(void);
 #define bind_command()
 #endif
 void array_command(void);
+void local_array_command(int locality);
 void break_command(void);
 void call_command(void);
 void changedir_command(void);
@@ -203,7 +204,6 @@ void do_string_replot(const char* s);
 void define(void);
 
 void replotrequest(void); /* used in command.c & mouse.c */
-void shadow_one_variable(struct udvt_entry *udv);
 
 void print_set_output(char *, TBOOLEAN, TBOOLEAN); /* set print output file */
 char *print_show_output(void); /* show print output file */

@@ -91,6 +91,8 @@ typedef struct udvt_entry {
     struct udvt_entry *next_udv; /* pointer to next value in linked list */
     char *udv_name;		/* name of this value entry */
     t_value udv_value;		/* value it has */
+    int locality;		/* LFS depth at which this variable was declared */
+				/* locality=0 (the usual case) for a global variable */
 } udvt_entry;
 
 /* p-code argument */

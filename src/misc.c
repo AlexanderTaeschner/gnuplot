@@ -158,8 +158,7 @@ prepare_call(int calltype, udvt_entry *functionblock)
 	    if (functionblock->udv_value.v.functionblock.parnames) {
 		char *name = functionblock->udv_value.v.functionblock.parnames[call_argc];
 		if (name) {
-		    struct udvt_entry *udv = add_udv_by_name(name);
-		    shadow_one_variable(udv);
+		    struct udvt_entry *udv = add_udv_local(0, name, lf_head->depth);
 		    udv->udv_value = eval_parameters[call_argc];
 		    if (udv->udv_value.type == STRING)
 			udv->udv_value.v.string_val = strdup(udv->udv_value.v.string_val);
@@ -534,6 +533,10 @@ lf_push(FILE *fp, char *name, char *cmdline)
     lf->inline_num = inline_num;	/* save current line number */
     lf->call_argc = call_argc;
 
+    lf->depth = lf_head ? lf_head->depth+1 : 1;	/* recursion depth */
+    if (lf->depth > STACK_DEPTH)
+	int_error(NO_CARET, "load/eval nested too deeply");
+
     /* Call arguments are irrelevant if invoked from do_string_and_free */
     if (cmdline == NULL) {
 	struct udvt_entry *udv;
@@ -561,9 +564,6 @@ lf_push(FILE *fp, char *name, char *cmdline)
 	    }
 	}
     }
-    lf->depth = lf_head ? lf_head->depth+1 : 0;	/* recursion depth */
-    if (lf->depth > STACK_DEPTH)
-	int_error(NO_CARET, "load/eval nested too deeply");
     lf->if_open_for_else = if_open_for_else;
     lf->local_variables = FALSE;
     lf->c_token = c_token;
@@ -614,37 +614,20 @@ lf_reset_after_error()
     while (lf_pop());
 }
 
-/* Restore any variables that were shadowed by a local variable */
+/* Delete any local variables declared at this depth.
+ * Any local variables declared at a deeper locality should already be gone
+ * but if we see one here then delete it silently.
+ */
 static void
 lf_exit_scope(int depth)
 {
-    struct udvt_entry *udv, *restored_udv;
+    struct udvt_entry *udv;
     struct udvt_entry *prev_udv = first_udv;
-    char prefix[13];
-    char *name;
-
-    snprintf(prefix, sizeof(prefix), "GPLOCAL_%03d_", depth);
-    FPRINTF((stderr, "Leaving scope of %s variables\n", prefix));
 
     for (prev_udv = first_udv, udv = prev_udv->next_udv;
 	 udv;  prev_udv = udv, udv = udv->next_udv) {
-	if (strncmp(udv->udv_name,prefix,12))
-	    continue;
-	name = &(udv->udv_name[12]);
-	restored_udv = get_udv_by_name(name);
-	if (restored_udv) {
-	    if (restored_udv->udv_value.type == ARRAY) {
-		int subtype = restored_udv->udv_value.v.value_array[0].type;
-		if (subtype != TEMP_ARRAY && subtype != LOCAL_ARRAY)
-		    /* prevents free_value from deleting permanent array content */
-		    restored_udv->udv_value.type = NOTDEFINED;
-	    }
-	    free_value(&restored_udv->udv_value);
-	    restored_udv->udv_value = udv->udv_value;
-	    /* It is not sufficient to mark the shadow copy NOTDEFINED because if
-	     * we see it later we would spuriously restore the original from it.
-	     * Instead delete it altogether.
-	     */
+	if (udv->locality >= depth) {
+	    free_value(&udv->udv_value);
 	    prev_udv->next_udv = udv->next_udv;
 	    free(udv->udv_name);
 	    free(udv);

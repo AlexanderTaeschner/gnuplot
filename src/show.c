@@ -3369,7 +3369,9 @@ show_variables()
 	    fprintf(stderr, "\t%-*s ", len, udv->udv_name);
 	    fputs("= ", stderr);
 	    disp_value(stderr, &(udv->udv_value), TRUE);
-	    (void) putc('\n', stderr);
+	    if (udv->locality > 0)
+		fprintf(stderr, "\t(locality %d)", udv->locality);
+	    putc('\n', stderr);
 	}
 	udv = udv->next_udv;
     }
