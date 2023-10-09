@@ -1448,11 +1448,11 @@ check_for_iteration()
 	struct udvt_entry *iteration_udv = NULL;
 	t_value original_udv_value;
 	char *iteration_string = NULL;
-	int iteration_start;
-	int iteration_end;
-	int iteration_increment = 1;
-	int iteration_current;
-	int iteration = 0;
+	intgr_t iteration_start;
+	intgr_t iteration_end;
+	intgr_t iteration_increment = 1;
+	intgr_t iteration_current;
+	intgr_t iteration = 0;
 	struct at_type *iteration_start_at = NULL;
 	struct at_type *iteration_end_at = NULL;
 
