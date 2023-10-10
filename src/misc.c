@@ -432,24 +432,29 @@ lf_pop()
 	}
 	call_argc = lf->call_argc;
 
-	/* Restore ARGC and ARG0 ... ARG9 */
+	/* Restore ARGC */
 	if ((udv = get_udv_by_name("ARGC"))) {
 	    Ginteger(&(udv->udv_value), call_argc);
 	}
 
-	if ((udv = get_udv_by_name("ARG0"))) {
-	    gpfree_string(&(udv->udv_value));
-	    Gstring(&(udv->udv_value),
-		(lf->prev && lf->prev->name) ? gp_strdup(lf->prev->name) : gp_strdup(""));
-	}
-
-	for (argindex = 1; argindex <= 9; argindex++) {
-	    if ((udv = get_udv_by_name(argname[argindex]))) {
+	/* function block calls do not touch ARG0..ARG9
+	 * so there is no point in restoring them
+	 */
+	if (!lf->shadow_at) {
+	    if ((udv = get_udv_by_name("ARG0"))) {
 		gpfree_string(&(udv->udv_value));
-		if (!call_args[argindex-1])
-		    udv->udv_value.type = NOTDEFINED;
-		else
-		    Gstring(&(udv->udv_value), gp_strdup(call_args[argindex-1]));
+		Gstring(&(udv->udv_value),
+		    (lf->prev && lf->prev->name) ? gp_strdup(lf->prev->name) : gp_strdup(""));
+	    }
+
+	    for (argindex = 1; argindex <= 9; argindex++) {
+		if ((udv = get_udv_by_name(argname[argindex]))) {
+		    gpfree_string(&(udv->udv_value));
+		    if (!call_args[argindex-1])
+			udv->udv_value.type = NOTDEFINED;
+		    else
+			Gstring(&(udv->udv_value), gp_strdup(call_args[argindex-1]));
+		}
 	    }
 	}
 
@@ -536,6 +541,14 @@ lf_push(FILE *fp, char *name, char *cmdline)
     lf->depth = lf_head ? lf_head->depth+1 : 1;	/* recursion depth */
     if (lf->depth > STACK_DEPTH)
 	int_error(NO_CARET, "load/eval nested too deeply");
+
+    /* call/load/functionblock all establish a new scope for local variables.
+     * do_string (bracketed clauses and single-line evaluate) does not.
+     */
+    if (cmdline == NULL)
+	lf->locality = lf->depth;
+    else
+	lf->locality = lf_head ? lf_head->locality : 0;
 
     /* Call arguments are irrelevant if invoked from do_string_and_free */
     if (cmdline == NULL) {

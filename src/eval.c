@@ -838,12 +838,19 @@ struct udvt_entry *
 add_udv_by_name(char *key)
 {
     struct udvt_entry **udv_ptr = &first_udv;
+    int current_locality = lf_head ? lf_head->locality : 0;
 
     /* check if it's already in the table... */
 
     while (*udv_ptr) {
-	if (!strcmp(key, (*udv_ptr)->udv_name))
-	    return (*udv_ptr);
+	if (!strcmp(key, (*udv_ptr)->udv_name)) {
+	    /* This is a global variable; we must not have seen a relevant local definition */
+	    if ((*udv_ptr)->locality == 0)
+		return (*udv_ptr);
+	    /* This is a local variable referenced from a bracketed clause that follows it */
+	    if ((*udv_ptr)->locality >= current_locality)
+		return (*udv_ptr);
+	}
 	udv_ptr = &((*udv_ptr)->next_udv);
     }
 
