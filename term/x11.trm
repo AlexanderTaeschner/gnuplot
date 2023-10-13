@@ -145,6 +145,10 @@ static int X11_Display = 0;
 /* Avoid unnecessary linetype changes */
 static int X11_linetype_last = LT_UNDEFINED;
 
+/* Terrible, horrible, no good, very bad hack for rotation of enhanced text */
+static double X11_textangle = 0.;
+static int X11_ycorrection;
+
 /* Fonts can have very long names */
 /* EAM FIXME - these should be dynamically allocated */
 #define X11_MAX_FONTNAME_LENGTH 255
@@ -1665,6 +1669,7 @@ X11_put_text(unsigned int x, unsigned int y, const char str[])
 TERM_PUBLIC int
 X11_text_angle(float ang)
 {
+    X11_textangle = ang;
     PRINT1("A%.2f\n", ang);
     return TRUE;
 }
@@ -2036,7 +2041,7 @@ static TBOOLEAN ENHx11_show = TRUE;
 static int ENHx11_overprint = 0;
 static TBOOLEAN ENHx11_widthflag = TRUE;
 static double ENHx11_base;
-static double ENHx11_fontsize;
+static double ENHx11_fontsize = 12;
 static char  *ENHx11_font;
 
 TERM_PUBLIC void
@@ -2127,9 +2132,21 @@ ENHX11_put_text(unsigned int x, unsigned int y, const char *str)
     ENHx11_opened_string = FALSE;
     strncpy(enhanced_escape_format,"%c",sizeof(enhanced_escape_format));
 
+    /* Terrible, horrible, no good, very bad hack to fix wonky rotation of
+     * enhanced text. This should be done, and done better, in gnuplot_x11.
+     */
+    X11_ycorrection = 0;
+    if (X11_textangle != 0 && X11_last_justification != LEFT) {
+	int length = (estimate_strlen(str, NULL) - 1)
+		   * (double)term->h_char
+		   * (double)ENHx11_fontsize / firstpass_fontsize;
+	if (X11_last_justification == CENTRE)
+		length = length/2;
+	X11_ycorrection = length * sin(DEG2RAD * X11_textangle);
+    }
 
     /* Tell gnuplot_x11 to set the current position to (x,y) */
-	PRINT2("Tl%d %d\n", x, y);
+	PRINT2("Tl%d %d\n", x, y - X11_ycorrection);
 
     /* Text justification requires two passes. During the first pass we */
     /* don't draw anything, we just measure the space it will take.     */
@@ -2187,9 +2204,9 @@ PASS2:
 	ENHx11_sizeonly = FALSE;
 
 	if (X11_last_justification == RIGHT) {
-		PRINT2("Tj%d %d\n", x, y);
+		PRINT2("Tj%d %d\n", x, y - X11_ycorrection);
 	} else if (X11_last_justification == CENTRE) {
-		PRINT2("Tk%d %d\n", x, y);
+		PRINT2("Tk%d %d\n", x, y - X11_ycorrection);
 	}
 	str = original_string;
 	pass = 2;
