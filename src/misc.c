@@ -1018,7 +1018,7 @@ lp_parse(struct lp_style_type *lp, lp_class destination_class, TBOOLEAN allow_po
 			break;
 		    c_token--;
 		    parse_colorspec(&(newlp.pm3d_color), TC_Z);
-		} else if (equals(c_token,"bgnd")) {
+		} else if (equals(c_token,"bgnd") || equals(c_token,"background")) {
 		    *lp = background_lp;
 		    c_token++;
 		} else if (equals(c_token,"black")) {
@@ -1085,7 +1085,7 @@ lp_parse(struct lp_style_type *lp, lp_class destination_class, TBOOLEAN allow_po
 		    c_token--;
 		    parse_colorspec(&(newlp.pm3d_color), TC_Z);
 		}
-	    } else if (equals(c_token,"bgnd")) {
+	    } else if (equals(c_token,"bgnd") || equals(c_token,"background")) {
 		newlp.pm3d_color.type = TC_LT;
 		newlp.pm3d_color.lt = LT_BACKGROUND;
 		c_token++;
@@ -1122,7 +1122,7 @@ lp_parse(struct lp_style_type *lp, lp_class destination_class, TBOOLEAN allow_po
 	    continue;
 	}
 
-	if (equals(c_token,"bgnd")) {
+	if (equals(c_token,"bgnd") || equals(c_token,"background")) {
 	    if (set_lt++)
 		break;;
 	    c_token++;
@@ -1395,7 +1395,7 @@ parse_colorspec(struct t_colorspec *tc, int options)
     if (almost_equals(c_token,"def$ault")) {
 	c_token++;
 	tc->type = TC_DEFAULT;
-    } else if (equals(c_token,"bgnd")) {
+    } else if (equals(c_token,"bgnd") || equals(c_token,"background")) {
 	c_token++;
 	tc->type = TC_LT;
 	tc->lt = LT_BACKGROUND;
