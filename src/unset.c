@@ -129,7 +129,7 @@ static void unset_palette(void);
 static void reset_colorbox(void);
 static void unset_colorbox(void);
 static void unset_pointsize(void);
-static void unset_pointintervalbox(void);
+static void unset_pointintervalbox(int scale);
 static void unset_polar(TBOOLEAN grid);
 static void unset_print(void);
 static void unset_psdir(void);
@@ -406,7 +406,7 @@ unset_command()
 	unset_colorbox();
 	break;
     case S_POINTINTERVALBOX:
-	unset_pointintervalbox();
+	unset_pointintervalbox( 0 );
 	break;
     case S_POINTSIZE:
 	unset_pointsize();
@@ -1643,11 +1643,11 @@ reset_spotlight()
 }
 
 
-/* process 'unset pointintervalbox' command */
+/* unset to 0; reset to 1 */
 static void
-unset_pointintervalbox()
+unset_pointintervalbox(int scale)
 {
-    pointintervalbox = 1.0;
+    pointintervalbox = scale;
 }
 
 /* process 'unset pointsize' command */
@@ -2246,7 +2246,7 @@ reset_command()
     unset_margin(&rmargin);
     unset_margin(&tmargin);
     unset_pointsize();
-    unset_pointintervalbox();
+    unset_pointintervalbox(1);
     pm3d_reset();
     reset_spotlight();
     reset_colorbox();

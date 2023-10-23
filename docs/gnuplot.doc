@@ -6324,7 +6324,8 @@ Ffigure_xerrorbars
  (x+xdelta,y), depending on how many data columns are provided.  The appearance
  of the tic mark at the ends of the bar is controlled by `set errorbars`.
  The clearance between the point and the error bars is controlled by
- `set pointintervalbox`.
+ `set pointintervalbox`.  To have the error bars pass directly through the
+ point with no interruption, use `unset pointintervalbox`.
  The basic style requires either 3 or 4 columns:
 
       3 columns:  x  y  xdelta
@@ -6346,7 +6347,8 @@ Ffigure_xyerrorbars
  (xlow,y) to (xhigh,y), depending upon the number of data columns provided.
  The appearance of the tic mark at the ends of the bar is controlled by
  `set errorbars`.  The clearance between the point and the error bars is
- controlled by `set pointintervalbox`.
+ controlled by `set pointintervalbox`. To have the error bars pass directly
+ through the point with no interruption, use `unset pointintervalbox`.
  Either 4 or 6 input columns are required.
 
       4 columns:  x  y  xdelta  ydelta
@@ -6424,7 +6426,8 @@ Ffigure_yerrorbars
  from (x,ylow) to (x,yhigh), depending on how many data columns are provided.
  The appearance of the tic mark at the ends of the bar is controlled by
  `set errorbars`.  The clearance between the point and the error bars is 
- controlled by `set pointintervalbox`.
+ controlled by `set pointintervalbox`.  To have the error bars pass directly
+ through the point with no interruption, use `unset pointintervalbox`.
 
       2 columns:  [implicit x] y ydelta
       3 columns:  x  y  ydelta
@@ -15172,7 +15175,7 @@ D spotlight 1
  (actually circle) behind each point symbol is blanked out by filling with the
  background color.  The command `set pointintervalbox` controls the radius of
  this blanked-out region.  It is a multiplier for the default radius, which is
- equal to the point size.
+ equal to the point size. `unset pointintervalbox` draws no blanked-out region.
 3 pointsize
 ?commands set pointsize
 ?commands show pointsize
