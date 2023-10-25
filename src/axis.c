@@ -1204,7 +1204,7 @@ gen_tics(struct axis *this, tic_callback callback)
 	reorder_if_necessary(start, end);
 	step = fabs(step);
 
-	if ((minitics != MINI_OFF) && (this->miniticscale != 0)) {
+	if (minitics != MINI_OFF) {
 	    FPRINTF((stderr,"axis.c: %d  start = %g end = %g step = %g base = %g\n",
 			__LINE__, start, end, step, this->base));
 
@@ -1406,7 +1406,7 @@ gen_tics(struct axis *this, tic_callback callback)
 		/* We will do time tics in a separate pass */
 		continue;
 
-	    if ((minitics != MINI_OFF) && (this->miniticscale != 0)) {
+	    if (minitics != MINI_OFF) {
 		/* {{{  process minitics */
 		double mplace, mtic_user, mtic_internal;
 
