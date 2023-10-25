@@ -524,7 +524,7 @@ unset_command()
 	break;
     case S_YDTICS:
     case S_YMTICS:
-	unset_month_day_tics(FIRST_X_AXIS);
+	unset_month_day_tics(FIRST_Y_AXIS);
 	break;
     case S_MX2TICS:
 	unset_minitics(&axis_array[SECOND_X_AXIS]);
@@ -534,7 +534,7 @@ unset_command()
 	break;
     case S_X2DTICS:
     case S_X2MTICS:
-	unset_month_day_tics(FIRST_X_AXIS);
+	unset_month_day_tics(SECOND_X_AXIS);
 	break;
     case S_MY2TICS:
 	unset_minitics(&axis_array[SECOND_Y_AXIS]);
@@ -554,7 +554,7 @@ unset_command()
 	break;
     case S_ZDTICS:
     case S_ZMTICS:
-	unset_month_day_tics(FIRST_X_AXIS);
+	unset_month_day_tics(FIRST_Z_AXIS);
 	break;
     case S_MCBTICS:
 	unset_minitics(&axis_array[COLOR_AXIS]);
@@ -564,7 +564,7 @@ unset_command()
 	break;
     case S_CBDTICS:
     case S_CBMTICS:
-	unset_month_day_tics(FIRST_X_AXIS);
+	unset_month_day_tics(COLOR_AXIS);
 	break;
     case S_MRTICS:
 	unset_minitics(&axis_array[POLAR_AXIS]);
