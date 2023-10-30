@@ -6151,6 +6151,7 @@ new_text_label(int tag)
  * Note: ndim = 2 means we are inside a plot command,
  *       ndim = 3 means we are inside an splot command
  *       ndim = 0 in a set command
+ *       ndim = 4 means this is being used for a keyentry
  */
 void
 parse_label_options( struct text_label *this_label, int ndim)
@@ -6292,7 +6293,16 @@ parse_label_options( struct text_label *this_label, int ndim)
 	}
 
 	if (!axis_label && (loc_lp.flags == LP_NOT_INITIALIZED || set_hypertext)) {
-	    if (almost_equals(c_token, "po$int")) {
+	    if ((ndim == 4)
+	    &&  (equals(c_token-1, "keyentry"))
+	    &&	((this_label->text = try_to_get_string()) != NULL)) {
+		/* key entries can use a text string instead of a point symbol.
+		 * This allows 'keyentry "string1" title "string2" to place two strings
+		 */
+		loc_lp.flags = 0;
+		this_label->pos = LEFT;
+		continue;
+	    } else if (almost_equals(c_token, "po$int")) {
 		int stored_token = ++c_token;
 		struct lp_style_type tmp_lp;
 		loc_lp.flags = LP_SHOW_POINTS;
@@ -6316,7 +6326,7 @@ parse_label_options( struct text_label *this_label, int ndim)
 	    continue;
 	}
 
-	if ((equals(c_token,"tc") || almost_equals(c_token,"text$color"))
+	if ((equals(c_token,"tc") || equals(c_token,"textcolor"))
 	    && ! set_textcolor ) {
 	    parse_colorspec( &textcolor, TC_VARIABLE );
 	    set_textcolor = TRUE;

@@ -1460,7 +1460,16 @@ do_key_sample_point(
 
     } else if (this_plot->plot_style == LABELPOINTS) {
 	struct text_label *label = this_plot->labels;
-	if (label->lp_properties.flags & LP_SHOW_POINTS) {
+	if (this_plot->plot_type == KEYENTRY) {
+	    int anchor = xl;
+	    if (label->pos == LEFT)
+		anchor += key_sample_left;
+	    else if (label->pos == RIGHT)
+		anchor += key_sample_right;
+	    else
+		anchor += key_point_offset;
+	    write_label(anchor, yl, label);
+	} else if (label->lp_properties.flags & LP_SHOW_POINTS) {
 	    term_apply_lp_properties(&label->lp_properties);
 	    (*t->point) (xl + key_point_offset, yl, label->lp_properties.p_type);
 	}

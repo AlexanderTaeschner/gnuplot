@@ -2895,7 +2895,10 @@ eval_plots()
 			if (!set_labelstyle)
 			    this_plot->labels->textcolor.type = TC_DEFAULT;
 		    }
-		    parse_label_options(this_plot->labels, 2);
+		    if (this_plot->plot_type == KEYENTRY)
+			parse_label_options(this_plot->labels, 4);
+		    else
+			parse_label_options(this_plot->labels, 2);
 		    if (stored_token != c_token) {
 			if (set_labelstyle) {
 			    duplication = TRUE;
@@ -2969,7 +2972,9 @@ eval_plots()
 	    this_plot->title_is_automated = FALSE;
 	    if (!set_title) {
 		this_plot->title_no_enhanced = TRUE; /* filename or function cannot be enhanced */
-		if (key->auto_titles == COLUMNHEAD_KEYTITLES) {
+		if (this_plot->plot_type == KEYENTRY) {
+		    this_plot->title = strdup(" ");
+		} else if (key->auto_titles == COLUMNHEAD_KEYTITLES) {
 		    this_plot->title_is_automated = TRUE;
 		} else if (key->auto_titles == FILENAME_KEYTITLES) {
 		    m_capture(&(this_plot->title), start_token, end_token);
