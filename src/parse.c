@@ -1531,7 +1531,9 @@ check_for_iteration()
 	    }
 	    if (equals(c_token,":")) {
 	    	c_token++;
-	    	iteration_increment = int_expression();
+		/* Allow empty expression to act as the default would */
+		if (!equals(c_token,"]"))
+		    iteration_increment = int_expression();
 		if (iteration_increment == 0)
 		    int_error(c_token-1, errormsg);
 	    }

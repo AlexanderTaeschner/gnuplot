@@ -2419,7 +2419,9 @@ parse_range(AXIS_INDEX axis)
 	this_axis->SAMPLE_INTERVAL = 0;
 	if (equals(c_token, ":")) {
 	    c_token++;
-	    this_axis->SAMPLE_INTERVAL = real_expression();
+	    /* Allow empty expression to act as the default would */
+	    if (!equals(c_token, "]"))
+		this_axis->SAMPLE_INTERVAL = real_expression();
 	}
     }
 
