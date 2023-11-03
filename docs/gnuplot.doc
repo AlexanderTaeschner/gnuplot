@@ -7871,7 +7871,7 @@ Ffigure_zerror
  `splot` draws 2D projections of 3D surfaces and data.
 
  Syntax:
-       plot {<ranges>} <plot-element> {, <plot-element>, <plot-element>}
+       plot {<axis-ranges>} <plot-element> {, <plot-element>, <plot-element>}
 
  Each plot element consists of a definition, a function, or a data source
  together with optional properties or modifiers:
@@ -9118,15 +9118,19 @@ Ffigure_smooth_path
 
  An independent sampling range can be provided immediately before the '+'. As
  in normal function plots, a name can be assigned to the independent variable.
- If given for the first plot element, the sampling range specifier has to be
- preceded by the `sample` keyword (see also `plot sampling`).
-
-       plot sample [beta=0:2*pi] '+' using (sin(beta)):(cos(beta)) with lines
-
  Here is an example where the sampling interval (1.5) is given as part of the
  sampling range.  Samples will be generated at -3, -1.5, 0, 1.5, ..., 24.
 
        plot $MYDATA, [t=-3:25:1.5] '+' using (t):(f(t))
+
+ A sampling range that immediately follows the `plot` or `splot` command might
+ be mistakenly parsed as an x-axis range.  To prevent this ambiguity you can
+ either precede it with the `sample` keyword or provide a sampling interval,
+ possibly empty to use the default, as a third field of the sampling range.
+ See the example of such ambiguity in `plot sampling`.
+
+       plot sample [beta=0:2*pi] '+' using (sin(beta)):(cos(beta)) with lines
+       plot        [beta=0:2*pi:] '+' using (sin(beta)):(cos(beta)) with lines
 
  The pseudo-file '++' returns 2 columns of data forming a regular grid of [u,v]
  coordinates with the number of points along u controlled by `set samples` and
@@ -9591,14 +9595,22 @@ Ffigure_smooth_path
        set xrange [0:50]
        plot [0:10] f(x), [10:20] g(x), [20:30] h(x)
 
- To remove the ambiguity in the previous example, insert the keyword `sample`
- to indicate that [0:10] is a sampling range applied to a single plot component
- rather than a global x-axis range that would apply to the entire plot.
-       plot sample [0:10] f(x), [10:20] g(x), [20:30] h(x)
+ To remove the ambiguity in the previous example, either insert the keyword
+ `sample` to indicate that [0:10] is a sampling range rather than an axis range
+ or add a sampling increment field (following a second colon) in the range
+ specifier.  This works because a full range specifier [min:max:increment]
+ cannot be mis-parsed as an axis range.  If the increment field is empty
+ then the increment defaults to (min-max/samples), so all three variants
+ below produce the same result.
+       set samples 100
+       plot sample [0:10]     f(x), [10:20] g(x), [20:30] h(x)
+       plot        [0:10:0.1] f(x), [10:20] g(x), [20:30] h(x)
+       plot        [0:10:]    f(x), [10:20] g(x), [20:30] h(x)
 
  This example shows one way of tracing out a helix in a 3D plot
        set xrange [-2:2]; set yrange [-2:2]
-       splot sample [h=1:10] '+' using (cos(h)):(sin(h)):(h)
+       set angle degrees
+       splot [phi=1:720:2] '+' using (cos(phi)):(sin(phi)):(phi)
 
 4 2D sampling (u and v axes)
 ?sampling 2D
@@ -9624,7 +9636,7 @@ Ffigure_smooth_path
 
  The range specifiers for sampling on u and v can include an explicit sampling
  interval to control the number and spacing of samples:
-      splot sample [u=30:70:1][v=0:50:5] '++' using 1:2:(func($1,$2))
+      splot [u=30:70:1][v=0:50:5] '++' using 1:2:(func($1,$2))
 
 3 for loops in plot command
 ?commands plot for

@@ -268,18 +268,25 @@ plotrequest()
 	    parse_skip_range();
     }
 
-    /* Range limits for the entire plot are optional but must be given	*/
-    /* in a fixed order. The keyword 'sample' terminates range parsing.	*/
-    if (parametric || polar) {
+    /* Axis range limits for the entire plot are optional but must be given
+     * in the fixed order x y x2 y2.
+     * A sampling range [var=start:end:increment] terminates parsing of axis
+     * range limits.  The keyword 'sample' also terminates range parsing.
+     */
+    if (parametric || polar)
 	dummy_token = parse_range(T_AXIS);
-	parse_range(FIRST_X_AXIS);
-    } else {
+    else
 	dummy_token = parse_range(FIRST_X_AXIS);
-    }
-    parse_range(FIRST_Y_AXIS);
-    parse_range(SECOND_X_AXIS);
-    parse_range(SECOND_Y_AXIS);
-    if (equals(c_token,"sample") && equals(c_token+1,"["))
+#define SAMPLING_RANGE -2
+    if (dummy_token == SAMPLING_RANGE)
+	dummy_token = 0;
+    else if ((parse_range(FIRST_Y_AXIS) != SAMPLING_RANGE)
+         &&  (parse_range(SECOND_X_AXIS) != SAMPLING_RANGE)
+         &&  (parse_range(SECOND_Y_AXIS) != SAMPLING_RANGE))
+		; /* Nothing to do */
+#undef SAMPLING_RANGE
+    /* FIXME: would like to deprecate the "sample" keyword altogether */
+    if (equals(c_token,"sample"))
 	c_token++;
 
     /* Clear out any tick labels read from data files in previous plot */
@@ -3621,7 +3628,7 @@ eval_plots()
 		if (!parametric && !polar)
 		    init_sample_range(axis_array + x_axis, FUNC);
 		sample_range_token = parse_range(SAMPLE_AXIS);
-		if (equals(sample_range_token, "u"))
+		if (sample_range_token > 0 && equals(sample_range_token, "u"))
 		    parse_range(V_AXIS);
 		dummy_func = &(this_plot->plot_function);
 
