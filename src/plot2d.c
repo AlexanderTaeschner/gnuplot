@@ -3618,10 +3618,11 @@ eval_plots()
 		plot_num++;
 
 		/* Check for a sampling range. */
-		/* Only relevant to function plots, and only needed in second pass. */
 		if (!parametric && !polar)
 		    init_sample_range(axis_array + x_axis, FUNC);
 		sample_range_token = parse_range(SAMPLE_AXIS);
+		if (equals(sample_range_token, "u"))
+		    parse_range(V_AXIS);
 		dummy_func = &(this_plot->plot_function);
 
 		if (almost_equals(c_token, "newhist$ogram")) {
