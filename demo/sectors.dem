@@ -68,7 +68,7 @@ set cbtics
 
 set table $data
 set view map
-splot sample [t=0:tmax-dt:dt] [r=0:rmax-dr:dr] "++" using (t):(r):(0)
+splot [t=0:tmax-dt:dt] [r=0:rmax-dr:dr] "++" using (t):(r):(0)
 unset table
 
 plot $data using 1:2:(dt):(dr):(0.5):(0):(f($1+dt/2,$2+dr/2)) with sectors fc palette fill solid, \
@@ -284,7 +284,7 @@ set cbrange [0:360]
 
 da = 15
 
-plot sample [t=0:360:da] \
+plot [t=0:360:da] \
      "+" using ($1-da/2.0):(2):(da):(2):(hsv2rgb($1/360,1,0.7)) with sectors \
                    fc rgb variable fill solid 1 border lc bgnd lw 2, \
      [t=0:360-da:da] "+" using ($1):(4.5):(sprintf("%i",$1)) with labels 
@@ -437,7 +437,7 @@ unset key
 
 set style fill solid border lc rgb "gray"
 
-plot sample [t=0:350:15] "+" using (t-5):(4):(10):(2) with sectors fc rgb "gray90" fill border lc black lw 2, \
+plot [t=0:350:15] "+" using (t-5):(4):(10):(2) with sectors fc rgb "gray90" fill border lc black lw 2, \
             [t=0:220:15] "+" using (t-5):(4):(10):(2) with sectors fc rgb "orange" fill border lc black lw 2
 
 pause -1 "<cr> to continue"
