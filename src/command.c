@@ -3816,10 +3816,13 @@ expand_1level_macros()
     for (c=temp_string; len && c && *c; c++, len--) {
 	switch (*c) {
 	case '@':	/* The only tricky bit */
-		if (!in_squote && !in_dquote && !in_comment && isalpha((unsigned char)c[1])) {
+		if (!in_squote && !in_dquote && !in_comment
+			&& (isalpha((unsigned char)c[1]) || ALLOWED_8BITVAR(c[1]))) {
 		    /* Isolate the udv key as a null-terminated substring */
 		    m = ++c;
-		    while (isalnum((unsigned char )*c) || (*c=='_')) c++;
+		    while (isalnum((unsigned char )*c) || (*c=='_')
+			|| ALLOWED_8BITVAR(*c))
+			c++;
 		    temp_char = *c; *c = '\0';
 		    /* Look up the key and restore the original following char */
 		    udv = get_udv_by_name(m);
