@@ -411,7 +411,8 @@ D viridis 1
 ## Session command history is saved to $XDG_STATE_HOME/gnuplot_history.
 ## If these files are not found, $HOME/.gnuplot and $HOME/.gnuplot_history
 ## are used as in previous gnuplot versions.
-#b `unset warnings` suppresses output of warning messages to the console.
+#b `unset warnings` suppresses output of warning messages to stderr.
+#b `warn "message"` prints filename, line number and message to stderr.
 #b Exception handling for the "fit" command.  Control always returns to the
 ## next line of input, even in the case of fit errors.  On return, FIT_ERROR is
 ## non-zero if an error occurred. This allows scripted recovery from a bad fit.
@@ -6323,7 +6324,8 @@ Ffigure_xerrorbars
  (x+xdelta,y), depending on how many data columns are provided.  The appearance
  of the tic mark at the ends of the bar is controlled by `set errorbars`.
  The clearance between the point and the error bars is controlled by
- `set pointintervalbox`.
+ `set pointintervalbox`.  To have the error bars pass directly through the
+ point with no interruption, use `unset pointintervalbox`.
  The basic style requires either 3 or 4 columns:
 
       3 columns:  x  y  xdelta
@@ -6345,7 +6347,8 @@ Ffigure_xyerrorbars
  (xlow,y) to (xhigh,y), depending upon the number of data columns provided.
  The appearance of the tic mark at the ends of the bar is controlled by
  `set errorbars`.  The clearance between the point and the error bars is
- controlled by `set pointintervalbox`.
+ controlled by `set pointintervalbox`. To have the error bars pass directly
+ through the point with no interruption, use `unset pointintervalbox`.
  Either 4 or 6 input columns are required.
 
       4 columns:  x  y  xdelta  ydelta
@@ -6423,7 +6426,8 @@ Ffigure_yerrorbars
  from (x,ylow) to (x,yhigh), depending on how many data columns are provided.
  The appearance of the tic mark at the ends of the bar is controlled by
  `set errorbars`.  The clearance between the point and the error bars is 
- controlled by `set pointintervalbox`.
+ controlled by `set pointintervalbox`.  To have the error bars pass directly
+ through the point with no interruption, use `unset pointintervalbox`.
 
       2 columns:  [implicit x] y ydelta
       3 columns:  x  y  ydelta
@@ -6708,6 +6712,10 @@ Ffigure_zerror
 
  In this example ARGV[1] and ARGV[2] have the full precision of a floating point
  variable.  ARG2 lost precision in being stored as a string using format "%g".
+
+ ARGC and a corresponding array ARGV[ARGC] are also available to code inside a
+ function block call.  However invocation of a function block does not create
+ string variables ARG1,... .
 3 Example
 ?call example
 ?commands call example
@@ -7470,10 +7478,12 @@ Ffigure_zerror
       gnuplot> plot $sinc(x) with lines title "sinc(x) as a function block"
 
  It is not necessary to specify a list of named arguments to a function block
- at the time it is declared. Arguments to the function passed from the command
- line can be also be accessed from inside the function block as ARGV[1] etc,
- as they would be for a `call` command.  See `ARGV`.  This allows defining a
- function block that can operate on a variable number of arguments.
+ at the time it is declared. The number and values of arguments to the function
+ passed from the command line can be be accessed from inside the function block
+ as an integer variable ARGC and a corresponding array ARGV[ARGC].  See `ARGV`.
+ This allows defining a function block that can operate on a variable number
+ of arguments.  Unlike loading a file via a `call` statement, arguments are
+ not repackaged as string variables (e.g. ARG1).
 
  Example:
       function $max << EOF
@@ -7511,6 +7521,7 @@ Ffigure_zerror
  Limitations:
 #start
 #b Data blocks and function blocks cannot be defined inside a function block.
+#b Pseudofile '-' cannot be used to read data inside a function block.
 #b These commands cannot be executed inside a function block:
 ##   `reset`, `shell`, `!<shell command>`.
 #b A `plot`, `replot`, `splot`, `refresh`, `stats`, `vfill`, or `fit` command
@@ -7860,7 +7871,7 @@ Ffigure_zerror
  `splot` draws 2D projections of 3D surfaces and data.
 
  Syntax:
-       plot {<ranges>} <plot-element> {, <plot-element>, <plot-element>}
+       plot {<axis-ranges>} <plot-element> {, <plot-element>, <plot-element>}
 
  Each plot element consists of a definition, a function, or a data source
  together with optional properties or modifiers:
@@ -9069,6 +9080,7 @@ Ffigure_smooth_path
 4 special-filenames
 ?special-filenames
 ?special_filenames
+?pseudofiles
 ?commands plot datafile special-filenames
 ?plot datafile special-filenames
 ?plot special-filenames
@@ -9076,8 +9088,9 @@ Ffigure_smooth_path
 ?data special-filenames
 ?special-filenames ++
 ?special-filenames +
-?+
-?++
+?'-'
+?'+'
+?'++'
  There are a few filenames that have a special meaning:  '', '-', '+' and '++'.
 
  The empty filename '' tells gnuplot to re-use the previous input file in the
@@ -9093,9 +9106,10 @@ Ffigure_smooth_path
  plot can only have a single y (or z) value associated with each sampled point.
  The pseudo-file '+' treats the sampled points as column 1, and allows
  additional column values to be specified via a `using` specification, just as
- for a true input file. The number of samples is controlled via `set samples`.
- By default samples are generated over the range given by `set trange`, or if
- trange has not been set than over the full range of `set xrange`.
+ for a true input file. The number of samples is controlled via `set samples`
+ or by giving an explicit sampling interval in the range specifier.
+ Samples are generated over the range given by `set trange` if it has been set,
+ otherwise over the full range of `set xrange`.
 
  Note: The use of trange is a change from some earlier gnuplot versions.
  It allows the sampling range to differ from the x axis range.
@@ -9104,14 +9118,19 @@ Ffigure_smooth_path
 
  An independent sampling range can be provided immediately before the '+'. As
  in normal function plots, a name can be assigned to the independent variable.
- If given for the first plot element, the sampling range specifier has to be
- preceded by the `sample` keyword (see also `plot sampling`).
+ Here is an example where the sampling interval (1.5) is given as part of the
+ sampling range.  Samples will be generated at -3, -1.5, 0, 1.5, ..., 24.
+
+       plot $MYDATA, [t=-3:25:1.5] '+' using (t):(f(t))
+
+ A sampling range that immediately follows the `plot` or `splot` command might
+ be mistakenly parsed as an x-axis range.  To prevent this ambiguity you can
+ either precede it with the `sample` keyword or provide a sampling interval,
+ possibly empty to use the default, as a third field of the sampling range.
+ See the example of such ambiguity in `plot sampling`.
 
        plot sample [beta=0:2*pi] '+' using (sin(beta)):(cos(beta)) with lines
-
- Additionally, the range specifier of '+' supports giving a sampling increment.
-
-       plot $MYDATA, [t=-3:25:1] '+' using (t):(f(t))
+       plot        [beta=0:2*pi:] '+' using (sin(beta)):(cos(beta)) with lines
 
  The pseudo-file '++' returns 2 columns of data forming a regular grid of [u,v]
  coordinates with the number of points along u controlled by `set samples` and
@@ -9146,8 +9165,8 @@ Ffigure_smooth_path
 
        plot 'a/very/long/filename' using 1:2, '' using 1:3, '' using 1:4
 
- (If you use both `'-'` and `''` on the same `plot` command, you'll need to
- have two sets of inline data, as in the example above.)
+ If you use both `'-'` and `''` on the same `plot` command, you'll need to
+ provide two sets of inline data.  It will not reuse the first one.
 
 4 piped-data
 ?commands plot datafile piped-data
@@ -9417,15 +9436,6 @@ Ffigure_smooth_path
 ?using zticlabels
 ?plot using zticlabels
  See `plot using xticlabels`.
-5 cbticlabels
-?using cbticlabels
- EXPERIMENTAL (details may change in a future release version)
- 2D plots: colorbox labels are placed at the palette coordinate used by the
- plot for variable coloring "lc palette z".
- 3D plots: colorbox labels are placed at the z coordinate of the point.
- Note that in the case of a 3D heat map with variable color that does not
- match z, this is probably not the correct label.
- See also `plot using xticlabels`.
 4 volatile
 ?datafile volatile
 ?data volatile
@@ -9556,12 +9566,14 @@ Ffigure_smooth_path
 4 1D sampling (x or t axis)
 ?sampling 1D
 ?plot sampling 1D
- By default, computed functions or data generated for the pseudo-file "+"
- are sampled over the entire range of the plot as set by a prior `set xrange`
- command, by an explicit global range specifier at the very start of the plot
- or splot command, or by autoscaling the xrange to span data seen in all the
- elements of this plot.  However, individual plot components can be assigned
- a more restricted sampling range.
+ By default, computed functions are sampled over the entire range of the plot
+ as set by a prior `set xrange` command, by an x-axis range specifier at the
+ very start of the plot command, or by autoscaling the xrange to span data seen
+ in all the elements of this plot.  Points generated by the pseudo-file "+"
+ are sampled over the current range of the t axis, which may or may not be
+ the same as the range of the x axis.
+
+ Individual plot components can be assigned a more restricted sampling range.
 
  Examples:
 
@@ -9576,25 +9588,35 @@ Ffigure_smooth_path
        set autoscale x
        plot 'datafile', [0:200] func1(x), [200:500] func2(x)
 
- This command is ambiguous. The initial range will be interpreted as applying
- to the entire plot, not solely to the sampling of the first function as was
- probably the intent:
+ The plot command below is ambiguous. The initial range [0:10] will be
+ interpreted as applying to the entire plot, overriding the previous xrange
+ command, rather than applying solely to the sampling of the first function
+ as was probably the intent:
+       set xrange [0:50]
        plot [0:10] f(x), [10:20] g(x), [20:30] h(x)
 
- This command removes the ambiguity of the previous example by inserting the
- keyword `sample` so that the range is not applied to the entire plot:
-       plot sample [0:10] f(x), [10:20] g(x), [20:30] h(x)
+ To remove the ambiguity in the previous example, either insert the keyword
+ `sample` to indicate that [0:10] is a sampling range rather than an axis range
+ or add a sampling increment field (following a second colon) in the range
+ specifier.  This works because a full range specifier [min:max:increment]
+ cannot be mis-parsed as an axis range.  If the increment field is empty
+ then the increment defaults to (min-max/samples), so all three variants
+ below produce the same result.
+       set samples 100
+       plot sample [0:10]     f(x), [10:20] g(x), [20:30] h(x)
+       plot        [0:10:0.1] f(x), [10:20] g(x), [20:30] h(x)
+       plot        [0:10:]    f(x), [10:20] g(x), [20:30] h(x)
 
  This example shows one way of tracing out a helix in a 3D plot
        set xrange [-2:2]; set yrange [-2:2]
-       splot sample [h=1:10] '+' using (cos(h)):(sin(h)):(h)
+       set angle degrees
+       splot [phi=1:720:2] '+' using (cos(phi)):(sin(phi)):(phi)
 
 4 2D sampling (u and v axes)
 ?sampling 2D
 ?plot sampling 2D
  Computed functions or data generated for the pseudo-file '++' use samples
- generated along the u and v axes. This is a CHANGE from versions prior to
- 5.2 which sampled along the x and y axes.  See `special-filenames ++`.
+ generated along the u and v axes.  See `special-filenames ++`.
  2D sampling can be used in either `plot` or `splot` commands.
 
  Example of 2D sampling in a 2D `plot` command.  These commands generated the
@@ -9614,7 +9636,7 @@ Ffigure_smooth_path
 
  The range specifiers for sampling on u and v can include an explicit sampling
  interval to control the number and spacing of samples:
-      splot sample [u=30:70:1][v=0:50:5] '++' using 1:2:(func($1,$2))
+      splot [u=30:70:1][v=0:50:5] '++' using 1:2:(func($1,$2))
 
 3 for loops in plot command
 ?commands plot for
@@ -9953,6 +9975,8 @@ Ffigure_smooth_path
 ?printerr
  `printerr` is the same as `print` except that output is always sent to stderr
  even while redirection from a prior `set print` command remains in effect.
+ Use the `warn` command instead if you want the output to include the current
+ filename (or function block name) and line number.
 2 pwd
 ?commands pwd
 ?pwd
@@ -12627,13 +12651,23 @@ Ffigure_keyentry
  All the usual options for title font, text color, `at` coordinates, and
  enhanced text markup apply.
  Example:
-      set key outside right center title "Outcomes"
+      set key outside right center
       plot $HEATMAP matrix with image notitle, \
+           keyentry "Outcomes" left, \
            keyentry with boxes fc palette cb 0 title "no effect", \
            keyentry with boxes fc palette cb 1 title "threshold", \
            keyentry with boxes fc palette cb 3 title "typical range", \
-           keyentry with labels nopoint title "as reported in [12]", \
+           keyentry                            title "as reported in [12]", \
            keyentry with boxes fc palette cb 5 title "strong effect"
+
+ The line generated by `keyentry "Outcomes" left` places left-justified text
+ in the space that would normally hold the sample. This allows an embedded
+ title that may span the full width of the key.  If a title is given also in
+ the same keyentry then both strings appear on the same line, allowing
+ generation of two-column key entries.
+ You can use keywords `left/right/center` for justification, `boxed`, etc.
+ Example:
+      plot ..., keyentry "West Linn" boxed title "locations"
 4 key autotitle
 ?commands set key autotitle
 ?set key autotitle
@@ -15160,7 +15194,7 @@ D spotlight 1
  (actually circle) behind each point symbol is blanked out by filling with the
  background color.  The command `set pointintervalbox` controls the radius of
  this blanked-out region.  It is a multiplier for the default radius, which is
- equal to the point size.
+ equal to the point size. `unset pointintervalbox` draws no blanked-out region.
 3 pointsize
 ?commands set pointsize
 ?commands show pointsize
@@ -18806,8 +18840,9 @@ D viridis 1
       unset warnings
 
  Warning messages for non-fatal errors are normally printed to stderr after
- echoing the command line that triggered the warning.
+ echoing the file name, line number, and command line that triggered the warning.
  Warnings may be suppressed by the command `unset warnings`.
+ A warning may be generated on demand by the command `warn "message"`.
  They remain suppressed until explicitly reenabled by `set warnings`.
 2 update
 ?commands update
@@ -18870,6 +18905,15 @@ D viridis 1
  current voxel grid.
  To reset a single voxel to zero, use `voxel(x,y,z) = 0`.
  To reset the entire grid to zero, use `vclear`.
+2 warn
+?warn
+?commands warn
+ Syntax:
+       warn "message"
+ The `warn` command is essentially the same as `printerr` except that it
+ prepends the current filename or function block name and the current line
+ number before printing the requested message to stderr.
+ Unlike `printerr` the output from `warn` is suppressed by `unset warnings`.
 2 While
 ?while
 ?commands while

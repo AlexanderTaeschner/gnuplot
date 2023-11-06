@@ -830,19 +830,27 @@ real_free_at(struct at_type *at_ptr)
     free(at_ptr);
 }
 
-/* EAM July 2003 - Return pointer to udv with this name; if the key does not
+/* Return pointer to udv with this name; if the key does not
  * match any existing udv names, create a new one and return a pointer to it.
+ * Local variables are not created here; they use add_udv_local().
  */
 struct udvt_entry *
 add_udv_by_name(char *key)
 {
     struct udvt_entry **udv_ptr = &first_udv;
+    int current_locality = lf_head ? lf_head->locality : 0;
 
     /* check if it's already in the table... */
 
     while (*udv_ptr) {
-	if (!strcmp(key, (*udv_ptr)->udv_name))
-	    return (*udv_ptr);
+	if (!strcmp(key, (*udv_ptr)->udv_name)) {
+	    /* This is a global variable; we must not have seen a relevant local definition */
+	    if ((*udv_ptr)->locality == 0)
+		return (*udv_ptr);
+	    /* This is a local variable referenced from a bracketed clause that follows it */
+	    if ((*udv_ptr)->locality >= current_locality)
+		return (*udv_ptr);
+	}
 	udv_ptr = &((*udv_ptr)->next_udv);
     }
 
@@ -851,6 +859,7 @@ add_udv_by_name(char *key)
     (*udv_ptr)->next_udv = NULL;
     (*udv_ptr)->udv_name = gp_strdup(key);
     (*udv_ptr)->udv_value.type = NOTDEFINED;
+    (*udv_ptr)->locality = 0;
     return (*udv_ptr);
 }
 

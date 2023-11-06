@@ -1243,6 +1243,21 @@ int_warn(int t_num, const char str[], va_dcl)
 
 /*}}} */
 
+/*
+ * user-triggered warning
+ * Syntax:
+ *	warn "some message"
+ */
+void
+warn_command()
+{
+    char *message;
+    c_token++;
+    if ((message = try_to_get_string())) {
+	int_warn(NO_CARET, message);
+	free(message);
+    }
+}
 
 /*
  * Reduce all multiple white-space chars to single spaces (if remain == 1)

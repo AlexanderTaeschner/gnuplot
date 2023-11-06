@@ -158,8 +158,7 @@ prepare_call(int calltype, udvt_entry *functionblock)
 	    if (functionblock->udv_value.v.functionblock.parnames) {
 		char *name = functionblock->udv_value.v.functionblock.parnames[call_argc];
 		if (name) {
-		    struct udvt_entry *udv = add_udv_by_name(name);
-		    shadow_one_variable(udv);
+		    struct udvt_entry *udv = add_udv_local(0, name, lf_head->depth);
 		    udv->udv_value = eval_parameters[call_argc];
 		    if (udv->udv_value.type == STRING)
 			udv->udv_value.v.string_val = strdup(udv->udv_value.v.string_val);
@@ -433,24 +432,29 @@ lf_pop()
 	}
 	call_argc = lf->call_argc;
 
-	/* Restore ARGC and ARG0 ... ARG9 */
+	/* Restore ARGC */
 	if ((udv = get_udv_by_name("ARGC"))) {
 	    Ginteger(&(udv->udv_value), call_argc);
 	}
 
-	if ((udv = get_udv_by_name("ARG0"))) {
-	    gpfree_string(&(udv->udv_value));
-	    Gstring(&(udv->udv_value),
-		(lf->prev && lf->prev->name) ? gp_strdup(lf->prev->name) : gp_strdup(""));
-	}
-
-	for (argindex = 1; argindex <= 9; argindex++) {
-	    if ((udv = get_udv_by_name(argname[argindex]))) {
+	/* function block calls do not touch ARG0..ARG9
+	 * so there is no point in restoring them
+	 */
+	if (!lf->shadow_at) {
+	    if ((udv = get_udv_by_name("ARG0"))) {
 		gpfree_string(&(udv->udv_value));
-		if (!call_args[argindex-1])
-		    udv->udv_value.type = NOTDEFINED;
-		else
-		    Gstring(&(udv->udv_value), gp_strdup(call_args[argindex-1]));
+		Gstring(&(udv->udv_value),
+		    (lf->prev && lf->prev->name) ? gp_strdup(lf->prev->name) : gp_strdup(""));
+	    }
+
+	    for (argindex = 1; argindex <= 9; argindex++) {
+		if ((udv = get_udv_by_name(argname[argindex]))) {
+		    gpfree_string(&(udv->udv_value));
+		    if (!call_args[argindex-1])
+			udv->udv_value.type = NOTDEFINED;
+		    else
+			Gstring(&(udv->udv_value), gp_strdup(call_args[argindex-1]));
+		}
 	    }
 	}
 
@@ -534,6 +538,18 @@ lf_push(FILE *fp, char *name, char *cmdline)
     lf->inline_num = inline_num;	/* save current line number */
     lf->call_argc = call_argc;
 
+    lf->depth = lf_head ? lf_head->depth+1 : 1;	/* recursion depth */
+    if (lf->depth > STACK_DEPTH)
+	int_error(NO_CARET, "load/eval nested too deeply");
+
+    /* call/load/functionblock all establish a new scope for local variables.
+     * do_string (bracketed clauses and single-line evaluate) does not.
+     */
+    if (cmdline == NULL)
+	lf->locality = lf->depth;
+    else
+	lf->locality = lf_head ? lf_head->locality : 0;
+
     /* Call arguments are irrelevant if invoked from do_string_and_free */
     if (cmdline == NULL) {
 	struct udvt_entry *udv;
@@ -561,9 +577,6 @@ lf_push(FILE *fp, char *name, char *cmdline)
 	    }
 	}
     }
-    lf->depth = lf_head ? lf_head->depth+1 : 0;	/* recursion depth */
-    if (lf->depth > STACK_DEPTH)
-	int_error(NO_CARET, "load/eval nested too deeply");
     lf->if_open_for_else = if_open_for_else;
     lf->local_variables = FALSE;
     lf->c_token = c_token;
@@ -614,37 +627,20 @@ lf_reset_after_error()
     while (lf_pop());
 }
 
-/* Restore any variables that were shadowed by a local variable */
+/* Delete any local variables declared at this depth.
+ * Any local variables declared at a deeper locality should already be gone
+ * but if we see one here then delete it silently.
+ */
 static void
 lf_exit_scope(int depth)
 {
-    struct udvt_entry *udv, *restored_udv;
+    struct udvt_entry *udv;
     struct udvt_entry *prev_udv = first_udv;
-    char prefix[13];
-    char *name;
-
-    snprintf(prefix, sizeof(prefix), "GPLOCAL_%03d_", depth);
-    FPRINTF((stderr, "Leaving scope of %s variables\n", prefix));
 
     for (prev_udv = first_udv, udv = prev_udv->next_udv;
 	 udv;  prev_udv = udv, udv = udv->next_udv) {
-	if (strncmp(udv->udv_name,prefix,12))
-	    continue;
-	name = &(udv->udv_name[12]);
-	restored_udv = get_udv_by_name(name);
-	if (restored_udv) {
-	    if (restored_udv->udv_value.type == ARRAY) {
-		int subtype = restored_udv->udv_value.v.value_array[0].type;
-		if (subtype != TEMP_ARRAY && subtype != LOCAL_ARRAY)
-		    /* prevents free_value from deleting permanent array content */
-		    restored_udv->udv_value.type = NOTDEFINED;
-	    }
-	    free_value(&restored_udv->udv_value);
-	    restored_udv->udv_value = udv->udv_value;
-	    /* It is not sufficient to mark the shadow copy NOTDEFINED because if
-	     * we see it later we would spuriously restore the original from it.
-	     * Instead delete it altogether.
-	     */
+	if (udv->locality >= depth) {
+	    free_value(&udv->udv_value);
 	    prev_udv->next_udv = udv->next_udv;
 	    free(udv->udv_name);
 	    free(udv);
@@ -1022,7 +1018,7 @@ lp_parse(struct lp_style_type *lp, lp_class destination_class, TBOOLEAN allow_po
 			break;
 		    c_token--;
 		    parse_colorspec(&(newlp.pm3d_color), TC_Z);
-		} else if (equals(c_token,"bgnd")) {
+		} else if (equals(c_token,"bgnd") || equals(c_token,"background")) {
 		    *lp = background_lp;
 		    c_token++;
 		} else if (equals(c_token,"black")) {
@@ -1089,7 +1085,7 @@ lp_parse(struct lp_style_type *lp, lp_class destination_class, TBOOLEAN allow_po
 		    c_token--;
 		    parse_colorspec(&(newlp.pm3d_color), TC_Z);
 		}
-	    } else if (equals(c_token,"bgnd")) {
+	    } else if (equals(c_token,"bgnd") || equals(c_token,"background")) {
 		newlp.pm3d_color.type = TC_LT;
 		newlp.pm3d_color.lt = LT_BACKGROUND;
 		c_token++;
@@ -1126,7 +1122,7 @@ lp_parse(struct lp_style_type *lp, lp_class destination_class, TBOOLEAN allow_po
 	    continue;
 	}
 
-	if (equals(c_token,"bgnd")) {
+	if (equals(c_token,"bgnd") || equals(c_token,"background")) {
 	    if (set_lt++)
 		break;;
 	    c_token++;
@@ -1399,7 +1395,7 @@ parse_colorspec(struct t_colorspec *tc, int options)
     if (almost_equals(c_token,"def$ault")) {
 	c_token++;
 	tc->type = TC_DEFAULT;
-    } else if (equals(c_token,"bgnd")) {
+    } else if (equals(c_token,"bgnd") || equals(c_token,"background")) {
 	c_token++;
 	tc->type = TC_LT;
 	tc->lt = LT_BACKGROUND;

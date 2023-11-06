@@ -1794,7 +1794,7 @@ eval_3dplots()
 
 		/* this_plot->token is temporary, for errors in get_3ddata() */
 
-		/* NB: df_axis is used only for timedate data and 3D cbticlabels */
+		/* NB: df_axis is used only for timedate data */
 		if (specs < 3) {
 		    if (axis_array[FIRST_X_AXIS].datatype == DT_TIMEDATE)
 			int_error(c_token, "Need full using spec for x time data");
@@ -2117,7 +2117,10 @@ eval_3dplots()
 			this_plot->labels->pos = CENTRE;
 			this_plot->labels->layer = LAYER_PLOTLABELS;
 		    }
-		    parse_label_options(this_plot->labels, 3);
+		    if (this_plot->plot_type == KEYENTRY)
+			parse_label_options(this_plot->labels, 4);
+		    else
+			parse_label_options(this_plot->labels, 3);
 		    if (draw_contour)
 			load_contour_label_options(this_plot->labels);
 		    checked_once = TRUE;
@@ -2185,7 +2188,9 @@ eval_3dplots()
 	    this_plot->title_is_automated = FALSE;
 	    if (!set_title) {
 		this_plot->title_no_enhanced = TRUE; /* filename or function cannot be enhanced */
-		if (key->auto_titles == COLUMNHEAD_KEYTITLES) {
+		if (this_plot->plot_type == KEYENTRY) {
+		    this_plot->title = strdup(" ");
+		} else if (key->auto_titles == COLUMNHEAD_KEYTITLES) {
 		    this_plot->title_is_automated = TRUE;
 		} else if (key->auto_titles == FILENAME_KEYTITLES) {
 		    m_capture(&(this_plot->title), start_token, end_token);

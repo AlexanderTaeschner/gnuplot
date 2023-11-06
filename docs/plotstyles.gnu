@@ -729,13 +729,13 @@ set palette rgbform -7,2,-7
 unset colorbox
 set style fill solid border lc "black"
 set key outside right center reverse Left samplen 1
-set key title "Outcomes" left
 
 plot $HEATMAP matrix with image pixels notitle, \
+    keyentry "Outcomes" left, \
     keyentry with boxes fc palette cb 0 title "no effect", \
     keyentry with boxes fc palette cb 1 title "threshold", \
     keyentry with boxes fc palette cb 3 title "typical range", \
-    keyentry with labels title "as reported in [12]", \
+    keyentry            title "as reported in [12]", \
     keyentry with boxes fc palette cb 5 title "strong effect"
 
 #

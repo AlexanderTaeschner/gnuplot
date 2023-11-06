@@ -86,6 +86,7 @@ struct at_type * create_call_column_at(char *);
 struct at_type * create_call_columnhead(void);
 struct udvt_entry * add_udv(int t_num);
 struct udft_entry * add_udf(int t_num);
+struct udvt_entry * add_udv_local(int t_num, char *name, int locality);
 void cleanup_udvlist(void);
 int is_function(int t_num);
 
@@ -98,11 +99,11 @@ typedef struct iterator {
 	struct udvt_entry *iteration_udv;
 	t_value original_udv_value;	/* prior value of iteration variable */
 	char *iteration_string;
-	int iteration_start;
-	int iteration_end;
-	int iteration_increment;
-	int iteration_current;		/* start + increment * iteration */
-	int iteration;			/* runs from 0 to (end-start)/increment */
+	intgr_t iteration_start;
+	intgr_t iteration_end;
+	intgr_t iteration_increment;
+	intgr_t iteration_current;	/* start + increment * iteration */
+	intgr_t iteration;		/* runs from 0 to (end-start)/increment */
 	TBOOLEAN iteration_NODATA;	/* set when an unbounded iteration dead-ends */
 	struct at_type *start_at;	/* expression that evaluates to iteration_start */
 	struct at_type *end_at;		/* expression that evaluates to iteration_end */

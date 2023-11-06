@@ -4020,17 +4020,16 @@ PS_image (unsigned int M, unsigned int N, coordval *image, gpiPoint *corner, t_i
 	cscale = 1.0;
 
 #ifdef HAVE_DEFLATE_ENCODER
-    if (ps_params->level3) {
+    if (ps_params->level3)
 	encoded_image = (void *)PS_encode_png_image(M, N, image, color_mode,
 					    bits_per_component, max_colors, cscale,
 					    &num_encoded_bytes);
-    } else {
+    else
 #endif
 	encoded_image = PS_encode_image(M, N, image, color_mode,
 					bits_per_component, max_colors, cscale,
 					(ps_params->level1 ? PS_ASCII_HEX : PS_ASCII85),
 					&num_encoded_bytes);
-    }
 
 
     fputs("%%%%BeginImage\n", gppsfile);

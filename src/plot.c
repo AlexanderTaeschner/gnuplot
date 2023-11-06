@@ -456,15 +456,18 @@ main(int argc_orig, char **argv)
 #endif
 	init_gadgets();
 
-	/* April 2017: Now that error handling is in place, it is safe parse
-	 * GNUTERM during terminal initialization.
-	 * atexit processing is done in reverse order. We want
+	/* Now that error handling is in place, it is safe to parse GNUTERM
+	 * during terminal initialization.  However if terminal initialization
+	 * exits via int_error(), the session and history state initialization
+	 * can only be reached via a GOTO from the error return.
+	 */
+	init_terminal();
+	push_terminal(0);	/* remember the initial terminal */
+
+	/* atexit processing is done in reverse order. We want
 	 * the generic terminal shutdown in term_reset to be executed before
 	 * any terminal specific cleanup requested by individual terminals.
 	 */
-	/* Need this before show_version is called for the first time */
-	init_terminal();
-	push_terminal(0);	/* remember the initial terminal */
 	gp_atexit(term_reset);
 
 #ifdef X11
@@ -475,6 +478,7 @@ main(int argc_orig, char **argv)
 	    argc -= n;
 	}
 #endif
+	FALLBACK_ONCE_FROM_INIT_FAILURE:
 
 	/* Version 6:  defer splash page until after initialization */
 	if (interactive)
@@ -529,9 +533,16 @@ main(int argc_orig, char **argv)
     } else {
 	/* come back here from int_error() */
 	if (!successful_initialization) {
-	    /* Only print the warning once */
+	    /* Only warn and attempt a fall-back on the first failure.
+	     * There is no guarantee that we will come out of this in a
+	     * usable state, but the only truly safe alternative would be
+	     * to give up and exit the program.
+	     */
 	    successful_initialization = TRUE;
-	    fprintf(stderr,"WARNING: Error during initialization\n\n");
+	    fprintf(stderr, "WARNING: Error during initialization\n");
+	    fprintf(stderr, "         Check initialization files and environment variables (e.g. GNUTERM)\n");
+	    change_term("unknown", 7);
+	    goto FALLBACK_ONCE_FROM_INIT_FAILURE;
 	}
 	if (interactive == FALSE)
 	    exit_status = EXIT_FAILURE;

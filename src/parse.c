@@ -1352,6 +1352,37 @@ add_udv(int t_num)
     return add_udv_by_name(varname);
 }
 
+/* Local variable declaration *always* creates a new udf.
+ * Put it at the head of the list on the assumption that it will
+ * be used soon and often.  This also means that a local variable
+ * with name FOO will always be encountered before a global
+ * (or less-nested local) variable with the same name.
+ * We are passed either a token (get name from command line) or
+ * a string (name is already known), but not both.
+ */
+struct udvt_entry *
+add_udv_local(int t_num, char *name, int locality)
+{
+    struct udvt_entry *udv_ptr;
+    char varname[MAX_ID_LEN+1];
+
+    if (!name) {
+	copy_str(varname, t_num, MAX_ID_LEN);
+	if (token[t_num].length > MAX_ID_LEN-1)
+	    int_warn(t_num, "truncating variable name that is too long");
+	name = varname;
+    }
+
+    udv_ptr = (struct udvt_entry *) gp_alloc(sizeof(struct udvt_entry), "local");
+    udv_ptr->next_udv = first_udv->next_udv;
+    first_udv->next_udv = udv_ptr;
+    udv_ptr->udv_name = gp_strdup(name);
+    udv_ptr->udv_value.type = NOTDEFINED;
+    udv_ptr->locality = locality;
+    return udv_ptr;
+}
+
+
 
 /* find or add function at index <t_num>, and return pointer */
 struct udft_entry *
@@ -1448,11 +1479,11 @@ check_for_iteration()
 	struct udvt_entry *iteration_udv = NULL;
 	t_value original_udv_value;
 	char *iteration_string = NULL;
-	int iteration_start;
-	int iteration_end;
-	int iteration_increment = 1;
-	int iteration_current;
-	int iteration = 0;
+	intgr_t iteration_start;
+	intgr_t iteration_end;
+	intgr_t iteration_increment = 1;
+	intgr_t iteration_current;
+	intgr_t iteration = 0;
 	struct at_type *iteration_start_at = NULL;
 	struct at_type *iteration_end_at = NULL;
 
@@ -1500,7 +1531,9 @@ check_for_iteration()
 	    }
 	    if (equals(c_token,":")) {
 	    	c_token++;
-	    	iteration_increment = int_expression();
+		/* Allow empty expression to act as the default would */
+		if (!equals(c_token,"]"))
+		    iteration_increment = int_expression();
 		if (iteration_increment == 0)
 		    int_error(c_token-1, errormsg);
 	    }

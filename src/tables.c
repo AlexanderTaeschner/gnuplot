@@ -100,6 +100,7 @@ const struct gen_ftable command_ftbl[] =
     { "vfill", vfill_command },
     { "vgfill", vfill_command },
     { "voxel", voxel_command },
+    { "warn", warn_command },
     { "while", while_command },
     { "{", begin_clause },
     { "}", end_clause },

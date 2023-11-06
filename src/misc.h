@@ -111,6 +111,7 @@ typedef struct lf_state_struct {
     struct value argv[10];	/* content of global ARGV[] array */
     struct at_type *shadow_at;	/* context of call to function block */
     int shadow_at_size;  	/* context of call to function block */
+    int locality;		/* depth at last call that declared local variables */
 }  LFS;
 extern LFS *lf_head;
 

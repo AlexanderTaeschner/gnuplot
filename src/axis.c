@@ -1204,7 +1204,7 @@ gen_tics(struct axis *this, tic_callback callback)
 	reorder_if_necessary(start, end);
 	step = fabs(step);
 
-	if ((minitics != MINI_OFF) && (this->miniticscale != 0)) {
+	if (minitics != MINI_OFF) {
 	    FPRINTF((stderr,"axis.c: %d  start = %g end = %g step = %g base = %g\n",
 			__LINE__, start, end, step, this->base));
 
@@ -1406,7 +1406,7 @@ gen_tics(struct axis *this, tic_callback callback)
 		/* We will do time tics in a separate pass */
 		continue;
 
-	    if ((minitics != MINI_OFF) && (this->miniticscale != 0)) {
+	    if (minitics != MINI_OFF) {
 		/* {{{  process minitics */
 		double mplace, mtic_user, mtic_internal;
 
@@ -2368,15 +2368,18 @@ char *c, *cfmt;
 /* Accepts a range of the form [MIN:MAX] or [var=MIN:MAX]
  * Loads new limiting values into axis->min axis->max
  * Returns
+ *	>0 = token indexing the leading variable name [foo=min:max]
  *	 0 = no range spec present
- *	-1 = range spec with no attached variable name
- *	>0 = token indexing the attached variable name
+ *	-1 = range spec with no leading variable name
+ *	-2 = found a second colon, so it must be a sampling range
  */
 int
 parse_range(AXIS_INDEX axis)
 {
     struct axis *this_axis = &axis_array[axis];
     int dummy_token = -1;
+    int starting_token = c_token;
+    struct axis saved_axis;
 
     /* No range present */
     if (!equals(c_token, "["))
@@ -2395,8 +2398,22 @@ parse_range(AXIS_INDEX axis)
 	c_token += 2;
     }
 
+    /* Save entire axis state before loading range, so we can back out if necessary */
+    memcpy(&saved_axis, this_axis, sizeof(struct axis));
+
     this_axis->autoscale = load_range(this_axis, &this_axis->min, &this_axis->max,
 					this_axis->autoscale);
+
+    /* A second colon is permitted only in a sampling range.
+     * If we see one now, back out from trying to interpret this as a primary axis.
+     */
+    if (equals(c_token, ":")
+    && !(axis == SAMPLE_AXIS || axis == T_AXIS || axis == U_AXIS || axis == V_AXIS)) {
+	c_token = starting_token;
+	/* restore original axis range */
+	memcpy(this_axis, &saved_axis, sizeof(struct axis));
+	return -2;
+    }
 
     /* Nonlinear axis - find the linear range equivalent */
     if (this_axis->linked_to_primary) {
@@ -2419,7 +2436,9 @@ parse_range(AXIS_INDEX axis)
 	this_axis->SAMPLE_INTERVAL = 0;
 	if (equals(c_token, ":")) {
 	    c_token++;
-	    this_axis->SAMPLE_INTERVAL = real_expression();
+	    /* Allow empty expression to act as the default would */
+	    if (!equals(c_token, "]"))
+		this_axis->SAMPLE_INTERVAL = real_expression();
 	}
     }
 

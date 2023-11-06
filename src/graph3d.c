@@ -1401,9 +1401,20 @@ do_3dplot(
 		    break;
 
 		case LABELPOINTS:
-		    if ((this_plot->labels->lp_properties.flags & LP_SHOW_POINTS)) {
-			term_apply_lp_properties(&this_plot->labels->lp_properties);
-			key_sample_point(this_plot, xl, yl, this_plot->labels->lp_properties.p_type);
+		    if (this_plot->plot_type == KEYENTRY) {
+			struct text_label *label = this_plot->labels;
+			int anchor = xl;
+			if (label->pos == LEFT)
+			    anchor += key_sample_left;
+			else if (label->pos == RIGHT)
+			    anchor += key_sample_right;
+			else
+			    anchor += key_point_offset;
+			write_label(anchor, yl, label);
+		    } else if ((this_plot->labels->lp_properties.flags & LP_SHOW_POINTS)) {
+			struct text_label *label = this_plot->labels;
+			term_apply_lp_properties(&(label->lp_properties));
+			key_sample_point(this_plot, xl, yl, label->lp_properties.p_type);
 		    }
 		    break;
 

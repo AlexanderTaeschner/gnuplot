@@ -268,18 +268,25 @@ plotrequest()
 	    parse_skip_range();
     }
 
-    /* Range limits for the entire plot are optional but must be given	*/
-    /* in a fixed order. The keyword 'sample' terminates range parsing.	*/
-    if (parametric || polar) {
+    /* Axis range limits for the entire plot are optional but must be given
+     * in the fixed order x y x2 y2.
+     * A sampling range [var=start:end:increment] terminates parsing of axis
+     * range limits.  The keyword 'sample' also terminates range parsing.
+     */
+    if (parametric || polar)
 	dummy_token = parse_range(T_AXIS);
-	parse_range(FIRST_X_AXIS);
-    } else {
+    else
 	dummy_token = parse_range(FIRST_X_AXIS);
-    }
-    parse_range(FIRST_Y_AXIS);
-    parse_range(SECOND_X_AXIS);
-    parse_range(SECOND_Y_AXIS);
-    if (equals(c_token,"sample") && equals(c_token+1,"["))
+#define SAMPLING_RANGE -2
+    if (dummy_token == SAMPLING_RANGE)
+	dummy_token = 0;
+    else if ((parse_range(FIRST_Y_AXIS) != SAMPLING_RANGE)
+         &&  (parse_range(SECOND_X_AXIS) != SAMPLING_RANGE)
+         &&  (parse_range(SECOND_Y_AXIS) != SAMPLING_RANGE))
+		; /* Nothing to do */
+#undef SAMPLING_RANGE
+    /* FIXME: would like to deprecate the "sample" keyword altogether */
+    if (equals(c_token,"sample"))
 	c_token++;
 
     /* Clear out any tick labels read from data files in previous plot */
@@ -2895,7 +2902,10 @@ eval_plots()
 			if (!set_labelstyle)
 			    this_plot->labels->textcolor.type = TC_DEFAULT;
 		    }
-		    parse_label_options(this_plot->labels, 2);
+		    if (this_plot->plot_type == KEYENTRY)
+			parse_label_options(this_plot->labels, 4);
+		    else
+			parse_label_options(this_plot->labels, 2);
 		    if (stored_token != c_token) {
 			if (set_labelstyle) {
 			    duplication = TRUE;
@@ -2969,7 +2979,9 @@ eval_plots()
 	    this_plot->title_is_automated = FALSE;
 	    if (!set_title) {
 		this_plot->title_no_enhanced = TRUE; /* filename or function cannot be enhanced */
-		if (key->auto_titles == COLUMNHEAD_KEYTITLES) {
+		if (this_plot->plot_type == KEYENTRY) {
+		    this_plot->title = strdup(" ");
+		} else if (key->auto_titles == COLUMNHEAD_KEYTITLES) {
 		    this_plot->title_is_automated = TRUE;
 		} else if (key->auto_titles == FILENAME_KEYTITLES) {
 		    m_capture(&(this_plot->title), start_token, end_token);
@@ -3240,7 +3252,7 @@ eval_plots()
 			int_error(c_token, "Need using spec for y time data");
 		}
 
-		/* NB: df_axis is used only for timedate data and 3D cbticlabels */
+		/* NB: df_axis is used only for timedate data */
 		df_axis[0] = x_axis;
 		df_axis[1] = y_axis;
 
@@ -3613,10 +3625,11 @@ eval_plots()
 		plot_num++;
 
 		/* Check for a sampling range. */
-		/* Only relevant to function plots, and only needed in second pass. */
 		if (!parametric && !polar)
 		    init_sample_range(axis_array + x_axis, FUNC);
 		sample_range_token = parse_range(SAMPLE_AXIS);
+		if (sample_range_token > 0 && equals(sample_range_token, "u"))
+		    parse_range(V_AXIS);
 		dummy_func = &(this_plot->plot_function);
 
 		if (almost_equals(c_token, "newhist$ogram")) {
