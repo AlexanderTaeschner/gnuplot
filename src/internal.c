@@ -302,7 +302,6 @@ f_sum(union argument *arg)
     struct value result;            /* accummulated sum */
     struct value f_i;
     struct value save_i;	    /* previous value of iteration variable */
-    int i;
     intgr_t llsum;		    /* integer sum */
     TBOOLEAN integer_terms = TRUE;
 
@@ -325,7 +324,7 @@ f_sum(union argument *arg)
     if (!udf)
 	int_error(NO_CARET, "internal error: lost expression to be evaluated during summation");
 
-    for (i=beg.v.int_val; i<=end.v.int_val; ++i) {
+    for (intgr_t i = beg.v.int_val; i <= end.v.int_val; ++i) {
 	double x, y;
 
 	/* calculate f_i = f() with user defined variable i */
