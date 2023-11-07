@@ -2391,8 +2391,7 @@ df_readascii(double v[], int max)
 			v[output] = df_column[column - 1].datum;
 
 		    /* Do not return immediately on DF_MISSING or DF_UNDEFINED */
-		    } else if ((column <= df_no_cols)
-			     && (use_spec[output].expected_type == CT_MUST_HAVE)) {
+		    } else if (use_spec[output].expected_type == CT_MUST_HAVE) {
 			/* This catches cases where the plot style cannot tolerate
 			 * silently missed points (e.g. stacked histograms)
 			 */
