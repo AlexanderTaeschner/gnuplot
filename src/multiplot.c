@@ -41,16 +41,26 @@
 #include "multiplot.h"
 
 #include "command.h"
+#include "datablock.h"
 #include "gadgets.h"
 #include "graphics.h"
+#include "misc.h"
 #include "parse.h"
 #include "setshow.h"
 #include "util.h"
 
+/* Support for multiplot playback */
+TBOOLEAN multiplot_playback = FALSE;	/* TRUE while inside "remultiplot" playback */
+static t_value multiplot_udv = {
+	.type = DATABLOCK,
+	.v.data_array = NULL
+};
 
+/* Local prototypes */
 static void mp_layout_size_and_offset(void);
 static void mp_layout_margins_and_spacing(void);
 static void mp_layout_set_margin_or_spacing(t_position *);
+static void init_multiplot_datablock(void);
 
 enum set_multiplot_id {
     S_MULTIPLOT_LAYOUT,
@@ -199,7 +209,6 @@ multiplot_start()
     c_token++;
 
     /* Only a few options are possible if we are already in multiplot mode */
-    /* So far we have "next".  Maybe also "previous", "clear"? */
     if (multiplot) {
 	if (equals(c_token, "next")) {
 	    c_token++;
@@ -416,6 +425,7 @@ multiplot_start()
     multiplot = TRUE;
     multiplot_count = 0;
     fill_gpval_integer("GPVAL_MULTIPLOT", 1);
+    init_multiplot_datablock();
 
     /* Place overall title before doing anything else */
     if (mp_layout.title.text) {
@@ -483,6 +493,19 @@ multiplot_end()
     if (mp_layout.title.text) {
 	free(mp_layout.title.text);
 	mp_layout.title.text = NULL;
+    }
+
+    if (!multiplot_playback) {
+	/* Create or recycle a user-visible datablock for replay */
+	struct udvt_entry *datablock = add_udv_by_name("$GPVAL_LAST_MULTIPLOT");
+	free_value(&datablock->udv_value);
+
+	/* Save the current "unset multiplot" command before moving the command list */
+	append_to_datablock(&multiplot_udv, strdup(gp_input_line));
+
+	/* Move the command list to $GPVAL_LAST_MULTIPLOT */
+	datablock->udv_value = multiplot_udv;
+	multiplot_udv.v.data_array = NULL;
     }
 }
 
@@ -619,3 +642,49 @@ mp_layout_set_margin_or_spacing(t_position *margin)
     }
 }
 
+/* Begin accummulating lines that can later be replayed by replay_multiplot().
+ * The first line to be stored is a comment.
+ * Subsequent lines will be appended as they are read in.
+ */
+static void
+init_multiplot_datablock()
+{
+    gpfree_datablock(&multiplot_udv);
+    multiplot_udv.type = DATABLOCK;
+    append_to_datablock(&multiplot_udv, strdup("# saved multiplot"));
+}
+
+/* Append one line to the multiplot history.
+ * Called from two places:
+ *	command.c:com_line() catches direct input from stdin
+ *	util.c:load_file() catches lines from load/call
+ * When the multiplot is exited via multiplot_end(), all lines will be
+ * copied to the user-visible datblock $GPVAL_LAST_MULTIPLOT.
+ */
+void
+append_multiplot_line(char *line)
+{
+    append_to_datablock(&multiplot_udv, strdup(line));
+}
+
+/* This is the implementation of "remultiplot".
+ * The load operation is protected by a flag to prevent infinite recursion.
+ */
+void
+replay_multiplot()
+{
+    c_token++;
+    multiplot_playback = TRUE;
+    load_file(NULL, strdup("$GPVAL_LAST_MULTIPLOT"), 6);
+    multiplot_playback = FALSE;
+}
+
+/* reset needed if int_error() is invoked during multiplot playback */
+void
+multiplot_reset_after_error()
+{
+    if (!multiplot_playback)
+	return;
+    multiplot_end();
+    multiplot_playback = FALSE;
+}

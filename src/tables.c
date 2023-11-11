@@ -42,6 +42,7 @@
 #include "graph3d.h"	/* for DGRID3D_* options */
 #include "getcolor.h"
 #include "voxelgrid.h"
+#include "multiplot.h"	/* for replay_multiplot() */
 
 /* gnuplot commands */
 
@@ -79,8 +80,9 @@ const struct gen_ftable command_ftbl[] =
     { "pwd", pwd_command },
     { "q$uit", exit_command },
     { "ref$resh", refresh_command },
+    { "remulti$plot", replay_multiplot },
     { "rep$lot", replot_command },
-    { "re$read", reread_command },
+    { "reread", reread_command },
     { "res$et", reset_command },
     { "return", return_command },
     { "sa$ve", save_command },

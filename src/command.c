@@ -70,6 +70,7 @@
 #include "gplocale.h"
 #include "loadpath.h"
 #include "misc.h"
+#include "multiplot.h"
 #include "parse.h"
 #include "plot.h"
 #include "plot2d.h"
@@ -381,6 +382,8 @@ os2_ipc_waitforinput(int mode)
 int
 com_line()
 {
+    int return_value = 0;
+
     if (multiplot) {
 	/* calls int_error() if it is not happy */
 	term_check_multiplot_okay(interactive);
@@ -420,11 +423,13 @@ com_line()
      * (DFK 11/89)
      */
     screen_ok = interactive;
+    return_value = do_line();
 
-    if (do_line())
-	return (1);
-    else
-	return (0);
+    /* If this line is part of a multiplot, save it for later replay */
+    if (multiplot && !multiplot_playback)
+	append_multiplot_line(gp_input_line);
+
+    return return_value;
 }
 
 
@@ -1894,6 +1899,15 @@ pause_command()
     static char *buf = NULL;
 
     c_token++;
+
+    /*	Ignore pause commands in certain contexts to avoid bad behavior.
+     *  Multiplot replay is one such context.
+     *  Should pause also be ignored when evaluating function blocks?
+     */
+    if (multiplot_playback) {
+	while (!END_OF_COMMAND) c_token++;
+	return;
+    }
 
 #ifdef USE_MOUSE
     paused_for_mouse = 0;
