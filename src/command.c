@@ -170,6 +170,9 @@ struct udft_entry *dummy_func;
 char *replot_line = NULL;
 int plot_token = 0;		/* start of 'plot' command */
 
+/* support for multiplot playback */
+TBOOLEAN last_plot_was_multiplot = FALSE;
+
 /* flag to disable `replot` when some data are sent through stdin;
  * used by mouse/hotkey capable terminals
  */
@@ -604,6 +607,12 @@ void
 do_string_replot(const char *s)
 {
     do_string(s);
+
+    /* EXPERIMENTAL */
+    if (last_plot_was_multiplot && !multiplot && !replot_disabled) {
+	replay_multiplot();
+	return;
+    }
 
     if (volatile_data && (E_REFRESH_NOT_OK != refresh_ok)) {
 	if (display_ipc_commands())
@@ -2494,7 +2503,13 @@ replot_command()
     SET_CURSOR_WAIT;
     if (term->flags & TERM_INIT_ON_REPLOT)
 	term->init();
-    replotrequest();
+
+    /* EXPERIMENTAL */
+    if (last_plot_was_multiplot && !multiplot)
+	replay_multiplot();
+    else
+	replotrequest();
+
     SET_CURSOR_ARROW;
 }
 

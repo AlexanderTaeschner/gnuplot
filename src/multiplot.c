@@ -507,6 +507,7 @@ multiplot_end()
 	datablock->udv_value = multiplot_udv;
 	multiplot_udv.v.data_array = NULL;
     }
+    last_plot_was_multiplot = TRUE;
 }
 
 /* Helper function for multiplot auto layout to issue size and offset cmds */
