@@ -13486,8 +13486,7 @@ Ffigure_multiple_keys
 ?mouse
 ?nomouse
  The command `set mouse` enables mouse actions for the current interactive
- terminal.  It is usually enabled by default in interactive mode, but disabled
- by default if commands are being read from a file.
+ terminal.  It is by default.
 
  There are two mouse modes. The 2D mode works for `plot` commands and for `splot`
  maps (i.e. `set view` with z-rotation 0, 90, 180, 270 or 360 degrees, including
@@ -13502,10 +13501,6 @@ Ffigure_multiple_keys
  buttons the modifier <ctrl> is held down, the coordinate axes are displayed
  but the data are suppressed.  This is useful for large data sets.
  Mouse button 3 controls the azimuth of the z axis (see `set view azimuth`).
-
- Mousing is not available inside multiplot mode. When multiplot is completed
- using `unset multiplot`, then the mouse will be turned on again but acts only
- on the most recent plot within the multiplot (like replot does).
 
  Syntax:
        set mouse {doubleclick <ms>} {nodoubleclick}
