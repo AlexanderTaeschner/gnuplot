@@ -61,6 +61,7 @@
 #include "term_api.h"
 #include "util3d.h"
 #include "hidden3d.h"
+#include "multiplot.h"	/* EXPERIMENTAL */
 #include "plot.h"	/* for interactive */
 
 #ifdef USE_WATCHPOINTS
@@ -2632,6 +2633,12 @@ exec_event(char type, int mx, int my, int par1, int par2, int winid)
 static void
 do_save_3dplot(struct surface_points *plots, int pcount, REPLOT_TYPE quick)
 {
+
+    /* EXPERIMENTAL 3D mousing from inside a multiplot */
+    if (last_plot_was_multiplot && refresh_ok == E_REFRESH_OK_3D) {
+	replay_multiplot();
+    } else
+
     if (!plots || (E_REFRESH_NOT_OK == refresh_ok)) {
 	/* !plots might happen after the `reset' command for example
 	 * (reported by Franz Bakan).
