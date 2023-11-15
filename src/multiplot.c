@@ -658,7 +658,7 @@ init_multiplot_datablock()
 /* Append one line to the multiplot history.
  * Called from two places:
  *	command.c:com_line() catches direct input from stdin
- *	util.c:load_file() catches lines from load/call
+ *	misc.c:load_file() catches lines from load/call
  * When the multiplot is exited via multiplot_end(), all lines will be
  * copied to the user-visible datblock $GPVAL_LAST_MULTIPLOT.
  */

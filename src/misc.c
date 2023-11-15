@@ -395,7 +395,7 @@ load_file(FILE *fp, char *name, int calltype)
 	}
 
 	/* If this line is part of a multiplot, save it for later replay */
-	if (multiplot && !multiplot_playback)
+	if (multiplot && !multiplot_playback & !evaluate_inside_functionblock)
 	    append_multiplot_line(gp_input_line);
     }
 

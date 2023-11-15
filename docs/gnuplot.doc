@@ -421,9 +421,10 @@ D viridis 1
 
 3 Multiplots
 ?new multiplots
- The commands executed during creation of a multiplot are now stored in a
+ Commands executed during creation of a multiplot are now stored in a
  datablock $GPVAL_LAST_MULTIPLOT.  They can be replayed by the new command
- `remultiplot`.  Note that the regenerated multiplot may not exactly
+ `remultiplot`.  Certain saved commands that would be problematic during replay
+ are not reexecuted.  Note that the regenerated multiplot may not exactly
  match the original if graphics settings (axis ranges, logscale, etc)
  have changed in the interim.
 

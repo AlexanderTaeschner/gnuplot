@@ -65,6 +65,7 @@
 #include "datafile.h"
 #include "eval.h"
 #include "misc.h"
+#include "multiplot.h"
 #include "util.h"
 
 #ifdef USE_FUNCTIONBLOCKS
@@ -136,6 +137,9 @@ new_block( enum DATA_TYPES type )
 
     if (!equals(num_tokens-2, "<<") || !isletter(num_tokens-1))
 	int_error(c_token, "block definition line must end with << EODmarker");
+
+    /* Cannot define a block inside another block */
+    filter_multiplot_playback();
 
     /* Create or recycle a datablock with the requested name */
     name = parse_datablock_name();

@@ -1909,14 +1909,8 @@ pause_command()
 
     c_token++;
 
-    /*	Ignore pause commands in certain contexts to avoid bad behavior.
-     *  Multiplot replay is one such context.
-     *  Should pause also be ignored when evaluating function blocks?
-     */
-    if (multiplot_playback) {
-	while (!END_OF_COMMAND) c_token++;
-	return;
-    }
+   /*	Ignore pause commands in certain contexts to avoid bad behavior */
+   filter_multiplot_playback();
 
 #ifdef USE_MOUSE
     paused_for_mouse = 0;
