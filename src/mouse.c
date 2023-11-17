@@ -287,6 +287,8 @@ static void event_motion(struct gp_event_t * ge);
 static void event_modifier(struct gp_event_t * ge);
 static void do_save_3dplot(struct surface_points *, int, REPLOT_TYPE);
 static void load_mouse_variables(double, double, TBOOLEAN, int);
+static TBOOLEAN mouse_is_outside_plot(void);
+static TBOOLEAN mouse_outside_active_region(void);
 
 static void do_zoom_in_around_mouse(void);
 static void do_zoom_out_around_mouse(void);
@@ -956,6 +958,12 @@ incr_mousemode(const int amount)
 void
 UpdateStatusline()
 {
+    if (last_plot_was_multiplot && mouse_outside_active_region()) {
+	if (term->put_tmptext)
+	    (term->put_tmptext) (0, "inactive region of multiplot");
+	return;
+    }
+
     UpdateStatuslineWithMouseSetting(&mouse_setting);
 }
 
@@ -1661,7 +1669,8 @@ ChangeAzimuth(int x)
 }
 
 
-int is_mouse_outside_plot(void)
+static TBOOLEAN
+mouse_is_outside_plot(void)
 {
 #define CHECK_AXIS_OUTSIDE(real, axis)        \
     ( axis_array[axis].min <  VERYLARGE &&    \
@@ -1678,6 +1687,16 @@ int is_mouse_outside_plot(void)
         CHECK_AXIS_OUTSIDE(real_y2, SECOND_Y_AXIS);
 
 #undef CHECK_AXIS_OUTSIDE
+}
+
+static TBOOLEAN
+mouse_outside_active_region(void)
+{
+    if (mouse_x < active_bounds.xleft || mouse_x > active_bounds.xright
+    ||  mouse_y < active_bounds.ybot || mouse_y > active_bounds.ytop)
+	return TRUE;
+
+    return FALSE;
 }
 
 /* Return a new upper or lower axis limit that is a linear
@@ -1822,7 +1841,7 @@ static void
 zoom_in_X(int zoom_key)
 {
     retain_offsets = TRUE;
-    if (is_mouse_outside_plot()) {
+    if (mouse_is_outside_plot()) {
 	/* zoom in (X axis only) */
 	double w1 = (zoom_key=='+') ? 23./25. : 23./21.;
 	double w2 = (zoom_key=='+') ?  2./25. : -2./21.;
@@ -1866,7 +1885,7 @@ zoom_around_mouse(int zoom_key)
     double orig_x = real_x;
     TBOOLEAN adjust = FALSE;
 
-    if (is_mouse_outside_plot()) {
+    if (mouse_is_outside_plot()) {
 	/* zoom in (factor of approximately 2^(.25), so four steps gives 2x larger) */
 	double w1 = (zoom_key=='+') ? 23./25. : 23./21.;
 	double w2 = (zoom_key=='+') ?  2./25. : -2./21.;
@@ -2077,10 +2096,12 @@ event_buttonpress(struct gp_event_t *ge)
 	if (!setting_zoom_region) {
 	    if (3 == b &&
 	    	(!replot_disabled || (E_REFRESH_NOT_OK != refresh_ok))	/* Use refresh if available */
-		&& !(paused_for_mouse & PAUSE_BUTTON3)) {
+		&& !(paused_for_mouse & PAUSE_BUTTON3)
+		&& !(last_plot_was_multiplot && mouse_outside_active_region())) {
 		/* start zoom; but ignore it when
 		 *   - replot is disabled, e.g. with inline data, or
 		 *   - during 'pause mouse'
+		 *   - outside the active region of a multiplot
 		 * allow zooming during 'pause mouse key' */
 		setting_zoom_x = mouse_x;
 		setting_zoom_y = mouse_y;
@@ -2240,11 +2261,13 @@ event_buttonrelease(struct gp_event_t *ge)
 	}
 
 	if (b == 2) {
+	    if (last_plot_was_multiplot && mouse_outside_active_region())
+		; /* nothing to do */
+	    else
+
 	    /* draw temporary annotation or label. For 3d plots this is
 	     * only done if the user didn't drag (scale) the plot */
-
 	    if (!is_3d_plot || !motion) {
-
 		GetAnnotateString(s0, real_x, real_y, mouse_mode, mouse_alt_string);
 		if (mouse_setting.label) {
 		    if (modifier_mask & Mod_Ctrl) {
@@ -2351,10 +2374,12 @@ event_motion(struct gp_event_t *ge)
 	    start_y = mouse_y;
 	    redraw = TRUE;
 	} else if (button & (1 << 3)) {
-	    /* dragging with button 3 -> change azimuth */
-	    ChangeAzimuth( (mouse_x - start_x) * 90.0 / term->xmax );
-	    start_x = mouse_x;
-	    redraw = TRUE;
+	    if (!(last_plot_was_multiplot && mouse_outside_active_region())) {
+		/* dragging with button 3 -> change azimuth */
+		ChangeAzimuth( (mouse_x - start_x) * 90.0 / term->xmax );
+		start_x = mouse_x;
+		redraw = TRUE;
+	    }
 	}
 
 	if (!ALMOST2D) {

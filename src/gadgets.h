@@ -453,6 +453,7 @@ typedef struct t_image {
 
 extern BoundingBox plot_bounds;	/* Plot Boundary */
 extern BoundingBox page_bounds;	/* 3D boundary prior to view transformation */
+extern BoundingBox active_bounds; /* active mousing area within multiplot */
 extern BoundingBox canvas; 	/* Writable area on terminal */
 extern BoundingBox *clip_area;	/* Current clipping box */
 
@@ -587,6 +588,9 @@ extern int current_x11_windowid;
 
 /* initialization (called once on program entry */
 void init_gadgets(void);
+
+/* called by each 2D or 3D plot */
+void update_active_region(void);
 
 /* moved here from util3d: */
 int draw_clip_line(int, int, int, int);

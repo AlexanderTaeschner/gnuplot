@@ -589,6 +589,9 @@ boundary3d(struct surface_points *plots, int count)
 	clip_area = NULL;
     else
 	clip_area = &canvas;
+
+    /* mark the entire region as available for mousing */
+    update_active_region();
 }
 
 static TBOOLEAN
