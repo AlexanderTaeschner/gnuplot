@@ -264,8 +264,10 @@ plotrequest()
     /* If we are called from a mouse zoom operation we should ignore	*/
     /* any range limits because otherwise the zoom won't zoom.		*/
     if (inside_zoom) {
-	while (equals(c_token,"["))
-	    parse_skip_range();
+	if (equals(c_token,"[")) {
+	    while (parse_skip_range() == TRUE)
+		;
+	}
     }
 
     /* Axis range limits for the entire plot are optional but must be given
