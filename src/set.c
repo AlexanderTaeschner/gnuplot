@@ -1581,6 +1581,7 @@ set_dgrid3d()
 
     c_token++;
 
+#ifdef BACKWARD_COMPATIBILITY
     /* Accommodate ancient deprecated syntax "set dgrid3d ,,<normval>" */
     if (equals(c_token,",") && equals(c_token+1,",")) {
 	c_token += 2;
@@ -1589,17 +1590,20 @@ set_dgrid3d()
 	dgrid3d = TRUE;
 	return;
     }
+#endif
 
     if (might_be_numeric(c_token)) {
 	gridx = gridy = int_expression();
 	if (equals(c_token, ",")) {
 	    c_token++;
 	    gridy = int_expression();
+#ifdef BACKWARD_COMPATIBILITY
 	    /* Deprecated syntax using 3 numeric parameters and no keywords */
 	    if (equals(c_token, ",")) {
 		c_token++;
 		normval = int_expression();
 	    }
+#endif
 	}
     }
 

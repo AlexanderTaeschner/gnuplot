@@ -2512,12 +2512,16 @@ replot_command()
 void
 reread_command()
 {
+#ifdef BACKWARD_COMPATIBILITY
     FILE *fp = lf_top();
     if (evaluate_inside_functionblock)
 	int_error(NO_CARET, "reread command not possible in a function block");
     if (fp != (FILE *) NULL)
 	rewind(fp);
     c_token++;
+#else
+    int_error(c_token, "deprecated command");
+#endif
 }
 
 #ifdef USE_FUNCTIONBLOCKS
