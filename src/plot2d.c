@@ -3065,6 +3065,7 @@ eval_plots()
 		case DOTS:
 		case VECTOR:
 		case FILLEDCURVES:
+		case POLYGONS:
 		case LABELPOINTS:
 		case CIRCLES:
 		case SECTORS:

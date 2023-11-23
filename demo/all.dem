@@ -546,6 +546,7 @@ load "pm3d_lighting.dem"
 
 print "********************** file polygons.dem *********************"
 load "polygons.dem"
+load "polygon_border.dem"
 
 print "********************** file named_palettes.dem *********************"
 load "named_palettes.dem"

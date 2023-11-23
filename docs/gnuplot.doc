@@ -6102,12 +6102,14 @@ Ffigure_points
 
       plot DATA {using 1:2} with polygons
 
- `plot with polygons` is currently treated as `plot with filledcurves closed`.
- Each polygon may be assigned a separate color by providing a third using
- specifier and the keywords `lc variable` (value is interpreted as a linetype)
- or `lc rgb variable` (value is interpreted as a 24-bit RGB color).
+ `plot with polygons` is treated as `plot with filledcurves closed` except that
+ each polygon's border is rendered as a closed curve even if its first and last
+ points are not the same.  The border line type is taken from the fill style.
+ The input data file may contain multiple polygons separated by single blank
+ lines.  Each polygon can be assigned a separate color by providing a third
+ using specifier and the keywords `lc variable` (value is interpreted as a
+ linetype) or `lc rgb variable` (value is interpreted as a 24-bit RGB color).
  Only the color value from the first vertex of the polygon is used.
- The border line type, if any, is taken from the fill style.
 
  3D plots:
 
