@@ -1450,17 +1450,6 @@ X11_graphics()
     }
 
 #if defined(USE_MOUSE)
-    /* EAM Jan 2013 - multiplot is incompatible with replot_on_resize.	*/
-    /* FIXME: This disables replot_on_resize until the next 'set term'.	*/
-    /* A cleaner solution would be to have gnuplot_x11 itself track 	*/
-    /* whether the current window contains a multiplot, and not	send	*/
-    /* replot requests if it does.					*/
-    if (multiplot) {
-	fprintf(X11_ipc, "X %d %d %d %d %d\n",
-		do_raise, x11_persist, dashedlines, ctrlq, no);
-	fflush(X11_ipc);
-    }
-
     /* EAM June 2003 - Flush the set font command through the pipe */
     /* to gnuplot_x11, then wait for it to return the resulting    */
     /* font size information (v_char and h_char). The feedback is  */

@@ -882,7 +882,6 @@ void wxtFrame::OnClose( wxCloseEvent& event )
 /* when the window is resized,
  * resize the panel to fit in the frame.
  * If the tool widget setting for "redraw on resize" is set, replot in new size.
- * FIXME : Loses all but most recent component of a multiplot.
  */
 void wxtFrame::OnSize( wxSizeEvent& event )
 {
@@ -2755,12 +2754,11 @@ void wxt_image(unsigned int M, unsigned int N, coordval * image, gpiPoint * corn
  */
 void wxt_layer(t_termlayer layer)
 {
-	/* There are two classes of meta-information.  The first class	*/
-	/* is tied to the current state of the user interface or the	*/
-	/* main gnuplot thread.  Any action on these must be done here,	*/
-	/* immediately.  The second class relates to the sequence of	*/
-	/* operations in the plot itself.  These are buffered for later	*/
-	/* execution in sequential order.				*/
+	/* There are two classes of meta-information.
+	 * The first class is tied to the current state of the user interface
+	 * or the main gnuplot thread.  Any action on these must be done here,
+	 * immediately.
+	 */
 	if (layer == TERM_LAYER_BEFORE_ZOOM) {
 		return;
 	}
@@ -2769,6 +2767,10 @@ void wxt_layer(t_termlayer layer)
 			return;
 	}
 
+	/* The second class of meta-information relates to the sequence of
+	 * operations in the plot itself.  These are buffered for later
+	 * execution in sequential order.
+	 */
 	gp_command temp_command;
 	temp_command.command = command_layer;
 	temp_command.integer_value = layer;

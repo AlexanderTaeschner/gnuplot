@@ -417,7 +417,7 @@ multiplot_start()
     }
 
     /* If we reach here, then the command has been successfully parsed.
-     * Aug 2013: call term_start_plot() before setting multiplot so that
+     * Call term_start_plot() before setting multiplot so that
      * the wxt and qt terminals will reset the plot count to 0 before
      * ignoring subsequent TERM_LAYER_RESET requests. 
      */
