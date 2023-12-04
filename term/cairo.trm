@@ -799,6 +799,15 @@ void cairotrm_init()
 		plot.polygons_saturate = FALSE;
 		/* Empirical correction to make pdf output look more like wxt and png */
 		plot.dashlength /= 2;
+
+		/* Attempt to restrict pdf feature usage to version 1.5 (2003 Acrobat 6).
+		 * Otherwise you get whatever the cairo libraries provide as a default,
+		 * probably version 1.7 (ISO 32000-1:2008).
+		 */
+		#if (CAIRO_VERSION_MAJOR < 2) && (CAIRO_VERSION_MINOR >= 10)
+		    cairo_pdf_surface_restrict_to_version(surface, CAIRO_PDF_VERSION_1_5);
+		#endif
+
 	} else if (!strcmp(term->name,"pngcairo") || !strcmp(term->name, "kittycairo")) {
 		surface = cairo_image_surface_create( CAIRO_FORMAT_ARGB32,
 				plot.device_xmax /*double width_in_points*/,
@@ -844,6 +853,9 @@ void cairotrm_init()
 					(cairo_write_func_t)cairostream_write, cairostream_error,
 					plot.device_xmax /*double width_in_points*/,
 					plot.device_ymax /*double height_in_points*/);
+			#if (CAIRO_VERSION_MAJOR < 2) && (CAIRO_VERSION_MINOR >= 10)
+			    cairo_pdf_surface_restrict_to_version(surface, CAIRO_PDF_VERSION_1_5);
+			#endif
 			break;
 		case CAIROLATEX_PNG:
 			EPSLATEX_reopen_output("png");
