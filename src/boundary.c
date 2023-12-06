@@ -837,6 +837,8 @@ boundary(struct curve_points *plots, int count)
 	int_warn(NO_CARET, "Terminal canvas area too small to hold plot."
 			"\n\t    Check plot boundary and font sizes.");
 
+    /* mark the entire region as available for mousing */
+    update_active_region();
 }
 
 /*}}} */

@@ -3322,6 +3322,8 @@ show_plot()
 {
     SHOW_ALL_NL;
     fprintf(stderr, "\tlast plot command was: %s\n", replot_line);
+    if (last_plot_was_multiplot)
+	fprintf(stderr, "\tlast plot was a multiplot (see $GPVAL_LAST_MULTIPLOT)\n");
 }
 
 

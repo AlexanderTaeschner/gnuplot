@@ -2917,6 +2917,7 @@ eval_3dplots()
 	m_capture(&replot_line, plot_token, c_token - 1);
 	plot_token = -1;
 	fill_gpval_string("GPVAL_LAST_PLOT", replot_line);
+	last_plot_was_multiplot = FALSE;
     }
     /* record that all went well */
     plot3d_num=plot_num;

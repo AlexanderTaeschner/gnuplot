@@ -477,7 +477,7 @@ TBOOLEAN bad_axis_range(struct axis *axis);
 
 void save_writeback_all_axes(void);
 int  parse_range(AXIS_INDEX axis);
-void parse_skip_range(void);
+TBOOLEAN parse_skip_range(void);
 void check_axis_reversed(AXIS_INDEX axis);
 double parse_one_range_limit( double default_value );
 

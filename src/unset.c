@@ -2038,9 +2038,10 @@ reset_command()
 
     c_token++;
 
-    /* This would be asking for trouble */
+    /*	Ignore or refuse reset commands in certain contexts to avoid bad behavior */
     if (evaluate_inside_functionblock)
 	int_error(NO_CARET, "cannot 'reset' during function block evaluation");
+    filter_multiplot_playback();
 
     /* This is the expression evaluation stack */
     reset_stack();

@@ -1,5 +1,5 @@
-C RCS $Id: gnuplot-ja.doc,v 1.796 2023-09-28 18:09:02+09 shige Exp $
-C corresponding original gnuplot.doc at 2023-09-26
+C RCS $Id: gnuplot-ja.doc,v 1.805 2023-11-28 18:28:17+09 shige Exp $
+C corresponding original gnuplot.doc at 2023-11-28
 C
 C Copyright (C) 1986 - 1993, 1998, 1999, 2000, 2001, 2004   Thomas Williams, Colin Kelley et al.
 C
@@ -119,14 +119,14 @@ C 行が長いのは、できればなんとかしたい
 ?introduction
 ?
  `gnuplot` は、ポータブルなコマンド入力方式のグラフユーティリティで、
- Linux, OS/2, MS Windows, macOS, VMS, その他多くのプラットホーム上で動
- 作します。ソースコードには著作権がありますが、無料で配布されています
- (すなわち、それに対価を支払う必要はありません)。元は、科学者や学生が数
- 学関数やデータなどを対話的に表示できるよう作られたのですが、現在までに
- 例えば Web スクリプトなど、多くの非対話型の利用もサポートするように成
- 長しています。これは、例えば Octave のようにサードパーティのアプリケー
- ションの描画エンジンとしても使われています。gnuplot は、1986 よりサポ
- ートと活発な開発が行われています。
+ Linux, OS/2, MS Windows, macOS, その他多くのプラットホーム上で動作しま
+ す。ソースコードには著作権がありますが、無料で配布されています (すなわ
+ ち、それに対価を支払う必要はありません)。元は、科学者や学生が数学関数
+ やデータなどを対話的に表示できるよう作られたのですが、現在までに例えば
+ Web スクリプトなど、多くの非対話型の利用もサポートするように成長してい
+ ます。これは、例えば Octave のようにサードパーティのアプリケーションの
+ 描画エンジンとしても使われています。gnuplot は、1986 よりサポートと活
+ 発な開発が行われています。
 
  gnuplot は、2 次元、または 3 次元の多くの種類のグラフを生成できます。
  います: 折線グラフ、点グラフ、棒グラフ、等高線、ベクトル場描画、画像の
@@ -476,11 +476,47 @@ D viridis 1
 ## に保存します。これらのファイルがない場合は、gnuplot の以前のバージョ
 ## ンと同様、$HOME/.gnuplot と $HOME/.gnuplot_history をそれぞれ使用し
 ## ます。
-#b `unset warnings` は、コンソールへの警告メッセージ出力を抑制します。
+#b `unset warnings` は、stderr への警告メッセージ出力を抑制します。
+#b `warn "message"` は、ファイル名、行番号と "message" を stderr に出力
+## します。
 #b コマンド "fit" に対する例外処理。fit エラーが起きた場合でも、制御を
 ## 常に入力の次の行に返します。エラーが起きた場合は、返ったときに
 ## FIT_ERROR がゼロでない値になります。これは、良くないフィッティングか
 ## ら復帰するスクリプトを可能にします。以下参照: `fit error_recovery`。
+#end
+
+3 多重描画モード (Multiplots)
+?new multiplots
+ 現在は、多重描画グラフ (multiplot) の生成時に実行したコマンドを、デー
+ タブロック $GPVAL_LAST_MULTIPLOT に保存します。そしてこれは、新しいコ
+ マンド `remultiplot` で再実行できます。保存したコマンドのうち再実行に
+ 問題があるコマンドは、再実行はされません。再生成した多重描画グラフは、
+ その間にグラフの設定 (軸の範囲や対数軸設定等) が変更されていれば、元の
+ ものと完全に一致するとは限りません。
+
+ 以下のコマンド列は、元のグラフの状態と multiplot コマンドの両方をスク
+ リプトファイルに保存し、後で再読み込みできるようにします。
+
+      save "my_multiplot.gp"
+      set multiplot
+      ... (グラフ要素を生成するいくつかのコマンドが並ぶ) ...
+      unset multiplot
+      set print "my_multiplot.gp" append
+      print $GPVAL_LAST_MULTIPLOT
+      unset print
+
+#start
+#b 試験段階: コマンド `replot` は、直近の plot コマンドが完了済みの
+## multiplot の一部分であるかどうかをチェックします。もしそうなら、単一
+## の plot コマンドを実行する代わりに `remultiplot` を実行します。
+#b 試験段階: 多重描画グラフを表示している間のマウス操作では、現在は
+## replot/refresh の要求を自動的に `remultiplot` として処理します。
+## しかし、マウス座標の読み出し、拡大/視点移動の操作は、以前の gnuplot
+## の版でそうだったように、最後の plot 要素に対する軸設定にのみ基づいて
+## 行われます。$GPVAL_LAST_MULTIPLOT に保存されるコマンドが、各 plot 要
+## 素に対する適切なグラフ設定を再生成するには不十分である可能性があるた
+## め、multiplot でのマウス操作は、あなたが望むようなものにはならないか
+## もしれません。これは今後改善されるかもしれません。
 #end
 
 3 新しい出力形式とオプション (New terminals and terminal options)
@@ -497,8 +533,8 @@ D viridis 1
 ## ムか、アニメーション列を生成します。各フレームは pngcairo で生成し、
 ## その後 libwebp と libwebpmux による WebPAnimEncoder API を通してエン
 ## コードを行います。
-#b `dumb`, `sixel`, `kitty`, `block`, 出力形式のように、文字列出力とグ
-## ラフィック表示を同じウィンドウで行う出力形式では、現在はコマンド
+#b `dumb`, `sixel`, `kitty`, `block` 出力形式のように、文字列出力とグラ
+## フィック表示を同じウィンドウで行う出力形式では、現在はコマンド
 ## `pause mouse` の間はキーボード入力に反応します。その間、それらの出力
 ## 形式では、マウス操作が可能な出力形式が行うのと同じ方法でキー入力を解
 ## 釈します。以下参照: `pseudo-mousing`。
@@ -540,7 +576,7 @@ D viridis 1
 D epi_data 1
 
 3 その他の新しい機能
-?new features
+?new other_features
 #start
 #b `時間軸の主目盛りと副目盛り用の時間単位`
 ## 時間軸の主目盛りと副目盛りは、minutes/hours/days/weeks/months/years
@@ -549,10 +585,9 @@ D epi_data 1
 #b `using` 指定内での文字列 $# は、現在の入力データ行にある全列数と評価
 ## します。例えば、"plot FOO using 0:(column($# - 1))" は、各行の最後か
 ## ら一つ手前の列を描画します。
-#b bin (箱) 用データの和でなく平均を描画するキーワード `binvalue=avg`
-#b `set colorbox bottom` は、垂直なカラーボックスをグラフの右に配置する
-## 代わりに、水平なカラーボックスをグラフの下に配置します。
-#b cbtics 以外の軸には影響しない `set colorbox cbtics <linestyle>`
+#b bin (箱) 用の、合計でなく平均を描画するキーワード `binvalue=avg`
+#b `set colorbox bottom` は、垂直なカラーボックスを右に配置する代わりに
+## 水平なカラーボックスをグラフの下に配置します。
 #b 交差する pm3d 曲面のレンダリングの改良 - 重なる曲面のタイルを、交差
 ## 曲線に沿って 2 つの部分に分割し、一方の曲面のタイルが他方の曲面を通
 ## って不正に突き出てしまうことがないようにします。
@@ -4813,15 +4848,15 @@ Ffigure_boxerrorbars
  3 次元グラフでは、スタイル `boxes` は与えられた x, y 座標を中心とし、
  xy 平面 (z=0) から与えられた z 座標まで伸ばした直方体の箱を書きます。
  x 方向の箱の幅は、別の入力列か `set boxwidth` で指定でき、y 方向の箱の
- 奥行きは、`set boxdepth` で制御できます。箱は、自動的にはくっつくよう
- には引き伸ばされません。
+ 奥行きは、`set boxdepth` で制御できます。箱は、2 次元グラフのように、
+ 自動的にはくっつくように引き伸ばされません。
 3 2 次元の boxes (2D boxes)
 ?style boxes 2D
 ?boxes 2D
 
  `plot with boxes` は、基本的に 2 列、または 3 列のデータを使用します。
- さらに入力列を追加すると、それは、可変線色や塗り潰し色の情報として使用
- します。以下参照: `rgbcolor variable`。
+ さらに入力列を追加すると、それは、可変線色 (variable line color) や塗
+ り潰し色の情報として使用します。以下参照: `rgbcolor variable`。
 
       2 列:  x  y
       3 列:  x  y  x_width
@@ -6168,12 +6203,15 @@ Ffigure_points
 
       plot DATA {using 1:2} with polygons
 
- `plot with polygons` は、現在は `plot with filledcurves closed` として
- 処理されます。各多角形には、3 列目の値を与え、キーワード `lc variable`
- を指定する (その値を linetype と解釈) か、`lc rgb variable` を指定する
- (その値を 24 ビット RGB 色と解釈) ことで、個別の色を割り当てることがで
- きます。多角形の最初の頂点の色の値のみが使用されます。境界の線種は、も
- しあれば塗り潰しスタイル (fill style) から取ります。
+ `plot with polygons` は、`plot with filledcurves closed` として処理し
+ ますが、各多角形の境界を閉曲線として描画する場合を除きます。それは、そ
+ のその最初と最後の点が同じでなくてもです。境界線の線種は、塗り潰しスタ
+ イル (fill style) から取ります。入力データファイルには、単一の空行で区
+ 切って複数の多角形を入れることも可能です。各多角形には、3 列目の値を与
+ え、キーワード `lc variable` を指定する (その値を linetype と解釈) か、
+ `lc rgb variable` を指定する (その値を 24 ビット RGB 色と解釈) ことで、
+ 個別の色を割り当てることができます。多角形の最初の頂点の色の値のみを使
+ 用します。
 
  3 次元グラフ:
 
@@ -6428,7 +6466,9 @@ Ffigure_xerrorbars
  または (x-xdelta,y) から (x+xdelta,y) までの線分が引かれますが、これら
  はいくつのデータ列が与えられるかによって変わります。誤差指示線の端の刻
  みの印の見た目は、`set errorbars` で制御できます。
- 点と誤差指示線の間の隙間は、`set pointintervalbox` で制御します。
+ 点と誤差指示線の間の隙間は、`set pointintervalbox` で制御します。誤差
+ 線を断線せずに直接点記号を貫通させるには、`unset pointintervalbox` を
+ 使用してください。
  このスタイルは基本的に、3 列か 4 列のデータが必要です:
 
       3 列:  x  y  xdelta
@@ -6450,7 +6490,9 @@ Ffigure_xyerrorbars
  (x,ylow) から (x,yhigh) までと (xlow,y) から (xhigh,y) までの線分が引
  かれますが、これらはいくつのデータ列が与えられるかによって変わります。
  誤差指示線の端の刻みの印の見た目は、`set errorbars` で制御できます。
- 点と誤差指示線の間の隙間は、`set pointintervalbox` で制御します。
+ 点と誤差指示線の間の隙間は、`set pointintervalbox` で制御します。誤差
+ 線を断線せずに直接点記号を貫通させるには、`unset pointintervalbox` を
+ 使用してください。
  これは 4 列か、6 列のデータが必要です。
 
       4 列:  x  y  xdelta  ydelta
@@ -6529,7 +6571,8 @@ Ffigure_yerrorbars
  (x,y+ydelta) まで、または (x,ylow) から (x,yhigh) までの線分が引かれま
  すが、これらはいくつのデータ列が与えられるかによって変わります。誤差指
  示線の端の刻みの印の見た目は、`set errorbars` で制御できます。点と誤差
- 線との隙間は `set pointintervalbox` で制御します。
+ 線との隙間は `set pointintervalbox` で制御します。誤差線を断線せずに直
+ 接点記号を貫通させるには、`unset pointintervalbox` を使用してください。
 
       2 列:  [暗黙の x]  y  ydelta
       3 列:  x  y  ydelta
@@ -6820,6 +6863,10 @@ Ffigure_zerror
  この例では、ARGV[1] と ARGV[2] は可能な限りの精度を持つ浮動小数値とな
  りますが、ARG2 は書式 "%g" による文字列として保存されるため精度が落ち
  ています。
+
+ ARGC とそれに対応する配列 ARGV[ARGC] は関数ブロック呼び出しの内部でも
+ 利用可能です。しかし、関数ブロック呼び出しでは、文字列変数 ARG1,... は
+ 作られません。
 3 例 (Example)
 ?call example
 ?commands call example
@@ -7572,9 +7619,11 @@ Ffigure_zerror
       gnuplot> plot $sinc(x) with lines title "sinc(x) as a function block"
 
  名前付き引数の一覧は、関数ブロックの宣言時に指定する必要はありません。
- コマンドラインで指定した関数の引数は、関数ブロックの内部から、コマンド
- `call` でそうするように ARGV[1] などの形でアクセスできます。これにより、
- 可変な個数の引数を操作できる関数ブロックを定義することができます。
+ コマンドラインで指定した関数の引数の個数とその値は、関数ブロックの内部
+ から、整数変数 ARGC とそれに対応する配列 ARGV[ARGC] でアクセスできます。
+ 以下参照: `ARGV`。これにより、可変な個数の引数を操作できる関数ブロック
+ を定義することができます。`call` 文によるファイルの読み込みとは違い、
+ 引数は文字列変数化 (例えば ARG1) はされません。
 
  例:
       function $max << EOF
@@ -7614,6 +7663,8 @@ Ffigure_zerror
 #start
 #b 関数ブロック内で、データブロックや関数ブロックを定義することはできま
 ## せん。
+#b 疑似ファイル '-' は、関数ブロック内でのデータの読み込みには使用でき
+## ません。
 #b 以下のコマンドは関数ブロック内で実行できません。
 ##   `reset`, `shell`, `!<shell command>`。
 #b コマンド `plot`, `replot`, `splot`, `refresh`, `stats`, `vfill`,
@@ -7965,12 +8016,12 @@ Ffigure_zerror
  影を描きます。
 
  書式:
-       plot {<ranges>} <plot-element> {, <plot-element>, <plot-element>}
+       plot {<axis-ranges>} <描画要素> {, <描画要素>, <描画要素>}
 
- 各描画要素 (plot-element) は、定義 (definition) か関数 (function) かデ
- ータ (data source) のいずれか 1 つに、オプションの属性、修正子などがつ
- いたものです:
-       描画要素 (plot-element):
+ 各描画要素は、定義 (definition) か関数 (function) かデータ (data
+ source) のいずれか 1 つに、オプションの属性、修正子などがついたもので
+ す:
+       描画要素:
             {<iteration>}
             <definition> | {sampling-range} <function> | <data source>
                          | keyentry
@@ -9195,6 +9246,7 @@ Ffigure_smooth_path
 4 特別なファイル名 (special-filenames)
 ?special-filenames
 ?special_filenames
+?pseudofiles
 ?commands plot datafile special-filenames
 ?plot datafile special-filenames
 ?plot special-filenames
@@ -9202,8 +9254,9 @@ Ffigure_smooth_path
 ?data special-filenames
 ?special-filenames ++
 ?special-filenames +
-?+
-?++
+?'-'
+?'+'
+?'++'
  特別な意味を持つファイル名として、次のものがあります: '', '-', '+',
  '++'
 
@@ -9221,9 +9274,10 @@ Ffigure_smooth_path
  ンプル点毎に単一の y (または z) の値しか持てません。しかし疑似ファイル
  '+' はそれがあたかも実際の入力ファイルであるように、`using` 指定による
  1 列目の値を標本点として扱い、さらに追加の列の値を指定することも可能で
- す。標本点数は `set samples` で制御できます。標本点は、デフォルトでは
- `set trange` で設定した範囲全体に渡りますが、trange が設定されていなけ
- れば `set xrange` の範囲全体に渡ります。
+ す。標本点数は `set samples` かまたは明示的に標本間隔を範囲指定部分に
+ 指定することで制御できます。標本点は、`set trange` で設定されていれば
+ それで設定した範囲全体に渡りますが、そうでなければ `set xrange` の範囲
+ 全体に渡ります。
 
  注意: trange の使用は、以前のある版の gnuplot の仕様とは異なりますが、
  これにより x 軸の範囲とは異なる標本範囲が使用できることになります。
@@ -9231,15 +9285,22 @@ Ffigure_smooth_path
        plot '+' using ($1):(sin($1)):(sin($1)**2) with filledcurves
 
  '+' の直前に、独立な標本範囲を指定することもできます。通常の関数描画の
- と同様、独立変数に名前を割り当てることもできます。plot の最初の要素に
- 与える場合、標本範囲にはそれを明示するキーワード `sample` を前置する必
- 要があります (以下も参照: `plot sampling`)。
+ と同様、独立変数に名前を割り当てることもできます。
+ 以下は、標本間隔 (1.5) を標本範囲内に指定した例です。標本点は、-3, 1.5,
+ 0, 1.5, ... 24 の位置で取ります。
 
-       plot sample [beta=0:2*pi] '+' using (sin(beta)):(cos(beta)) with lines
+       plot $MYDATA, [t=-3:25:1.5] '+' using (t):(f(t))
 
  さらに、`+` の範囲指定には、標本増分を与えることもできます。
+ `plot` か `splot` コマンドのすぐ後に標本範囲を書くと, 間違って x 軸の
+ 範囲との解釈されてしまうかもしれません。そのあいまいさを避けるために、
+ キーワード `sample` を前置するか、または標本範囲の 3 番目のフィールド
+ として標本間隔を与えるかすればいいでしょう。その標本間隔は空でもよく、
+ その場合はデフォルトを使用します。そのようなあいまいさの例については、
+ 以下参照: `plot sampling`。
 
-       plot $MYDATA, [t=-3:25:1] '+' using (t):(f(t))
+       plot sample [beta=0:2*pi] '+' using (sin(beta)):(cos(beta)) with lines
+       plot        [beta=0:2*pi:] '+' using (sin(beta)):(cos(beta)) with lines
 
  疑似ファイル '++' は、u 方向は `set samples` で制御される点の数、v 方
  向は `set isosamples` で制御される点の数の、標準的な [u,v] 座標の格子
@@ -9278,9 +9339,9 @@ Ffigure_smooth_path
 
        plot 'ある/とても/長い/ファイル名' using 1:2, '' using 1:3, '' using 1:4
 
- のようなときに便利です。(もし同じ plot コマンド上で、`'-'` と `''` の
- 両方を使用すると、上の例にあるように、インラインデータの 2 つの集合を
- 与える必要があります。)
+ のようなときに便利です。もし同じ plot コマンド上で、`'-'` と `''` の両
+ 方を使用すると、インラインデータの 2 つの集合を与える必要があり、一つ
+ 目のものを再利用することはできません。
 
 4 パイプによる入力データ (piped-data)
 ?commands plot datafile piped-data
@@ -9552,15 +9613,6 @@ C using の書式 (format)
 ?using zticlabels
 ?plot using zticlabels
  以下参照: `plot using xticlabels`。
-5 cbticlabels
-?using cbticlabels
- 試験段階の機能 (細かい部分は将来のリリースで変更の可能性あり)。
- 2 次元グラフ: "lc palette z" による変数配色では、色見本 (colorbox) の
- ラベルを、グラフで使用するパレット座標に配置します。
- 3 次元グラフ: 色見本のラベルを、点の z 座標に配置します。
- z には一致しない変数配色での 3 次元色地図の場合、これは正しいラベルに
- はならない可能性があることに注意してください。
- 以下も参照: `plot using xticlabels`。
 4 volatile
 ?datafile volatile
 ?data volatile
@@ -9696,13 +9748,16 @@ C using の書式 (format)
 4 1 次元のサンプリング (x または t 軸) (1D sampling)
 ?sampling 1D
 ?plot sampling 1D
- デフォルトでは、関数や疑似ファイル "+" で生成されるデータは、描画範囲
- 全体にわたって標本 (サンプル) が取られます。この範囲は、事前にコマンド
- `set xrange` で設定するか、plot コマンドか splot コマンドの最初の場所
- で大域範囲を明示的に指定するかしなければ、そのグラフのすべての要素を含
- む範囲内にデータ全体が入るよう x の範囲を自動縮尺 (autoscaling) します。
- しかし、その標本化範囲は個々の描画要素毎にさらに制限して割り当てること
- もできます。
+ デフォルトでは、計算対象の関数に対して、描画範囲全体にわたって標本 (サ
+ ンプル) を取ります。この範囲は、事前にコマンド `set xrange` で設定する
+ か、plot コマンドの一番最初の場所で x 軸の範囲指定をするか、またはその
+ グラフのすべての要素を含む範囲内にデータ全体が入るように自動縮尺
+ (autoscaling) された x の範囲です。疑似ファイル "+" が生成する標本点は、
+ t 軸の現在の範囲全体に渡りますが、それは x 軸の範囲と同じでも同じでな
+ くても構いません。
+
+ 個々の描画要素毎に対し、標本範囲をさらに制限して割り当てることもできま
+ す。
 
  例:
 
@@ -9717,27 +9772,35 @@ C using の書式 (format)
        set autoscale x
        plot 'datafile', [0:200] func1(x), [200:500] func2(x)
 
- 以下のコマンドにはあいまいさが含まれます。先頭の範囲は、多分最初の関数
- の標本化のみに向けたのだと思いますが、実際はそうではなく、すべての描画
- 要素に適用するように解釈されます:
+ 以下のコマンドはあいまいです。先頭の範囲 [0:10] は、多分最初の関数の標
+ 本化のみに向けたのだと思いますが、実際には、グラフ全体に適用され、事前
+ の xrange の定義も無視されてしまいます:
+       set xrange [0:50]
        plot [0:10] f(x), [10:20] g(x), [20:30] h(x)
 
- 以下のコマンドは、上の例のあいまいさを除くためにキーワード `sample` を
- 追加したもので、その範囲指定を plot 全体に適用しないようにしています:
-       plot sample [0:10] f(x), [10:20] g(x), [20:30] h(x)
+ 上の例のあいまいさを除くためには、キーワード `sample` を挿入することで
+ [0:10] が軸の範囲ではなく標本範囲であることを指示するか、または範囲指
+ 定内に 2 番目のコロンに続く標本増分フィールドを追加することです。後者
+ は、軸範囲としては完全な範囲指定 [min:max:increment] は解釈されないた
+ めに機能します。増分フィールドが空の場合は、増分はデフォルトの
+ (max-min) を標本点数で割った値となり、よって以下の 3 つの変種は同じ結
+ 果を生じます。
+       set samples 100
+       plot sample [0:10]     f(x), [10:20] g(x), [20:30] h(x)
+       plot        [0:10:0.1] f(x), [10:20] g(x), [20:30] h(x)
+       plot        [0:10:]    f(x), [10:20] g(x), [20:30] h(x)
 
  以下の例は、3 次元グラフにらせんの曲線を描く一つの方法を提示します:
        set xrange [-2:2]; set yrange [-2:2]
-       splot sample [h=1:10] '+' using (cos(h)):(sin(h)):(h)
+       set angle degrees
+       splot [phi=1:720:2] '+' using (cos(phi)):(sin(phi)):(phi)
 
 4 2 次元のサンプリング (u と v 軸) (2D sampling)
 ?sampling 2D
 ?plot sampling 2D
- 疑似ファイル '++' に対して計算する関数値や生成されたデータは、u, v 軸
- に沿って標本化 (サンプリング) を行います。これは、5.2 より前のバージョ
- ンからの仕様の「変更」で、従来は x, y 軸に沿って標本化していました。以
- 下参照: `special-filenames ++`。2 次元のサンプリングは `plot`, `splot`
- コマンドで使用できます。
+ 計算する関数や疑似ファイル '++' に対して生成するデータは、u, v 軸に沿
+ って標本化 (サンプリング) を行います。以下参照: `special-filenames ++`。
+ 2 次元のサンプリングは `plot`, `splot` コマンドで使用できます。
 
  以下は、2 次元の `plot` コマンドに対する 2 次元サンプリングの例です。
  これは、描画スタイル `with vectors` で表示されるグラフを生成します。
@@ -9758,7 +9821,7 @@ C using の書式 (format)
 
  u, v のサンプリングの範囲指定には、サンプリングデータの数とスペースを
  制御する、明示的なサンプリング間隔を入れることもできます:
-      splot sample [u=30:70:1][v=0:50:5] '++' using 1:2:(func($1,$2))
+      splot [u=30:70:1][v=0:50:5] '++' using 1:2:(func($1,$2))
 
 3 plot コマンドの for ループ (for loops in plot command)
 ?commands plot for
@@ -10106,6 +10169,8 @@ C using の書式 (format)
  `printerr` は `print` コマンドとほぼ同じですが、その前の `set print`
  コマンドの効果が続いている状態でも出力を常に stderr に送るところだけが
  違います。
+ その出力に現在のファイル名 (または関数ブロック名) と行番号を入れたい場
+ 合は、代わりにコマンド `warn` を使用してください。
 2 pwd
 ?commands pwd
 ?pwd
@@ -10159,6 +10224,18 @@ C using の書式 (format)
        set output 'zoom.ps'
        refresh
 
+2 remultiplot
+?commands remultiplot
+?remultiplot
+ `remultiplot` は、直前の multiplot を生成した際に名前付きデータブロッ
+ ク $GPAL_LAST_MULTIPLOT に前に保存したコマンド列を再実行します。以下
+ 参照: `new multiplots`。
+
+ 試験段階: 直前の plot コマンドが完了済みの multiplot の一部であれば、
+ `replot` は暗黙に `remultiplot` を呼び出します。
+ `set mouse multiplot` が有効であれば、視線移動/拡大などのマウス操作で
+ も `remultiplot` を呼び出します。
+
 2 replot
 ?commands replot
 ?replot
@@ -10182,14 +10259,23 @@ C using の書式 (format)
  求することになるからです。たいていの場合、代わりにコマンド `refresh`
  を使えます。これは、以前に読み込んだデータを使ってグラフを再描画します。
 
- `multiplot` モードでは、`replot` コマンドはすべての plot ではなく、直
- 前の plot 部分だけしか再実行しないことに注意してください。
-
  最後に実行した `plot` (`splot`) コマンドの内容を修正する方法については
  以下も参照: `command-line-editing`。
 
  直前の描画コマンドの全体を表示させることや、それを `history` の中に
  コピーする方法については、以下も参照: `show plot`。
+
+ 以前の gnuplot の版では、multiplot 全体は再描画できず、`replot` コマン
+ ドはそのうち最後の plot 要素しか再生成しませんでした。gnuplot バージョ
+ ン 6 では、multiplot を生成するのに使用したコマンドをデータブロック
+ $GPVAL_LAST_MULTIPLOT に保存し、それは新しいコマンド `remultiplot` を
+ 使って multiplot 全体を再生成するのに再実行できます。
+
+ 試験段階 (詳細は今後の gnuplot の版で変更の可能性あり):
+ 直前に書いたグラフが multiplot の一部だった場合、`replot` コマンドは現
+ 在は自動的に `remultiplot` として扱います。いくつかの注意事項がありま
+ す。以下参照: `new multiplots`, `remultiplot`。
+
 2 reread
 ?commands reread
 ?reread
@@ -10197,11 +10283,11 @@ C using の書式 (format)
 
  明示的な繰り返し (iteration) を支持し、このコマンドは非推奨とします。
  以下参照: `iterate`。
- `reread` コマンドは、`load` コマンドで指定した `gnuplot` のコマンドフ
- ァイルからの実行を、直ちにそのファイルの先頭から再び開始することを行い
- ます。これは、コマンドファイルの最初から `reread` コマンドまでのコマン
- ドの無限ループを本質的に実装していることになります。標準入力から対話型
- の入力の際は、`reread` コマンドは何の効力も持ちません。
+ `reread` コマンドは、`load` コマンドで指定した `gnuplot` の入力ファイ
+ ルからの実行を、直ちにそのファイルの先頭から再開します。これは、ファイ
+ ルの最初から `reread` コマンドまでのコマンドの無限ループを本質的に実装
+ していることになります。標準入力からの入力の際は、`reread` コマンドは
+ 何の効力も持ちません。
 2 reset
 ?commands reset
 ?reset
@@ -12783,13 +12869,24 @@ Ffigure_keyentry
  に指定します。通常のタイトルフォント、文字色、`at` 座標、拡張文字列処
  理に対するオプションは、すべて適用します。
  例:
-      set key outside right center title "Outcomes"
+      set key outside right center
       plot $HEATMAP matrix with image notitle, \
+           keyentry "Outcomes" left, \
            keyentry with boxes fc palette cb 0 title "no effect", \
            keyentry with boxes fc palette cb 1 title "threshold", \
            keyentry with boxes fc palette cb 3 title "typical range", \
-           keyentry with labels nopoint title "as reported in [12]", \
+           keyentry                            title "as reported in [12]", \
            keyentry with boxes fc palette cb 5 title "strong effect"
+
+ `keyentry "Outcomes" left` の行は、通常の凡例を保持するスペースに、文
+ 字列を左揃えで配置します。これは、凡例の幅全体に渡ってタイトルを埋め込
+ ませることを可能にします。同じ keyentry に title も与えた場合は、両方
+ の文字列が同じ行に現れ、それにより 2 列の凡例のエントリの生成が可能に
+ なります。
+ 位置合わせ用のキーワード `left/right/center` や, `boxed` などが利用で
+ きます。
+ 例:
+      plot ..., keyentry "West Linn" boxed title "locations"
 4 凡例の自動タイトル (key autotitle)
 ?commands set key autotitle
 ?set key autotitle
@@ -13571,9 +13668,7 @@ Ffigure_multiple_keys
 ?mouse
 ?nomouse
  コマンド `set mouse` は、現在の対話型出力形式に対してマウス機能を有効
- にします。対話型モードでは通常デフォルトでこれは有効になっていますが、
- コマンドがファイルから読み込まれる場合はデフォルトでは無効になっていま
- す。
+ にします。これがデフォルトです。
 
  マウスモードは 2 種類用意されています。2 次元モードは、`plot` コマンド
  と `splot` の 2 次元射影 (すなわち、z の回転角が 0, 90, 180, 270, 360
@@ -13590,11 +13685,6 @@ Ffigure_multiple_keys
  と、座標軸は表示されますが、データの表示は消えます。これは大きなデータ
  に対して有用でしょう。マウスボタン 3 は、z 軸の向き (azimuth) を制御し
  ます (以下参照: `set view azimuth`)。
-
- マウスは多重描画 (multiplot) モード内では無効ですが、`unset multiplot`
- で多重描画が完結すれば、マウス機能は ON になります。ただし、その作用は
- multiplot 内の最後の描画 (replot で描画されるようなもの) に対してのみ
- です。
 
  書式:
        set mouse {doubleclick <ms>} {nodoubleclick}
@@ -13875,7 +13965,7 @@ Ffigure_multiple_keys
        plot cos(2*x)
        unset multiplot
 
- 以下も参照
+ 以下参照: `remultiplot`, `new multiplots`。また以下も参照
 ^ <a href="http://www.gnuplot.info/demo/multiplt.html">
  multiplot のデモ (multiplt.dem)
 ^ </a>
@@ -15365,7 +15455,8 @@ D spotlight 1
  すると、点の記号を描く前に、各点の記号の後ろの箱 (実際には円) の部分
  を背景色で塗りつぶすことで消します。コマンド `set pointintervalbox` は
  その消す領域の大きさ (半径) を制御します。指定する値はデフォルトの半径
- (= pointsize) に対する倍率です。
+ (= pointsize) に対する倍率です。`unset pointintervalbox` は、点記号の
+ 背景の削除をやめます。
 3 点サイズ (pointsize)
 ?commands set pointsize
 ?commands show pointsize
@@ -19074,10 +19165,11 @@ D viridis 1
       set warnings
       unset warnings
 
- 致命的ではないエラーに対する警告メッセージは、通常はその警告を引き起こ
- すコマンドラインをエコーした後で stderr に出力します。この警告は、コマ
- ンド `unset warnings` で抑制できます。それは明示的に `set warnings` で
- 有効にするまで抑制し続けます。
+ 致命的ではないエラーに対する警告メッセージは、通常はファイル名、行番号、
+ およびその警告を引き起こすコマンドラインをエコーした後で stderr に出力
+ します。この警告は、コマンド `unset warnings` で抑制できますが、その場
+ 合でも必要ならコマンド `warn "message"` で警告を生成できます。それは明
+ 示的に `set warnings` で有効にするまで抑制し続けます。
 2 update
 ?commands update
 ?update
@@ -19138,6 +19230,15 @@ D viridis 1
  ことに注意してください。
  ボクセル一つを 0 にリセットするには、`voxel(x,y,z) = 0` を使用し、
  すべての格子を 0 にリセットするには、`vclear` を使用してください。
+2 warn
+?warn
+?commands warn
+ 書式:
+       warn "message"
+ コマンド `warn` は、実質的に `printerr` と同じですが、指定したメッセー
+ ジを stderr に出力する前に、現在のファイル名か関数ブロック名、および現
+ 在の行番号を追加するところが違います。
+ `printerr` とは違い、`warn` の出力は `unset warnings` で抑制されます。
 2 While
 ?while
 ?commands while

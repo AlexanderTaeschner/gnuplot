@@ -60,7 +60,7 @@
 /*
  * December 2020
  * Initial implementation based on WebPAnimEncoder API in mux.h
- * requires libwebp and libwepmux. The webp format supports either lossy
+ * requires libwebp and libwebpmux. The webp format supports either lossy
  * encoding (YUV + alpha color space) or lossless encoding (ARGB color space).
  * Individual frames are created by handing through most driver calls to the
  * pngcairo terminal.  At the end of each frame, the call to WEBP_text converts
@@ -76,8 +76,7 @@
  *	  for animation properties delay <milliseconds> loop <repeat-count>
  *        and quality <integer value 1..100>
  *	- the WebPAnimEncoder API seems to lack an mechanism for setting
- *	  the dispose_method to WEBP_MUX_DISPOSE_BACKGROUND, which would
- *	  be needed for proper handling of a transparent background.
+ *	  dispose_method to something that properly handles a transparent background.
  *	  This causes successive frames to generate ghost images.
  *	  The utility program webpmux can be used to fix this by post-processing
  *	  the animation file.
@@ -267,6 +266,10 @@ void WEBP_text()
 	    /* Initialize the animation */
 	    WebPAnimEncoderOptionsInit(&wp_enc_options);
 	    wp_enc_options.anim_params.loop_count = webp_params.loop;
+//	    wp_enc_options.anim_params.bgcolor = cairo_params->rgb_bkgnd;
+//	    if (cairo_params->transparent)
+//		wp_enc_options.anim_params.bgcolor &= 0x00ffffff;
+//	    wp_enc_options.verbose = 1;
 
 	    wp_enc = WebPAnimEncoderNew( picture.width, picture.height, &wp_enc_options);
 	    if (!wp_enc) {
@@ -285,16 +288,6 @@ void WEBP_text()
 
 	/* Increase frame count */
 	webp_params.frame++;
-#if (0)
-	/* This code is equivalent to that in anim_encode.c but none of this is
-	 * exported through the WebPAnimEncoder API so I can't use it.
-	 * How is one supposed to set the dispose method???
-	 */
-	EncodedFrame *prev = GetFrame(wp_enc, webp_params.frame);
-	prev->sub_frame_.dispose_method = WEBP_MUX_DISPOSE_BACKGROUND;
-	prev->key_frame_.dispose_method = WEBP_MUX_DISPOSE_BACKGROUND;
-#endif
-
     }
 
 }

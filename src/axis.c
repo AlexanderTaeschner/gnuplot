@@ -2450,13 +2450,23 @@ parse_range(AXIS_INDEX axis)
 }
 
 /* Called if an in-line range is encountered while inside a zoom command */
-void
+TBOOLEAN
 parse_skip_range()
 {
-    while (!equals(c_token++,"]"))
+    int start_token = c_token;
+    int ncolons = 0;
+
+    while (!equals(c_token++,"]")) {
+	if (equals(c_token,":"))
+	    ncolons++;
 	if (END_OF_COMMAND)
 	    break;
-    return;
+    }
+    if (ncolons >= 2) {
+	c_token = start_token;
+	return FALSE;
+    }
+    return TRUE;
 }
 
 /*

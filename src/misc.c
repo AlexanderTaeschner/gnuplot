@@ -38,6 +38,7 @@
 #include "encoding.h"
 #include "graphics.h"
 #include "loadpath.h"
+#include "multiplot.h"
 #include "plot.h"
 #include "tables.h"
 #include "util.h"
@@ -392,6 +393,10 @@ load_file(FILE *fp, char *name, int calltype)
 	    if (do_line())
 		stop = TRUE;
 	}
+
+	/* If this line is part of a multiplot, save it for later replay */
+	if (multiplot && !multiplot_playback & !evaluate_inside_functionblock)
+	    append_multiplot_line(gp_input_line);
     }
 
     /* pop state */

@@ -264,8 +264,10 @@ plotrequest()
     /* If we are called from a mouse zoom operation we should ignore	*/
     /* any range limits because otherwise the zoom won't zoom.		*/
     if (inside_zoom) {
-	while (equals(c_token,"["))
-	    parse_skip_range();
+	if (equals(c_token,"[")) {
+	    while (parse_skip_range() == TRUE)
+		;
+	}
     }
 
     /* Axis range limits for the entire plot are optional but must be given
@@ -3063,6 +3065,7 @@ eval_plots()
 		case DOTS:
 		case VECTOR:
 		case FILLEDCURVES:
+		case POLYGONS:
 		case LABELPOINTS:
 		case CIRCLES:
 		case SECTORS:
@@ -4010,6 +4013,7 @@ eval_plots()
 	m_capture(&replot_line, plot_token, c_token - 1);
 	plot_token = -1;
 	fill_gpval_string("GPVAL_LAST_PLOT", replot_line);
+	last_plot_was_multiplot = FALSE;
     }
 
     if (table_mode) {

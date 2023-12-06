@@ -52,6 +52,7 @@
 #include "watch.h"
 #include "util.h"
 #include "util3d.h"
+#include "datafile.h"		/* for blank_data_line */
 
 
 /* Externally visible/modifiable status variables */
@@ -144,6 +145,7 @@ static void plot_sectors(struct curve_points *plot);
 static void plot_ellipses(struct curve_points *plot);
 static void do_rectangle(int dimensions, t_object *this_object, fill_style_type *fillstyle);
 static void do_polygon(int dimensions, t_object *this_object, int style, int facing );
+static void close_polygon(struct curve_points *plot, int first, int last);
 
 static double rgbscale(double rawvalue);
 
@@ -1261,6 +1263,8 @@ plot_impulses(struct curve_points *plot, int yaxis_x, int xaxis_y)
 
 /* plot_lines:
  * Plot the curves in LINES style
+ * This code is also called by plot styles
+ * LINESPOINTS YERRORLINES XERRORLINES XYERRORLINES FILLEDCURVES POLYGONS
  */
 static void
 plot_lines(struct curve_points *plot)
@@ -1274,6 +1278,7 @@ plot_lines(struct curve_points *plot)
     double yprev = 0.0;		/* user coordinates */
     double zprev = 0.0;		/* user coordinates */
     double xnow, ynow, znow;	/* user coordinates */
+    int polygon_start = 0;	/* first point of current polygon */
     TBOOLEAN drawn;
 
     /* Clear status of watch events */
@@ -1301,6 +1306,9 @@ plot_lines(struct curve_points *plot)
 	 *	the color has already been set to the border color.
 	 */
 	if (plot->plot_style != FILLEDCURVES && plot->plot_style != POLYGONS)
+	    check_for_variable_color(plot, &plot->varcolor[i]);
+
+	if (plot->plot_style == POLYGONS && i == polygon_start)
 	    check_for_variable_color(plot, &plot->varcolor[i]);
 
 	/* Only map and plot the point if it is well-behaved (not UNDEFINED).
@@ -1369,6 +1377,13 @@ plot_lines(struct curve_points *plot)
 		break;
 
 	case UNDEFINED:
+		/* Check for blank line separating polygons */
+		if ((plot->plot_style == POLYGONS)
+		&&  (!memcmp(&plot->points[i].x, &blank_data_line.x, 7*sizeof(coordval)))) {
+		    close_polygon(plot, polygon_start, i-1);
+		    polygon_start = i+1;
+		}
+		break;
 	default:		/* just a safety */
 		break;
 	}
@@ -1378,7 +1393,36 @@ plot_lines(struct curve_points *plot)
 	yprev = ynow;
 	zprev = znow;
     }
+
+    /* The last polygon may need to be closed */
+    if (plot->plot_style == POLYGONS)
+	close_polygon(plot, polygon_start, plot->p_count-1);
 }
+
+/* A data file can hold multiple polygons separated by single blank lines.
+ * In order to guarantee that the polygon border is closed we check at each blank
+ * line whether the first and last points of the previous polygon were the same.
+ * If not, we need to draw a final connecting line segment.
+ */
+static void
+close_polygon(struct curve_points *plot, int first, int last)
+{
+    coordval x0 = plot->points[first].x;
+    coordval y0 = plot->points[first].y;
+    coordval xN = plot->points[last].x;
+    coordval yN = plot->points[last].y;
+
+    /* Try to assure a closed path for polygon boundaries */
+    if (plot->points[first].type == UNDEFINED || plot->points[last].type == UNDEFINED)
+	return;
+    if (x0 == xN && y0 == yN)
+	return;
+    if (polar)
+	draw_polar_clip_line(xN, yN, x0, y0);
+    else
+	draw_clip_line( map_x(xN), map_y(yN), map_x(x0), map_y(y0));
+}
+
 
 /* plot_filledcurves:
  *        {closed | {above | below} {x1 | x2 | y1 | y2 | r}[=<a>] | xy=<x>,<y>}

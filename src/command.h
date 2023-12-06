@@ -57,6 +57,7 @@ extern int plot_token;
 #define END_OF_COMMAND (c_token >= num_tokens || equals(c_token,";"))
 
 extern char *replot_line;
+extern TBOOLEAN last_plot_was_multiplot;
 
 /* flag to disable `replot` when some data are sent through stdin;
  * used by mouse/hotkey capable terminals

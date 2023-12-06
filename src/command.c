@@ -70,6 +70,7 @@
 #include "gplocale.h"
 #include "loadpath.h"
 #include "misc.h"
+#include "multiplot.h"
 #include "parse.h"
 #include "plot.h"
 #include "plot2d.h"
@@ -168,6 +169,9 @@ struct udft_entry *dummy_func;
 /* support for replot command */
 char *replot_line = NULL;
 int plot_token = 0;		/* start of 'plot' command */
+
+/* support for multiplot playback */
+TBOOLEAN last_plot_was_multiplot = FALSE;
 
 /* flag to disable `replot` when some data are sent through stdin;
  * used by mouse/hotkey capable terminals
@@ -381,6 +385,8 @@ os2_ipc_waitforinput(int mode)
 int
 com_line()
 {
+    int return_value = 0;
+
     if (multiplot) {
 	/* calls int_error() if it is not happy */
 	term_check_multiplot_okay(interactive);
@@ -420,11 +426,13 @@ com_line()
      * (DFK 11/89)
      */
     screen_ok = interactive;
+    return_value = do_line();
 
-    if (do_line())
-	return (1);
-    else
-	return (0);
+    /* If this line is part of a multiplot, save it for later replay */
+    if (multiplot && !multiplot_playback)
+	append_multiplot_line(gp_input_line);
+
+    return return_value;
 }
 
 
@@ -599,6 +607,12 @@ void
 do_string_replot(const char *s)
 {
     do_string(s);
+
+    /* EXPERIMENTAL */
+    if (last_plot_was_multiplot && !multiplot && !replot_disabled) {
+	replay_multiplot();
+	return;
+    }
 
     if (volatile_data && (E_REFRESH_NOT_OK != refresh_ok)) {
 	if (display_ipc_commands())
@@ -1895,6 +1909,9 @@ pause_command()
 
     c_token++;
 
+   /*	Ignore pause commands in certain contexts to avoid bad behavior */
+   filter_multiplot_playback();
+
 #ifdef USE_MOUSE
     paused_for_mouse = 0;
     if (equals(c_token, "mouse")) {
@@ -2480,7 +2497,13 @@ replot_command()
     SET_CURSOR_WAIT;
     if (term->flags & TERM_INIT_ON_REPLOT)
 	term->init();
-    replotrequest();
+
+    /* EXPERIMENTAL */
+    if (last_plot_was_multiplot && !multiplot)
+	replay_multiplot();
+    else
+	replotrequest();
+
     SET_CURSOR_ARROW;
 }
 
@@ -2489,12 +2512,16 @@ replot_command()
 void
 reread_command()
 {
+#ifdef BACKWARD_COMPATIBILITY
     FILE *fp = lf_top();
     if (evaluate_inside_functionblock)
 	int_error(NO_CARET, "reread command not possible in a function block");
     if (fp != (FILE *) NULL)
 	rewind(fp);
     c_token++;
+#else
+    int_error(c_token, "deprecated command");
+#endif
 }
 
 #ifdef USE_FUNCTIONBLOCKS
@@ -3816,10 +3843,13 @@ expand_1level_macros()
     for (c=temp_string; len && c && *c; c++, len--) {
 	switch (*c) {
 	case '@':	/* The only tricky bit */
-		if (!in_squote && !in_dquote && !in_comment && isalpha((unsigned char)c[1])) {
+		if (!in_squote && !in_dquote && !in_comment
+			&& (isalpha((unsigned char)c[1]) || ALLOWED_8BITVAR(c[1]))) {
 		    /* Isolate the udv key as a null-terminated substring */
 		    m = ++c;
-		    while (isalnum((unsigned char )*c) || (*c=='_')) c++;
+		    while (isalnum((unsigned char )*c) || (*c=='_')
+			|| ALLOWED_8BITVAR(*c))
+			c++;
 		    temp_char = *c; *c = '\0';
 		    /* Look up the key and restore the original following char */
 		    udv = get_udv_by_name(m);
