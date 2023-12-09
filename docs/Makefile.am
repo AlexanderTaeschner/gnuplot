@@ -238,8 +238,9 @@ allterm-ja.h: $(CORETERM) $(LUA_HELP)
 	-mkdir ja
 	-mkdir ja/docs;
 	cp $(top_srcdir)/docs/doc2rtf.c ja/docs
+	cp $(top_srcdir)/docs/term-ja.diff ja
 	cp -r $(top_srcdir)/term $(TJ)
-	-( cd ja ; patch -p0 < $(top_srcdir)/docs/term-ja.diff )
+	-( cd ja ; patch -p0 < term-ja.diff )
 	$(AM_V_GEN) for e in `grep -E "^[ 	]*START_HELP" $(JATERM) |\
 	     LC_ALL=C sort -f -t':' -k2` ; do \
 	  f=`echo $$e |cut -d\: -f1` ; s=`echo $$e | cut -d\: -f2` ;\
