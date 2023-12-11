@@ -100,9 +100,9 @@
 \maketitle
 
 \noindent
-This material describes \gnuplot version 5 (up to 5.4)
+This material describes \gnuplot version 6
         \\
-FAQ version: February 2023
+FAQ version: December 2023
         \\
 PDF version of current document: {\http{www.gnuplot.info/faq/faq.pdf}.
 
@@ -245,9 +245,9 @@ about gnuplot", for the most up-to-date list.
 
 \subsection{What is the current version of \gnuplot?}
 
-The current stable version of \gnuplot is 5.4, first released in July 2020.
+The current stable version of \gnuplot is 6.0, first released in December 2023.
 Incremental versions (patchlevel 1, 2, ...) are typically released every six months.
-The development version is currently \gnuplot 6.
+The development version is currently \gnuplot 6.1.
 
 \subsection{Where can I get \gnuplot?}
 \label{where-get-gnuplot}
@@ -256,7 +256,7 @@ The best place to start is \http{www.gnuplot.info}. From there
 you find various pointers to other sites, including the project
 development site on SourceForge \http{sourceforge.net/projects/gnuplot}.
 
-The source distribution ("gnuplot-5.4.0.tar.gz" or a similar name) is
+The source distribution ("gnuplot-6.0.0.tar.gz" or a similar name) is
 available from the official distribution site \http{sourceforge.net/projects/gnuplot}.
 
 \subsection{Why would I care about the development version?}
@@ -521,7 +521,7 @@ Use the {\em save "filename"} and {\em load "filename"} commands.
 
 \subsection{Can I put both commands and data into a single file?}
 
-\Gnuplot version 5 supports named blocks of data in "here document" format:
+Starting with version 5, \Gnuplot supports named blocks of data in "here document" format:
 \small
 \begin{verbatim}
 gnuplot> $DATABLOCK << EOD
@@ -629,6 +629,7 @@ one by one using {\em set origin} and {\em set size}.
 \subsection{How to request 1:1 scaling of axes?}
 
 Try {\em set size square} or {\em set view equal xy}.
+In version 6 there is also a command {\em set isotropic}.
 
 \subsection{Palette that works for both color and black\&white printing?}
 
@@ -692,7 +693,7 @@ set label Y norotate at graph 0.0, 0.5 offset -6
 set terminal gif animate {delay <time>} {loop <N>} {optimize}
 \end{verbatim}
 
-The development version also supports animation in webp format.
+Version 6 also supports animation in webp format.
 Have a look at
 \http{gnuplot.sourceforge.net/demo/animate2.html}
 in the demo collection.
@@ -779,10 +780,12 @@ for \textit{bins} and for \textit{smooth frequency}.
 
 \subsection{Does \gnuplot support pie charts? quarterly time charts?}
 
-Pie charts are sort of difficult in \gnuplot, but see
+Pie charts were difficult in older \gnuplot versions but see
 \http{gnuplot.sourceforge.net/demo/circles.html},
 or have a look at
 \http{gnuplot-tricks.blogspot.com/2009/08/pie-charts-entirely-in-gnuplot.html}.
+Version 6 introduced a new plot style \textit{with sectors} that makes
+pie charts much easier.
 
 The demo collection contains an example of a simple Gantt chart.
 
@@ -795,8 +798,9 @@ y axes to be defined.
 
 \subsection{How to draw a solid made of triangular facets?}
 
-Version 5.4: plot style \textit{with polygons} can handle polygonal faces
+Plot style \textit{with polygons} can handle polygonal faces
 (triangles, rectangles, octagons, ...) in either 2D or 3D plots.
+This style was introduced in version 5.4.
 
 In older versions the best you can do is to describe colored quadrangles
 that are facets of a 3D object using a file organized like this:
@@ -833,8 +837,6 @@ splot 'facets_with_color.dat' using 1:2:3:4 title "explicit colors"
 \normalsize
 
 Gnuplot is not a 3D modeling program.
-The depthorder rendering in version 5 does not handle inter-penetrating facets;
-version 6 does somewhat better.
 For true 3D rendering you would be probably be better off using a ray-tracing program.
 
 \subsection{How do I plot two functions in non-overlapping regions?}
@@ -1197,18 +1199,30 @@ For more information, type {\em help set zero}.
 
 \subsection{When I {\em replot} or {\em resize} a multiplot I get only a fragment}
 
-\Gnuplot only retains enough information to regenerate the most recent
-{\em plot} or {\em splot} command.
-In order to reproduce the entire multiplot you need to save the complete
+\Gnuplot versions through 5.4 retained only enough information to regenerate
+the most recent {\em plot} or {\em splot} command.
+In order to reproduce the entire multiplot you needed to save the complete
 sequence of commands that generated it into a script file.
-Then you can {\em load} that script into \gnuplot as many times as you need
+Then you could {\em load} that script into \gnuplot as many times as needed
 for replotting the drawing to different terminals or output files.
 
-The same problem arises when you resize a multiplot displayed in an interactive
+The same limitation arose when you resized a multiplot displayed in an interactive
 terminal window, because the resize event normally triggers a replot.
 The {\em qt} and {\em wxt} terminals provide a toggle in the toolbox widget
 that suppresses this replot on resize.  The {\em x11} terminal provides a 
 terminal option {\em set term x11 noreplotonresize}.
+
+\Gnuplot version 6 automates regeneration of all components in a multiplot.
+Starting when a command \textit{set multiplot} is seen, the program saves
+commands into a data block named \verb|$GPVAL_LAST_MULTIPLOT|.
+Once the closing command \textit{unset multiplot} is issued, this data block
+can be replayed to redraw the corresponding set of plots that make up the multiplot.
+This can be done explicitly using the \textit{remultiplot} command or implicitly
+from \textit{replot} commands or resizing events if the immediately preceeding plot
+command was part of a multiplot.  It is either a feature or a drawback that the
+result of replaying the original commands may produce a slightly different result
+if the state of the program (axis ranges, linetypes, fonts, etc) has changed in
+the interim.
 
 \subsection{My formulas (like 1/3) are giving me nonsense results! What's going on?}
 
@@ -1285,7 +1299,7 @@ Campbell, Russell Lang, David Kotz and many corrections from Daniel Lewart.
 Again reworked for \gnuplot 3.7 by Alexander Mai and Juergen v.Hagen
 with corrections by Lars Hecking, Hans-Bernhard Broecker and others.
 Revised for \gnuplot version 4 by Petr Mikul\'{\i}k and Ethan Merritt.
-Revised for \gnuplot version 5 by Ethan Merritt.
+Revised for \gnuplot versions 5 and 6 by Ethan Merritt.
 
 \end{document}
 %%
