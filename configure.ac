@@ -1335,10 +1335,8 @@ if test "$no_x" != yes; then
     AC_MSG_RESULT([  x11 (X Window System): yes  (multi-byte fonts not supported)])
   fi
 
-  if test "$enable_x11_external" = yes; then
-    AC_MSG_RESULT([                               (enable plotting to windows opened by external apps) ])
-  else
-    AC_MSG_RESULT([                               (disable plotting to windows opened by external apps) ])
+  if test "$enable_x11_external" != yes; then
+    AC_MSG_RESULT([                              (disable plotting to windows opened by external apps) ])
   fi
 
   if test "$with_x_dcop" = yes; then
@@ -1371,6 +1369,13 @@ if test "$with_webp" = yes; then
 else
   AC_MSG_RESULT([  webp                 : no (requires cairo, pango, libwebp, libwebpmux)])
 fi
+
+if test "$with_cairo" = yes || test "$with_gd" = yes; then
+  AC_MSG_RESULT([  kitty                : yes ])
+else
+  AC_MSG_RESULT([  kitty                : no ])
+fi
+
 
 if test "$with_lua" = yes; then
   AC_MSG_RESULT([  lua/TikZ             : yes ])
