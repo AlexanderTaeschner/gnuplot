@@ -98,7 +98,8 @@ typedef struct iterator {
 	struct iterator *next;		/* linked list */
 	struct udvt_entry *iteration_udv;
 	t_value original_udv_value;	/* prior value of iteration variable */
-	char *iteration_string;
+	t_value iteration_array;	/* holds array A for [a in A] */
+	char *iteration_string;		/* holds string S for [s in S] */
 	intgr_t iteration_start;
 	intgr_t iteration_end;
 	intgr_t iteration_increment;
