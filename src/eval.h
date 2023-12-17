@@ -156,6 +156,7 @@ struct value * Gcomplex(struct value *, double, double);
 struct value * Ginteger(struct value *, intgr_t);
 struct value * Gstring(struct value *, char *);
 struct value * pop_or_convert_from_string(struct value *);
+void clone_string_value(t_value *value);
 void free_value(struct value *a);
 void gpfree_string(struct value *a);
 void gpfree_array(struct value *a);

@@ -1564,9 +1564,7 @@ check_for_iteration()
 		iteration_end = v.v.value_array[0].v.int_val;
 		free_value(&(iteration_udv->udv_value));
 		iteration_udv->udv_value = v.v.value_array[1];
-		if (iteration_udv->udv_value.type == STRING)
-		    iteration_udv->udv_value.v.string_val =
-			strdup(iteration_udv->udv_value.v.string_val);
+		clone_string_value(&(iteration_udv->udv_value));
 	    } else {
 		int_error(c_token-1, errormsg);
 	    }
@@ -1652,9 +1650,7 @@ reevaluate_iteration_limits(t_iterator *iter)
 	    iter->iteration_start = 1;
 	    iter->iteration_end = v.v.value_array[0].v.int_val;
 	    iter->iteration_udv->udv_value = v.v.value_array[1];
-	    if (iter->iteration_udv->udv_value.type == STRING)
-		iter->iteration_udv->udv_value.v.string_val =
-		    strdup(iter->iteration_udv->udv_value.v.string_val);
+	    clone_string_value(&(iter->iteration_udv->udv_value));
 	} else {
 	    iter->iteration_start = real(&v);
 	}
@@ -1687,9 +1683,7 @@ reset_iteration(t_iterator *iter)
     } else if (iter->iteration_array.type == ARRAY) {
 	iter->iteration_udv->udv_value =
 	    iter->iteration_array.v.value_array[iter->iteration_current];
-	if (iter->iteration_udv->udv_value.type == STRING)
-	    iter->iteration_udv->udv_value.v.string_val =
-		strdup(iter->iteration_udv->udv_value.v.string_val);
+	clone_string_value(&(iter->iteration_udv->udv_value));
     } else {
 	/* This traps fatal user error of reassigning iteration variable to a string */
 	Ginteger(&(iter->iteration_udv->udv_value), iter->iteration_current);	
@@ -1774,9 +1768,7 @@ next_iteration(t_iterator *iter)
 	if (iter->iteration_current <= iter->iteration_end) {
 	    iter->iteration_udv->udv_value =
 		iter->iteration_array.v.value_array[iter->iteration_current];
-	    if (iter->iteration_udv->udv_value.type == STRING)
-		iter->iteration_udv->udv_value.v.string_val =
-		    strdup(iter->iteration_udv->udv_value.v.string_val);
+	    clone_string_value(&(iter->iteration_udv->udv_value));
 	}
     } else {
 	/* This traps fatal user error of reassigning iteration variable to a string */
