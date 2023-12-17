@@ -123,6 +123,7 @@ void flag_iteration_nodata(t_iterator *iter);
 void warn_if_too_many_unbounded_iterations(t_iterator *iter);
 
 t_iterator * cleanup_iteration(t_iterator *);
+void parse_array_constant(t_value *array);
 
 /* These are used by the function block evaluation code */
 void cache_at( struct at_type **shadow_at, int *shadow_at_size);

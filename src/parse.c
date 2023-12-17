@@ -1298,6 +1298,64 @@ parse_sum_expression()
     add_action(SUM)->udf_arg = udf;
 }
 
+/* Fill in array elements read from the command line
+ *    [ element1, element2, ... ]
+ */
+void
+parse_array_constant( t_value *array )
+{
+    t_value *element;
+    int current_size;
+    int max_size;
+    int i = 1;
+
+    if (array->type != ARRAY || !equals(c_token, "["))
+	return; /* should never happen */
+
+    current_size = array->v.value_array[0].v.int_val;
+    max_size = current_size;
+    c_token++;
+
+    while (!END_OF_COMMAND) {
+	if (i > max_size) {
+	    max_size = (max_size < 10) ? 10 : 2*max_size;
+	    array->v.value_array = gp_realloc( array->v.value_array,
+		(max_size+1) * sizeof(t_value), "load_array");
+	}
+	element = &(array->v.value_array[i++]);
+	if (equals(c_token,",") || equals(c_token,"]")) {
+	    element->type = NOTDEFINED;
+	} else {
+	    const_express(element);
+	    if (element->type == ARRAY) {
+		if (element->v.value_array[0].type == TEMP_ARRAY)
+		    gpfree_array(element);
+		element->type = NOTDEFINED;
+		int_warn(c_token, "Cannot nest arrays");
+	    }
+	}
+	if (equals(c_token, "]"))
+	    break;
+	if (!equals(c_token, ","))
+	    int_error(c_token, "array syntax error");
+	else
+	    c_token++;
+    }
+    if (current_size == 0)
+	current_size = i-1;
+    array->v.value_array[0].v.int_val = current_size;
+
+    /* trim off excess (not strictly necessary) */
+    if (max_size > current_size) {
+	array->v.value_array = gp_realloc( array->v.value_array,
+	    (current_size+1) * sizeof(t_value), "trim array");
+    }
+
+    if (!equals(c_token++,"]"))
+	int_error(c_token, "array syntax error");
+}
+
+
 /* create action table entries to execute a function block */
 #ifdef USE_FUNCTIONBLOCKS
 static void
