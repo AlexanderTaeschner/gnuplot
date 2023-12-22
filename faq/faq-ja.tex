@@ -1,8 +1,7 @@
 %% Don't forget to change the paper format in the next line
 %
-% $Id: faq-ja.tex,v 1.38 2023-04-07 10:10:40+09 shige Exp $
 % translated to Japanese by Shigeharu TAKENO
-% Original: Id: faq.tex updated at 2023-04-05
+% Original: Id: faq.tex updated at 2023-12-11
 %
 %%%% \documentclass[a4paper,11pt]{article}
 %%% \documentclass[letter,11pt]{article}
@@ -116,12 +115,12 @@
 \maketitle
 
 \noindent
-%%% This material describes \gnuplot version 5 (up to 5.4)
-この文書は、\gnuplot バージョン 5 (5.4 まで) についての記述です。
+%%% This material describes \gnuplot version 6
+この文書は、\gnuplot バージョン 6 についての記述です。
 %% end Japanese
         \\
-%%% FAQ version: February 2023
-FAQ バージョン: 2023 2 月
+%%% FAQ version: December 2023
+FAQ バージョン: 2023 12 月
 
 %%% PDF version of current document: {\http{www.gnuplot.info/faq/faq.pdf}.
 現文書の PDF 版: \http{www.gnuplot.info/faq/faq.pdf} (訳注: 英語版)。
@@ -384,15 +383,15 @@ gnuplot Web ページ \http{www.gnuplot.info} を見てください。
 %%% \subsection{What is the current version of \gnuplot?}
 \subsection{\gnuplot の最新バージョンは}
 
-%%% The current stable version of \gnuplot is 5.4, first released in 
-%%% July 2020.
+%%% The current stable version of \gnuplot is 6.0, first released in
+%%%  December 2023.
 %%% Incremental versions (patchlevel 1, 2, ...) are typically released 
 %%% every six months.
-%%% The development version is currently \gnuplot 6.
-\gnuplot の最新の安定版は、2020 年 7 月に最初にリリースされた 5.4 です。
+%%% The development version is currently \gnuplot 6.1.
+\gnuplot の最新の安定版は、2023 年 12 月に最初にリリースされた 6.0 です。
 更新バージョン (パッチレベル 1, 2, ...) は、だいたい 6 ヶ月毎に
 リリースされます。
-現在の開発版は \gnuplot 6 です。
+現在の開発版は \gnuplot 6.1 です。
 
 %%% \subsection{Where can I get \gnuplot?}
 \subsection{\gnuplot はどこで手に入れられますか}
@@ -407,10 +406,10 @@ gnuplot Web ページ \http{www.gnuplot.info} を見てください。
 \http{sourceforge.net/projects/gnuplot} などの、
 色々なサイトの場所を見つけられるでしょう。
 
-%%% The source distribution ("gnuplot-5.4.0.tar.gz" or a similar name) is
+%%% The source distribution ("gnuplot-6.0.0.tar.gz" or a similar name) is
 %%% available from the official distribution site 
 %%% \http{sourceforge.net/projects/gnuplot}.
-ソース配布物 ("gnuplot-5.4.0.tar.gz" または同様の名前) %
+ソース配布物 ("gnuplot-6.0.0.tar.gz" または同様の名前) %
 は公式の配布サイト \http{sourceforge.net/projects/gnuplot} にあります。
 
 %%% \subsection{Why would I care about the development version?}
@@ -901,9 +900,9 @@ Gimp の様なツールで編集することができます。
 %%% \subsection{Can I put both commands and data into a single file?}
 \subsection{一つのファイルに gnuplot のコマンドとデータの両方を書けますか}
 
-%%% \Gnuplot Version 5 supports named blocks of data in "here document" 
-%%% format:
-\gnuplot のバージョン 5 では、「ヒアドキュメント」形式での
+%%% Starting with version 5, \Gnuplot supports named blocks of data in 
+%%% "here document" format:
+\gnuplot のバージョン 5 以降では、「ヒアドキュメント」形式での
 名前付きデータブロックをサポートしています:
 %% end Japanese
 \latex{\small}
@@ -1094,8 +1093,10 @@ gnuplot は指定した数のグラフを規則的な升目状に配置します %
 \subsection{縦と横の軸の目盛りを 1:1 にできますか}
 
 %%% Try {\em set size square} or {\em set view equal xy}.
+%%% In version 6 there is also a command {\em set isotropic}.
 {\em set size square} か %
 {\em set view equal xy} としてみてください。
+バージョン 6 では、{\em set isotropic} というコマンドもあります。
 
 %%% \subsection{Palette that works for both color and black\&white printing?}
 \subsection{カラーとモノクロの両方の出力で機能するようなパレットは}
@@ -1195,8 +1196,10 @@ set terminal gif animate {delay <time>} {loop <N>} {optimize}
 \end{verbatim}
 
 %%% The development version also supports animation in webp format.
-開発版では、webp フォーマットでもアニメーションを
+%%% Version 6 also supports animation in webp format.
+バージョン 6 では、webp フォーマットでのアニメーションも
 サポートしています。
+%% end Japanese
 %%% Have a look at
 %%% \http{gnuplot.sourceforge.net/demo/animate2.html}
 %%% in the demo collection.
@@ -1357,14 +1360,18 @@ splot 'DATA' with lines, 'DATA' with labels boxed
 %%% \subsection{Does \gnuplot support pie charts? quarterly time charts?}
 \subsection{\gnuplot は円グラフが書けますか、四半期グラフはどうですか}
 
-%%% Pie charts are sort of difficult in \gnuplot, but see
+%%% Pie charts were difficult in older \gnuplot versions but see
 %%% \http{gnuplot.sourceforge.net/demo/circles.html}, 
 %%%  or have a look at
 %%% \http{gnuplot-tricks.blogspot.com/2009/08/pie-charts-entirely-in-gnuplot.html}.
-円グラフは \gnuplot ではちょっと面倒ですが、以下を見てください。
+%%% Version 6 introduced a new plot style \textit{with sectors} that 
+%%% makes pie charts much easier.
+円グラフは古い \gnuplot ではちょっと面倒でした。以下を見てください。
 \http{gnuplot.sourceforge.net/demo/circles.html} 
 または、以下を参照してください。
 \http{gnuplot-tricks.blogspot.com/2009/08/pie-charts-entirely-in-gnuplot.html}
+バージョン 6 では、新しい描画スタイル \textit{with sectors} を導入
+し、もっと簡単に円グラフが描けるようになっています。
 
 %%% The demo collection contains an example of a simple Gantt chart.
 デモの中には単純なガントチャートの例があります。
@@ -1384,11 +1391,12 @@ y 軸をさらにいくつでも追加することもできます。
 %%% \subsection{How to draw a solid made of triangular facets?}
 \subsection{小 3 角面で構成される物体を描画するには}
 
-%%% Version 5.4: plot style \textit{with polygons} can handle polygonal faces
+%%% Plot style \textit{with polygons} can handle polygonal faces
 %%% (triangles, rectangles, octagons, ...) in either 2D or 3D plots.
-バージョン 5.4: 描画スタイル \textit{with polygons} は、2 次元描画でも、
+%%% This style was introduced in version 5.4.
+描画スタイル \textit{with polygons} は、2 次元描画でも、
 3 次元描画でも多角形形状 (三角形、四辺形、八角形、...) を処理できます。
-%% end Japanese
+これはバージョン 5.4 で導入されました。
 
 %% In older versions the best you can do is to describe colored quadrangles
 %% that are facets of a 3D object using a file organized like this:
@@ -1453,13 +1461,9 @@ splot 'facets_with_color.dat' using 1:2:3:4 title "explicit colors"
 \latex{\normalsize}
 
 %%% Gnuplot is not a 3D modeling program.
-%%% The depthorder rendering in version 5 does not handle inter-penetrating
-%%% facets; version 6 does somewhat better.
 %%% For true 3D rendering you would be probably be better off using a 
 %%% ray-tracing program.
 gnuplot は 3 次元モデリングソフトではありませんので、
-バージョン 5 の depthorder による描画では、面同士の貫通は処理しません。
-バージョン 6 は多少は行います。
 本当の 3 次元描画のためには、
 多分レイトレーシングソフトを使う方がいいでしょう。
 
@@ -2163,32 +2167,64 @@ gnuplot> set zero 1e-20
 \subsection{multiplot のグラフを {\em replot} や {\em resize} すると
 一かけらしか出ません}
 
-%%% \Gnuplot only retains enough information to regenerate the most recent
-%%% {\em plot} or {\em splot} command.
-%%% In order to reproduce the entire multiplot you need to save the complete
+%%% \Gnuplot versions through 5.4 retained only enough information to regenerate
+%%% the most recent {\em plot} or {\em splot} command.
+%%% In order to reproduce the entire multiplot you needed to save the complete 
 %%% sequence of commands that generated it into a script file.
-%%% Then you can {\em load} that script into \gnuplot as many times as you need
+%%% Then you could {\em load} that script into \gnuplot as many times as needed
 %%% for replotting the drawing to different terminals or output files.
-\gnuplot は、直近の {\em plot} や {\em splot} コマンドを
-再生成するために十分な情報を保持するだけなので、
+バージョン 5.4 の \gnuplot は、直近の {\em plot} や {\em splot} コ
+マンドを再生成するために十分な情報を保持するだけだったので、
 multiplot 全体を完全に再現するには、それを生成する完全なコマンド列を
-スクリプトファイルに保存する必要があります。
+スクリプトファイルに保存する必要がありました。
 そして、{\em load} することでその内容を \gnuplot に取り込めば、
 あなたが必要とする回数だけ異なる出力形式、異なる出力ファイルに対して
-再描画をすることができます。
+再描画をすることができました。
 
-%%% The same problem arises when you resize a multiplot displayed in an 
-%%% interactive
+%%% The same limitation arose when you resized a multiplot displayed in 
+%%% an interactive
 %%% terminal window, because the resize event normally triggers a replot.
 %%% The {\em qt} and {\em wxt} terminals provide a toggle in the toolbox widget
 %%% that suppresses this replot on resize.  The {\em x11} terminal provides a 
 %%% terminal option {\em set term x11 noreplotonresize}.
-同じ問題が、対話型出力形式で multiplot を resize した場合にも起こります。
-それは、resize イベントは通常 replot を実行しているからです。
+同じ制限が、対話型出力形式で multiplot を resize した場合にも起こって
+いました。それは、resize イベントは通常 replot を実行しているからです。
 {\em qt} と {\em wxt} 出力形式は、ツールボックスウィジェット内に、
 resize 時に replot することを抑制するトグルスイッチを提供しています。
 {\em x11} 出力形式は、option {\em set term x11 noreplotonresize} を
 提供しています。
+
+%%% \Gnuplot version 6 automates regeneration of all components in a multiplot.
+%%% Starting when a command \textit{set multiplot} is seen, the program saves
+%%% commands into a data block named \verb|$GPVAL_LAST_MULTIPLOT|.
+%%% Once the closing command \textit{unset multiplot} is issued, this data 
+%%% block
+%%% can be replayed to redraw the corresponding set of plots that make up 
+%%% the multiplot.
+%%% This can be done explicitly using the \textit{remultiplot} command or 
+%%% implicitly
+%%% from \textit{replot} commands or resizing events if the immediately 
+%%% preceeding plot
+%%% command was part of a multiplot.  It is either a feature or a drawback 
+%%% that the
+%%% result of replaying the original commands may produce a slightly 
+%%% different result
+%%% if the state of the program (axis ranges, linetypes, fonts, etc) has 
+%% changed in
+%%% the interim.
+\gnuplot バージョン 6 では、multiplot でのすべての要素の再生成を
+自動化しました。コマンド \textit{set multiplot} があった場合、
+\gnuplot はコマンド群を \verb|$PVAL_LAST_MULTIPLOT| %% $
+という名前付きデータブロックに保存します。
+終了するコマンド \textit{unset multiplot} を発行すると、
+このデータブロックを、multiplot を作成する plot 命令群を再描画するもの
+に置き換えます。コマンド \textit{remultiplot} を使用したときには、
+それを明示的に行いますし、または直前の plot コマンドが multiplot の一部で
+あるときに \textit{replot} コマンドかリサイズイベントを呼び出したときには、
+暗黙にそれを行います。
+その間に、\gnuplot の状態 (軸の範囲、線種、フォント等) を変更した場合、
+元のコマンド群を再実行するとわずかに異なる結果になる可能性がある、
+という特徴は欠点かもしれません。
 
 %%% \subsection{My formulas (like 1/3) are giving me nonsense results! 
 %%% What's going on?}
@@ -2339,8 +2375,8 @@ Alexander Mai と Juergen v.Hagen によりまとめ直されました。
 \gnuplot バージョン 4 用の修正は、
 Petr Mikul\'{\i}k と Ethan Merritt により行なわれました。
 %% end Japanese
-%%% Revised for \gnuplot version 5 by Ethan Merritt.
-\gnuplot バージョン 5 用の修正は、
+%%% Revised for \gnuplot version 5 and 6 by Ethan Merritt.
+\gnuplot バージョン 5 および 6 用の修正は、
 Ethan Merritt により行なわれました。
 
 %%% 
