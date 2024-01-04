@@ -244,7 +244,7 @@ allterm-ja.h: $(CORETERM) $(LUA_HELP)
 	$(AM_V_GEN) for e in `grep -E "^[ 	]*START_HELP" $(JATERM) |\
 	     LC_ALL=C sort -f -t':' -k2` ; do \
 	  f=`echo $$e |cut -d\: -f1` ; s=`echo $$e | cut -d\: -f2` ;\
-	  sed -n "/^[ 	]*$$s/,/^[ 	]*END_HELP/p" $$f ; \
+	  LC_ALL=C sed -n "/^[ 	]*$$s/,/^[ 	]*END_HELP/p" $$f ; \
 	done >allterm.tmp
 	iconv -f EUC-JP -t UTF-8 < allterm.tmp >$@
 	rm allterm.tmp
