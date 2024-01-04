@@ -75,6 +75,13 @@ TBOOLEAN undefined;
 
 enum int64_overflow overflow_handling = INT64_OVERFLOW_TO_FLOAT;
 
+/* Normally an error such as an undefined variable encountered
+ * during expression evaluation causes an exit via int_error().
+ * In some contexts such a hard failure is undesireable.
+ * Setting this to TRUE causes such evaluations to return NaN instead.
+ */
+TBOOLEAN eval_fail_soft = FALSE;
+
 /* The stack this operates on */
 static struct value stack[STACK_DEPTH];
 static int s_p = -1;		/* stack pointer */

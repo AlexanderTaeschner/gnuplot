@@ -2491,8 +2491,14 @@ clone_linked_axes(AXIS *axis1, AXIS *axis2)
     if (axis2->link_udf == NULL || axis2->link_udf->at == NULL)
 	return;
 
+    /* Failure to confirm link functions should produce a warning
+     * rather than a fatal error.
+     */
+    eval_fail_soft = TRUE;
+
     /* Transform the min/max limits of linked secondary axis */
     inverse_function_sanity_check:
+    {
 	axis2->set_min = eval_link_function(axis2, axis1->set_min);
 	axis2->set_max = eval_link_function(axis2, axis1->set_max);
 	axis2->min = eval_link_function(axis2, axis1->min);
@@ -2539,6 +2545,9 @@ clone_linked_axes(AXIS *axis1, AXIS *axis2)
 	    dump_axis_range(axis1);
 	    dump_axis_range(axis2);
 	}
+    }
+
+    eval_fail_soft = FALSE;
 }
 
 /* Evaluate the function linking secondary axis to primary axis */

@@ -143,6 +143,8 @@ extern TBOOLEAN undefined;
 
 extern enum int64_overflow overflow_handling;
 
+extern TBOOLEAN eval_fail_soft;	/* failed evaluation returns NaN rather than calling int_error() */
+
 /* Prototypes of functions exported by eval.c */
 
 double gp_exp(double x);
