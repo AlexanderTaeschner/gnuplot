@@ -583,12 +583,6 @@ pm3d_plot(struct surface_points *this_plot, int at_which_z)
 	    ii = (interp_j == 0) ? DEFAULT_OPTIMAL_NB_POINTS : -interp_j;
 	    interp_j = floor(ii / max_scans) + 1;
 	}
-#if 0
-	fprintf(stderr, "pm3d.interp_i=%i\t pm3d.interp_j=%i\n", pm3d.interp_i, pm3d.interp_j);
-	fprintf(stderr, "INRANGE: max_scans=%i  max_scan_pts=%i\n", max_scans, max_scan_pts);
-	fprintf(stderr, "setting interp_i=%i\t interp_j=%i => there will be %i and %i points\n",
-		interp_i, interp_j, interp_i*max_scan_pts, interp_j*max_scans);
-#endif
     }
 
     if (pm3d.direction == PM3D_DEPTH) {
@@ -611,28 +605,6 @@ pm3d_plot(struct surface_points *this_plot, int at_which_z)
 	if (needed_quadrangles > 0)
 	    reserve_quadrangles(needed_quadrangles, 0);
     }
-
-#if 0
-    /* debugging: print scan_array */
-    for (scan = 0; scan < this_plot->num_iso_read; scan++) {
-	printf("**** SCAN=%d  points=%d\n", scan, scan_array[scan]->p_count);
-    }
-#endif
-
-#if 0
-    /* debugging: this loop prints properties of all scans */
-    for (scan = 0; scan < this_plot->num_iso_read; scan++) {
-	struct coordinate *points;
-	scanA = scan_array[scan];
-	printf("\n#IsoCurve = scan nb %d, %d points\n#x y z type(in,out,undef)\n", scan, scanA->p_count);
-	for (i = 0, points = scanA->points; i < scanA->p_count; i++) {
-	    printf("%g %g %g %c\n",
-		   points[i].x, points[i].y, points[i].z, points[i].type == INRANGE ? 'i' : points[i].type == OUTRANGE ? 'o' : 'u');
-	    /* Note: INRANGE, OUTRANGE, UNDEFINED */
-	}
-    }
-    printf("\n");
-#endif
 
     /*
      * if bilinear interpolation is enabled, allocate memory for the

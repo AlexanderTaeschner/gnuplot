@@ -771,8 +771,9 @@ apply_pm3dcolor(struct t_colorspec *tc)
     struct termentry *t = term;
     double cbval;
 
-    /* V5 - term->linetype(LT_BLACK) would clobber the current	*/
-    /* dashtype so instead we use term->set_color(black).	*/
+    /* term->linetype(LT_BLACK) would clobber the current dashtype
+     * as well as the color, so instead we use term->set_color(black).
+     */
     static t_colorspec black = BLACK_COLORSPEC; 
 
     /* Replace colorspec with that of the requested line style */
@@ -1272,8 +1273,7 @@ update_active_region(void)
     active_bounds.xright = term->xmax * (xoffset + xsize);
     active_bounds.ybot = term->ymax * yoffset;
     active_bounds.ytop = term->ymax * (yoffset + ysize);
-    if (debug)
-	fprintf(stderr, "active region: %d %d %d %d\n",
-		active_bounds.xleft, active_bounds.xright,
-		active_bounds.ybot, active_bounds.ytop);
+    FPRINTF((stderr, "active region: %d %d %d %d\n",
+	    active_bounds.xleft, active_bounds.xright,
+	    active_bounds.ybot, active_bounds.ytop));
 }

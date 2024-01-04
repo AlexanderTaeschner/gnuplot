@@ -1228,7 +1228,6 @@ gen_tics(struct axis *this, tic_callback callback)
 		ministart = ministep = step / (this->base - 1);
 		miniend = step;
 	    } else if (this->tictype == DT_TIMEDATE) {
-		/* CHANGE ver 5.5 (Jun 2021) */
 		if (minitics == MINI_DEFAULT) {
 		    minitics = MINI_OFF;
 		} else if (minitics != MINI_TIME) {

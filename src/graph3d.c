@@ -4350,9 +4350,6 @@ zslice_callback(
     double zmax = (axis_array[FIRST_Z_AXIS].autoscale & AUTOSCALE_MAX)
 		? axis_array[FIRST_Z_AXIS].max
 		: axis_array[FIRST_Z_AXIS].set_max;
-    if (debug)
-	FPRINTF((stderr, "zslice %d: clip %g to [%g:%g]\n",
-		ticlevel, place, zmin, zmax));
 
     if (!inrange(place,zmin,zmax))
 	return;

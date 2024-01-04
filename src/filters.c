@@ -1126,9 +1126,6 @@ sharpen(struct curve_points *plot)
 		p[newcount].type = OUTRANGE;
 	    else
 		p[newcount].type = INRANGE;
-	    if (debug)
-		FPRINTF((stderr, "\tbisect min [%4g %g]\tto [%4g %4g]\n",
-			p[i].x, p[i].y, hit_x, hit_y));
 	    newcount++;
 	}
     }
@@ -1156,9 +1153,6 @@ sharpen(struct curve_points *plot)
 		p[newcount].type = OUTRANGE;
 	    else
 		p[newcount].type = INRANGE;
-	    if (debug)
-		FPRINTF((stderr, "\tbisect max [%4g %g]\tto [%4g %4g]\n",
-			p[i].x, p[i].y, hit_x, hit_y));
 	    newcount++;
 	}
     }

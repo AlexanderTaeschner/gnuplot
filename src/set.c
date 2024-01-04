@@ -2837,7 +2837,6 @@ set_loadpath()
 }
 
 /* process 'set fontpath' command */
-/* Apr 2018 (V5.3) simplify this to a single directory */
 static void
 set_fontpath()
 {
@@ -3462,7 +3461,6 @@ set_parametric()
 
 
 /*
- * V5.5 EXPERIMENTAL
  * set colormap new <colormap-name>
  * set colormap <colormap-name> range [min:max]
  */
@@ -4135,7 +4133,7 @@ set_obj(int tag, int obj_type)
 		prev_object->next = new_obj;
 	    new_obj->next = this_object;
 	    this_object = new_obj;
-	    /* V5 CHANGE: Apply default rectangle style now rather than later */
+	    /* Apply default rectangle style now rather than later */
 	    if (obj_type == OBJ_RECTANGLE) {
 		this_object->fillstyle = default_rectangle.fillstyle;
 		this_object->lp_properties = default_rectangle.lp_properties;
@@ -5129,8 +5127,8 @@ set_xyplane()
 }
 
 
-/* Process 'set timefmt' command */
-/* V5: fallback default if timecolumn(N,"format") not used during input.
+/* Process 'set timefmt' command.
+ * This becomes the default if timecolumn(N,"format") is not used during input.
  * Use "set {axis}tics format" to control the output format.
  */
 static void

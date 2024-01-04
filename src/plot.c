@@ -250,12 +250,6 @@ main(int argc_orig, char **argv)
     }
 #endif
 
-/* malloc large blocks, otherwise problems with fragmented mem */
-#ifdef MALLOCDEBUG
-    malloc_debug(7);
-#endif
-
-
 /* init progpath and get helpfile from executable directory */
 #if defined(MSDOS) || defined(OS2)
     {

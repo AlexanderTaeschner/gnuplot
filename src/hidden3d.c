@@ -738,16 +738,8 @@ cover_point_poly(p_vertex v1, p_vertex v2, double u, p_polygon poly)
 	p_side[0] = area2D(w1, w2, &p);
 	p_side[1] = area2D(w2, w3, &p);
 	p_side[2] = area2D(w3, w1, &p);
-	if (0
-	    || (GE(p_side[0], 0)
-		&& GE(p_side[1], 0)
-		&& GE(p_side[2], 0)
-		)
-	    || (GE(0 , p_side[0])
-		&& GE(0 , p_side[1])
-		&& GE(0 , p_side[2])
-		)
-	    ) {
+	if ((GE(p_side[0], 0) && GE(p_side[1], 0) && GE(p_side[2], 0))
+	||  (GE(0 , p_side[0]) && GE(0 , p_side[1]) && GE(0 , p_side[2]))) {
 	    /* Point inside closed triangle, now check z value */
 	    double z_plane = -(poly->plane[0]*p.x + poly->plane[1]*p.y + poly->plane[3]) / poly->plane[2];
 	    if (GE(z_plane, p.z)) {
