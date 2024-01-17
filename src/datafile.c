@@ -114,6 +114,7 @@
 #include "gplocale.h"
 #include "graphics.h"
 #include "misc.h"
+#include "multiplot.h"
 #include "parse.h"
 #include "plot.h"
 #include "plot2d.h" /* For reevaluate_plot_title() */
@@ -619,7 +620,7 @@ df_init()
 static char *
 df_gets()
 {
-    /* HBB 20000526: prompt user for inline data, if in interactive mode */
+    /* Prompt user for inline data, if in interactive mode */
     if (mixed_data_fp && interactive)
 	fputs("input data ('e' ends) > ", stderr);
 
@@ -632,6 +633,13 @@ df_gets()
 
     if (df_array)
 	return df_generate_ascii_array_entry();
+
+    if (mixed_data_fp && multiplot && multiplot_playback) {
+	/* An alternative would be to return "e", but that would immediately
+	 * generate another error with a less obvious error message.
+	 */
+	int_error(NO_CARET, "cannot read data from '-' during remultiplot");
+    }
 
     return df_fgets(data_fp);
 }

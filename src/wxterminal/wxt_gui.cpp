@@ -4124,7 +4124,8 @@ int wxt_waitforinput(int options)
 		FD_SET(0, &read_fd);
 		retval = select(1, &read_fd, NULL, NULL, &tv);
 		if (retval == -1)
-			int_error(NO_CARET, "input select error");
+			/* select error or ^C */
+			return '\0';
 		else if (was_paused_for_mouse && !paused_for_mouse)
 			/* The wxTheApp event loop caught a signal */
 			return '\0';
