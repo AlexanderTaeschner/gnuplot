@@ -2448,7 +2448,9 @@ parse_range(AXIS_INDEX axis)
     return dummy_token;
 }
 
-/* Called if an in-line range is encountered while inside a zoom command */
+/* Called if an in-line range is encountered while inside a zoom command.
+ * On entry c_token indexes the opening '['.
+ */
 TBOOLEAN
 parse_skip_range()
 {

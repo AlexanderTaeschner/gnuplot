@@ -261,13 +261,13 @@ plotrequest()
 	}
     }
 
-    /* If we are called from a mouse zoom operation we should ignore	*/
-    /* any range limits because otherwise the zoom won't zoom.		*/
+    /* If we are called from a mouse zoom operation we should ignore
+     * any range limits because otherwise the zoom won't zoom.
+     */
     if (inside_zoom) {
-	if (equals(c_token,"[")) {
-	    while (parse_skip_range() == TRUE)
-		;
-	}
+	while (equals(c_token,"[") && (parse_skip_range() == TRUE))
+	    /* consume multiple range specifiers */
+	    ;
     }
 
     /* Axis range limits for the entire plot are optional but must be given
