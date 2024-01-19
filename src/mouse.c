@@ -3303,4 +3303,11 @@ void get_last_mouse_xy( double *x, double *y )
     *y = (y_axis == SECOND_Y_AXIS) ? real_y2 : real_y;
 }
 
+void
+zoom_reset_after_error()
+{
+    inside_zoom = FALSE;
+    setting_zoom_region = FALSE;
+}
+
 #endif /* USE_MOUSE */

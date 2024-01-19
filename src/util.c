@@ -39,6 +39,7 @@
 #include "gplocale.h"
 #include "internal.h"		/* for eval_reset_after_error */
 #include "misc.h"
+#include "mouse.h"		/* for zoom_reset_after_error */
 #include "multiplot.h"		/* for multiplot_reset_after_error */
 #include "plot.h"
 #include "pm3d.h"		/* for pm3d_reset_after_error */
@@ -1183,10 +1184,12 @@ common_error_exit()
     parse_reset_after_error();
     pm3d_reset_after_error();
     multiplot_reset_after_error();
+#ifdef USE_MOUSE
+    zoom_reset_after_error();
+#endif
     set_iterator = cleanup_iteration(set_iterator);
     plot_iterator = cleanup_iteration(plot_iterator);
     scanning_range_in_progress = FALSE;
-    inside_zoom = FALSE;
 #ifdef HAVE_LOCALE_H
     setlocale(LC_NUMERIC, "C");
 #endif
