@@ -371,7 +371,9 @@ extern double theta_direction;	/* 1 = counterclockwise -1 = clockwise */
 /* Length of the longest tics label, set by widest_tic_callback(): */
 extern int widest_tic_strlen;
 
-/* flag to indicate that in-line axis ranges should be ignored */
+/* flag to indicate that in-line axis ranges should be ignored
+ * and zoom/pan range limits take precedence over auto-scaling
+ */
 extern TBOOLEAN inside_zoom;
 
 /* axes being used by the current plot */

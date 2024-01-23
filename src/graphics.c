@@ -860,9 +860,11 @@ do_plot(struct curve_points *plots, int pcount)
 	    ignore_enhanced(FALSE);
 	}
 
-	/* If any plots have opted out of autoscaling, we need to recheck */
-	/* whether their points are INRANGE or not.                       */
-	if (this_plot->noautoscale  &&  !key_pass)
+	/* If any plots have opted out of autoscaling, we need to recheck
+	 * whether their points are INRANGE or not.  The same is true if the
+	 * plots are being redrawn as part of an interactive pan or zoom.
+	 */
+	if ((this_plot->noautoscale || inside_zoom)  &&  !key_pass)
 	    recheck_ranges(this_plot);
 
 	/* and now the curves, plus any special key requirements */

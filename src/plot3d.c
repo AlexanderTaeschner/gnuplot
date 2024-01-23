@@ -2770,6 +2770,19 @@ eval_3dplots()
 	}
     }
 
+    /* The inside_zoom flag is set for both zoom and pan mouse operations.
+     * In either case apply_zoom() has loaded the requested plot limits
+     * into (axis)-> set_min and set_max.
+     */
+    if (inside_zoom) {
+	axis_array[FIRST_X_AXIS].min = axis_array[FIRST_X_AXIS].set_min;
+	axis_array[FIRST_X_AXIS].max = axis_array[FIRST_X_AXIS].set_max;
+	axis_array[FIRST_Y_AXIS].min = axis_array[FIRST_Y_AXIS].set_min;
+	axis_array[FIRST_Y_AXIS].max = axis_array[FIRST_Y_AXIS].set_max;
+	axis_array[FIRST_Z_AXIS].min = axis_array[FIRST_Z_AXIS].set_min;
+	axis_array[FIRST_Z_AXIS].max = axis_array[FIRST_Z_AXIS].set_max;
+    }
+
     if (nonlinear(&axis_array[FIRST_X_AXIS])) {
 	/* Transfer observed data or function ranges back to primary axes */
 	update_primary_axis_range(&axis_array[FIRST_X_AXIS]);

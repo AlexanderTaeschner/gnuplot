@@ -164,7 +164,9 @@ double theta_direction = 1;	/* counterclockwise from origin */
 /* Length of the longest tics label, set by widest_tic_callback(): */
 int widest_tic_strlen;
 
-/* flag to indicate that in-line axis ranges should be ignored */
+/* flag to indicate that in-line axis ranges should be ignored
+ * and zoom/pan range limits take precedence over auto-scaling
+ */
 TBOOLEAN inside_zoom;
 
 /* axes being used by the current plot */
@@ -381,6 +383,8 @@ bad_axis_range(struct axis *axis)
  * HBB 2000/05/01: added an additional up-front test, active only if
  *   the new 'mesg' parameter is non-NULL.
  *
+ * EAM Jan 2024:  also catch and extend a zero-height zoom box
+ *
  * === USAGE ===
  *
  * Arguments:
@@ -418,11 +422,11 @@ axis_checked_extend_empty_range(AXIS_INDEX axis, const char *mesg)
 
     /* pass msg == NULL if for some reason you trust the axis range */
     if (mesg && bad_axis_range(this_axis))
-	    int_error(c_token, mesg);
+	int_error(c_token, mesg);
 
     if (dmax - dmin == 0.0) {
 	/* empty range */
-	if (this_axis->autoscale) {
+	if (this_axis->autoscale || inside_zoom) {
 	    /* range came from autoscaling ==> widen it */
 	    double widen = (dmax == 0.0) ?
 		FIXUP_RANGE__WIDEN_ZERO_ABS
@@ -430,11 +434,10 @@ axis_checked_extend_empty_range(AXIS_INDEX axis, const char *mesg)
 	    if (!(axis == FIRST_Z_AXIS && !mesg)) /* set view map */
 		fprintf(stderr, "Warning: empty %s range [%g:%g], ",
 		    axis_name(axis), dmin, dmax);
-	    /* HBB 20010525: correctly handle single-ended
-	     * autoscaling, too: */
-	    if (this_axis->autoscale & AUTOSCALE_MIN)
+	    /* HBB 20010525: correctly handle single-ended autoscaling */
+	    if ((this_axis->autoscale & AUTOSCALE_MIN) || inside_zoom)
 		this_axis->min -= widen;
-	    if (this_axis->autoscale & AUTOSCALE_MAX)
+	    if ((this_axis->autoscale & AUTOSCALE_MAX) || inside_zoom)
 		this_axis->max += widen;
 	    if (!(axis == FIRST_Z_AXIS && !mesg)) /* set view map */
 		fprintf(stderr, "adjusting to [%g:%g]\n",
@@ -946,6 +949,10 @@ setup_tics(struct axis *this, int max)
 	/* user-defined, day or month */
 	autoextend_min = autoextend_max = FALSE;
     }
+
+    /* It is disconcerting when the response to pan or zoom is asymmetric */
+    if (inside_zoom)
+	autoextend_min = autoextend_max = FALSE;
 
     /* If an explicit stepsize was set, axis->timelevel wasn't defined,
      * leading to strange misbehaviours of minor tics on time axes.

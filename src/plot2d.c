@@ -3980,21 +3980,37 @@ eval_plots()
     } else if (this_plot && this_plot->plot_style == PARALLELPLOT) {
 	/* we should maybe check one of the parallel axes? */
 	;
-    } else if (uses_axis[FIRST_Y_AXIS] && nonlinear(&axis_array[FIRST_Y_AXIS])) {
-	axis_checked_extend_empty_range(FIRST_Y_AXIS, "all points y value undefined!");
-	update_primary_axis_range(&axis_array[FIRST_Y_AXIS]);
-	extend_autoscaled_log_axis(&axis_array[FIRST_Y_AXIS]);
     } else if (uses_axis[FIRST_Y_AXIS]) {
-	axis_checked_extend_empty_range(FIRST_Y_AXIS, "all points y value undefined!");
-	axis_check_range(FIRST_Y_AXIS);
+	/* Autoscaling y to input data may have been fine initially but later zooming
+	 * to a region with no data points causes y autoscaling to become undefined
+	 * on refresh.  In this case we use the range requested by zoom.
+	 */
+	if (inside_zoom) {
+	    axis_array[FIRST_Y_AXIS].min = axis_array[FIRST_Y_AXIS].set_min;
+	    axis_array[FIRST_Y_AXIS].max = axis_array[FIRST_Y_AXIS].set_max;
+	}
+	if (nonlinear(&axis_array[FIRST_Y_AXIS])) {
+	    axis_checked_extend_empty_range(FIRST_Y_AXIS, "all points y value undefined!");
+	    update_primary_axis_range(&axis_array[FIRST_Y_AXIS]);
+	    extend_autoscaled_log_axis(&axis_array[FIRST_Y_AXIS]);
+	} else {
+	    axis_checked_extend_empty_range(FIRST_Y_AXIS, "all points y value undefined!");
+	    axis_check_range(FIRST_Y_AXIS);
+	}
     }
-    if (uses_axis[SECOND_Y_AXIS] && axis_array[SECOND_Y_AXIS].linked_to_primary) {
-	axis_checked_extend_empty_range(SECOND_Y_AXIS, "all points y2 value undefined!");
-	update_primary_axis_range(&axis_array[SECOND_Y_AXIS]);
-	extend_autoscaled_log_axis(&axis_array[SECOND_Y_AXIS]);
-    } else if (uses_axis[SECOND_Y_AXIS]) {
-	axis_checked_extend_empty_range(SECOND_Y_AXIS, "all points y2 value undefined!");
-	axis_check_range(SECOND_Y_AXIS);
+    if (uses_axis[SECOND_Y_AXIS]) {
+	if (inside_zoom) {
+	    axis_array[SECOND_Y_AXIS].min = axis_array[SECOND_Y_AXIS].set_min;
+	    axis_array[SECOND_Y_AXIS].max = axis_array[SECOND_Y_AXIS].set_max;
+	}
+	if (axis_array[SECOND_Y_AXIS].linked_to_primary) {
+	    axis_checked_extend_empty_range(SECOND_Y_AXIS, "all points y2 value undefined!");
+	    update_primary_axis_range(&axis_array[SECOND_Y_AXIS]);
+	    extend_autoscaled_log_axis(&axis_array[SECOND_Y_AXIS]);
+	} else {
+	    axis_checked_extend_empty_range(SECOND_Y_AXIS, "all points y2 value undefined!");
+	    axis_check_range(SECOND_Y_AXIS);
+	}
     } else {
 	assert(uses_axis[FIRST_Y_AXIS]);
     }
