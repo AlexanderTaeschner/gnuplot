@@ -634,11 +634,18 @@ df_gets()
     if (df_array)
 	return df_generate_ascii_array_entry();
 
-    if (mixed_data_fp && multiplot && multiplot_playback) {
-	/* An alternative would be to return "e", but that would immediately
-	 * generate another error with a less obvious error message.
+    if (mixed_data_fp && multiplot) {
+	/* Version 6: in-line data for '-' is not saved to $GPVAL_LAST_MULTIPLOT
+	 * so multiplot playback or mousing would fail badly.
+	 * Warn when the multiplot is first constructed; error out on playback.
 	 */
-	int_error(NO_CARET, "cannot read data from '-' during remultiplot");
+	if (multiplot_playback) {
+	    multiplot_end();
+	    last_plot_was_multiplot = FALSE;
+	    int_error(NO_CARET, "Cannot read from '-' during multiplot playback");
+	}
+	int_warn(NO_CARET,
+	    "Reading from '-' inside a multiplot not supported; use a datablock instead");
     }
 
     return df_fgets(data_fp);
