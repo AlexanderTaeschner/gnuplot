@@ -141,4 +141,13 @@ char *texify_title(char *title, int plot_type);
 
 TBOOLEAN in_theta_wedge( double t, double tlow, double thigh );
 
+/* wxwidgets based on gtk versions greater than 2.8 do not survive the
+ * LONGJMP in bail_to_command_line() if event processing has not completed.
+ * Try to detect this state and invoke additional exception handling
+ * and/or warn that a crash may be imminent.
+ */
+#ifdef WXWIDGETS
+extern TBOOLEAN wxt_event_processing;
+#endif
+
 #endif /* GNUPLOT_UTIL_H */

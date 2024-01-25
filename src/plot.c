@@ -202,6 +202,12 @@ bail_to_command_line()
 #endif
     if (fit_env)
 	LONGJMP(*fit_env, TRUE);
+#if defined (WXWIDGETS) && defined (HAVE_GTK)
+    else if (wxt_event_processing) {
+	extern JMP_BUF *wxt_env;
+	LONGJMP(*wxt_env, TRUE);
+    }
+#endif
     else
 	LONGJMP(command_line_env, TRUE);
 }
