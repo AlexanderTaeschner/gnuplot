@@ -2144,9 +2144,9 @@ event_buttonpress(struct gp_event_t *ge)
 	    /* the following variables are used to check if the box
 	     * is big enough to be considered as zoom box.
 	     */
-	    int dist_x = setting_zoom_x - mouse_x;
-	    int dist_y = setting_zoom_y - mouse_y;
-	    int dist = sqrt((double)(dist_x * dist_x + dist_y * dist_y));
+	    double dist_x = setting_zoom_x - mouse_x;
+	    double dist_y = setting_zoom_y - mouse_y;
+	    double dist = sqrt((dist_x * dist_x + dist_y * dist_y));
 
 	    if (1 == b || 2 == b) {
 		/* zoom region is finished by the `wrong' button.
@@ -2165,7 +2165,7 @@ event_buttonpress(struct gp_event_t *ge)
 		}
 	    }
 
-	    if (dist > 10 /* more ore less arbitrary */ ) {
+	    if (dist > 10. * term->tscale /* more or less arbitrary */ ) {
 
 		double xmin, ymin, x2min, y2min;
 		double xmax, ymax, x2max, y2max;
@@ -2188,9 +2188,10 @@ event_buttonpress(struct gp_event_t *ge)
 		    fprintf(stderr, "zoom region finished.\n");
 		}
 	    } else {
-		/* silently ignore a tiny zoom box. This might
-		 * happen, if the user starts and finishes the
-		 * zoom box at the same position. */
+		/* silently ignore a tiny zoom box */
+		if (display_ipc_commands()) {
+		    fprintf(stderr, "tiny zoom region of size %g ignored.\n", dist);
+		}
 	    }
 	    setting_zoom_region = FALSE;
 	}
@@ -2222,8 +2223,12 @@ event_buttonrelease(struct gp_event_t *ge)
 
     button &= ~(1 << b);	/* remove button */
 
-    if (setting_zoom_region)
+    if (setting_zoom_region) {
+	if (display_ipc_commands()) {
+	    fprintf(stderr, "button up while zoom region active.\n");
+	}
 	return;
+    }
 
     /* FIXME:  This mechanism may no longer be needed */
     if (TRUE == trap_release) {
