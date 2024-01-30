@@ -4102,6 +4102,7 @@ set_obj(int tag, int obj_type)
     TBOOLEAN got_corners = FALSE;
     TBOOLEAN got_center = FALSE;
     TBOOLEAN got_origin = FALSE;
+    lp_style_type lptmp;
 
     c_token++;
 
@@ -4411,11 +4412,8 @@ set_obj(int tag, int obj_type)
 	/* Line properties (will be used for the object border if the fillstyle has one. */
 	/* LP_NOFILL means don't eat fillcolor here since at is set separately with "fc". */
 	if (!got_lt) {
-	    lp_style_type lptmp = this_object->lp_properties;
+	    lptmp = this_object->lp_properties;
 	    lp_parse(&lptmp, LP_NOFILL, FALSE);
-	    if (this_object->fillstyle.fillstyle == FS_EMPTY) {
-		this_object->fillstyle.border_color = lptmp.pm3d_color;
-	    }
 	    if (c_token != save_token) {
 		this_object->lp_properties.l_width = lptmp.l_width;
 		this_object->lp_properties.d_type = lptmp.d_type;
@@ -4426,6 +4424,11 @@ set_obj(int tag, int obj_type)
 	}
 
 	int_error(c_token, "Unrecognized or duplicate option");
+    }
+
+    /* This handles the case "set obj N circle fs empty; set obj N lc "red" */
+    if (got_lt && !got_fill && !got_fc && this_object->fillstyle.fillstyle == FS_EMPTY)  {
+	    this_object->fillstyle.border_color = lptmp.pm3d_color;
     }
 
     if (got_center && got_corners)
