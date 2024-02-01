@@ -2227,7 +2227,7 @@ df_readascii(double v[], int max)
 
 		} else if (use_spec[output].expected_type == CT_KEYLABEL) {
 		    char *temp_string = df_parse_string_field(df_tokens[output]);
-		    if (df_current_plot)
+		    if (df_current_plot && temp_string)
 			add_key_entry(temp_string, df_datum);
 		    free(temp_string);
 
@@ -3189,8 +3189,9 @@ df_parse_string_field(char *field)
     int length;
 
     if (!field) {
-	/* treat missing string as empty string */
-	return strdup("");
+	/* missing string */
+	/* FIXME: maybe for non-csv files we should return an empty string? */
+	return NULL;
     } else if (*field == '"') {
 	field++;
 	length = strcspn(field, "\"");
