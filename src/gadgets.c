@@ -374,9 +374,13 @@ draw_clip_arrow( double dsx, double dsy, double dex, double dey, t_arrow_head he
     if (dx < 25 && dy < 25) {
 
 	/* draw the body of the vector (rounding errors are a problem) */
-	if (dx > 1 || dy > 1)
+	if (dx > 1 || dy > 1) {
 	    if (!((t->flags & TERM_IS_LATEX)))
 		(*t->arrow)(sx, sy, ex, ey, SHAFT_ONLY | head);
+	} else {
+	    /* if it is vanishingly short, just draw a dot */
+	    (*t->point)(ex,ey,-1);
+	}
 
 	/* if we're not supposed to be drawing any heads, we're done */
 	if ((head & BOTH_HEADS) == NOHEAD)
