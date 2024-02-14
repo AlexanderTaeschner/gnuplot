@@ -1239,11 +1239,19 @@ PNG_init_brush(int width)
 	}
 	brush->last_rgb = png_state.color;
 
-	/* EAM - quick and dirty is to fill the entire brush (square nib) */
-	/* Logically it would be better to approximate a circular nib by  */
-	/* selectively coloring the individual pixels of the brush image, */
-	/* but I tried that and it was not an improvement.                */
+	/* The simplest choice is to fill the entire brush (square nib).
+	 * Logically it would be better to approximate a circular nib by
+	 * selectively coloring the individual pixels of the brush image,
+	 * but the difference is only apparent for dots, not lines.
+	 * Version 6: Approximate by removing the corners.
+	 */
 	gdImageFilledRectangle(brush->im, 0, 0, width-1, width-1, brush->fgnd);
+	if (width > 2) {
+	    gdImageSetPixel(brush->im, 0, 0, brush->bgnd);
+	    gdImageSetPixel(brush->im, 0, width-1, brush->bgnd);
+	    gdImageSetPixel(brush->im, width-1, 0, brush->bgnd);
+	    gdImageSetPixel(brush->im, width-1, width-1, brush->bgnd);
+	}
 
     }
 }
@@ -1869,10 +1877,6 @@ PNG_point(unsigned int x, unsigned int y, int number)
 {
     int save_color = png_state.color;
 
-    if (number < 0) { /* Dot */
-	gdImageSetPixel(png_state.image, x, Y(y), png_state.color);
-	return;
-    }
     /* Use current linewidth to draw the point symbol */
     if (png_state.linewidth > 1) {
 	/* EAM - Implement linewidth by using a brush */
@@ -1883,6 +1887,12 @@ PNG_point(unsigned int x, unsigned int y, int number)
     }
 
     y = Y(y);
+
+    if (number < 0) { /* Dot */
+	gdImageSetPixel(png_state.image, x, y, png_state.color);
+	png_state.color = save_color;
+	return;
+    }
 
     switch (number % 13) {
     case 0: /* plus */
