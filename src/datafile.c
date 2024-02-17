@@ -4887,9 +4887,12 @@ df_show_filetypes(FILE *fp)
 {
     int i = 0;
 
-    fprintf(fp,"\tThis version of gnuplot understands the following binary file types:\n");
-    while (df_bin_filetype_table[i].key)
+    fprintf(fp,"\tGnuplot understands the following binary file types. However the\n");
+    fprintf(fp,"\tcopy you are running may not contain support for all of them.\n");
+    while (df_bin_filetype_table[i].key) {
+	if (i == 7) fprintf(fp, "\n");
 	fprintf(fp, "\t  %s", df_bin_filetype_table[i++].key);
+    }
     fputs("\n",fp);
 }
 

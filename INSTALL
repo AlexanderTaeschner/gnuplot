@@ -235,6 +235,11 @@ non-default location that is not searched by the preprocessor or linker.
    This option is on by default, i.e. configure will check if the library exists
    and use it if found.
 
+   The gd library is also use to read in png, jpeg, or gif image files.
+   If libgd is not found or if you configure --without-gd the configure script
+   will fall back to looking for libstbi instead, which provides an alternative
+   means of reading (not writing) image files.
+
   --with-amos=DIR
   --with-libcerf
 

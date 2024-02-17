@@ -608,6 +608,18 @@ if test "$with_gd" != no; then
 fi
 dnl end gd
 
+dnl If gdlib is not present, we need another way to read in image files.
+dnl Try libstbi
+if test "$with_gd" = no; then
+    AC_CHECK_LIB(stbi, stbi_load_from_file,
+       [AC_DEFINE(HAVE_STBI,1,[ Define to use libstbi as a fallback for reading image data])
+        with_stbi=yes && TERMLIBS="$TERMLIBS -lstbi"
+        AC_CHECK_HEADERS(stb_image.h,,
+            AC_MSG_WARN([please add path to stb_image.h to CPPFLAGS in Makefile]))
+    ])
+fi
+dnl end check for libstbi
+
 dnl The iconv library can be used to switch character encodings.
 dnl So far this is only used by gd.trm and emf.trm.
 AC_SEARCH_LIBS([iconv_open], [iconv],
@@ -1424,6 +1436,12 @@ if test "$enable_history_file" = yes; then
   AC_MSG_RESULT([  Command-line history file:                       yes])
 else
   AC_MSG_RESULT([  Command-line history file:                       no])
+fi
+
+if test "$with_stbi" = yes; then
+  AC_MSG_RESULT([  Support for image file input:                    yes (using libstbi)])
+elif test "$with_gd" = no; then
+  AC_MSG_RESULT([  Support for image file input:                    no (requires libgd or libstbi)])
 fi
 
 if test "${enable_stable_sort}" = yes; then
