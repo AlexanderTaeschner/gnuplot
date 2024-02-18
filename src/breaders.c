@@ -294,7 +294,7 @@ gd_filetype_function(int type, char *filename)
 }
 
 int
-df_libgd_get_pixel(int i, int j, int component) { return 0; }
+df_image_get_pixel(int i, int j, int component) { return 0; }
 
 TBOOLEAN
 df_read_pixmap( t_pixmap *pixmap )
@@ -378,7 +378,7 @@ gd_filetype_function(int filetype, char *filename)
 }
 
 int
-df_libgd_get_pixel(int i, int j, int component)
+df_image_get_pixel(int i, int j, int component)
 {
     static int pixel;
     int alpha;
@@ -388,7 +388,7 @@ df_libgd_get_pixel(int i, int j, int component)
     		return gdTrueColorGetRed(pixel);
     case 1:	return gdTrueColorGetGreen(pixel);
     case 2:	return gdTrueColorGetBlue(pixel);
-    case 3:	/* runs from 0-127 rather than 0-255 */
+    case 3:	/* gdlib alpha runs from 0-127 rather than 0-255 */
 		alpha = 2 * gdTrueColorGetAlpha(pixel);
 		return (255-alpha);
     default:	return 0; /* shouldn't happen */
@@ -434,10 +434,10 @@ df_read_pixmap( t_pixmap *pixmap )
     for (i=0; i<pixmap->nrows; i++)
     for (j=0; j<pixmap->ncols; j++)
     {
-	*pixel++ = (coordval)df_libgd_get_pixel(j,i,0) / 255.;
-	*pixel++ = (coordval)df_libgd_get_pixel(j,i,1) / 255.;
-	*pixel++ = (coordval)df_libgd_get_pixel(j,i,2) / 255.;
-	*pixel++ = (coordval)df_libgd_get_pixel(j,i,3);
+	*pixel++ = (coordval)df_image_get_pixel(j,i,0) / 255.;
+	*pixel++ = (coordval)df_image_get_pixel(j,i,1) / 255.;
+	*pixel++ = (coordval)df_image_get_pixel(j,i,2) / 255.;
+	*pixel++ = (coordval)df_image_get_pixel(j,i,3);
     }
 
     return TRUE;

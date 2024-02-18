@@ -1607,6 +1607,7 @@ df_close()
     }
     mixed_data_fp = FALSE;
     data_fp = NULL;
+    df_pixeldata = NULL;
 }
 
 /*}}} */
@@ -5243,7 +5244,7 @@ df_readbinary(double v[], int max)
 
 	    /* Read in a "column", i.e., a binary value of various types. */
 	    if (df_pixeldata) {
-		io_val.uc = df_libgd_get_pixel(df_M_count, df_N_count, i);
+		io_val.uc = df_image_get_pixel(df_M_count, df_N_count, i);
 	    } else
 
 	    if (memory_data) {
