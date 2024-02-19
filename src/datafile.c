@@ -477,14 +477,14 @@ struct gen_ftable df_bin_filetype_table[] = {
 };
 #define RAW_FILETYPE 1
 
-/* Initially set to default and then possibly altered by command line. */
-static int df_bin_filetype;
-/* Default setting. */
-static int df_bin_filetype_default;
-static df_endianess_type df_bin_file_endianess_default;
-/* Setting that is transferred to default upon reset. */
+/* Default settings */
 #define DF_BIN_FILETYPE_RESET -1
 #define DF_BIN_FILE_ENDIANESS_RESET THIS_COMPILER_ENDIAN
+
+static int df_bin_filetype = DF_BIN_FILETYPE_RESET;
+static int df_bin_filetype_default = DF_BIN_FILETYPE_RESET;
+static df_endianess_type df_bin_file_endianess_default;
+
 /* This one is needed by breaders.c */
 df_endianess_type df_bin_file_endianess;
 
@@ -1366,8 +1366,8 @@ df_open(const char *cmd_filename, int max_using, struct curve_points *plot)
      *	"binary filetype=png using 4" becomes "using (generated x):(generated y):4"
      *	This mangles any attempt to refer to actual column numbers or file content.
      */
-    if (set_using && df_bin_filetype > 0)
-	int_warn(NO_CARET, "combining 'using' and 'binary_filetype' probably does not do what you want");
+    if (set_using && df_bin_filetype >= 0)
+	int_warn(NO_CARET, "combining 'using' with 'binary filetype' probably does not do what you want");
 
     /* Check for auto-generation of key title from column header  */
     if ((&keyT)->auto_titles == COLUMNHEAD_KEYTITLES) {
