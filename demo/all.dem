@@ -20,6 +20,7 @@ reset
 
 print "******************** file fillstyle.dem ********************"
 load "fillstyle.dem"
+load "fs_empty.dem"
 reset
 
 print "******************** file fillcvrs.dem ********************"

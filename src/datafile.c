@@ -114,6 +114,7 @@
 #include "gplocale.h"
 #include "graphics.h"
 #include "misc.h"
+#include "multiplot.h"
 #include "parse.h"
 #include "plot.h"
 #include "plot2d.h" /* For reevaluate_plot_title() */
@@ -619,7 +620,7 @@ df_init()
 static char *
 df_gets()
 {
-    /* HBB 20000526: prompt user for inline data, if in interactive mode */
+    /* Prompt user for inline data, if in interactive mode */
     if (mixed_data_fp && interactive)
 	fputs("input data ('e' ends) > ", stderr);
 
@@ -632,6 +633,20 @@ df_gets()
 
     if (df_array)
 	return df_generate_ascii_array_entry();
+
+    if (mixed_data_fp && multiplot) {
+	/* Version 6: in-line data for '-' is not saved to $GPVAL_LAST_MULTIPLOT
+	 * so multiplot playback or mousing would fail badly.
+	 * Warn when the multiplot is first constructed; error out on playback.
+	 */
+	if (multiplot_playback) {
+	    multiplot_end();
+	    last_plot_was_multiplot = FALSE;
+	    int_error(NO_CARET, "Cannot read from '-' during multiplot playback");
+	}
+	int_warn(NO_CARET,
+	    "Reading from '-' inside a multiplot not supported; use a datablock instead");
+    }
 
     return df_fgets(data_fp);
 }
@@ -2212,7 +2227,7 @@ df_readascii(double v[], int max)
 
 		} else if (use_spec[output].expected_type == CT_KEYLABEL) {
 		    char *temp_string = df_parse_string_field(df_tokens[output]);
-		    if (df_current_plot)
+		    if (df_current_plot && temp_string)
 			add_key_entry(temp_string, df_datum);
 		    free(temp_string);
 
@@ -3174,8 +3189,9 @@ df_parse_string_field(char *field)
     int length;
 
     if (!field) {
-	/* treat missing string as empty string */
-	return strdup("");
+	/* missing string */
+	/* FIXME: maybe for non-csv files we should return an empty string? */
+	return NULL;
     } else if (*field == '"') {
 	field++;
 	length = strcspn(field, "\"");

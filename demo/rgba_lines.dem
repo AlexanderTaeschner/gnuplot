@@ -26,8 +26,8 @@ set xrange [-1:1]
 set yrange [-1:1]
 set size square
 
-plot sample [i=5:360:5] '+' using (0):(0):(cos(i)):(sin(i)):(fade(i)) \
-     with vector as 1
+plot [i=5:360:5] '+' using (0):(0):(cos(i)):(sin(i)):(fade(i)) \
+     with vector arrowstyle 1
 
 pause -1 "Hit return to continue"
 reset

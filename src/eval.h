@@ -143,6 +143,8 @@ extern TBOOLEAN undefined;
 
 extern enum int64_overflow overflow_handling;
 
+extern TBOOLEAN eval_fail_soft;	/* failed evaluation returns NaN rather than calling int_error() */
+
 /* Prototypes of functions exported by eval.c */
 
 double gp_exp(double x);
@@ -156,6 +158,7 @@ struct value * Gcomplex(struct value *, double, double);
 struct value * Ginteger(struct value *, intgr_t);
 struct value * Gstring(struct value *, char *);
 struct value * pop_or_convert_from_string(struct value *);
+void clone_string_value(t_value *value);
 void free_value(struct value *a);
 void gpfree_string(struct value *a);
 void gpfree_array(struct value *a);

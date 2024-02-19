@@ -106,6 +106,7 @@ void do_event(struct gp_event_t *ge);
 TBOOLEAN exec_event(char type, int mx, int my, int par1, int par2, int winid); /* wrapper for do_event() */
 int plot_mode(int mode);
 void event_reset(struct gp_event_t *ge);
+void zoom_reset_after_error(void);
 
 /* bind prototype(s) */
 

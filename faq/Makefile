@@ -36,5 +36,6 @@ faq.txt: faq.html
 clean:
 	-rm -f faq.aux faq.css faq.dvi faq.html faq.log faq.out faq.pdf \
 	       faq.tmp faq.ps faq.toc faq.txt faq.4tc faq.4ct faq.lg faq.idv faq.xref \
-	       faq*.png *.log *.aux
+	       faq*.png *.log *.aux \
+	       faq-ja-utf8.out faq-ja-utf8.tex faq-ja-utf8.toc faq-ja.pdf
 

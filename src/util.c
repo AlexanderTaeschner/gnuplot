@@ -39,6 +39,7 @@
 #include "gplocale.h"
 #include "internal.h"		/* for eval_reset_after_error */
 #include "misc.h"
+#include "mouse.h"		/* for zoom_reset_after_error */
 #include "multiplot.h"		/* for multiplot_reset_after_error */
 #include "plot.h"
 #include "pm3d.h"		/* for pm3d_reset_after_error */
@@ -1172,6 +1173,14 @@ int_error(int t_num, const char str[], va_dcl)
     common_error_exit();
 }
 
+/* wxwidgets based on gtk versions greater than 2.8 do not survive the
+ * LONGJMP in bail_to_command_line() if event processing has not completed.
+ * Try to detect this state and invoke additional exception handling
+ * and/or warn that a crash may be imminent.
+ */
+#ifdef WXWIDGETS
+TBOOLEAN wxt_event_processing = FALSE;
+#endif
 
 void
 common_error_exit()
@@ -1183,10 +1192,13 @@ common_error_exit()
     parse_reset_after_error();
     pm3d_reset_after_error();
     multiplot_reset_after_error();
+#ifdef USE_MOUSE
+    zoom_reset_after_error();
+#endif
+
     set_iterator = cleanup_iteration(set_iterator);
     plot_iterator = cleanup_iteration(plot_iterator);
     scanning_range_in_progress = FALSE;
-    inside_zoom = FALSE;
 #ifdef HAVE_LOCALE_H
     setlocale(LC_NUMERIC, "C");
 #endif

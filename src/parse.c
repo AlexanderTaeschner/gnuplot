@@ -1298,6 +1298,64 @@ parse_sum_expression()
     add_action(SUM)->udf_arg = udf;
 }
 
+/* Fill in array elements read from the command line
+ *    [ element1, element2, ... ]
+ */
+void
+parse_array_constant( t_value *array )
+{
+    t_value *element;
+    int current_size;
+    int max_size;
+    int i = 1;
+
+    if (array->type != ARRAY || !equals(c_token, "["))
+	return; /* should never happen */
+
+    current_size = array->v.value_array[0].v.int_val;
+    max_size = current_size;
+    c_token++;
+
+    while (!END_OF_COMMAND) {
+	if (i > max_size) {
+	    max_size = (max_size < 10) ? 10 : 2*max_size;
+	    array->v.value_array = gp_realloc( array->v.value_array,
+		(max_size+1) * sizeof(t_value), "load_array");
+	}
+	element = &(array->v.value_array[i++]);
+	if (equals(c_token,",") || equals(c_token,"]")) {
+	    element->type = NOTDEFINED;
+	} else {
+	    const_express(element);
+	    if (element->type == ARRAY) {
+		if (element->v.value_array[0].type == TEMP_ARRAY)
+		    gpfree_array(element);
+		element->type = NOTDEFINED;
+		int_warn(c_token, "Cannot nest arrays");
+	    }
+	}
+	if (equals(c_token, "]"))
+	    break;
+	if (!equals(c_token, ","))
+	    int_error(c_token, "array syntax error");
+	else
+	    c_token++;
+    }
+    if (current_size == 0)
+	current_size = i-1;
+    array->v.value_array[0].v.int_val = current_size;
+
+    /* trim off excess (not strictly necessary) */
+    if (max_size > current_size) {
+	array->v.value_array = gp_realloc( array->v.value_array,
+	    (current_size+1) * sizeof(t_value), "trim array");
+    }
+
+    if (!equals(c_token++,"]"))
+	int_error(c_token, "array syntax error");
+}
+
+
 /* create action table entries to execute a function block */
 #ifdef USE_FUNCTIONBLOCKS
 static void
@@ -1466,7 +1524,9 @@ is_function(int t_num)
 t_iterator *
 check_for_iteration()
 {
-    char *errormsg = "Expecting iterator \tfor [<var> = <start> : <end> {: <incr>}]\n\t\t\tor\tfor [<var> in \"string of words\"]";
+    char *errormsg = "Expected   for [<var> = <start> : <end> {: <incr>}]\n"
+		        "\t\tor  for [<var> in Array]\n"
+		        "\t\tor  for [<var> in \"string of words\"]";
     int nesting_depth = 0;
     t_iterator *iter = NULL;
     t_iterator *prev = NULL;
@@ -1479,6 +1539,7 @@ check_for_iteration()
 	struct udvt_entry *iteration_udv = NULL;
 	t_value original_udv_value;
 	char *iteration_string = NULL;
+	t_value iteration_array = { .type = NOTDEFINED };
 	intgr_t iteration_start;
 	intgr_t iteration_end;
 	intgr_t iteration_increment = 1;
@@ -1541,25 +1602,35 @@ check_for_iteration()
 	    	int_error(c_token-1, errormsg);
 	    free_value(&(iteration_udv->udv_value));
 	    Ginteger(&(iteration_udv->udv_value), iteration_start);
-	}
-	else if (equals(c_token++, "in")) {
-	    /* Assume this is a string-valued expression. */
-	    /* It might be worth treating a string constant as a special case */
+
+	} else if (equals(c_token++, "in")) {
 	    struct value v;
 	    iteration_start_at = perm_at();
 	    evaluate_at(iteration_start_at, &v);
-	    if (v.type != STRING)
-	    	int_error(c_token-1, errormsg);
 	    if (!equals(c_token++, "]"))
-	    	int_error(c_token-1, errormsg);
-	    iteration_string = v.v.string_val;
-	    iteration_start = 1;
-	    iteration_end = gp_words(iteration_string);
-	    free_value(&(iteration_udv->udv_value));
-	    Gstring(&(iteration_udv->udv_value), gp_word(iteration_string, 1));
-	}
-	else /* Neither [i=B:E] or [s in "foo"] */
+		int_error(c_token-1, errormsg);
+	    if (v.type == STRING) {
+		iteration_string = v.v.string_val;
+		iteration_start = 1;
+		iteration_end = gp_words(iteration_string);
+		free_value(&(iteration_udv->udv_value));
+		Gstring(&(iteration_udv->udv_value), gp_word(iteration_string, 1));
+	    } else if (v.type == ARRAY) {
+		make_array_permanent(&v);
+		iteration_array = v;
+		iteration_start = 1;
+		iteration_end = v.v.value_array[0].v.int_val;
+		free_value(&(iteration_udv->udv_value));
+		iteration_udv->udv_value = v.v.value_array[1];
+		clone_string_value(&(iteration_udv->udv_value));
+	    } else {
+		int_error(c_token-1, errormsg);
+	    }
+
+	} else {
+	    /* Neither [i=beg:end:inc] nor [s in FOO] */
 	    int_error(c_token-1, errormsg);
+	}
 
 	iteration_current = iteration_start;
 
@@ -1567,6 +1638,7 @@ check_for_iteration()
 	this_iter->original_udv_value = original_udv_value;
 	this_iter->iteration_udv = iteration_udv; 
 	this_iter->iteration_string = iteration_string;
+	this_iter->iteration_array = iteration_array;
 	this_iter->iteration_start = iteration_start;
 	this_iter->iteration_end = iteration_end;
 	this_iter->iteration_increment = iteration_increment;
@@ -1612,14 +1684,31 @@ reevaluate_iteration_limits(t_iterator *iter)
     if (iter->start_at) {
 	struct value v;
 	evaluate_at(iter->start_at, &v);
+
+	if (iter->iteration_array.type == ARRAY) {
+	    gpfree_array(&(iter->iteration_array));
+	    if (v.type != ARRAY)
+		int_warn(NO_CARET, "iteration array was clobbered");
+	}
+
 	if (iter->iteration_string) {
-	    /* unnecessary if iteration string is a constant */
 	    free(iter->iteration_string);
+	    iter->iteration_string = NULL;
 	    if (v.type != STRING)
-		int_error(NO_CARET, "corrupt iteration string");
+		int_warn(NO_CARET, "iteration string was clobbered");
+	}
+
+	if (v.type == STRING) {
 	    iter->iteration_string = v.v.string_val;
 	    iter->iteration_start = 1;
 	    iter->iteration_end = gp_words(iter->iteration_string);
+	} else if (v.type == ARRAY) {
+	    make_array_permanent(&v);
+	    iter->iteration_array = v;
+	    iter->iteration_start = 1;
+	    iter->iteration_end = v.v.value_array[0].v.int_val;
+	    iter->iteration_udv->udv_value = v.v.value_array[1];
+	    clone_string_value(&(iter->iteration_udv->udv_value));
 	} else {
 	    iter->iteration_start = real(&v);
 	}
@@ -1645,13 +1734,16 @@ reset_iteration(t_iterator *iter)
     iter->iteration = -1;
     iter->iteration_current = iter->iteration_start;
     iter->iteration_NODATA = FALSE;
+    gpfree_string(&(iter->iteration_udv->udv_value));
     if (iter->iteration_string) {
-	gpfree_string(&(iter->iteration_udv->udv_value));
 	Gstring(&(iter->iteration_udv->udv_value), 
 		gp_word(iter->iteration_string, iter->iteration_current));
+    } else if (iter->iteration_array.type == ARRAY) {
+	iter->iteration_udv->udv_value =
+	    iter->iteration_array.v.value_array[iter->iteration_current];
+	clone_string_value(&(iter->iteration_udv->udv_value));
     } else {
 	/* This traps fatal user error of reassigning iteration variable to a string */
-	gpfree_string(&(iter->iteration_udv->udv_value));
 	Ginteger(&(iter->iteration_udv->udv_value), iter->iteration_current);	
     }
     reset_iteration(iter->next);
@@ -1726,13 +1818,18 @@ next_iteration(t_iterator *iter)
 	iter->iteration++;
 	iter->iteration_current += iter->iteration_increment;
     }
+    gpfree_string(&(iter->iteration_udv->udv_value));
     if (iter->iteration_string) {
-	gpfree_string(&(iter->iteration_udv->udv_value));
 	Gstring(&(iter->iteration_udv->udv_value), 
 		gp_word(iter->iteration_string, iter->iteration_current));
+    } else if (iter->iteration_array.type == ARRAY) {
+	if (iter->iteration_current <= iter->iteration_end) {
+	    iter->iteration_udv->udv_value =
+		iter->iteration_array.v.value_array[iter->iteration_current];
+	    clone_string_value(&(iter->iteration_udv->udv_value));
+	}
     } else {
 	/* This traps fatal user error of reassigning iteration variable to a string */
-	gpfree_string(&(iter->iteration_udv->udv_value));
 	Ginteger(&(iter->iteration_udv->udv_value), iter->iteration_current);	
     }
    
@@ -1792,6 +1889,7 @@ cleanup_iteration(t_iterator *iter)
 	t_iterator *next = iter->next;
 	gpfree_string(&(iter->iteration_udv->udv_value));
 	iter->iteration_udv->udv_value = iter->original_udv_value;
+	gpfree_array(&(iter->iteration_array));
 	free(iter->iteration_string);
 	free_at(iter->start_at);
 	free_at(iter->end_at);

@@ -374,9 +374,13 @@ draw_clip_arrow( double dsx, double dsy, double dex, double dey, t_arrow_head he
     if (dx < 25 && dy < 25) {
 
 	/* draw the body of the vector (rounding errors are a problem) */
-	if (dx > 1 || dy > 1)
+	if (dx > 1 || dy > 1) {
 	    if (!((t->flags & TERM_IS_LATEX)))
 		(*t->arrow)(sx, sy, ex, ey, SHAFT_ONLY | head);
+	} else {
+	    /* if it is vanishingly short, just draw a dot */
+	    (*t->point)(ex,ey,-1);
+	}
 
 	/* if we're not supposed to be drawing any heads, we're done */
 	if ((head & BOTH_HEADS) == NOHEAD)
@@ -771,8 +775,9 @@ apply_pm3dcolor(struct t_colorspec *tc)
     struct termentry *t = term;
     double cbval;
 
-    /* V5 - term->linetype(LT_BLACK) would clobber the current	*/
-    /* dashtype so instead we use term->set_color(black).	*/
+    /* term->linetype(LT_BLACK) would clobber the current dashtype
+     * as well as the color, so instead we use term->set_color(black).
+     */
     static t_colorspec black = BLACK_COLORSPEC; 
 
     /* Replace colorspec with that of the requested line style */
@@ -1272,8 +1277,7 @@ update_active_region(void)
     active_bounds.xright = term->xmax * (xoffset + xsize);
     active_bounds.ybot = term->ymax * yoffset;
     active_bounds.ytop = term->ymax * (yoffset + ysize);
-    if (debug)
-	fprintf(stderr, "active region: %d %d %d %d\n",
-		active_bounds.xleft, active_bounds.xright,
-		active_bounds.ybot, active_bounds.ytop);
+    FPRINTF((stderr, "active region: %d %d %d %d\n",
+	    active_bounds.xleft, active_bounds.xright,
+	    active_bounds.ybot, active_bounds.ytop));
 }

@@ -103,6 +103,13 @@ void QtGnuplotWidget::init()
 	m_statusLabel->setStyleSheet("QLabel { background-color :  rgba(230, 212, 166, 150) }");
 	m_statusLabel->setMargin(1);
 	m_statusLabel->setVisible(false);
+
+#if defined (__APPLE__) && defined(__MACH__)
+	/* Work around a peculiarity in MacOS touchpad event handling.
+	 * This should be off by default, but apparently Qt6 on MacOS enables it.
+	 */
+	m_view->setAttribute(Qt::WA_AcceptTouchEvents, false);
+#endif
 }
 
 void QtGnuplotWidget::setStatusText(const QString& status)

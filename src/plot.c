@@ -202,6 +202,12 @@ bail_to_command_line()
 #endif
     if (fit_env)
 	LONGJMP(*fit_env, TRUE);
+#if defined (WXWIDGETS) && defined (HAVE_GTK)
+    else if (wxt_event_processing) {
+	extern JMP_BUF *wxt_env;
+	LONGJMP(*wxt_env, TRUE);
+    }
+#endif
     else
 	LONGJMP(command_line_env, TRUE);
 }
@@ -249,12 +255,6 @@ main(int argc_orig, char **argv)
 # endif
     }
 #endif
-
-/* malloc large blocks, otherwise problems with fragmented mem */
-#ifdef MALLOCDEBUG
-    malloc_debug(7);
-#endif
-
 
 /* init progpath and get helpfile from executable directory */
 #if defined(MSDOS) || defined(OS2)

@@ -654,6 +654,12 @@ static void wxt_sigint_init();
 static void wxt_sigint_restore();
 static int wxt_sigint_counter = 0;
 
+/* exception handling if int_error() is called inside event processing */
+#if defined(HAVE_GTK)
+   #include <setjmp.h>
+   extern JMP_BUF *wxt_env;
+#endif
+
 /* cleanup at exit, and handle 'persist' setting */
 void wxt_atexit();
 

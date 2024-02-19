@@ -3898,11 +3898,50 @@ void wxtPanel::wxt_cairo_free_platform_context()
 # define FPRINTF2(a)
 #endif
 
+#if defined (HAVE_GTK)
+/* -------------------------------------------------------------------- */
+/* Attempt to trap int_error() called from inside wxt event processing.	*/
+/* Normally int_error() would LONGJMP back to the command line but this	*/
+/* causes wxgtk to segfault if the event processing context is not 	*/
+/* unwound cleanly.   So we try to do that unwinding here.		*/
+/* -------------------------------------------------------------------- */
+JMP_BUF *wxt_env = NULL;
+#endif
+
 #ifdef USE_MOUSE
+
 /* process one event, returns true if it ends the pause */
 bool wxt_process_one_event(struct gp_event_t *event)
 {
+
+#if defined (HAVE_GTK)
+	/* Set up exception handler for int_error() called
+	 * during event processing.
+	 */
+	int save_interactive = interactive;
+	static JMP_BUF wxt_jumppoint;
+	wxt_env = &wxt_jumppoint;
+	if (SETJMP(*wxt_env,1)) {
+		fprintf(stderr,
+		    "*** error during wxt event processing - trying to recover ***\n");
+		/* Is there anything else that needs cleanup? */
+		wxt_env = NULL;
+		wxt_event_processing = FALSE;
+		paused_for_mouse = 0;
+		interactive = save_interactive;
+		return false;
+	}
+	wxt_event_processing = TRUE;
+
 	do_event( event );
+
+	/* Cancel exception handling */
+	wxt_event_processing = FALSE;
+	wxt_env = NULL;
+#else
+	do_event( event );
+#endif
+
 	if (event->type == GE_buttonrelease && (paused_for_mouse & PAUSE_CLICK)) {
 		int button = event->par1;
 		if (button == 1 && (paused_for_mouse & PAUSE_BUTTON1))
@@ -4135,7 +4174,8 @@ int wxt_waitforinput(int options)
 		FD_SET(0, &read_fd);
 		retval = select(1, &read_fd, NULL, NULL, &tv);
 		if (retval == -1)
-			int_error(NO_CARET, "input select error");
+			/* select error or ^C */
+			return '\0';
 		else if (was_paused_for_mouse && !paused_for_mouse)
 			/* The wxTheApp event loop caught a signal */
 			return '\0';
@@ -4395,7 +4435,8 @@ void wxt_MutexGuiLeave()
 /* our custom SIGINT handler, that just sets a flag */
 void wxt_sigint_handler(int WXUNUSED(sig))
 {
-	FPRINTF((stderr,"custom interrupt handler called\n"));
+	FPRINTF((stderr,"\nwxt custom interrupt handler called %s\n",
+		wxt_event_processing ? "from inside event" : "outside event processing"));
 	signal(SIGINT, wxt_sigint_handler);
 
 	/* If this happens, it's bad.  We already flagged that we want	*/

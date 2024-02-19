@@ -2837,7 +2837,6 @@ set_loadpath()
 }
 
 /* process 'set fontpath' command */
-/* Apr 2018 (V5.3) simplify this to a single directory */
 static void
 set_fontpath()
 {
@@ -3462,7 +3461,6 @@ set_parametric()
 
 
 /*
- * V5.5 EXPERIMENTAL
  * set colormap new <colormap-name>
  * set colormap <colormap-name> range [min:max]
  */
@@ -4104,6 +4102,7 @@ set_obj(int tag, int obj_type)
     TBOOLEAN got_corners = FALSE;
     TBOOLEAN got_center = FALSE;
     TBOOLEAN got_origin = FALSE;
+    lp_style_type lptmp;
 
     c_token++;
 
@@ -4135,7 +4134,7 @@ set_obj(int tag, int obj_type)
 		prev_object->next = new_obj;
 	    new_obj->next = this_object;
 	    this_object = new_obj;
-	    /* V5 CHANGE: Apply default rectangle style now rather than later */
+	    /* Apply default rectangle style now rather than later */
 	    if (obj_type == OBJ_RECTANGLE) {
 		this_object->fillstyle = default_rectangle.fillstyle;
 		this_object->lp_properties = default_rectangle.lp_properties;
@@ -4413,11 +4412,8 @@ set_obj(int tag, int obj_type)
 	/* Line properties (will be used for the object border if the fillstyle has one. */
 	/* LP_NOFILL means don't eat fillcolor here since at is set separately with "fc". */
 	if (!got_lt) {
-	    lp_style_type lptmp = this_object->lp_properties;
+	    lptmp = this_object->lp_properties;
 	    lp_parse(&lptmp, LP_NOFILL, FALSE);
-	    if (this_object->fillstyle.fillstyle == FS_EMPTY) {
-		this_object->fillstyle.border_color = lptmp.pm3d_color;
-	    }
 	    if (c_token != save_token) {
 		this_object->lp_properties.l_width = lptmp.l_width;
 		this_object->lp_properties.d_type = lptmp.d_type;
@@ -4428,6 +4424,11 @@ set_obj(int tag, int obj_type)
 	}
 
 	int_error(c_token, "Unrecognized or duplicate option");
+    }
+
+    /* This handles the case "set obj N circle fs empty; set obj N lc "red" */
+    if (got_lt && !got_fill && !got_fc && this_object->fillstyle.fillstyle == FS_EMPTY)  {
+	    this_object->fillstyle.border_color = lptmp.pm3d_color;
     }
 
     if (got_center && got_corners)
@@ -5129,8 +5130,8 @@ set_xyplane()
 }
 
 
-/* Process 'set timefmt' command */
-/* V5: fallback default if timecolumn(N,"format") not used during input.
+/* Process 'set timefmt' command.
+ * This becomes the default if timecolumn(N,"format") is not used during input.
  * Use "set {axis}tics format" to control the output format.
  */
 static void

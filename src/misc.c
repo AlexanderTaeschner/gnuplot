@@ -394,9 +394,19 @@ load_file(FILE *fp, char *name, int calltype)
 		stop = TRUE;
 	}
 
-	/* If this line is part of a multiplot, save it for later replay */
-	if (multiplot && !multiplot_playback & !evaluate_inside_functionblock)
-	    append_multiplot_line(gp_input_line);
+	/* If this line is part of a multiplot, save it for later replay.
+	 * Note that the line has already been accepted and executed without error.
+	 */
+	if (multiplot && !multiplot_playback & !evaluate_inside_functionblock) {
+	    /* Replay would filter out datablock definitions anyway,
+	     * but saving the first line with no actual data would leave an
+	     * invalid command sequence in GPVAL_LAST_MULTIPLOT.
+	     */
+	    if (equals(num_tokens-2, "<<") && isletter(num_tokens-1))
+		; /* don't save this line */
+	    else
+		append_multiplot_line(gp_input_line);
+	}
     }
 
     /* pop state */

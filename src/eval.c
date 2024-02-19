@@ -75,6 +75,13 @@ TBOOLEAN undefined;
 
 enum int64_overflow overflow_handling = INT64_OVERFLOW_TO_FLOAT;
 
+/* Normally an error such as an undefined variable encountered
+ * during expression evaluation causes an exit via int_error().
+ * In some contexts such a hard failure is undesireable.
+ * Setting this to TRUE causes such evaluations to return NaN instead.
+ */
+TBOOLEAN eval_fail_soft = FALSE;
+
 /* The stack this operates on */
 static struct value stack[STACK_DEPTH];
 static int s_p = -1;		/* stack pointer */
@@ -449,6 +456,17 @@ Gstring(struct value *a, char *s)
     a->type = STRING;
     a->v.string_val = s ? s : strdup("");
     return (a);
+}
+
+/* Call this immediately after making a copy of an existing t_value.
+ * It insures that the lifetime of a copied string value is independent
+ * of the lifetime of the original.
+ */
+void
+clone_string_value(t_value *value)
+{
+    if (value->type == STRING)
+	value->v.string_val = strdup(value->v.string_val);
 }
 
 /* The rationale for introducing this routine was that multiple call sites
@@ -1253,8 +1271,7 @@ gp_word(char *string, int i)
     return a.v.string_val;
 }
 
-/* New (version 5.5)
- * The evaluation stack can now return an ARRAY value, but in order to do so
+/* The evaluation stack can now return an ARRAY value, but in order to do so
  * without memory leaks or corruption it must make sure that the allocated
  * content is distinct from the original content.
  * I.e. {array A = ["foo"]; B = A; A = 0;} must leave a valid copy of "foo" in B[1].
@@ -1279,10 +1296,8 @@ make_array_permanent(struct value *array)
     size = array->v.value_array[0].v.int_val;
     copy = gp_alloc( (size+1) * sizeof(struct value), "array copy");
     memcpy( copy, array->v.value_array, (size+1) * sizeof(struct value) );
-    for (i=0; i<= size; i++) {
-	if (copy[i].type == STRING)
-	    copy[i].v.string_val = strdup(copy[i].v.string_val);
-    }
+    for (i=0; i<= size; i++)
+	clone_string_value(&(copy[i]));
     copy[0].type = NOTDEFINED;
     array->v.value_array = copy;
 }
@@ -1311,8 +1326,7 @@ array_slice( struct value *full, int beg, int end)
 
     for (i = beg, j = 1; i <= end; i++,j++) {
 	slice[j] = array[i];
-	if (slice[j].type == STRING)
-	    slice[j].v.string_val = strdup(slice[j].v.string_val);
+	clone_string_value(&(slice[j]));
     }
 
     return slice;

@@ -92,6 +92,7 @@ eval_reset_after_error()
     reset_stack();
     recursion_depth = 0;
     undefined = FALSE;
+    eval_fail_soft = FALSE;
 }
 
 void
@@ -101,7 +102,7 @@ f_push(union argument *x)
 
     udv = x->udv_arg;
     if (udv->udv_value.type == NOTDEFINED) {
-	if (string_result_only)
+	if (string_result_only || eval_fail_soft)
 	/* We're only here to check whether this is a string. It isn't. */
 	    udv = udv_NaN;
 	else
@@ -167,7 +168,7 @@ f_call(union argument *x)
 
     udf = x->udf_arg;
     if (!udf->at) {
-	if (string_result_only) {
+	if (string_result_only || eval_fail_soft) {
 	    /* We're only here to check whether this is a string. It isn't. */
 	    f_pop(x);
 	    push(&(udv_NaN->udv_value));
@@ -2195,8 +2196,8 @@ f_value(union argument *arg)
 	    result = p->udv_value;
 	    if (p->udv_value.type == NOTDEFINED)
 		p = NULL;
-	    else if (result.type == STRING)
-		result.v.string_val = gp_strdup(result.v.string_val);
+	    else
+		clone_string_value(&result);
 	    break;
 	}
 	p = p->next_udv;
