@@ -249,15 +249,14 @@ set origin 0.0,0.0
 set title 'Sunset on the Terrace'
 dim(x) = x * 255./400.
 plot 'blutux.rgb' binary array=(128,128) flip=y format='%uchar' using ($1):(dim($2)):(dim($3)) with rgbimage
+
 set size 0.5,0.48
 set origin 0.5,0.0
 set title 'Sultry evening'
-#set cbrange [0:400]
-plot 'blutux.rgb' binary array=(128,128) flip=y format='%uchar' using ($1 * 255./400.):($2 * 255./400.):($3 * 255./400.) with rgbimage, \
-'-' w points pt 7 ps 6 lt -2, \
- '-' w points pt 7 ps 0.65 lt -2
+$Moon << EOD
 110 100
-e
+EOD
+$Stars << EOD
 10 95
 38 120
 82 102
@@ -265,7 +264,10 @@ e
 93 108
 41 99
 123 84
-e
+EOD
+plot 'blutux.rgb' binary array=(128,128) flip=y format='%uchar' using ($1 * 255./400.):($2 * 255./400.):($3 * 255./400.) with rgbimage, \
+$Moon w points pt 7 ps 6 lc 'gray80', \
+$Stars w points pt 7 ps 0.65 lc 'gray90'
 unset multiplot
 pause -1 "Hit return to continue"
 reset

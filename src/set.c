@@ -39,7 +39,6 @@
 #include "setshow.h"
 
 #include "alloc.h"
-#include "axis.h"
 #include "breaders.h"	/* for df_read_pixmap */
 #include "command.h"
 #include "contour.h"
@@ -48,8 +47,11 @@
 #include "fit.h"
 #include "gp_hist.h"
 #include "gp_time.h"
+#include "gplocale.h"
+#include "help.h"
 #include "hidden3d.h"
 #include "jitter.h"
+#include "loadpath.h"
 #include "misc.h"
 #include "plot.h"
 #include "plot2d.h"
@@ -58,7 +60,6 @@
 #include "tabulate.h"
 #include "term_api.h"
 #include "util.h"
-#include "variable.h"
 #include "pm3d.h"
 #include "getcolor.h"
 #include <ctype.h>
@@ -67,6 +68,7 @@
 #endif
 #include "encoding.h"
 #include "voxelgrid.h"
+#include "watch.h"
 
 static void set_angles(void);
 static void set_arrow(void);
@@ -81,6 +83,7 @@ static void set_clip(void);
 static void set_cntrparam(void);
 static void set_cntrlabel(void);
 static void set_contour(void);
+static void set_contourfill(void);
 static void set_cornerpoles(void);
 static void set_dashtype(void);
 static void set_dgrid3d(void);
@@ -89,6 +92,7 @@ static void set_dummy(void);
 static void set_encoding(void);
 static void set_fit(void);
 static void set_grid(void);
+static void set_help(void);
 static void set_hidden3d(void);
 static void set_history(void);
 static void set_pixmap(void);
@@ -174,6 +178,7 @@ static void set_style_parallel(void);
 static void set_style_spiderplot(void);
 static void set_spiderplot(void);
 static void parse_lighting_options(void);
+static void parse_spotlight_options(void);
 
 static const struct position default_position
 	= {first_axes, first_axes, first_axes, 0., 0., 0.};
@@ -261,6 +266,9 @@ set_command()
 	case S_CONTOUR:
 	    set_contour();
 	    break;
+	case S_CONTOURFILL:
+	    set_contourfill();
+	    break;
 	case S_CORNERPOLES:
 	    set_cornerpoles();
 	    break;
@@ -296,6 +304,9 @@ set_command()
 	    break;
 	case S_GRID:
 	    set_grid();
+	    break;
+	case S_HELP:
+	    set_help();
 	    break;
 	case S_HIDDEN3D:
 	    set_hidden3d();
@@ -442,6 +453,10 @@ set_command()
 	    break;
 	case S_WALL:
 	    set_wall();
+	    break;
+	case S_WARNINGS:
+	    c_token++;
+	    suppress_warnings = FALSE;
 	    break;
 	case S_SAMPLES:
 	    set_samples();
@@ -681,6 +696,15 @@ set_command()
 	    set_ticslevel();
 	    break;
 	default:
+#ifdef WITH_CHI_SHAPES
+	    if (almost_equals(c_token,"chi$_shapes")
+	    &&  equals(++c_token,"fraction")) {
+		extern double chi_shape_default_fraction;
+		c_token++;
+		chi_shape_default_fraction = real_expression();
+		break;
+	    }
+#endif
 	    int_error(c_token, "unrecognized option - see 'help set'.");
 	    break;
 	}
@@ -818,7 +842,7 @@ set_arrow()
 	    if (set_end) { duplication = TRUE; break; }
 	    this_arrow->type = arrow_end_oriented;
 	    c_token++;
-	    get_position_default(&this_arrow->end, first_axes, 1);
+	    get_position_default(&this_arrow->end, first_axes, TRUE, 1);
 	    set_end = TRUE;
 	    continue;
 	}
@@ -1229,37 +1253,37 @@ set_cntrparam()
     c_token++;
     if (END_OF_COMMAND) {
 	/* assuming same as defaults */
-	contour_pts = DEFAULT_NUM_APPROX_PTS;
-	contour_kind = CONTOUR_KIND_LINEAR;
-	contour_order = DEFAULT_CONTOUR_ORDER;
-	contour_levels = DEFAULT_CONTOUR_LEVELS;
-	contour_levels_kind = LEVELS_AUTO;
-	contour_firstlinetype = 0;
+	contour_params.npoints = DEFAULT_NUM_APPROX_PTS;
+	contour_params.kind = CONTOUR_KIND_LINEAR;
+	contour_params.order = DEFAULT_CONTOUR_ORDER;
+	contour_params.levels = DEFAULT_CONTOUR_LEVELS;
+	contour_params.levels_kind = LEVELS_AUTO;
+	contour_params.firstlinetype = 0;
 	return;
     }
 
     while (!END_OF_COMMAND) {
     if (almost_equals(c_token, "p$oints")) {
 	c_token++;
-	contour_pts = int_expression();
+	contour_params.npoints = int_expression();
     } else if (almost_equals(c_token, "first$linetype")) {
 	c_token++;
-	contour_firstlinetype = int_expression();
+	contour_params.firstlinetype = int_expression();
     } else if (almost_equals(c_token, "sort$ed")) {
 	c_token++;
-	contour_sortlevels = TRUE;
+	contour_params.sortlevels = TRUE;
     } else if (almost_equals(c_token, "unsort$ed")) {
 	c_token++;
-	contour_sortlevels = FALSE;
+	contour_params.sortlevels = FALSE;
     } else if (almost_equals(c_token, "li$near")) {
 	c_token++;
-	contour_kind = CONTOUR_KIND_LINEAR;
+	contour_params.kind = CONTOUR_KIND_LINEAR;
     } else if (almost_equals(c_token, "c$ubicspline")) {
 	c_token++;
-	contour_kind = CONTOUR_KIND_CUBIC_SPL;
+	contour_params.kind = CONTOUR_KIND_CUBIC_SPL;
     } else if (almost_equals(c_token, "b$spline")) {
 	c_token++;
-	contour_kind = CONTOUR_KIND_BSPLINE;
+	contour_params.kind = CONTOUR_KIND_BSPLINE;
     } else if (almost_equals(c_token, "le$vels")) {
 	c_token++;
 
@@ -1270,10 +1294,10 @@ set_cntrparam()
 
 	/*  RKC: I have modified the next two:
 	 *   to use commas to separate list elements as in xtics
-	 *   so that incremental lists start,incr[,end]as in "
+	 *   so that incremental lists start,incr[,end]
 	 */
 	if (almost_equals(c_token, "di$screte")) {
-	    contour_levels_kind = LEVELS_DISCRETE;
+	    contour_params.levels_kind = LEVELS_DISCRETE;
 	    c_token++;
 	    if (END_OF_COMMAND)
 		int_error(c_token, "expecting discrete level");
@@ -1289,11 +1313,11 @@ set_cntrparam()
 		*(double *)nextfrom_dynarray(&dyn_contour_levels_list) =
 		    real_expression();
 	    }
-	    contour_levels = dyn_contour_levels_list.end;
+	    contour_params.levels = dyn_contour_levels_list.end;
 	} else if (almost_equals(c_token, "in$cremental")) {
 	    int i = 0;  /* local counter */
 
-	    contour_levels_kind = LEVELS_INCREMENTAL;
+	    contour_params.levels_kind = LEVELS_INCREMENTAL;
 	    c_token++;
 	    contour_levels_list[i++] = real_expression();
 	    if (!equals(c_token, ","))
@@ -1311,17 +1335,17 @@ set_cntrparam()
 		 * but 10,10,49 is four
 		 */
 		dyn_contour_levels_list.end = i;
-		contour_levels = (int) ( (real_expression()-contour_levels_list[0])/contour_levels_list[1] + 1.0);
+		contour_params.levels = ( (real_expression()-contour_levels_list[0])/contour_levels_list[1] + 1.0);
 	    }
 	} else if (almost_equals(c_token, "au$to")) {
-	    contour_levels_kind = LEVELS_AUTO;
+	    contour_params.levels_kind = LEVELS_AUTO;
 	    c_token++;
 	    if (!END_OF_COMMAND)
-		contour_levels = int_expression();
+		contour_params.levels = int_expression();
 	} else {
-	    if (contour_levels_kind == LEVELS_DISCRETE)
-		int_error(c_token, "Levels type is discrete, ignoring new number of contour levels");
-	    contour_levels = int_expression();
+	    int new = int_expression();
+	    if (contour_params.levels_kind != LEVELS_DISCRETE)
+		contour_params.levels = new;
 	}
     } else if (almost_equals(c_token, "o$rder")) {
 	int order;
@@ -1329,7 +1353,7 @@ set_cntrparam()
 	order = int_expression();
 	if ( order < 2 || order > MAX_BSPLINE_ORDER )
 	    int_error(c_token, "bspline order must be in [2..10] range.");
-	contour_order = order;
+	contour_params.order = order;
     } else
 	int_error(c_token, "expecting 'linear', 'cubicspline', 'bspline', 'points', 'levels' or 'order'");
     }
@@ -1341,7 +1365,7 @@ set_cntrlabel()
 {
     c_token++;
     if (END_OF_COMMAND) {
-	strcpy(contour_format, "%8.3g");
+	strcpy(contour_params.format, "%8.3g");
 	clabel_onecolor = FALSE;
 	return;
     }
@@ -1350,14 +1374,15 @@ set_cntrlabel()
 	    char *new;
 	    c_token++;
 	    if ((new = try_to_get_string()))
-		safe_strncpy(contour_format,new,sizeof(contour_format));
+		safe_strncpy(contour_params.format,new,sizeof(contour_params.format));
 	    free(new);
 	} else if (equals(c_token, "font")) {
-	    char *ctmp;
+	    char *newfont;
 	    c_token++;
-	    if ((ctmp = try_to_get_string())) {
+	    newfont = try_to_get_string();
+	    if (newfont) {
 		free(clabel_font);
-		clabel_font = ctmp;
+		clabel_font = newfont;
 	    }
 	} else if (almost_equals(c_token, "one$color")) {
 	    c_token++;
@@ -1395,6 +1420,42 @@ set_contour()
 	    int_error(c_token, "expecting 'base', 'surface', or 'both'");
 	c_token++;
     }
+}
+
+/* Determine criteria for choosing zslice boundaries
+ * during "splot with contourfill"
+ */
+void
+set_contourfill(void)
+{
+    int temp;
+
+    c_token++;
+    if (equals(c_token, "auto")) {
+	c_token++;
+	contourfill.mode = CFILL_AUTO;
+	temp = int_expression();
+	cliptorange(temp,1,MAX_ZSLICES);
+	contourfill.nslices = temp;
+
+    } else if (equals(c_token, "ztics")) {
+	c_token++;
+	contourfill.mode = CFILL_ZTICS;
+
+    } else if (equals(c_token, "cbtics")) {
+	c_token++;
+	contourfill.mode = CFILL_CBTICS;
+
+    } else if (almost_equals(c_token, "pal$ette")) {
+	c_token++;
+	contourfill.firstlinetype = -1;
+
+    } else if (almost_equals(c_token, "first$linetype")) {
+	c_token++;
+	contourfill.firstlinetype = int_expression();
+
+    } else
+	int_error(c_token, "Unrecognized option");
 }
 
 /* process 'set colorsequence command */
@@ -1504,98 +1565,92 @@ set_dashtype()
 }
 
 /*
- * Delete dashtype from linked list.
+ * set dgrid3d {rows {, columns}} splines
+ * set dgrid3d {rows {, columns}} qnorm {<value>}
+ * set dgrid3d {rows {, columns}} {gauss|cauchy|exp|box|hann} {kdensity} {dx {,dy}}
  */
-void
-delete_dashtype(struct custom_dashtype_def *prev, struct custom_dashtype_def *this)
-{
-    if (this != NULL) {		/* there really is something to delete */
-	if (this == first_custom_dashtype)
-	    first_custom_dashtype = this->next;
-	else
-	    prev->next = this->next;
-	free(this);
-    }
-}
-
-/* process 'set dgrid3d' command */
 static void
 set_dgrid3d()
 {
-    int token_cnt = 0; /* Number of comma-separated values read in */
-
     int gridx     = dgrid3d_row_fineness;
     int gridy     = dgrid3d_col_fineness;
     int normval   = dgrid3d_norm_value;
     double scalex = dgrid3d_x_scale;
     double scaley = dgrid3d_y_scale;
-
-    /* dgrid3d has two different syntax alternatives: classic and new.
-       If there is a "mode" keyword, the syntax is new, otherwise it is classic.*/
-    dgrid3d_mode  = DGRID3D_DEFAULT;
-
     dgrid3d_kdensity = FALSE;
 
     c_token++;
-    while ( !(END_OF_COMMAND) ) {
+
+#ifdef BACKWARD_COMPATIBILITY
+    /* Accommodate ancient deprecated syntax "set dgrid3d ,,<normval>" */
+    if (equals(c_token,",") && equals(c_token+1,",")) {
+	c_token += 2;
+	dgrid3d_mode = DGRID3D_QNORM;
+	dgrid3d_norm_value = int_expression();
+	dgrid3d = TRUE;
+	return;
+    }
+#endif
+
+    if (might_be_numeric(c_token)) {
+	gridx = gridy = int_expression();
+	if (equals(c_token, ",")) {
+	    c_token++;
+	    gridy = int_expression();
+#ifdef BACKWARD_COMPATIBILITY
+	    /* Deprecated syntax using 3 numeric parameters and no keywords */
+	    if (equals(c_token, ",")) {
+		c_token++;
+		normval = int_expression();
+	    }
+#endif
+	}
+    }
+
+    while (!(END_OF_COMMAND)) {
 	int tmp_mode = lookup_table(&dgrid3d_mode_tbl[0],c_token);
+
 	if (tmp_mode != DGRID3D_OTHER) {
 	    dgrid3d_mode = tmp_mode;
 	    c_token++;
-	}
 
-	switch (tmp_mode) {
-	case DGRID3D_QNORM:
-				if (!(END_OF_COMMAND)) normval = int_expression();
-				break;
-	case DGRID3D_SPLINES:
-				break;
-	case DGRID3D_GAUSS:
-	case DGRID3D_CAUCHY:
-	case DGRID3D_EXP:
-	case DGRID3D_BOX:
-	case DGRID3D_HANN:
-				if (!(END_OF_COMMAND) && almost_equals( c_token, "kdens$ity2d" )) {
-					dgrid3d_kdensity = TRUE;
-					c_token++;
-				}
-				if (!(END_OF_COMMAND)) {
-					scalex = real_expression();
-					scaley = scalex;
-					if (equals(c_token, ",")) {
-						c_token++;
-						scaley = real_expression();
-					}
-				}
-				break;
-
-	default:		/* {rows}{,cols{,norm}}} */
-
-			if  ( equals( c_token, "," )) {
-				c_token++;
-				token_cnt++;
-			} else if (token_cnt == 0) {
-				gridx = int_expression();
-				gridy = gridx; /* gridy defaults to gridx, unless overridden below */
-			} else if (token_cnt == 1) {
-				gridy = int_expression();
-			} else if (token_cnt == 2) {
-				normval = int_expression();
-			} else
-				int_error(c_token,"Unrecognized keyword or unexpected value");
+	    switch (dgrid3d_mode) {
+	    case DGRID3D_QNORM:
+	    default:
+			if (might_be_numeric(c_token))
+			    normval = int_expression();
 			break;
-	}
-
+	    case DGRID3D_SPLINES:
+			/* No options */
+			break;
+	    case DGRID3D_GAUSS:
+	    case DGRID3D_CAUCHY:
+	    case DGRID3D_EXP:
+	    case DGRID3D_BOX:
+	    case DGRID3D_HANN:
+			if (almost_equals( c_token, "kdens$ity2d" )) {
+				dgrid3d_kdensity = TRUE;
+				c_token++;
+			} else {
+				dgrid3d_kdensity = FALSE;
+			}
+			if (might_be_numeric(c_token)) {
+				scaley = scalex = real_expression();
+				if (equals(c_token, ",")) {
+					c_token++;
+					scaley = real_expression();
+				}
+			}
+			break;
+	    }
+	} else 
+	    int_error(c_token,"Unrecognized keyword or unexpected value");
     }
 
-    /* we could warn here about floating point values being truncated... */
+    /* Sanity checks */
     if (gridx < 2 || gridx > 1000 || gridy < 2 || gridy > 1000)
 	int_error( NO_CARET,
 		   "Number of grid points must be in [2:1000] - not changed!");
-
-    /* no mode token found: classic format */
-    if (dgrid3d_mode == DGRID3D_DEFAULT)
-	dgrid3d_mode = DGRID3D_QNORM;
 
     if (scalex < 0.0 || scaley < 0.0)
 	int_error( NO_CARET,
@@ -1994,14 +2049,14 @@ set_grid()
 	} else if (almost_equals(c_token,"po$lar")) {
 	    /* Dec 2016 - zero or negative disables radial grid lines */
 	    axis_array[POLAR_AXIS].gridmajor = TRUE;	/* Enable both circles and radii */
-	    polar_grid_angle = 30*DEG2RAD;
+	    theta_grid_angle = 30*DEG2RAD;
 	    c_token++;
 	    if (might_be_numeric(c_token)) {
 		double ang = real_expression();
-		polar_grid_angle = (ang > 2.*M_PI) ? DEG2RAD*ang : ang2rad*ang;
+		theta_grid_angle = (ang > 2.*M_PI) ? DEG2RAD*ang : ang2rad*ang;
 	    }
 	} else if (almost_equals(c_token,"nopo$lar")) {
-	    polar_grid_angle = 0; /* not polar grid */
+	    theta_grid_angle = 0; /* not polar grid */
 	    c_token++;
 	} else if (almost_equals(c_token, "spider$plot")) {
 	    grid_spiderweb = TRUE;
@@ -2039,7 +2094,7 @@ set_grid()
 	/* no axis specified, thus select default grid */
 	if (polar) {
 	    axis_array[POLAR_AXIS].gridmajor = TRUE;
-	    polar_grid_angle = 30.*DEG2RAD;
+	    theta_grid_angle = 30.*DEG2RAD;
 	} else if (spiderplot) {
 	    grid_spiderweb = TRUE;
 	} else {
@@ -2049,6 +2104,22 @@ set_grid()
     }
 }
 
+
+/* process 'set help {rows|columns}' */
+static void
+set_help()
+{
+#ifndef NO_GIH
+    c_token++;
+    if (almost_equals(c_token,"col$umns"))
+	help_sort_by_rows = FALSE;
+    else if (almost_equals(c_token,"row$s"))
+	help_sort_by_rows = TRUE;
+    else
+	int_error(c_token, "unrecognized option");
+    c_token++;
+#endif
+}    
 
 /* process 'set hidden3d' command */
 static void
@@ -2603,12 +2674,18 @@ set_key()
 	case S_KEY_KEYWIDTH:
 	/* override automatic calculation of width */
 	    c_token++;
-	    get_position_default(&key->user_width, screen, 1);
+	    get_position_default(&key->user_width, screen, TRUE, 1);
 	    if (key->user_width.scalex != screen && key->user_width.scalex != graph) {
 		int_warn( c_token-2, "keywidth must be in graph or screen coordinates");
 		key->user_width.scalex = screen;
 		key->user_width.x = 0;
 	    }
+	    c_token--;  /* will be incremented again soon */
+	    break;
+
+	case S_KEY_OFFSET:
+	    c_token++;
+	    get_position_default(&key->offset, character, FALSE, 2);
 	    c_token--;  /* will be incremented again soon */
 	    break;
 
@@ -2659,10 +2736,10 @@ set_label()
 	if (a.type == STRING) {
 	    c_token = save_token;
 	    tag = assign_label_tag();
+	    gpfree_string(&a);
 	} else {
 	    tag = (int) real(&a);
 	}
-	free_value(&a);
     }
 
     if (tag <= 0)
@@ -2760,13 +2837,15 @@ set_loadpath()
 }
 
 /* process 'set fontpath' command */
-/* Apr 2018 (V5.3) simplify this to a single directory */
 static void
 set_fontpath()
 {
+    char *newpath;
     c_token++;
-    free(PS_fontpath);
-    PS_fontpath = try_to_get_string();
+    if ((newpath = try_to_get_string())) {
+	free(PS_fontpath);
+	PS_fontpath = newpath;
+    }
 }
 
 
@@ -2846,10 +2925,17 @@ set_logscale()
 		axis_array[axis].set_min = 0.1;
 
 	    /* Also forgive negative axis limits if we are currently autoscaling */
-	    if ((axis_array[axis].set_autoscale != AUTOSCALE_NONE)
+	    if (((axis_array[axis].set_autoscale & AUTOSCALE_BOTH) != AUTOSCALE_NONE)
 	    &&  (axis_array[axis].set_min <= 0 || axis_array[axis].set_max <= 0)) {
 		axis_array[axis].set_min = 0.1;
 		axis_array[axis].set_max = 10.;
+	    }
+
+	    /* Autoscaled minimum cannot work with log scale R */
+	    if ((axis == POLAR_AXIS) && (axis_array[axis].set_autoscale & AUTOSCALE_MIN)) {
+		axis_array[axis].set_autoscale &= ~AUTOSCALE_MIN;
+		axis_array[axis].set_min = 0.1;
+		axis_array[axis].min = 0.1;
 	    }
 
 	    if (newbase == 10.) {
@@ -2931,6 +3017,10 @@ set_micro()
 {
     c_token++;
     use_micro = TRUE;
+    free(micro_user);
+    micro_user = NULL;
+    if (!END_OF_COMMAND)
+	micro_user = try_to_get_string();
 }
 
 /* process 'set minus_sign' command */
@@ -3000,7 +3090,7 @@ set_missing()
 	int_error(c_token, "expected missing-value string");
 }
 
-/* (version 5) 'set monochrome' command */
+/* 'set monochrome' command */
 static void
 set_monochrome()
 {
@@ -3165,9 +3255,13 @@ set_mouse()
 	    }
 	    mouse_setting.xmzoom_factor = x;
 	    mouse_setting.ymzoom_factor = y;
+	} else if (almost_equals(c_token, "multi$plot")
+		|| almost_equals(c_token, "nomulti$plot")) {
+	    /* used in 6.0, not needed in 6.1 */
+	    c_token++;
 	} else {
 	    if (!END_OF_COMMAND)
-    		int_error(c_token, "wrong option");
+    		int_warn(c_token++, "unrecognized option");
 	    break;
 	}
     }
@@ -3367,7 +3461,6 @@ set_parametric()
 
 
 /*
- * V5.5 EXPERIMENTAL
  * set colormap new <colormap-name>
  * set colormap <colormap-name> range [min:max]
  */
@@ -3485,6 +3578,21 @@ set_colorbox()
 	    case S_COLORBOX_DEFAULT: /* "def$ault" */
 		color_box.where = SMCOLOR_BOX_DEFAULT;
 		continue;
+	    /* color box where: bottom of page */
+	    /* Translates to
+	     *  set colorbox horizontal
+	     *      user origin screen 0.1, 0.07 size screen 0.8, 0.03
+	     */
+	    case S_COLORBOX_BOTTOM:
+		{
+		struct position origin = {screen, screen, screen, 0.1, 0.07, 0.0};
+		struct position size =   {screen, screen, screen, 0.8, 0.03, 0.0};
+		color_box.where = SMCOLOR_BOX_USER;
+		color_box.rotation = 'h';
+		color_box.origin = origin;
+		color_box.size = size;
+		}
+		continue;
 	    /* color box where: position by user */
 	    case S_COLORBOX_USER: /* "u$ser" */
 		color_box.where = SMCOLOR_BOX_USER;
@@ -3498,28 +3606,17 @@ set_colorbox()
 		continue;
 	    /* border of the color box */
 	    case S_COLORBOX_BORDER: /* "bo$rder" */
-
 		color_box.border = 1;
-		c_token++;
-
-		if (!END_OF_COMMAND) {
-		    /* expecting a border line type */
+		if (equals(c_token+1,"-") || isanumber(c_token+1)) {
+		    c_token++;
 		    color_box.border_lt_tag = int_expression();
 		    if (color_box.border_lt_tag <= 0)
 			color_box.border_lt_tag = -1;
-		    --c_token;
+		    c_token--;
 		}
-		continue;
-	    case S_COLORBOX_CBTICS: /* "cbtics" */
-		c_token++;
-		color_box.cbtics_lt_tag = int_expression();
-		if (color_box.cbtics_lt_tag <= 0)
-		    color_box.cbtics_lt_tag = -1;
-		--c_token;
 		continue;
 	    case S_COLORBOX_BDEFAULT: /* "bd$efault" */
 		color_box.border_lt_tag = -1; /* use default border */
-		color_box.cbtics_lt_tag = 0;  /* and cbtics */
 		continue;
 	    case S_COLORBOX_NOBORDER: /* "nobo$rder" */
 		color_box.border = 0;
@@ -3531,7 +3628,7 @@ set_colorbox()
 		    int_error(c_token, "expecting screen value [0 - 1]");
 		} else {
 		    /* FIXME: should be 2 but old save files may have 3 */
-		    get_position_default(&color_box.origin, screen, 3);
+		    get_position_default(&color_box.origin, screen, FALSE, 3);
 		}
 		c_token--;
 		continue;
@@ -3542,7 +3639,7 @@ set_colorbox()
 		    int_error(c_token, "expecting screen value [0 - 1]");
 		} else {
 		    /* FIXME: should be 2 but old save files may have 3 */
-		    get_position_default(&color_box.size, screen, 3);
+		    get_position_default(&color_box.size, screen, FALSE, 3);
 		}
 		c_token--;
 		continue;
@@ -3553,7 +3650,7 @@ set_colorbox()
 		color_box.invert = FALSE;
 		continue;
 	    } /* switch over colorbox lookup table */
-	    int_error(c_token,"invalid colorbox option");
+	    int_warn(c_token,"invalid colorbox option");
 	} /* end of while !end of command over colorbox options */
     if (color_box.where == SMCOLOR_BOX_NO) /* default: draw at default position */
 	color_box.where = SMCOLOR_BOX_DEFAULT;
@@ -3739,6 +3836,10 @@ set_pm3d()
 		parse_lighting_options();
 		continue;
 
+	    case S_PM3D_SPOTLIGHT:
+		parse_spotlight_options();
+		continue;
+
 	    } /* switch over pm3d lookup table */
 	    int_error(c_token,"invalid pm3d option");
 	} /* end of while !end of command over pm3d options */
@@ -3761,7 +3862,7 @@ set_pointintervalbox()
 	pointintervalbox = 1.0;
     else
 	pointintervalbox = real_expression();
-    if (pointintervalbox <= 0)
+    if (pointintervalbox < 0)
 	pointintervalbox = 1.0;
 }
 
@@ -3783,13 +3884,105 @@ set_pointsize()
 static void
 set_polar()
 {
+    TBOOLEAN was_already_polar = polar;
     c_token++;
-
-    if (polar)
-	return;
 
     polar = TRUE;
     raxis = TRUE;
+
+#ifdef USE_POLAR_GRID
+    /* set polar grid {<theta_segments>, <radial_segments>}
+     *                { qnorm {<power>} | gauss | cauchy | exp | box | hann }
+     *                { kdensity } { scale <scale> }
+     *                {theta [min:max]} {r [min:max]}
+     */
+    if (equals(c_token, "grid")) {
+	int val;
+	t_dgrid3d_mode scheme;
+	c_token++;
+	if (might_be_numeric(c_token)) {
+	    val = int_expression();
+	    if (val > 5 && val < 1000)
+		polar_grid.theta_segments = val;
+	    if (equals(c_token, ",")) {
+		c_token++;
+		val = int_expression();
+		if (val > 1 && val < 101)
+		    polar_grid.r_segments = val;
+	    }
+	}
+
+	while (!END_OF_COMMAND) {
+
+	    scheme = lookup_table(&dgrid3d_mode_tbl[0],c_token);
+	    if (scheme != DGRID3D_OTHER) {
+		switch (scheme) {
+		case DGRID3D_QNORM:
+					c_token++;
+					polar_grid.mode = scheme;
+					val = 1;
+					if (might_be_numeric(c_token))
+					    val = int_expression();
+					if (val > 0 && val < 25)
+					    polar_grid.norm_q = val;
+					break;
+		case DGRID3D_GAUSS:
+		case DGRID3D_CAUCHY:
+		case DGRID3D_EXP:
+		case DGRID3D_BOX:
+					c_token++;
+					polar_grid.mode = scheme;
+					break;
+		case DGRID3D_HANN:
+		case DGRID3D_SPLINES:
+		default:
+					int_warn(c_token, "unsupported weighting scheme");
+					break;
+		}
+		if (equals(c_token,"kdensity")) {
+		    polar_grid.kdensity = TRUE;
+		    c_token++;
+		} else
+		    polar_grid.kdensity = FALSE;
+		continue;
+	    }
+
+	    if (equals(c_token,"scale")) {
+		c_token++;
+		polar_grid.scale = real_expression();
+		if (polar_grid.scale <= 0)
+		    polar_grid.scale = 1.0;
+		continue;
+	    }
+
+	    if (equals(c_token,"theta")) {
+		int start_token = ++c_token;
+		if (!equals(c_token++,"["))
+		    int_error(start_token, "expecting [ theta_min : theta_max ]");
+		THETA_AXIS.min = parse_one_range_limit( 0.0 );
+		THETA_AXIS.max = parse_one_range_limit( 360. );
+		if (THETA_AXIS.max < 0)
+		    THETA_AXIS.max += 360;
+		continue;
+	    }
+
+	    if (equals(c_token,"r")) {
+		int start_token = ++c_token;
+		if (!equals(c_token++,"["))
+		    int_error(start_token, "expecting [ radius_min : radius_max ]");
+		polar_grid.rmin = parse_one_range_limit( 0.0 );
+		polar_grid.rmax = parse_one_range_limit( VERYLARGE );
+		continue;
+	    }
+
+	    int_error(c_token, "Unexpected token");
+
+	} /* while (!END_OF_COMMAND) */
+    }
+#endif /* USE_POLAR_GRID */
+
+    if (was_already_polar)
+	return;
 
     if (!parametric) {
 	if (interactive)
@@ -3802,7 +3995,7 @@ set_polar()
 	/* 360 if degrees, 2pi if radians */
 	axis_array[T_AXIS].set_max = 2 * M_PI / ang2rad;
     }
-    if (axis_array[POLAR_AXIS].set_autoscale != AUTOSCALE_BOTH)
+    if ((axis_array[POLAR_AXIS].set_autoscale & AUTOSCALE_BOTH) != AUTOSCALE_BOTH)
 	rrange_to_xy();
 }
 
@@ -3909,6 +4102,7 @@ set_obj(int tag, int obj_type)
     TBOOLEAN got_corners = FALSE;
     TBOOLEAN got_center = FALSE;
     TBOOLEAN got_origin = FALSE;
+    lp_style_type lptmp;
 
     c_token++;
 
@@ -3940,7 +4134,7 @@ set_obj(int tag, int obj_type)
 		prev_object->next = new_obj;
 	    new_obj->next = this_object;
 	    this_object = new_obj;
-	    /* V5 CHANGE: Apply default rectangle style now rather than later */
+	    /* Apply default rectangle style now rather than later */
 	    if (obj_type == OBJ_RECTANGLE) {
 		this_object->fillstyle = default_rectangle.fillstyle;
 		this_object->lp_properties = default_rectangle.lp_properties;
@@ -3975,7 +4169,7 @@ set_obj(int tag, int obj_type)
 			get_position(&this_rect->tr);
 		    } else if (equals(c_token,"rto")) {
 			c_token++;
-			get_position_default(&this_rect->tr, this_rect->bl.scalex, 2);
+			get_position_default(&this_rect->tr, this_rect->bl.scalex, TRUE, 2);
 			if (this_rect->bl.scalex != this_rect->tr.scalex
 			||  this_rect->bl.scaley != this_rect->tr.scaley)
 			    int_error(c_token,"relative coordinates must match in type");
@@ -4108,7 +4302,7 @@ set_obj(int tag, int obj_type)
 			} else /* "rto" */ {
 			    int v = this_polygon->type;
 			    get_position_default(&this_polygon->vertex[v],
-						  this_polygon->vertex->scalex, 2);
+						  this_polygon->vertex->scalex, TRUE, 2);
 			    if (this_polygon->vertex[v].scalex != this_polygon->vertex[v-1].scalex
 			    ||  this_polygon->vertex[v].scaley != this_polygon->vertex[v-1].scaley)
 				int_error(c_token,"relative coordinates must match in type");
@@ -4218,7 +4412,7 @@ set_obj(int tag, int obj_type)
 	/* Line properties (will be used for the object border if the fillstyle has one. */
 	/* LP_NOFILL means don't eat fillcolor here since at is set separately with "fc". */
 	if (!got_lt) {
-	    lp_style_type lptmp = this_object->lp_properties;
+	    lptmp = this_object->lp_properties;
 	    lp_parse(&lptmp, LP_NOFILL, FALSE);
 	    if (c_token != save_token) {
 		this_object->lp_properties.l_width = lptmp.l_width;
@@ -4230,6 +4424,11 @@ set_obj(int tag, int obj_type)
 	}
 
 	int_error(c_token, "Unrecognized or duplicate option");
+    }
+
+    /* This handles the case "set obj N circle fs empty; set obj N lc "red" */
+    if (got_lt && !got_fill && !got_fc && this_object->fillstyle.fillstyle == FS_EMPTY)  {
+	    this_object->fillstyle.border_color = lptmp.pm3d_color;
     }
 
     if (got_center && got_corners)
@@ -4533,7 +4732,12 @@ set_style()
 		    continue;
 		if (equals(c_token,"lt"))
 		    c_token--;
-		parse_colorspec(&textbox->border_color, TC_RGB);
+		/* Workaround/hack to prevent bare keyword "border" from 
+		 * complained about following keyword, e.g. "lw"
+		 */
+		if (equals(c_token,"lc") || almost_equals(c_token,"linec$olor")
+		||  equals(c_token,"rgb") || equals(c_token+1, "lt"))
+		    parse_colorspec(&textbox->border_color, TC_RGB);
 	    } else if (almost_equals(c_token,"linew$idth") || equals(c_token,"lw")) {
 		c_token++;
 		textbox->linewidth = real_expression();
@@ -4557,6 +4761,8 @@ set_style()
     }
     case SHOW_STYLE_INCREMENT:
 	c_token++;
+	int_warn(c_token, "deprecated command");
+#ifdef BACKWARD_COMPATIBILITY
 	if (END_OF_COMMAND || almost_equals(c_token,"def$ault"))
 	    prefer_line_styles = FALSE;
 	else if (almost_equals(c_token,"u$serstyles"))
@@ -4564,6 +4770,9 @@ set_style()
 	else
 	    int_error(c_token,"unrecognized option");
 	c_token++;
+#else
+	while (!END_OF_COMMAND) c_token++;
+#endif
 	break;
     case SHOW_STYLE_BOXPLOT:
 	set_boxplot();
@@ -4574,6 +4783,11 @@ set_style()
     case SHOW_STYLE_SPIDERPLOT:
 	set_style_spiderplot();
 	break;
+#ifdef USE_WATCHPOINTS
+    case SHOW_STYLE_WATCHPOINT:
+	set_style_watchpoint();
+	break;
+#endif
     default:
 	int_error(c_token, "unrecognized option - see 'help set style'");
     }
@@ -4691,7 +4905,7 @@ set_terminal()
      */
     *term_options = 0;
     term->options();
-    if (interactive && *term_options)
+    if (interactive && *term_options && !term_on_entry)
 	fprintf(stderr,"Options are '%s'\n",term_options);
     if ((term->flags & TERM_MONOCHROME))
 	init_monochrome();
@@ -4801,33 +5015,12 @@ static void
 set_tics()
 {
     int i;
-    TBOOLEAN global_opt = FALSE;
     int save_token = c_token;
 
-    /* There are a few options that set_tic_prop doesn't handle */
-    /* because they are global rather than per-axis.            */
-    while (!END_OF_COMMAND) {
-	if (equals(c_token, "front")) {
-	    grid_tics_in_front = TRUE;
-	    global_opt = TRUE;
-	} else if (equals(c_token, "back")) {
-	    grid_tics_in_front = FALSE;
-	    global_opt = TRUE;
-	} else if (almost_equals(c_token, "sc$ale")) {
-	    set_ticscale();
-	    global_opt = TRUE;
-	}
-	c_token++;
-    }
-
-    /* Otherwise we iterate over axes and apply the options to each */
-    for (i = 0; i < NUMBER_OF_MAIN_VISIBLE_AXES; i++) {
-	c_token = save_token;
-	set_tic_prop( &axis_array[i] );
-    }
-
-    /* if tics are off, reset to default (border) */
-    if (END_OF_COMMAND || global_opt) {
+    /* On a bare "set tics" command, reset the default on/off/placement/mirror
+     * state of the visible axes.
+     */
+    if (END_OF_COMMAND) {
 	for (i = 0; i < NUMBER_OF_MAIN_VISIBLE_AXES; ++i) {
 	    if ((axis_array[i].ticmode & TICS_MASK) == NO_TICS) {
 		if ((i == SECOND_X_AXIS) || (i == SECOND_Y_AXIS))
@@ -4837,6 +5030,25 @@ set_tics()
 		    axis_array[i].ticmode |= TICS_MIRROR;
 	    }
 	}
+	return;
+    }
+
+    /* There are a few options that set_tic_prop doesn't handle */
+    /* because they are global rather than per-axis.            */
+    while (!END_OF_COMMAND) {
+	if (equals(c_token, "front"))
+	    grid_tics_in_front = TRUE;
+	else if (equals(c_token, "back"))
+	    grid_tics_in_front = FALSE;
+	else if (almost_equals(c_token, "sc$ale"))
+	    set_ticscale();
+	c_token++;
+    }
+
+    /* Otherwise we iterate over axes and apply the options to each */
+    for (i = 0; i < NUMBER_OF_MAIN_VISIBLE_AXES; i++) {
+	c_token = save_token;
+	set_tic_prop( &axis_array[i] );
     }
 }
 
@@ -4870,6 +5082,13 @@ set_ticscale()
 	for (i = 0; i < NUMBER_OF_MAIN_VISIBLE_AXES; ++i) {
 	    axis_array[i].ticscale = lticscale;
 	    axis_array[i].miniticscale = lminiticscale;
+	    /* For backward compatibility, setting tic scale has the side
+	     * effect of reenabling display of tics that had been "unset".
+	     * This allows auto-extension of axes with tic scale 0.
+	     * NB: The old code also turned on mirroring; now we don't.
+	     */
+	    if (i != SECOND_X_AXIS && i != SECOND_Y_AXIS)
+		axis_array[i].ticmode = TICS_ON_BORDER;
 	}
 	ticlevel = 2;
 	while (equals(c_token, ",")) {
@@ -4911,8 +5130,8 @@ set_xyplane()
 }
 
 
-/* Process 'set timefmt' command */
-/* V5: fallback default if timecolumn(N,"format") not used during input.
+/* Process 'set timefmt' command.
+ * This becomes the default if timecolumn(N,"format") is not used during input.
  * Use "set {axis}tics format" to control the output format.
  */
 static void
@@ -4964,7 +5183,7 @@ set_timestamp()
 
 	if (almost_equals(c_token,"off$set")) {
 	    c_token++;
-	    get_position_default(&(timelabel.offset), character, 3);
+	    get_position_default(&(timelabel.offset), character, TRUE, 3);
 	    continue;
 	}
 
@@ -5346,7 +5565,7 @@ set_tic_prop(struct axis *this_axis)
 		++c_token;
 		if (equals(c_token, "by")) {
 		    c_token++;
-		    this_axis->tic_rotate = int_expression();
+		    this_axis->tic_rotate = real_expression();
 		}
 	    } else if (almost_equals(c_token, "noro$tate")) {
 		this_axis->tic_rotate = 0;
@@ -5354,7 +5573,7 @@ set_tic_prop(struct axis *this_axis)
 	    } else if (almost_equals(c_token, "off$set")) {
 		++c_token;
 		get_position_default(&this_axis->ticdef.offset,
-				     character, 3);
+				     character, TRUE, 3);
 	    } else if (almost_equals(c_token, "nooff$set")) {
 		++c_token;
 		this_axis->ticdef.offset = default_offset;
@@ -5381,17 +5600,18 @@ set_tic_prop(struct axis *this_axis)
 		this_axis->ticdef.rangelimited = FALSE;
 		++c_token;
 	    } else if (almost_equals(c_token, "f$ont")) {
+		char *newfont;
 		++c_token;
+		newfont = try_to_get_string();
 		/* Make sure they've specified a font */
-		if (!isstringvalue(c_token))
-		    int_error(c_token,"expected font");
-		else {
+		if (newfont) {
 		    free(this_axis->ticdef.font);
-		    this_axis->ticdef.font = NULL;
-		    this_axis->ticdef.font = try_to_get_string();
+		    this_axis->ticdef.font = newfont;
+		} else {
+		    int_error(c_token,"expected font");
 		}
 
-	    /* The geographic/timedate/numeric options are new in version 5 */
+	    /* geographic/timedate/numeric options */
 	    } else if (almost_equals(c_token,"geo$graphic")) {
 		++c_token;
 		this_axis->tictype = DT_DMS;
@@ -5619,13 +5839,9 @@ set_linestyle(struct linestyle_def **head, lp_class destination_class)
 		break;
 
     if (this_linestyle == NULL || tag != this_linestyle->tag) {
-	/* Default style is based on linetype with the same tag id */
+	/* Initialize to default for the linetype with the same tag id */
 	struct lp_style_type loc_lp = DEFAULT_LP_STYLE_TYPE;
-	loc_lp.l_type = tag - 1;
-	loc_lp.p_type = tag - 1;
-	loc_lp.d_type = DASHTYPE_SOLID;
-	loc_lp.pm3d_color.type = TC_LT;
-	loc_lp.pm3d_color.lt = tag - 1;
+	load_linetype(&loc_lp, tag);
 
 	new_linestyle = gp_alloc(sizeof(struct linestyle_def), "linestyle");
 	if (prev_linestyle != NULL)
@@ -5638,7 +5854,7 @@ set_linestyle(struct linestyle_def **head, lp_class destination_class)
 	this_linestyle = new_linestyle;
     }
 
-    if (almost_equals(c_token, "def$ault")) {
+    if (destination_class == LP_STYLE && almost_equals(c_token, "def$ault")) {
 	delete_linestyle(head, prev_linestyle, this_linestyle);
 	c_token++;
     } else
@@ -5648,24 +5864,6 @@ set_linestyle(struct linestyle_def **head, lp_class destination_class)
     if (!END_OF_COMMAND)
 	int_error(c_token,"Extraneous arguments to set %s",
 		head == &first_perm_linestyle ? "linetype" : "style line");
-}
-
-/*
- * Delete linestyle from linked list.
- * Called with pointers to the head of the list,
- * to the previous linestyle (not strictly necessary),
- * and to the linestyle to delete.
- */
-void
-delete_linestyle(struct linestyle_def **head, struct linestyle_def *prev, struct linestyle_def *this)
-{
-    if (this != NULL) {		/* there really is something to delete */
-	if (this == *head)
-	    *head = this->next;
-	else
-	    prev->next = this->next;
-	free(this);
-    }
 }
 
 
@@ -5887,10 +6085,20 @@ load_tic_series(struct axis *this_axis)
 	incr = start;
 	start = -VERYLARGE;
 	end = VERYLARGE;
+	if (this_axis->tictype == DT_TIMEDATE) {
+	    this_axis->tic_units = lookup_table(timelevels_tbl, c_token);
+	    if (this_axis->tic_units != TIMELEVEL_DEFAULT)
+		c_token++;
+	}
     } else {
 	c_token++;
 	incr_token = c_token;
 	incr = get_num_or_time(this_axis);
+	if (this_axis->tictype == DT_TIMEDATE) {
+	    this_axis->tic_units = lookup_table(timelevels_tbl, c_token);
+	    if (this_axis->tic_units != TIMELEVEL_DEFAULT)
+		c_token++;
+	}
 
 	if (!equals(c_token, ",")) {
 	    /* only step and increment specified */
@@ -5952,6 +6160,7 @@ new_text_label(int tag)
  * Note: ndim = 2 means we are inside a plot command,
  *       ndim = 3 means we are inside an splot command
  *       ndim = 0 in a set command
+ *       ndim = 4 means this is being used for a keyentry
  */
 void
 parse_label_options( struct text_label *this_label, int ndim)
@@ -5959,17 +6168,19 @@ parse_label_options( struct text_label *this_label, int ndim)
     struct position pos;
     char *font = NULL;
     enum JUSTIFY just = LEFT;
-    int rotate = 0;
+    float rotate = 0;
     TBOOLEAN set_position = FALSE, set_just = FALSE, set_point = FALSE,
 	set_rot = FALSE, set_font = FALSE, set_offset = FALSE,
 	set_layer = FALSE, set_textcolor = FALSE, set_hypertext = FALSE;
     int layer = LAYER_BACK;
-    TBOOLEAN axis_label = (this_label->tag <= NONROTATING_LABEL_TAG);
+    TBOOLEAN axis_label = FALSE;
     TBOOLEAN hypertext = FALSE;
     struct position offset = default_offset;
     t_colorspec textcolor = {TC_DEFAULT,0,0.0};
     struct lp_style_type loc_lp = DEFAULT_LP_STYLE_TYPE;
     loc_lp.flags = LP_NOT_INITIALIZED;
+    if (this_label->tag == LABEL_TAG_ROTATE_IN_3D || this_label->tag == LABEL_TAG_VARIABLE_ROTATE)
+	axis_label = TRUE;
 
    /* Now parse the label format and style options */
     while (!END_OF_COMMAND) {
@@ -6009,17 +6220,17 @@ parse_label_options( struct text_label *this_label, int ndim)
 	    rotate = this_label->rotate;
 	    if (equals(c_token, "by")) {
 		c_token++;
-		rotate = int_expression();
-		if (this_label->tag == ROTATE_IN_3D_LABEL_TAG)
-		    this_label->tag = NONROTATING_LABEL_TAG;
+		rotate = real_expression();
+		if (this_label->tag == LABEL_TAG_ROTATE_IN_3D)
+		    this_label->tag = LABEL_TAG_NONROTATING;
 	    } else if (almost_equals(c_token,"para$llel")) {
 		if (this_label->tag >= 0)
 		    int_error(c_token,"invalid option");
 		c_token++;
-		this_label->tag = ROTATE_IN_3D_LABEL_TAG;
+		this_label->tag = LABEL_TAG_ROTATE_IN_3D;
 	    } else if (almost_equals(c_token,"var$iable")) {
 		if (ndim == 2)	/* only in 2D plot with labels */
-		    this_label->tag = VARIABLE_ROTATE_LABEL_TAG;
+		    this_label->tag = LABEL_TAG_VARIABLE_ROTATE;
 		else
 		    set_rot = FALSE;
 		c_token++;
@@ -6030,8 +6241,8 @@ parse_label_options( struct text_label *this_label, int ndim)
 	    rotate = 0;
 	    c_token++;
 	    set_rot = TRUE;
-	    if (this_label->tag == ROTATE_IN_3D_LABEL_TAG)
-		this_label->tag = NONROTATING_LABEL_TAG;
+	    if (this_label->tag == LABEL_TAG_ROTATE_IN_3D)
+		this_label->tag = LABEL_TAG_NONROTATING;
 	    continue;
 	}
 
@@ -6091,7 +6302,16 @@ parse_label_options( struct text_label *this_label, int ndim)
 	}
 
 	if (!axis_label && (loc_lp.flags == LP_NOT_INITIALIZED || set_hypertext)) {
-	    if (almost_equals(c_token, "po$int")) {
+	    if ((ndim == 4)
+	    &&  (equals(c_token-1, "keyentry"))
+	    &&	((this_label->text = try_to_get_string()) != NULL)) {
+		/* key entries can use a text string instead of a point symbol.
+		 * This allows 'keyentry "string1" title "string2" to place two strings
+		 */
+		loc_lp.flags = 0;
+		this_label->pos = LEFT;
+		continue;
+	    } else if (almost_equals(c_token, "po$int")) {
 		int stored_token = ++c_token;
 		struct lp_style_type tmp_lp;
 		loc_lp.flags = LP_SHOW_POINTS;
@@ -6110,12 +6330,12 @@ parse_label_options( struct text_label *this_label, int ndim)
 
 	if (! set_offset && almost_equals(c_token, "of$fset")) {
 	    c_token++;
-	    get_position_default(&offset, character, ndim);
+	    get_position_default(&offset, character, TRUE, ndim);
 	    set_offset = TRUE;
 	    continue;
 	}
 
-	if ((equals(c_token,"tc") || almost_equals(c_token,"text$color"))
+	if ((equals(c_token,"tc") || equals(c_token,"textcolor"))
 	    && ! set_textcolor ) {
 	    parse_colorspec( &textcolor, TC_VARIABLE );
 	    set_textcolor = TRUE;
@@ -6284,6 +6504,45 @@ parse_lighting_options()
 	break;
     }
 
+    c_token--;
+}
+
+/*
+ * set pm3d spotlight {rot_x <phi>} {rot_z <psi>} {rgbcolor <color>}
+ * set pm3d spotlight default
+ */
+static void
+parse_spotlight_options()
+{
+    c_token++;
+    while (!END_OF_COMMAND) {
+	if (equals(c_token, "rot_x")) {
+	    c_token++;
+	    pm3d_shade.spec2_rot_x = real_expression();
+	    continue;
+	}
+	if (equals(c_token, "rot_z")) {
+	    c_token++;
+	    pm3d_shade.spec2_rot_z = real_expression();
+	    continue;
+	}
+	if (almost_equals(c_token, "rgb$color")) {
+	    c_token++;
+	    pm3d_shade.spec2_rgb = parse_color_name();
+	    continue;
+	}
+	if (almost_equals(c_token, "Phong")) {
+	    c_token++;
+	    pm3d_shade.spec2_Phong = fabs(real_expression());
+	    continue;
+	}
+	if (equals(c_token, "default")) {
+	    c_token++;
+	    reset_spotlight();
+	    continue;
+	}
+	break;
+    }
     c_token--;
 }
 

@@ -60,6 +60,7 @@ double wxt_dashlength = 1.0;
 double wxt_lw = 1.0;
 int wxt_background = 0xffffff;
 rgb_color wxt_rgb_background = {1.,1.,1.};
+TBOOLEAN wxt_dark_background = FALSE;
 int wxt_persist = UNSET;
 int wxt_raise = UNSET;
 int wxt_ctrl = UNSET;
@@ -69,7 +70,7 @@ t_linecap wxt_linecap = BUTT;
 /* default text font family: */
 char *wxt_set_fontname = NULL;
 /* default text size*/
-int wxt_set_fontsize = 0;
+double wxt_set_fontsize = 0;
 double wxt_set_fontscale = 1.0;
 /* window title */
 char wxt_title[MAX_ID_LEN + 1] = "";
@@ -174,7 +175,7 @@ TERM_PUBLIC void wxt_options()
 			if (*s) {
 				char *sep = strchr(s,',');
 				if (sep) {
-					sscanf(sep+1, "%d", &wxt_set_fontsize);
+					sscanf(sep+1, "%lf", &wxt_set_fontsize);
 					*sep = '\0';
 				}
 				free(wxt_set_fontname);
@@ -301,10 +302,14 @@ TERM_PUBLIC void wxt_options()
 			break;
 		case WXT_BACKGROUND:
 			{
+			double ntsc;
 			wxt_background = parse_color_name();
 			wxt_rgb_background.r = (double)((wxt_background >> 16) & 0xff) / 255.;
 			wxt_rgb_background.g = (double)((wxt_background >>  8) & 0xff) / 255.;
 			wxt_rgb_background.b = (double)( wxt_background        & 0xff) / 255.;
+			ntsc = 0.299 * wxt_rgb_background.r + 0.587 * wxt_rgb_background.g
+			     + 0.114 * wxt_rgb_background.b;
+			wxt_dark_background = (ntsc < 0.5);
 			break;
 			}
 		case WXT_NOBACKGROUND:
@@ -313,6 +318,7 @@ TERM_PUBLIC void wxt_options()
 			wxt_rgb_background.r = 1.0;
 			wxt_rgb_background.g = 1.0;
 			wxt_rgb_background.b = 1.0;
+			wxt_dark_background = FALSE;
 			break;
 			}
 		case WXT_OTHER:

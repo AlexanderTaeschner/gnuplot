@@ -6,7 +6,7 @@
 # Example of intended use:
 #     set term webp animate delay 100 size 300,300
 #     set output 'world.webp'
-#     load 'animate2.dem'
+#     load 'animation.dem'
 #     unset output
 
 unset title

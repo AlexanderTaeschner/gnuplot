@@ -95,7 +95,7 @@ struct QtGnuplotState {
      *-------------------------------------------------------*/
 
     bool gnuplot_qtStarted;
-    int  currentFontSize;
+    double currentFontSize;
     QString currentFontName;
     QString localServerName;
     QTextCodec* codec;
@@ -163,14 +163,20 @@ static bool qt_optionEnhanced = true;
 static bool qt_optionPersist  = false;
 static bool qt_optionRaise    = true;
 static bool qt_optionCtrl     = false;
+static bool qt_optionRounded  = true; 
+static bool qt_optionAntiAlias  = true;
+static bool qt_optionReplotOnResize  = true;
 static bool qt_optionDash     = true;
 static int  qt_optionWidth    = 640;
 static int  qt_optionHeight   = 480;
-static int  qt_optionFontSize = 9;
+static double qt_optionFontSize = 10.0;
 static double qt_optionDashLength = 1.0;
 static double qt_optionLineWidth = 1.0;
 
-static int qt_optionctrlq = -1;	// tristate -1 = not set 0 = false 1 = true 
+static int qt_optionctrlq = -1;	         // tristate -1 = not set 0 = false 1 = true 
+static int qt_optionrounded = -1;	 // tristate -1 = not set 0 = false 1 = true 
+static int qt_optionantialias = -1;	 // tristate -1 = not set 0 = false 1 = true 
+static int qt_optionreplotonresize = -1; // tristate -1 = not set 0 = false 1 = true 
 
 /* Encapsulates all Qt options that have a constructor and destructor. */
 struct QtOption {
@@ -471,14 +477,14 @@ void qt_sendFont()
 {
 	qt->out << GESetFont << qt->currentFontName << qt->currentFontSize;
 
-	QPair<QString, int> currentFont(qt->currentFontName, qt->currentFontSize);
-	static QPair<QString, int> lastFont("", 0);
+	QPair<QString, double> currentFont(qt->currentFontName, qt->currentFontSize);
+	static QPair<QString, double> lastFont("", 0.0);
 
 	// The font has not changed
 	if (currentFont == lastFont)
 		return;
 
-	static QMap<QPair<QString, int>, QPair<int, int> > fontMetricCache;
+	static QMap< QPair<QString, double>, QPair<int, int> > fontMetricCache;
 	QPair<int, int> metric;
 
 	// Try to find the font metric in the cache or ask the GUI for the font metrics
@@ -570,6 +576,19 @@ void qt_graphics()
 	if (qt_optionctrlq >= 0) {
 		qt->out << GESetCtrl << qt_optionCtrl;
 		qt_optionctrlq = -1;
+	}
+	if (qt_optionantialias >= 0) {
+		qt->out << GESetAntiAlias << qt_optionAntiAlias;
+		qt_optionantialias = -1;
+	}
+	if (qt_optionreplotonresize >= 0) {
+		qt->out << GESetReplotOnResize << qt_optionReplotOnResize;
+		qt_optionreplotonresize = -1;
+	}
+
+	if (qt_optionrounded >= 0) {
+	  qt->out << GESetRounded << qt_optionRounded;
+	  qt_optionrounded = -1;
 	}
 
 	qt->out << GESetWidgetSize << QSize(term->xmax, term->ymax)/qt_oversampling;
@@ -816,7 +835,7 @@ void qt_dashtype(int type, t_dashtype *custom_dash_type)
 int qt_set_font(const char* font)
 {
 	ensureOptionsCreated();
-	int  qt_previousFontSize = qt->currentFontSize;
+	double qt_previousFontSize = qt->currentFontSize;
 	QString qt_previousFontName = qt->currentFontName;
 
 	if (font && (*font))
@@ -825,7 +844,7 @@ int qt_set_font(const char* font)
 		if (list.size() > 0)
 			qt->currentFontName = list[0];
 		if (list.size() > 1)
-			qt->currentFontSize = list[1].toInt();
+			qt->currentFontSize = list[1].toDouble();
 	} else {
 		qt->currentFontSize = qt_optionFontSize;
 		qt->currentFontName = qt_option->FontName;
@@ -876,7 +895,7 @@ void qt_linewidth(double lw)
 	qt->out << GELineWidth << lw * qt_optionLineWidth;
 }
 
-int qt_text_angle(int angle)
+int qt_text_angle(float angle)
 {
 	qt->out << GETextAngle << double(angle);
 	return 1; // 1 means we can rotate
@@ -1315,7 +1334,13 @@ enum QT_id {
 	QT_DASHLENGTH,
 	QT_SOLID,
 	QT_LINEWIDTH,
-	QT_OTHER
+	QT_OTHER,
+	QT_ROUNDED,
+	QT_NOROUNDED,
+	QT_ANTIALIAS,
+	QT_NOANTILIAS,
+	QT_REPLOTONRESIZE,
+	QT_NOREPLOTONRESIZE
 };
 
 static struct gen_table qt_opts[] = {
@@ -1331,6 +1356,12 @@ static struct gen_table qt_opts[] = {
 	{"norai$se",    QT_NORAISE},
 	{"ct$rlq",      QT_CTRL},
 	{"noct$rlq",    QT_NOCTRL},
+	{"rou$nded",    QT_ROUNDED},
+	{"butt",        QT_NOROUNDED},
+	{"an$tialias",  QT_ANTIALIAS},
+	{"noan$tialias",QT_NOANTILIAS},
+	{"rep$lotonresize", QT_REPLOTONRESIZE},
+	{"norep$lotonresize", QT_NOREPLOTONRESIZE},
 	{"ti$tle",      QT_TITLE},
 	{"cl$ose",      QT_CLOSE},
 	{"dash$ed",     QT_DASH},
@@ -1362,6 +1393,9 @@ void qt_options()
 	bool set_dash = false;
 	bool set_dashlength = false;
 	bool set_linewidth = false;
+	bool set_rounded = false;
+	bool set_antialias = false;
+	bool set_replotonresize = false;
 	int previous_WindowId = qt_optionWindowId;
 
 #ifndef _WIN32
@@ -1395,8 +1429,8 @@ void qt_options()
 				QStringList list = fontSettings.split(',');
 				if ((list.size() > 0) && !list[0].isEmpty())
 					qt_option->FontName = list[0];
-				if ((list.size() > 1) && (list[1].toInt() > 0))
-					qt_optionFontSize = list[1].toInt();
+				if ((list.size() > 1) && (list[1].toDouble() > 0))
+					qt_optionFontSize = list[1].toDouble();
 			}
 			free(s);
 			break;
@@ -1453,6 +1487,31 @@ void qt_options()
 		case QT_NOCTRL:
 			SETCHECKDUP(set_ctrl);
 			qt_optionCtrl = false;
+			break;
+
+		case QT_ROUNDED:
+			SETCHECKDUP(set_rounded);
+			qt_optionRounded = true;
+			break;
+		case QT_NOROUNDED:
+			SETCHECKDUP(set_rounded);
+			qt_optionRounded = false;
+			break;
+		case QT_ANTIALIAS:
+			SETCHECKDUP(set_antialias);
+			qt_optionAntiAlias = true;
+			break;
+		case QT_NOANTILIAS:
+			SETCHECKDUP(set_antialias);
+			qt_optionAntiAlias = false;
+			break;
+		case QT_REPLOTONRESIZE:
+			SETCHECKDUP(set_replotonresize);
+			qt_optionReplotOnResize = true;
+			break;
+		case QT_NOREPLOTONRESIZE:
+			SETCHECKDUP(set_replotonresize);
+			qt_optionReplotOnResize = false;
 			break;
 		case QT_TITLE:
 			SETCHECKDUP(set_title);
@@ -1544,8 +1603,22 @@ void qt_options()
 	/// Only send the ctrlQ option if it is explicitly given in "set term qt {no}ctrlq"
 	if (set_ctrl)
 	    qt_optionctrlq = qt_optionCtrl;
-	else
-	    qt_optionctrlq = -1;
+
+	if (set_rounded) termOptions += qt_optionRounded ? " rounded" : " butt";
+
+	if (set_rounded)
+	  qt_optionrounded = qt_optionRounded;
+
+	if (set_antialias) termOptions += qt_optionAntiAlias ? " antialias" : " noantialias";
+
+	if (set_antialias)
+	  qt_optionantialias = qt_optionAntiAlias;
+
+	if (set_replotonresize) termOptions += qt_optionReplotOnResize ? " replotonresize" : " noreplotonresize";
+
+	if (set_replotonresize)
+	  qt_optionreplotonresize = qt_optionReplotOnResize;
+
 
 	/// @bug change Utf8 to local encoding
 	strncpy(term_options, termOptions.toUtf8().data(), MAX_LINE_LEN);

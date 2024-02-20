@@ -50,14 +50,16 @@
 
 /* exported variables (to be handled by the 'set' and friends): */
 
-char contour_format[32] = "%8.3g";	/* format for contour key entries */
-t_contour_kind contour_kind = CONTOUR_KIND_LINEAR;
-t_contour_levels_kind contour_levels_kind = LEVELS_AUTO;
-int contour_levels = DEFAULT_CONTOUR_LEVELS;
-int contour_order = DEFAULT_CONTOUR_ORDER;
-int contour_pts = DEFAULT_NUM_APPROX_PTS;
-int contour_firstlinetype = -1;
-TBOOLEAN contour_sortlevels = FALSE;
+struct contour_params contour_params = {
+    .kind = CONTOUR_KIND_LINEAR,
+    .levels_kind = LEVELS_AUTO,
+    .levels = DEFAULT_CONTOUR_LEVELS,
+    .order = DEFAULT_CONTOUR_ORDER,
+    .npoints = DEFAULT_NUM_APPROX_PTS,
+    .firstlinetype = -1,
+    .sortlevels = FALSE,
+    .format = "%8.3g"
+};
 
 /* storage for z levels to draw contours at */
 dynarray dyn_contour_levels_list;
@@ -70,8 +72,7 @@ typedef enum en_edge_position {
 } t_edge_position;
 
 
-/* FIXME HBB 2000052: yet another local copy of 'epsilon'. Why? */
-#define EPSILON  1e-5		/* Used to decide if two float are equal. */
+#define EPSILON  1.e-5		/* Used to decide if two floats are equal. */
 
 #ifndef TRUE
 #define TRUE     -1
@@ -109,14 +110,12 @@ static double contour_level = 0.0;
 /* Linear, Cubic interp., Bspline: */
 static t_contour_kind interp_kind = CONTOUR_KIND_LINEAR;
 
-static double x_min, y_min, z_min;	/* Minimum values of x, y, and z */
-static double x_max, y_max, z_max;	/* Maximum values of x, y, and z */
+static double z_min, z_max;		/* Coordinate limits */
+static double unit_x, unit_y;		/* Normalization to coord limits */
 
 static void add_cntr_point(double x, double y);
 static void end_crnt_cntr(void);
-static void gen_contours(edge_struct *p_edges, double z_level,
-				  double xx_min, double xx_max,
-				  double yy_min, double yy_max);
+static void gen_contours(edge_struct *p_edges, double z_level);
 static int update_all_edges(edge_struct *p_edges, double z_level);
 static cntr_struct *gen_one_contour(edge_struct *p_edges,
 					     double z_level,
@@ -134,12 +133,7 @@ static void gen_triangle(int num_isolines,
 				  struct iso_curve *iso_lines,
 				  poly_struct **p_polys,
 				  edge_struct **p_edges);
-static void calc_min_max(int num_isolines,
-				  struct iso_curve *iso_lines,
-				  double *xx_min, double *yy_min,
-				  double *zz_min,
-				  double *xx_max, double *yy_max,
-				  double *zz_max);
+static void calc_min_max(int num_isolines, struct iso_curve *iso_lines);
 static edge_struct *add_edge(struct coordinate *point0,
 					     struct coordinate *point1,
 					     edge_struct
@@ -152,14 +146,10 @@ static poly_struct *add_poly(edge_struct *edge0,
 					     poly_struct **pp_tail);
 
 static void put_contour(cntr_struct *p_cntr,
-				 double xx_min, double xx_max,
-				 double yy_min, double yy_max,
 				 TBOOLEAN contr_isclosed);
 static void put_contour_nothing(cntr_struct *p_cntr);
 static int chk_contour_kind(cntr_struct *p_cntr, TBOOLEAN contr_isclosed);
 static void put_contour_cubic(cntr_struct *p_cntr,
-				       double xx_min, double xx_max,
-				       double yy_min, double yy_max,
 				       TBOOLEAN contr_isclosed);
 static void put_contour_bspline(cntr_struct *p_cntr, TBOOLEAN contr_isclosed);
 static void free_contour(cntr_struct *p_cntr);
@@ -167,8 +157,7 @@ static int count_contour(cntr_struct *p_cntr);
 static int gen_cubic_spline(int num_pts, cntr_struct *p_cntr,
 				     double d2x[], double d2y[],
 				     double delta_t[],
-				     TBOOLEAN contr_isclosed,
-				     double unit_x, double unit_y);
+				     TBOOLEAN contr_isclosed);
 static void intp_cubic_spline(int n, cntr_struct *p_cntr,
 				       double d2x[], double d2y[],
 				       double delta_t[], int n_intpol);
@@ -214,19 +203,15 @@ contour(int num_isolines, struct iso_curve *iso_lines)
     double dz = 0;
     struct gnuplot_contours *save_contour_list;
 
-    /* HBB FIXME 20050804: The number of contour_levels as set by 'set
-     * cnrparam lev inc a,b,c' is almost certainly wrong if z axis is
-     * logarithmic */
-    num_of_z_levels = contour_levels;
-    interp_kind = contour_kind;
+    num_of_z_levels = contour_params.levels;
+    interp_kind = contour_params.kind;
 
     contour_list = NULL;
 
     /*
      * Calculate min/max values :
      */
-    calc_min_max(num_isolines, iso_lines,
-		 &x_min, &y_min, &z_min, &x_max, &y_max, &z_max);
+    calc_min_max(num_isolines, iso_lines);
 
     /*
      * Generate list of edges (p_edges) and list of triangles (p_polys):
@@ -234,7 +219,7 @@ contour(int num_isolines, struct iso_curve *iso_lines)
     gen_triangle(num_isolines, iso_lines, &p_polys, &p_edges);
     crnt_cntr_pt_index = 0;
 
-    if (contour_levels_kind == LEVELS_AUTO) {
+    if (contour_params.levels_kind == LEVELS_AUTO) {
 	if (nonlinear(&Z_AXIS)) {
 	    z_max = eval_link_function(Z_AXIS.linked_to_primary, z_max);
 	    z_min = eval_link_function(Z_AXIS.linked_to_primary, z_min);
@@ -245,7 +230,7 @@ contour(int num_isolines, struct iso_curve *iso_lines)
 	/* Find a tic step that will generate approximately the
 	 * desired number of contour levels. The "* 2" is historical.
 	 * */
-	dz = quantize_normal_tics(dz, ((int) contour_levels + 1) * 2);
+	dz = quantize_normal_tics(dz, (contour_params.levels + 1) * 2);
 	z0 = floor(z_min / dz) * dz;
 	num_of_z_levels = (int) floor((z_max - z0) / dz);
 	if (num_of_z_levels <= 0)
@@ -255,7 +240,7 @@ contour(int num_isolines, struct iso_curve *iso_lines)
     /* Build a list of contour levels */
     zlist = gp_alloc(num_of_z_levels * sizeof(double), NULL);
     for (i = 0; i < num_of_z_levels; i++) {
-	switch (contour_levels_kind) {
+	switch (contour_params.levels_kind) {
 	case LEVELS_AUTO:
 	    z = z0 + (i+1) * dz;
 	    z = CheckZero(z,dz);
@@ -275,7 +260,7 @@ contour(int num_isolines, struct iso_curve *iso_lines)
 	zlist[i] = z;
     }
     /* Sort the list high-to-low if requested */
-    if (contour_sortlevels)
+    if (contour_params.sortlevels)
 	qsort(zlist, num_of_z_levels, sizeof(double), reverse_sort);
 
     /* Create contour line for each z value in the list */
@@ -283,12 +268,12 @@ contour(int num_isolines, struct iso_curve *iso_lines)
 	z = zlist[i];
 	contour_level = z;
 	save_contour_list = contour_list;
-	gen_contours(p_edges, z, x_min, x_max, y_min, y_max);
+	gen_contours(p_edges, z);
 	if (contour_list != save_contour_list) {
 	    contour_list->isNewLevel = 1;
 	    /* Nov-2011 Use gprintf rather than sprintf so that LC_NUMERIC is used */
 	    gprintf(contour_list->label, sizeof(contour_list->label),
-		    contour_format, 1.0, z);
+		    contour_params.format, 1.0, z);
 	    contour_list->z = z;
 	}
     }
@@ -363,9 +348,7 @@ end_crnt_cntr()
 static void
 gen_contours(
     edge_struct *p_edges,
-    double z_level,
-    double xx_min, double xx_max,
-    double yy_min, double yy_max)
+    double z_level)
 {
     int num_active;		/* Number of edges marked ACTIVE. */
     TBOOLEAN contr_isclosed;	/* Is this contour a closed line? */
@@ -379,7 +362,7 @@ gen_contours(
 	/* Generate One contour (and update NumActive as needed): */
 	p_cntr = gen_one_contour(p_edges, z_level, &contr_isclosed, &num_active);
 	/* Emit it in requested format: */
-	put_contour(p_cntr, xx_min, xx_max, yy_min, yy_max, contr_isclosed);
+	put_contour(p_cntr, contr_isclosed);
     }
 }
 
@@ -562,16 +545,36 @@ update_cntr_pt(edge_struct *p_edge, double z_level)
     return p_cntr;
 }
 
-/* Simple routine to decide if two contour points are equal by
- * calculating the relative error (< EPSILON).  */
+/* Determine if two contour points are effectively on top of each other.
+ * Rewritten for version 6 to handle nonlinear coordinates.
+ */
 static int
 fuzzy_equal(cntr_struct *p_cntr1, cntr_struct *p_cntr2)
 {
-    double unit_x, unit_y;
-    unit_x = fabs(x_max - x_min);		/* reference */
-    unit_y = fabs(y_max - y_min);
-    return ((fabs(p_cntr1->X - p_cntr2->X) < unit_x * EPSILON)
-	    && (fabs(p_cntr1->Y - p_cntr2->Y) < unit_y * EPSILON));
+    double x1 = p_cntr1->X;
+    double x2 = p_cntr2->X;
+    double y1 = p_cntr1->Y;
+    double y2 = p_cntr2->Y;
+
+    if (nonlinear(&X_AXIS)) {
+	x1 = eval_link_function(X_AXIS.linked_to_primary, x1);
+	x2 = eval_link_function(X_AXIS.linked_to_primary, x2);
+    } else {
+	x1 /= unit_x;
+	x2 /= unit_x;
+    }
+    if (nonlinear(&Y_AXIS)) {
+	y1 = eval_link_function(Y_AXIS.linked_to_primary, y1);
+	y2 = eval_link_function(Y_AXIS.linked_to_primary, y2);
+    } else {
+	y1 /= unit_y;
+	y2 /= unit_y;
+    }
+
+    if (fabs(x1-x2) < EPSILON  &&  fabs(y1-y2) < EPSILON)
+	return TRUE;
+    else
+	return FALSE;
 }
 
 /*
@@ -723,17 +726,18 @@ gen_triangle(
 static void
 calc_min_max(
     int num_isolines,		/* number of iso-lines input */
-    struct iso_curve *iso_lines, /* iso-lines input */
-    double *xx_min, double *yy_min, double *zz_min,
-    double *xx_max, double *yy_max, double *zz_max) /* min/max values in/out */
+    struct iso_curve *iso_lines) /* iso-lines input */
 {
     int i, j, grid_x_max;
     struct coordinate *vertex;
 
+    /* These used to be static to the file but no one else is using them */
+    double x_min, x_max, y_min, y_max;
+
     grid_x_max = iso_lines->p_count;	/* number of vertices per iso_line */
 
-    (*xx_min) = (*yy_min) = (*zz_min) = VERYLARGE;	/* clear min/max values */
-    (*xx_max) = (*yy_max) = (*zz_max) = -VERYLARGE;
+    x_min = y_min = z_min = VERYLARGE;	/* clear min/max values */
+    x_max = y_max = z_max = -VERYLARGE;
 
     for (j = 0; j < num_isolines; j++) {
 
@@ -741,28 +745,30 @@ calc_min_max(
 
 	for (i = 0; i < grid_x_max; i++) {
 	    if (vertex[i].type != UNDEFINED) {
-		if (vertex[i].x > (*xx_max))
-		    (*xx_max) = vertex[i].x;
-		if (vertex[i].y > (*yy_max))
-		    (*yy_max) = vertex[i].y;
-		if (vertex[i].z > (*zz_max))
-		    (*zz_max) = vertex[i].z;
-		if (vertex[i].x < (*xx_min))
-		    (*xx_min) = vertex[i].x;
-		if (vertex[i].y < (*yy_min))
-		    (*yy_min) = vertex[i].y;
-		if (vertex[i].z < (*zz_min))
-		    (*zz_min) = vertex[i].z;
+		if (vertex[i].x > x_max)
+		    x_max = vertex[i].x;
+		if (vertex[i].y > y_max)
+		    y_max = vertex[i].y;
+		if (vertex[i].z > z_max)
+		    z_max = vertex[i].z;
+		if (vertex[i].x < x_min)
+		    x_min = vertex[i].x;
+		if (vertex[i].y < y_min)
+		    y_min = vertex[i].y;
+		if (vertex[i].z < z_min)
+		    z_min = vertex[i].z;
 	    }
 	}
 	iso_lines = iso_lines->next;
     }
 
-    /*
-     * fprintf(stderr," x: %g, %g\n", (*xx_min), (*xx_max));
-     * fprintf(stderr," y: %g, %g\n", (*yy_min), (*yy_max));
-     * fprintf(stderr," z: %g, %g\n", (*zz_min), (*zz_max));
-     */
+    /* Width and height of the grid is used as a unit length (2d-norm) */
+    unit_x = x_max - x_min;
+    unit_y = y_max - y_min;
+    /* FIXME HBB 20010121: 'zero' should not be used as an absolute
+     * figure to compare to data */
+    unit_x = (unit_x > zero ? unit_x : zero);	/* should not be zero */
+    unit_y = (unit_y > zero ? unit_y : zero);
 }
 
 /*
@@ -864,8 +870,6 @@ add_poly(
 static void
 put_contour(
     cntr_struct *p_cntr,	/* contour structure input */
-    double xx_min, double xx_max,
-    double yy_min, double yy_max, /* minimum/maximum values input */
     TBOOLEAN contr_isclosed)	/* contour line closed? (input) */
 {
 
@@ -877,7 +881,7 @@ put_contour(
 	put_contour_nothing(p_cntr);
 	break;
     case CONTOUR_KIND_CUBIC_SPL: /* Cubic spline interpolation. */
-	put_contour_cubic(p_cntr, xx_min, xx_max, yy_min, yy_max,
+	put_contour_cubic(p_cntr, 
 			  chk_contour_kind(p_cntr, contr_isclosed));
 
 	break;
@@ -938,12 +942,9 @@ chk_contour_kind(cntr_struct *p_cntr, TBOOLEAN contr_isclosed)
 static void
 put_contour_cubic(
     cntr_struct *p_cntr,
-    double xx_min, double xx_max,
-    double yy_min, double yy_max,
     TBOOLEAN contr_isclosed)
 {
     int num_pts, num_intpol;
-    double unit_x, unit_y;	/* To define norm (x,y)-plane */
     double *delta_t;		/* Interval length t_{i+1}-t_i */
     double *d2x, *d2y;		/* Second derivatives x''(t_i), y''(t_i) */
     cntr_struct *pc_tail;
@@ -965,20 +966,13 @@ put_contour_cubic(
     d2x = gp_alloc(num_pts * sizeof(double), "contour d2x");
     d2y = gp_alloc(num_pts * sizeof(double), "contour d2y");
 
-    /* Width and height of the grid is used as a unit length (2d-norm) */
-    unit_x = xx_max - xx_min;
-    unit_y = yy_max - yy_min;
-    /* FIXME HBB 20010121: 'zero' should not be used as an absolute
-     * figure to compare to data */
-    unit_x = (unit_x > zero ? unit_x : zero);	/* should not be zero */
-    unit_y = (unit_y > zero ? unit_y : zero);
 
     if (num_pts > 2) {
 	/*
 	 * Calculate second derivatives d2x[], d2y[] and interval lengths delta_t[]:
 	 */
 	if (!gen_cubic_spline(num_pts, p_cntr, d2x, d2y, delta_t,
-			      contr_isclosed, unit_x, unit_y)) {
+			      contr_isclosed)) {
 	    free(delta_t);
 	    free(d2x);
 	    free(d2y);
@@ -1005,7 +999,7 @@ put_contour_cubic(
     }
 
     /* Calculate "num_intpol" interpolated values */
-    num_intpol = 1 + (num_pts - 1) * contour_pts;	/* global: contour_pts */
+    num_intpol = 1 + (num_pts - 1) * contour_params.npoints;
     intp_cubic_spline(num_pts, p_cntr, d2x, d2y, delta_t, num_intpol);
 
     free(delta_t);
@@ -1021,7 +1015,7 @@ put_contour_cubic(
 
 /*
  * Find Bspline approximation for this data set.
- * Uses global variable contour_pts to determine number of samples per
+ * Uses global variable contour_params.npoints to determine number of samples per
  * interval, where the knot vector intervals are assumed to be uniform, and
  * global variable contour_order for the order of Bspline to use.
  */
@@ -1029,7 +1023,7 @@ static void
 put_contour_bspline(cntr_struct *p_cntr, TBOOLEAN contr_isclosed)
 {
     int num_pts;
-    int order = contour_order - 1;
+    int order = contour_params.order - 1;
 
     num_pts = count_contour(p_cntr);	/* Number of points in contour. */
     if (num_pts < 2)
@@ -1084,8 +1078,7 @@ gen_cubic_spline(
     cntr_struct *p_cntr,	/* List of points (x(t_i),y(t_i)), input */
     double d2x[], double d2y[],	/* Second derivatives (x''(t_i),y''(t_i)), output */
     double delta_t[],		/* List of interval lengths t_{i+1}-t_{i}, output */
-    TBOOLEAN contr_isclosed,	/* Closed or open contour?, input  */
-    double unit_x, double unit_y) /* Unit length in x and y (norm=1), input */
+    TBOOLEAN contr_isclosed)	/* Closed or open contour?, input  */
 {
     int n, i;
     double norm;
@@ -1372,7 +1365,7 @@ gen_bspline_approx(
     t_max = fetch_knot(contr_isclosed, num_of_points, order, num_of_points);
     next_t = t_min + 1.0;
     knot_index = order;
-    dt = 1.0 / contour_pts;	/* Number of points per one section. */
+    dt = 1.0 / contour_params.npoints;	/* Number of points per one section. */
 
 
     while (t < t_max) {
@@ -1387,7 +1380,7 @@ gen_bspline_approx(
 	pts_count++;
 	/* As we might have some real number round off problems we do      */
 	/* the last point outside the loop                                 */
-	if (pts_count == contour_pts * (num_of_points - order) + 1)
+	if (pts_count == contour_params.npoints * (num_of_points - order) + 1)
 	    break;
 	t += dt;
     }

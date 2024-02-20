@@ -1,12 +1,13 @@
-<html><head><title>Demos for gnuplot version 5.5</title>
+<html><head><title>Demos for gnuplot version 6.1</title>
 
+<meta charset="UTF-8">
 <link text="text/css" href="gnuplot_demo.css" rel="stylesheet"></head><body>
 
 
-<h2 align=center>Demos for gnuplot version 5.5 (pngcairo terminal)<br>
+<h2 align=center>Demos for gnuplot version 6.1 (pngcairo terminal)<br>
     See also the demo output for the
-    <a href="../demo_svg_5.5/">SVG</a> and
-    <a href="../demo_canvas_5.5/">canvas</a> terminals.
+    <a href="../demo_svg_6.1/">SVG</a> and
+    <a href="../demo_canvas_6.1/">canvas</a> terminals.
 </h2>
 
 <table border="0" width="100%">
@@ -20,10 +21,8 @@
     <li><a href="fillbetween.html">fill&nbsp;between&nbsp;curves</a></li>
     <li><a href="candlesticks.html">candlesticks</a></li>
     <li><a href="errorbars.html">error bars</a></li>
-    <li><a href="histograms.html">histograms</a> (<a href="histograms2.html">more</a>)</li>
-    <li><a href="histerror.html">histogram + errorbars</a></li>
-    <li><a href="boxclusters.html">bar graphs</a>
-    <li><a href="steps.html">step functions</a></li>
+    <li><a href="steps.html">simple step functions</a></li>
+    <li><a href="hsteps.html">hsteps</a></li>
     <li><a href="multiaxis.html">multiple axis scales</a></li>
     <li><a href="using.html">mixing styles</a></li>
     <li><a href="pointsize.html">variable size points</a></li>
@@ -34,6 +33,7 @@
     <li><a href="circles.html">circles</a></li>
     <li><a href="boxplot.html">boxplots</a></li>
     <li><a href="rugplot.html">rug plot</a></li>
+    <li><a href="sectors.html">sectors</a></li>
     <li><a href="jitter.html">jitter (bee&nbsp;swarm)</a></li>
     <li><a href="spiderplot.html">spider plot</a></li>
     <li><a href="cities.html">text</a></li>
@@ -54,9 +54,10 @@
     <li><a href="smooth_splines.html">cubic and Bezier splines</a></li>
     <li><a href="monotonic_spline.html">monotonic csplines</a></li>
     <li><a href="smooth_path.html">along-path splines</a></li>
+    <li><a href="sharpen.html">"sharpen" filter</a></li>
     <li><a href="spline.html">explicit B-splines</a></li>
     <li><a href="airfoil.html">explicit Bezier splines</a></li>
-    <li><a href="fit.html">Levenberg-Marquardt DLS</a></li>
+    <li><a href="fit.html">Levenberg-Marquardt</a></li>
     </ul>
 
     <h4>Colors</h4>
@@ -69,6 +70,15 @@
     <li><a href="pm3dgamma.html">pm3d gamma</a></li>
     </ul>
 
+    <h4>Line and Fill Styles</h4>
+    <ul>
+    <li><a href="lines_arrows.html">line and arrow styles</a></li>
+    <li><a href="fillstyle.html">fill styles</a></li>
+    <li><a href="dashtypes.html">dashed lines</a></li>
+    <li><a href="transparent.html">transparency</a></li>
+    <li><a href="transparent_solids.html">transparent solids</a></li>
+    </ul>
+
 </td>
 
 <td rowspan=2>
@@ -78,12 +88,12 @@
     <li><a href="surface2.html">surfaces 2</a></li>
     <li><a href="contours.html">contours</a></li>
     <li><a href="custom_contours.html">custom contour lines</a></li>
+    <li><a href="contourfill.html">filled contours</a></li>
     <li><a href="singulr.html">singularities</a></li>
     <li><a href="hidden.html">hidden surfaces</a></li>
     <li><a href="pm3d.html">pm3d coloring</a></li>
     <li><a href="hidden2.html">pm3d hidden surfaces</a></li>
     <li><a href="pm3d_clip.html">pm3d clipping</a></li>
-    <li><a href="world2.html">3D mapping</a></li>
     <li><a href="projection.html">2D projection of 3D surface</a></li>
     <li><a href="zerror.html">shaded error region</a></li>
     <li><a href="azimuth.html">azimuth</a></li>
@@ -110,6 +120,7 @@
     <ul align=left>
     <li><a href="convex_hull.html">convex hulls</a></li>
     <li><a href="mask_pm3d.html">masked pm3d surface</a></li>
+    <li><a href="chi_shapes.html">concave hulls (χ-shapes)</a></li>
     </ul>
 
     <h4>Coordinate and<br> axis transforms</h4>
@@ -124,7 +135,7 @@
     <li><a href="polar_quadrants.html">polar quadrants</a></li>
     <li><a href="world.html">cylindrical/spherical</a></li>
     <li><a href="timedat.html">time/date coords</a></li>
-    <li><a href="sampling.html">coord sampling ranges</a></li>
+    <li><a href="sampling.html">coordinate sampling ranges</a></li>
     </ul>
 
     <h4>Binary and Image data </h4>
@@ -132,7 +143,7 @@
     <li><a href="binary.html">binary data</a></li>
     <li><a href="image.html">image data</a></li>
     <li><a href="image2.html">binary and image tricks</a></li>
-    <li><a href="rgbalpha.html">RGB + alpha channel</a></li>
+    <li><a href="argb_hexdata.html">RGB + alpha channel</a></li>
     <li><a href="barchart_art.html">bar chart art</a></li>
     <li><a href="imageNaN.html">missing/NaN values</a></li>
     <li><a href="pixmap.html">pixmap gradients and icons</a></li>
@@ -141,27 +152,46 @@
 </td>
 
 <td rowspan=2>
+    <h4>Heat Maps</h4>
+    <ul>
+    <li><a href="heatmaps.html">Derived from a regular grid</a></li>
+    <li><a href="heatmap_points.html">Derived from scattered points</a></li>
+    <li><a href="heatmap_4D.html">4D data (3D surface + value)</a></li>
+    <li><a href="polargrid.html">Polar coordinate maps</a></li>
+    </ul>
+
+    <h4>Histograms</h4>
+    <ul>
+    <li><a href="histograms.html">clustering options</a></li>
+    <li><a href="histogram_colors.html">user-assigned colors</a></li>
+    <li><a href="histerror.html">histogram + errorbars</a></li>
+    <li><a href="boxclusters.html">make-your-own with boxes</a>
+    <li><a href="bins.html">automatic binning</a></li>
+    <li><a href="hsteps_histogram.html">linked stacks</li>
+    </ul>
+
     <h4>Sample Applications</h4>
     <ul>
     <li><a href="epi_data.html">Epidemiological data</a></li>
     <li><a href="controls.html">control models</a></li>
     <li><a href="discrete.html">discrete&nbsp;contours</a></li>
-    <!--- <li><a href="electron.html">electron</a></li> --->
     <li><a href="finance.html">financial data</a></li>
     <li><a href="iterate.html">iteration</a></li>
     <li><a href="scatter.html">non-gridded data</a></li>
     <li><a href="running_avg.html">running averages</a></li>
-    <li><a href="bins.html">automatic binning</a></li>
     <li><a href="smooth.html">binning/histograms</a></li>
     <li><a href="array.html">arrays</a></li>
     <li><a href="fenceplot.html">fence plots</a></li>
     <li><a href="gantt.html">Gantt chart</a></li>
     <li><a href="columnhead.html">points labeled by origin</a></li>
     <li><a href="label_stacked_histograms.html">label stacked histogram</a></li>
-    <li><a href="heatmaps.html">2D and 3D heat maps</a></li>
     <li><a href="solar_path.html">solar path diagram</a></li>
     <li><a href="map_projection.html">map projections</a></li>
     <li><a href="violinplot.html">violin plot</a></li>
+    <li><a href="windrose.html">wind rose</a></li>
+    <li><a href="iris.html">overlapping categories</a></li>
+    <li><a href="logic_timing.html">logic timing diagram</a></li>
+    <li><a href="rank_sequence.html">sequential ranking</a></li>
     </ul>
 
     <h4>Text options</h4>
@@ -188,15 +218,6 @@
     <li><a href="rectangle.html">rectangles</a></li>
     <li><a href="custom_key.html">customized key</a></li>
     <li><a href="keyentry.html">extra key entries</a></li>
-    </ul>
-
-    <h4>Styles</h4>
-    <ul>
-    <li><a href="lines_arrows.html">line and arrow styles</a></li>
-    <li><a href="fillstyle.html">fill styles</a></li>
-    <li><a href="dashtypes.html">dashed lines</a></li>
-    <li><a href="transparent.html">transparency</a></li>
-    <li><a href="transparent_solids.html">transparent solids</a></li>
     </ul>
 
 </td>
@@ -268,7 +289,7 @@
 <tbody><tr valign="top">
 
     <td>
-    <i>This page generated November 2021</i>
+    <i>This page generated August 2023</i>
     </td>
 
     <td>
@@ -276,9 +297,9 @@
     <li><a href="http://sourceforge.net/projects/gnuplot/">
 	Gnuplot development pages on SourceForge</a></li>
     <li>On-line PDF documentation in
-	<a href="http://gnuplot.sourceforge.net/docs_5.5/gnuplot.pdf">English</a>
+	<a href="http://gnuplot.sourceforge.net/docs_6.1/gnuplot.pdf">English</a>
 	and
-	<a href="http://gnuplot.sourceforge.net/docs_5.5/gnuplot-ja.pdf">Japanese</a>
+	<a href="http://gnuplot.sourceforge.net/docs_6.1/gnuplot-ja.pdf">Japanese</a>
     </li>
     </ul>
     </td>

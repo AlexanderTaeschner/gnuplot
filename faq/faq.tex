@@ -100,9 +100,9 @@
 \maketitle
 
 \noindent
-This material describes \gnuplot version 5 (up to 5.4)
+This material describes \gnuplot version 6
         \\
-FAQ version: December 2021
+FAQ version: December 2023
         \\
 PDF version of current document: {\http{www.gnuplot.info/faq/faq.pdf}.
 
@@ -201,7 +201,7 @@ flow control and iteration using familiar statements
 \subsection{Can I run \gnuplot on my computer?}
 
 \Gnuplot{} is in widespread use on many platforms, including
-MS Windows, linux, unix, and OSX.  The current source code retains
+MS Windows, linux, unix, and macOS.  The current source code retains
 supports for older systems as well, including VMS, Ultrix, OS/2, and
 MS-DOS. However 16-bit platforms are no longer supported.
 
@@ -245,9 +245,9 @@ about gnuplot", for the most up-to-date list.
 
 \subsection{What is the current version of \gnuplot?}
 
-The current stable version of \gnuplot is 5.4, first released in July 2020.
+The current stable version of \gnuplot is 6.0, first released in December 2023.
 Incremental versions (patchlevel 1, 2, ...) are typically released every six months.
-The development version of \gnuplot is currently 5.5.
+The development version is currently \gnuplot 6.1.
 
 \subsection{Where can I get \gnuplot?}
 \label{where-get-gnuplot}
@@ -256,7 +256,7 @@ The best place to start is \http{www.gnuplot.info}. From there
 you find various pointers to other sites, including the project
 development site on SourceForge \http{sourceforge.net/projects/gnuplot}.
 
-The source distribution ("gnuplot-5.4.0.tar.gz" or a similar name) is
+The source distribution ("gnuplot-6.0.0.tar.gz" or a similar name) is
 available from the official distribution site \http{sourceforge.net/projects/gnuplot}.
 
 \subsection{Why would I care about the development version?}
@@ -331,7 +331,7 @@ Online copies in English and Japanese are available at
 \subsection{Worked examples}
 
 There is a directory of worked examples in the the source distribution.
-These examples and the resulting plots may also be found online at
+Many of these examples and the resulting plots may also be found online at
 \http{gnuplot.sourceforge.net/demo/}.
 
 
@@ -377,7 +377,7 @@ There is an old-school usenet group devoted to gnuplot questions
 inhabited mostly by users who found it last century.
 
 \item
-A more browser-oriented help forum may be found on StackOverflow
+A more active help forum may be found on StackOverflow
 \http{stackoverflow.com/questions/tagged/gnuplot}
 
 \item
@@ -445,7 +445,7 @@ a plot generated from the command line by changing the terminal type.
 \subsection{How do I include my graphs in my favorite word processor?}
 
 Basically, you save your plot to a file in a format your word processor
-can understand, and then you read in the plot from your word processor. Vector
+can understand, and then you read in the file from your word processor. Vector
 formats (PostScript, emf, svg, pdf, \TeX{}, \LaTeX{}) should be preferred,
 as you can scale your graph later to the right size.
 
@@ -521,7 +521,7 @@ Use the {\em save "filename"} and {\em load "filename"} commands.
 
 \subsection{Can I put both commands and data into a single file?}
 
-\Gnuplot version 5 supports named blocks of data in "here document" format:
+Starting with version 5, \Gnuplot supports named blocks of data in "here document" format:
 \small
 \begin{verbatim}
 gnuplot> $DATABLOCK << EOD
@@ -566,7 +566,7 @@ unix-derived command line utilities {\em awk}, {\em sort} and {\em grep}.
 
 On systems supporting pipes, you can pipe commands to \gnuplot from other
 programs. Many applications with gnuplot as the graphics engine, like Octave
-(\http{www.octave.org}), uses this method. This also works from a cgi script to
+(\http{www.octave.org}), use this method. This also works from a cgi script to
 drive \gnuplot from a forms-based web page.
 
 
@@ -602,7 +602,7 @@ surfaces.   However it does not handle plots generated in {\em pm3d} mode.
 This includes styles {\em with pm3d}, {\em with zerror}, {\em with boxes},
 and miscellaneous plot elements generated while {\em set pm3d} is in effect.
 Hidden surface removal for these plots is achieved instead by drawing them
-in order of their distance from the viewer, controlled by
+in order of their distance from the viewer, enabled by the command
 {\em set pm3d depthorder}.
 
 \subsection{How do I force exact positions for the graph borders on the page?}
@@ -629,6 +629,7 @@ one by one using {\em set origin} and {\em set size}.
 \subsection{How to request 1:1 scaling of axes?}
 
 Try {\em set size square} or {\em set view equal xy}.
+In version 6 there is also a command {\em set isotropic}.
 
 \subsection{Palette that works for both color and black\&white printing?}
 
@@ -692,7 +693,7 @@ set label Y norotate at graph 0.0, 0.5 offset -6
 set terminal gif animate {delay <time>} {loop <N>} {optimize}
 \end{verbatim}
 
-The development version (5.5) also supports animation in webp format.
+Version 6 also supports animation in webp format.
 Have a look at
 \http{gnuplot.sourceforge.net/demo/animate2.html}
 in the demo collection.
@@ -761,7 +762,7 @@ gnuplot> splot x with pm3d, x*y with points
 
 Labeling individual contours in a contour plot used to require special
 tricks and extra processing steps in \gnuplot version 4.
-In version 5 it is much simpler.  Plot the contours twice,
+Since version 5 it is much simpler.  Plot the contours twice,
 once "with lines" and once "with labels".  To make the labels stand out
 it may help to use
 \begin{verbatim}
@@ -779,10 +780,12 @@ for \textit{bins} and for \textit{smooth frequency}.
 
 \subsection{Does \gnuplot support pie charts? quarterly time charts?}
 
-Pie charts are sort of difficult in \gnuplot, but see
+Pie charts were difficult in older \gnuplot versions but see
 \http{gnuplot.sourceforge.net/demo/circles.html},
 or have a look at
 \http{gnuplot-tricks.blogspot.com/2009/08/pie-charts-entirely-in-gnuplot.html}.
+Version 6 introduced a new plot style \textit{with sectors} that makes
+pie charts much easier.
 
 The demo collection contains an example of a simple Gantt chart.
 
@@ -795,10 +798,12 @@ y axes to be defined.
 
 \subsection{How to draw a solid made of triangular facets?}
 
-Version 5.4: plot style \textit{with polygons} can handle polygonal faces
-(triangles, rectangles, octagons, ...).
-In earlier versions the best you can do is to describe colored facets of a
-3D object in a file organized like this:
+Plot style \textit{with polygons} can handle polygonal faces
+(triangles, rectangles, octagons, ...) in either 2D or 3D plots.
+This style was introduced in version 5.4.
+
+In older versions the best you can do is to describe colored quadrangles
+that are facets of a 3D object using a file organized like this:
 \small
 \begin{verbatim}
 # triangle 1
@@ -815,24 +820,23 @@ x y z
 \end{verbatim}
 \normalsize
 
-Notice the single and double blank lines. Also notice that the triangle
+Notice the single and double blank lines. Also notice that each triangle
 really has four vertices of which two are identical.  This is because the
 pm3d code only knows how to deal with quadrangles.
 \textit{<cN>} is an optional color.
 
-Then plot it by (either of splot's):
+Then plot it:
 \small
 \begin{verbatim}
 set pm3d
 set style data pm3d
 set pm3d depthorder
-splot 'facets.dat'
-splot 'facets_with_color.dat' using 1:2:3:4
+splot 'facets.dat' using 1:2:3 title "default coloring"
+splot 'facets_with_color.dat' using 1:2:3:4 title "explicit colors"
 \end{verbatim}
 \normalsize
 
 Gnuplot is not a 3D modeling program.
-The depthorder rendering will not handle inter-penetrating facets.
 For true 3D rendering you would be probably be better off using a ray-tracing program.
 
 \subsection{How do I plot two functions in non-overlapping regions?}
@@ -879,8 +883,8 @@ gnuplot> splot [0:1] [0:1] u,yl(x(u))+(yu(x(u)) - yl(x(u)))*v,\
 
 \subsection{Text markup using "enhanced text" mode}
 
-\Gnuplot version 5 defaults to "enhanced text" mode, in which text markup is
-indicated by a set of special characters embedded in the text.
+Starting with version 5, \gnuplot defaults to "enhanced text" mode,
+in which text markup is indicated by a set of special characters embedded in the text.
 
 \begin{center}
 \begin{tabular}{|clll|} \hline
@@ -919,16 +923,16 @@ Unfortunately there are some circumstances where it very cumbersome to use,
 notably in generating PostScript output.
 If you are working in a UTF-8 computing environment, you probably do not have to
 do anything special in gnuplot to use it.
-If you are not, then you can still tell gnuplot to use UTF-8 when creating output:
+If you are not, then you can still tell gnuplot to use UTF-8 for output:
 {\em set encoding utf8}.
 
 If you cannot enter UTF-8 characters on your keyboard you will have to solve
 that outside of gnuplot. Or you can use octal escape sequences to type them in
-byte-by-byte, or (version 5.4) unicode escape sequences like
+byte-by-byte, or (since version 5.4) unicode escape sequences like
 {\em \verb&\U+221E&} ($\infty$).
 If your keyboard does generate UTF-8 but you don't know what keystrokes would
 produce a specific character, there are probably suitable character selection
-apps for your desktop (e.g. KDE {\em kcharselect}, or GNOME {\em Character Map}).
+apps for your desktop (e.g. KDE {\em kcharselect} or GNOME {\em Character Map}).
 
 \subsection{What if I need h-bar (Planck's constant)?}
 
@@ -981,7 +985,7 @@ your computer or output device.  \Gnuplot itself does not provide fonts.
 
 The various \LaTeX{} terminal types (\textit{latex, epslatex, tikz, context, cairolatex})
 hand off text generation to \LaTeX{}. In this case you can use normal \LaTeX{}
-markup like \verb+$\alpha_{3}$+ .
+markup like \verb+$\alpha_{3}$+ ($\alpha_{3}$).
 
 \subsection{How do I include accented characters?}
 
@@ -1016,7 +1020,7 @@ italic styles within a plot.
 To see a list of the available graphic drivers for your installation of
 \gnuplot, type {\em set term}.
 
-Some graphics drivers are included in the normal distribution
+Some graphics drivers are included in the source distribution
 but are not built by default. If you want to use them, you'll
 have to recompile from source.
 
@@ -1070,7 +1074,9 @@ Gaston is a julia package that provides an interface to gnuplot for graphical ou
 
 \subsection{What if I need special function that gnuplot doesn't have?}
 
-See above. You may have to use another program or write a custom plugin.
+\Gnuplot version 6 provides a greatly expanded set of complex special functions.
+If the one you need is not included, you may have to use another program or write
+a custom plugin for gnuplot.
 
 
 \subsection{How to use hotkeys in my interactive terminals}
@@ -1133,7 +1139,7 @@ by the system's \textit{fontconfig} utility.
 You may also get an error message about "slow font initialization".
 This is because qt relies on a shared system font cache.
 If you request a font that no one else is using, it takes a while to
-update the cache.  This mostly happens on Windows or OSX, because other
+update the cache.  This mostly happens on Windows or macOS, because other
 programs on those systems tend to use a different font mechanism so the 
 relevant font cache may be empty.
 Try invoking gnuplot with command line option {\em -\@-slow}.
@@ -1165,9 +1171,9 @@ or plot the datafile under a unixish platform by\\
 
 \subsection{Why does \gnuplot ignore my very small numbers?}
 
-For some purposes \Gnuplot{} treats numbers less than 1e-08 as being zero.
-Thus, if you are trying to plot a collection of very small
-numbers, they may be plotted as zero. Worse, if you're plotting
+For some purposes \Gnuplot{} treats numbers less than 1.e-08 as being zero.
+Thus if you are trying to plot a collection of very small numbers,
+they may be plotted as zero. Worse, if you're plotting
 on a log scale, they will be off scale. Or, if the whole set of
 numbers is "zero", your range may be considered empty:
 
@@ -1175,7 +1181,7 @@ numbers is "zero", your range may be considered empty:
 \begin{verbatim}
 gnuplot> plot 'test1'
 Warning: empty y range [4.047e-19:3e-11], adjusting to [-1:1]
-gnuplot> set yrange [4e-19:3e-11]
+gnuplot> set yrange [4e-19 : 3e-11]
 gnuplot> plot 'test1'
               ^
 y range is less than `zero`
@@ -1193,18 +1199,30 @@ For more information, type {\em help set zero}.
 
 \subsection{When I {\em replot} or {\em resize} a multiplot I get only a fragment}
 
-\Gnuplot only retains enough information to regenerate the most recent
-{\em plot} or {\em splot} command.
-In order to reproduce the entire multiplot you need to save the complete
+\Gnuplot versions through 5.4 retained only enough information to regenerate
+the most recent {\em plot} or {\em splot} command.
+In order to reproduce the entire multiplot you needed to save the complete
 sequence of commands that generated it into a script file.
-Then you can {\em load} that script into \gnuplot as many times as you need
+Then you could {\em load} that script into \gnuplot as many times as needed
 for replotting the drawing to different terminals or output files.
 
-The same problem arises when you resize a multiplot displayed in an interactive
+The same limitation arose when you resized a multiplot displayed in an interactive
 terminal window, because the resize event normally triggers a replot.
 The {\em qt} and {\em wxt} terminals provide a toggle in the toolbox widget
 that suppresses this replot on resize.  The {\em x11} terminal provides a 
 terminal option {\em set term x11 noreplotonresize}.
+
+\Gnuplot version 6 automates regeneration of all components in a multiplot.
+Starting when a command \textit{set multiplot} is seen, the program saves
+commands into a data block named \verb|$GPVAL_LAST_MULTIPLOT|.
+Once the closing command \textit{unset multiplot} is issued, this data block
+can be replayed to redraw the corresponding set of plots that make up the multiplot.
+This can be done explicitly using the \textit{remultiplot} command or implicitly
+from \textit{replot} commands or resizing events if the immediately preceeding plot
+command was part of a multiplot.  It is either a feature or a drawback that the
+result of replaying the original commands may produce a slightly different result
+if the state of the program (axis ranges, linetypes, fonts, etc) has changed in
+the interim.
 
 \subsection{My formulas (like 1/3) are giving me nonsense results! What's going on?}
 
@@ -1281,7 +1299,7 @@ Campbell, Russell Lang, David Kotz and many corrections from Daniel Lewart.
 Again reworked for \gnuplot 3.7 by Alexander Mai and Juergen v.Hagen
 with corrections by Lars Hecking, Hans-Bernhard Broecker and others.
 Revised for \gnuplot version 4 by Petr Mikul\'{\i}k and Ethan Merritt.
-Revised for \gnuplot version 5 by Ethan Merritt.
+Revised for \gnuplot versions 5 and 6 by Ethan Merritt.
 
 \end{document}
 %%

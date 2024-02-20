@@ -52,10 +52,10 @@ void set_colorsequence(int option);
 char *conv_text(const char *s);
 void delete_linestyle(struct linestyle_def **, struct linestyle_def *, struct linestyle_def *);
 void delete_dashtype(struct custom_dashtype_def *, struct custom_dashtype_def *);
-/* void delete_arrowstyle(struct arrowstyle_def *, struct arrowstyle_def *); */
 void reset_key(void);
 void free_marklist(struct ticmark * list);
 void reset_bars(void);
+void reset_datafile(void);
 void rrange_to_xy(void);
 void unset_monochrome(void);
 void unset_all_tics(void);
@@ -66,5 +66,6 @@ extern struct text_label * new_text_label(int tag);
 extern void disp_value(FILE *, struct value *, TBOOLEAN);
 extern struct ticmark * prune_dataticks(struct ticmark *list);
 
+extern void reset_spotlight(void);
 
 #endif /* GNUPLOT_SETSHOW_H */

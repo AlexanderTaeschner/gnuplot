@@ -78,11 +78,13 @@ FREETYPE=1
 # ICONV library
 ICONV=1
 
-# cairo/pango terminals:  pdfcairo, pngcairo, cairolatex
+# cairo/pango terminals:  pdfcairo, pngcairo, cairolatex, webp
 # requires pango / cairo
 # Note that cairo/pango are only available for newer gcc/kLIBC, not EMX.
+# WARNING: The pango binary library is BROKEN (it cannot locate any plugins).
+#          So let's not include cairo/pango terminals by default.
 ifeq ($(ISKLIBC),1)
-CAIRO=1
+# CAIRO=1
 endif
 
 # webp terminal
@@ -112,6 +114,16 @@ LUA=1
 # GNU_ReadLine support
 # requires GNU readline library (static or DLL; not part of gnuplot)
 # GNU_RL=1
+
+# Uncomment if you have libcerf
+# http://sourceforge.net/projects/libcerf/
+ifeq ($(ISKLIBC),1)
+CERF=1
+endif
+
+# AMOS functions
+# requires the AMOS Fortran library
+AMOS=1
 
 # DEBUGging support
 # creates binaries suitable for debugging. Some bugs may come and go
@@ -326,6 +338,18 @@ endif
 ifdef ICONV
   CFLAGS  += -DHAVE_ICONV
   LIBS    += -liconv
+endif
+
+# cerf library support
+ifdef CERF
+  CFLAGS  += -DHAVE_LIBCERF
+  LIBS    += -lcerf
+endif
+
+# AMOS function support (translated using f2c)
+ifdef AMOS
+  CFLAGS  += -DHAVE_AMOS
+  LIBS    += -lamos -lf2c
 endif
 
 ifdef DEBUG

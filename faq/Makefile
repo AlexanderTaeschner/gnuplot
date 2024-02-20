@@ -10,6 +10,7 @@ LATEX = latex
 LYNX = lynx
 LYNX_OPTS = -dump
 PDFLATEX = pdflatex
+LUALATEX = lualatex
 
 all: html pdf
 
@@ -22,6 +23,12 @@ faq.pdf: faq.tex
 	$(PDFLATEX) $<
 	$(PDFLATEX) $<
 
+faq-ja.pdf: faq-ja.tex
+	iconv -f EUC-JP -t UTF-8 $< > faq-ja-utf8.tex
+	$(LUALATEX) faq-ja-utf8.tex
+	$(LUALATEX) faq-ja-utf8.tex
+	mv faq-ja-utf8.pdf $@
+
 txt: faq.txt
 faq.txt: faq.html
 	$(LYNX) $(LYNX_OPTS) $< >$@
@@ -29,5 +36,6 @@ faq.txt: faq.html
 clean:
 	-rm -f faq.aux faq.css faq.dvi faq.html faq.log faq.out faq.pdf \
 	       faq.tmp faq.ps faq.toc faq.txt faq.4tc faq.4ct faq.lg faq.idv faq.xref \
-	       faq*.png *.log *.aux
+	       faq*.png *.log *.aux \
+	       faq-ja-utf8.out faq-ja-utf8.tex faq-ja-utf8.toc faq-ja.pdf
 

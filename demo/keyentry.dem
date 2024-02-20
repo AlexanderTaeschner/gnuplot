@@ -16,7 +16,7 @@ plot keyentry with points pt '¶' title "points", \
 sin(x)/x lc "grey" dt '.-' lw 3 title "normal plot", \
      keyentry with boxerrorbars title "boxerrorbars", \
      keyentry with boxplot fs pattern 1 title "boxplot", \
-     keyentry with labels point pt 4 title "labels", \
+     keyentry "{/*0.75 αβγδε}" left boxed title "labels", \
      keyentry with vectors title "vectors"
 
 pause -1 "<cr> to continue"
@@ -35,7 +35,7 @@ splot keyentry with points pt '¶' title "points", \
      keyentry with circles fs solid fc "grey" title "circles", \
 (1.-(x**2+y**2)/100.) title "normal plot" lc "grey", \
      keyentry with boxes title "boxes", \
-     keyentry with labels point pt 4 title "labels", \
+     keyentry "{/:Italic attn:}" title "labels", \
      keyentry with vectors title "vectors", \
      keyentry with pm3d title "pm3d"
 

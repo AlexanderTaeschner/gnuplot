@@ -1,0 +1,43 @@
+#
+# Unit test to verify that the border color of an object with
+# fillstyle "empty" can be set as a simple line property.
+#
+version = sprintf("gnuplot %.1f patchlevel %s", GPVAL_VERSION, GPVAL_PATCHLEVEL)
+set title "All borders should be drawn in color\n".version offset 0, -1
+
+set for [i=1:12] obj i circle front
+
+set label 1 at screen 0.05, first 1.2 "set obj fs empty border <color>"
+set obj 1 at 2,1 fs empty border rgb "blue" lw 2
+set obj 2 at 3,1 fs empty border rgb "green" lw 2
+set obj 3 at 4,1 fs empty border rgb "orange" lw 2
+
+set label 2 at screen 0.05, first 0.2 "set obj fs solid border <color> fc 'gray'"
+set obj 4 at 2,0 fs solid border rgb "blue" lw 2 fc "gray75" 
+set obj 5 at 3,0 fs solid border rgb "green" lw 2 fc "gray75" 
+set obj 6 at 4,0 fs solid border rgb "orange" lw 2 fc "gray75" 
+
+set label 3 at screen 0.05, first -0.8 "set obj fs empty border\nset obj lc <color>"
+set obj 10 at 2,-1 fs empty border lw 2 ; set obj 10 lc "blue"
+set obj 11 at 3,-1 fs empty border lw 2 ; set obj 11 lc "green"
+set obj 12 at 4,-1 fs empty border lw 2 ; set obj 12 lc "orange"
+
+set label 4 at screen 0.05, first -1.8 "set obj fs empty border lc 'black'\nset obj lc <color>"
+set obj 7 at 2,-2 fs empty border lw 2 lc "black"; set obj 7 lc "blue"
+set obj 8 at 3,-2 fs empty border lw 2 lc "black"; set obj 8 lc "green"
+set obj 9 at 4,-2 fs empty border lw 2 lc "black"; set obj 9 lc "orange"
+
+set obj 111 rectangle from screen 0,0 to screen 1,1 fc rgb "#779955" behind
+
+set yrange [-3:2]
+set xrange [1:5]
+unset border
+unset tics
+set lmargin screen 0.35
+set rmargin 0
+
+plot x with lines lt nodraw notitle
+
+pause -1 "<cr> to continue"
+reset
+

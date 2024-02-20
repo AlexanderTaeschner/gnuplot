@@ -746,10 +746,10 @@ static unsigned char fill_pattern_bitmaps[fill_pattern_num][8] ={
    ,{ 0x82, 0x44, 0x28, 0x10, 0x28, 0x44, 0x82, 0x01 } /* cross-hatch      (1) */
    ,{ 0x88, 0x55, 0x22, 0x55, 0x88, 0x55, 0x22, 0x55 } /* double crosshatch(2) */
    ,{ 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff } /* solid fill       (3) */
-   ,{ 0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80 } /* diagonal stripes (4) */
-   ,{ 0x80, 0x40, 0x20, 0x10, 0x08, 0x04, 0x02, 0x01 } /* diagonal stripes (5) */
-   ,{ 0x11, 0x11, 0x22, 0x22, 0x44, 0x44, 0x88, 0x88 } /* diagonal stripes (6) */
-   ,{ 0x88, 0x88, 0x44, 0x44, 0x22, 0x22, 0x11, 0x11 } /* diagonal stripes (7) */
+   ,{ 0x80, 0x40, 0x20, 0x10, 0x08, 0x04, 0x02, 0x01 } /* diagonal stripes (4) */
+   ,{ 0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80 } /* diagonal stripes (5) */
+   ,{ 0x88, 0x88, 0x44, 0x44, 0x22, 0x22, 0x11, 0x11 } /* diagonal stripes (6) */
+   ,{ 0x11, 0x11, 0x22, 0x22, 0x44, 0x44, 0x88, 0x88 } /* diagonal stripes (7) */
 #if (0)
    ,{ 0x03, 0x0C, 0x30, 0xC0, 0x03, 0x0C, 0x30, 0xC0 } /* diagonal stripes (8) */
    ,{ 0xC0, 0x30, 0x0C, 0x03, 0xC0, 0x30, 0x0C, 0x03 } /* diagonal stripes (9) */
@@ -795,6 +795,16 @@ b_setpixel(unsigned int x, unsigned int y, unsigned int value)
 		    x, y, value);
     }
 #endif
+}
+
+
+/*
+ * set pixel (x, y) to the set value
+ */
+void
+b_putpixel(unsigned int x, unsigned int y)
+{
+    b_setpixel(x, y, b_value);
 }
 
 
@@ -1019,7 +1029,7 @@ b_wline(unsigned int x1, unsigned int y1, unsigned int x2, unsigned int y2)
 	    }
 	    for (i = 1; i <= wh; i++) {
 		x = xplot - wh2;
-		// for (x = (int) xplot - (int) wh2; dx <= ((int) xplot - (int) wh2 + wh); x++)
+		/* for (x = (int) xplot - (int) wh2; dx <= ((int) xplot - (int) wh2 + wh); x++) */
 		   b_setpixel(x, yplot - wh2 + i, b_value);
 	    }
 	}
@@ -1034,7 +1044,7 @@ b_wline(unsigned int x1, unsigned int y1, unsigned int x2, unsigned int y2)
 	    }
 	    for (i = 1; i <= wh; i++) {
 		x = xplot - wh2;
-		// for (x = (int) xplot - (int) wh2; dx <= ((int) xplot - (int) wh2 + wh); x++)
+		/* for (x = (int) xplot - (int) wh2; dx <= ((int) xplot - (int) wh2 + wh); x++) */
 		   b_setpixel(x, yplot - wh2 + i, b_value);
 	    }
 	}
@@ -1216,7 +1226,7 @@ b_put_text(unsigned int x0, unsigned int y0, const char *str)
 
 
 int
-b_text_angle(int ang)
+b_text_angle(float ang)
 {
     b_angle = ang;
     return TRUE;
@@ -1246,25 +1256,25 @@ b_boxfill(
     switch (style & 0xf) {
     case FS_TRANSPARENT_SOLID:
 	transparent = TRUE;
-	// fall-through
+	/* fall-through */
     case FS_SOLID:
 	/* use halftone fill pattern according to filldensity */
 	/* filldensity is from 0..100 percent */
-	idx = (int) ((style >> 4) * (fill_halftone_num - 1) / 100 );
-	if( idx < 0 )
+	idx = (int) (((style >> 4) * (fill_halftone_num - 1) + 50) / 100 );
+	if (idx < 0)
 	    idx = 0;
-	if( idx >= fill_halftone_num )
-	    idx = fill_halftone_num-1;
+	if (idx >= fill_halftone_num)
+	    idx = fill_halftone_num - 1;
 	fillbitmap = fill_halftone_bitmaps[idx];
 	pixcolor = b_value;
 	break;
     case FS_TRANSPARENT_PATTERN:
 	transparent = TRUE;
-	// fall-through
+	/* fall-through */
     case FS_PATTERN:
 	/* use fill pattern according to fillpattern */
 	idx = (style >> 4);  /* fillpattern is enumerated */
-	if( idx < 0 )
+	if (idx < 0)
 	    idx = 0;
 	idx %= fill_pattern_num;
 	fillbitmap = fill_pattern_bitmaps[idx];
@@ -1313,11 +1323,11 @@ b_filled_polygon(int points, gpiPoint *corners)
     switch (style & 0xf) {
     case FS_TRANSPARENT_SOLID:
 	transparent = TRUE;
-	// fall-through
+	/* fall-through */
     case FS_SOLID:
 	/* use halftone fill pattern according to filldensity */
 	/* filldensity is from 0..100 percent */
-	idx = GPMAX((int) ((style >> 4) * (fill_halftone_num - 1) / 100), 0);
+	idx = GPMAX((int) (((style >> 4) * (fill_halftone_num - 1) + 50) / 100), 0);
 	if (idx >= fill_halftone_num)
 	    idx = fill_halftone_num - 1;
 	fillbitmap = fill_halftone_bitmaps[idx];
@@ -1325,7 +1335,7 @@ b_filled_polygon(int points, gpiPoint *corners)
 	break;
     case FS_TRANSPARENT_PATTERN:
 	transparent = TRUE;
-	// fall-through
+	/* fall-through */
     case FS_PATTERN:
 	/* use fill pattern according to fillpattern */
 	idx = GPMAX((style >> 4), 0);  /* fillpattern is enumerated */

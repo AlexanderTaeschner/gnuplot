@@ -23,8 +23,8 @@ if (ARG1 <= 1) {
 }
 
 if (ARG1 <= 2) {
-    print "test 2: range set by 'sample' keyword, linear x axis"
-    plot sample [t=20:50] '+' using (t):(10. + sin(t))
+    print "test 2: range set by sampling range with second colon, linear x axis"
+    plot [t=20:50:] '+' using (t):(10. + sin(t))
     pause -1 "Hit <cr> to continue"
 }
 
@@ -32,8 +32,8 @@ if (ARG1 <= 2) {
 set log x
 
 if (ARG1 <= 3) {
-    print "test 3: range set by 'sample' keyword, logscale x axis"
-    plot sample [t=20:50] '+' using (t):(10. + sin(t))
+    print "test 3: range set by sampling range with second colon, logscale x axis"
+    plot [t=20:50:] '+' using (t):(10. + sin(t))
     pause -1 "Hit <cr> to continue"
 }
 
@@ -129,7 +129,7 @@ alpha(x,y) = radius(x,y) > 255 ? 0 : 255-radius(x,y)
 set title "3D custom sampling on u and v using pseudofile '++'"
 print "test 10: splot '++' with explicit sampling intervals"
 
-splot sample [u=25:75:1][v=25:75:4] '++' \
+splot [u=25:75:1][v=25:75:4] '++' \
       using 1:2:0:(u*4-50):(v*4-50):(255*sin(u*v/2500.)):(alpha(u,v)) with rgbalpha, \
       [u=25:75:4][v=25:75:1] '++' \
       using (u+20):(v-20):0:(u*4-50):(v*4-50):(255*sin(u*v/2500.)):(alpha(u,v)) with rgbalpha
@@ -139,7 +139,7 @@ pause -1 "Hit <cr> to continue"
 set title "2D custom sampling on u and v using pseudofile '++'"
 print "test 10: plot '++' with explicit sampling intervals"
 
-plot sample [u=25:75:1][v=25:75:4] '++' \
+plot [u=25:75:1][v=25:75:4] '++' \
       using 1:2:(u*4-50):(v*4-50):(255*sin(u*v/2500.)):(alpha(u,v)) with rgbalpha, \
       [u=25:75:4][v=25:75:1] '++' \
       using (u+20):(v-20):(u*4-50):(v*4-50):(255*sin(u*v/2500.)):(alpha(u,v)) with rgbalpha

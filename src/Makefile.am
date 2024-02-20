@@ -10,8 +10,8 @@ EMAIL = gnuplot-bugs@lists.sourceforge.net
 # Default help file location
 HELPFILE=@GIHDIR@/gnuplot.gih
 
-# Location of X11 app defaults
-XAPPLRESDIR=@X11_APPDEFAULTS_DIR@
+# Generic default driver location
+GNUPLOT_DRIVER_DIR=$(pkglibexecdir)
 
 # Default X11 driver location
 X11_DRIVER_DIR=$(pkglibexecdir)
@@ -40,17 +40,21 @@ binonly: $(bin_PROGRAMS)
 transform = @program_transform_name@
 GNUPLOT_X11 = `echo gnuplot_x11 | sed '$(transform)'`$(EXEEXT)
 
-AM_CPPFLAGS = -I../term -I$(top_srcdir)/term -DBINDIR=\"$(bindir)\" -DX11_DRIVER_DIR=\"$(X11_DRIVER_DIR)\" -DQT_DRIVER_DIR=\"$(QT_DRIVER_DIR)\" -DGNUPLOT_SHARE_DIR=\"$(GNUPLOT_SHARE_DIR)\" -DGNUPLOT_PS_DIR=\"$(GNUPLOT_PS_DIR)\" -DGNUPLOT_JS_DIR=\"$(GNUPLOT_JS_DIR)\" -DGNUPLOT_LUA_DIR=\"$(GNUPLOT_LUA_DIR)\"  -DCONTACT=\"$(EMAIL)\" -DHELPFILE=\"$(HELPFILE)\" -DGNUPLOT_X11=\"$(GNUPLOT_X11)\" -DXAPPLRESDIR=\"$(XAPPLRESDIR)\"
+AM_CPPFLAGS = -I../term -I$(top_srcdir)/term -DBINDIR=\"$(bindir)\" -DX11_DRIVER_DIR=\"$(X11_DRIVER_DIR)\" -DQT_DRIVER_DIR=\"$(QT_DRIVER_DIR)\" -DGNUPLOT_SHARE_DIR=\"$(GNUPLOT_SHARE_DIR)\" -DGNUPLOT_PS_DIR=\"$(GNUPLOT_PS_DIR)\" -DGNUPLOT_JS_DIR=\"$(GNUPLOT_JS_DIR)\" -DGNUPLOT_LUA_DIR=\"$(GNUPLOT_LUA_DIR)\"  -DCONTACT=\"$(EMAIL)\" -DHELPFILE=\"$(HELPFILE)\" -DGNUPLOT_X11=\"$(GNUPLOT_X11)\" -DGNUPLOT_DRIVER_DIR=\"$(GNUPLOT_DRIVER_DIR)\"
 
 gnuplot_SOURCES = alloc.c alloc.h amos_airy.c amos_airy.h axis.c axis.h \
 breaders.c breaders.h bitmap.h  boundary.c boundary.h \
 color.c color.h command.c command.h contour.c contour.h \
-complexfun.c datablock.c datablock.h datafile.c datafile.h dynarray.c dynarray.h \
-encoding.c encoding.h eval.c eval.h external.c external.h fit.c fit.h \
-gadgets.c gadgets.h getcolor.c getcolor.h gp_hist.h gp_time.h \
-gp_types.h gplt_x11.h graph3d.c graph3d.h graphics.c graphics.h \
+complexfun.c complexfun.h \
+datablock.c datablock.h datafile.c datafile.h dynarray.c dynarray.h \
+encoding.c encoding.h eval.c eval.h external.c external.h \
+filters.c filters.h fit.c fit.h \
+gadgets.c gadgets.h getcolor.c getcolor.h gp_hist.h gp_time.h gp_types.h \
+gplocale.c gplocale.h \
+gplt_x11.h graph3d.c graph3d.h graphics.c graphics.h \
 help.c help.h hidden3d.c hidden3d.h history.c internal.c internal.h \
 interpol.c interpol.h jitter.c jitter.h libcerf.c libcerf.h \
+loadpath.c loadpath.h \
 matrix.c matrix.h misc.c misc.h mouse.c mouse.h mousecmn.h \
 multiplot.c multiplot.h parse.c parse.h plot.c plot.h plot2d.c plot2d.h \
 plot3d.c plot3d.h pm3d.c pm3d.h qt_table.h readline.c readline.h save.c \
@@ -58,8 +62,9 @@ save.h scanner.c scanner.h set.c setshow.h show.c specfun.c specfun.h \
 standard.c standard.h stats.h stats.c stdfn.c stdfn.h syscfg.h tables.c tables.h \
 tabulate.c tabulate.h \
 term_api.h term.c term.h time.c unset.c util.c util.h \
-util3d.c util3d.h variable.c variable.h version.c version.h \
-voxelgrid.c voxelgrid.h vplot.c vplot.h marching_cubes.h xdg.c xdg.h
+util3d.c util3d.h version.c version.h \
+voxelgrid.c voxelgrid.h vplot.c vplot.h marching_cubes.h \
+watch.c watch.h xdg.c xdg.h
 
 gnuplot_LDADD = $(TERMLIBS) $(TERMXLIBS) $(WX_LIBS) $(QT_LIBS)
 
@@ -121,7 +126,7 @@ if BUILD_QT
 
 GNUPLOT_QT = `echo gnuplot_qt | sed '$(transform)'`$(EXEEXT)
 
-AM_CPPFLAGS += -DGNUPLOT_QT=\"$(GNUPLOT_QT)\"
+AM_CPPFLAGS += $(QT_CFLAGS) -DGNUPLOT_QT=\"$(GNUPLOT_QT)\"
 
 # Call the moc preprocessor
 qtterminal/moc_%.cpp : qtterminal/%.h
@@ -181,21 +186,20 @@ qtterminal/QtGnuplotScene.cpp qtterminal/QtGnuplotItems.cpp \
 qtterminal/QtGnuplotEvent.cpp
 gnuplot_qt_LDADD = $(QT_LIBS)
 
-# embed example (uncomment to build it)
+#
+# embedded Qt widget example program
 # 
-# bin_PROGRAMS += embed_example
-# 
-# nodist_embed_example_SOURCES = qtterminal/moc_embed_example.cpp \
-#          qtterminal/moc_QtGnuplotInstance.cpp \
-#          qtterminal/moc_QtGnuplotWidget.cpp qtterminal/moc_QtGnuplotScene.cpp \
-#          qtterminal/moc_QtGnuplotEvent.cpp qtterminal/qrc_QtGnuplotResource.cpp
-# 
-# embed_example_SOURCES = qtterminal/embed_example.cpp \
-# qtterminal/QtGnuplotWidget.cpp qtterminal/QtGnuplotEvent.cpp \
-# qtterminal/QtGnuplotScene.cpp qtterminal/QtGnuplotItems.cpp \
-# qtterminal/QtGnuplotInstance.cpp
-# 
-# embed_example_LDADD = $(QT_LIBS)
+noinst_PROGRAMS += qt_embed_example
+
+nodist_qt_embed_example_SOURCES = qtterminal/moc_qt_embed_example.cpp \
+       qtterminal/moc_QtGnuplotInstance.cpp \
+       qtterminal/moc_QtGnuplotWidget.cpp qtterminal/moc_QtGnuplotScene.cpp \
+       qtterminal/moc_QtGnuplotEvent.cpp qtterminal/qrc_QtGnuplotResource.cpp
+qt_embed_example_SOURCES = qtterminal/qt_embed_example.cpp \
+       qtterminal/QtGnuplotWidget.cpp qtterminal/QtGnuplotEvent.cpp \
+       qtterminal/QtGnuplotScene.cpp qtterminal/QtGnuplotItems.cpp \
+       qtterminal/QtGnuplotInstance.cpp
+qt_embed_example_LDADD = $(QT_LIBS)
 
 endif # build_qt
 

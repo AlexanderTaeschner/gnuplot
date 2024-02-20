@@ -89,7 +89,7 @@ TERM_PUBLIC void SVG_vector(unsigned int x, unsigned int y);
 TERM_PUBLIC void SVG_put_text(unsigned int x, unsigned int y, const char *str);
 TERM_PUBLIC void SVG_reset(void);
 TERM_PUBLIC int SVG_justify_text(enum JUSTIFY mode);
-TERM_PUBLIC int SVG_text_angle(int ang);
+TERM_PUBLIC int SVG_text_angle(float ang);
 TERM_PUBLIC void SVG_point(unsigned int x, unsigned int y, int pointstyle);
 TERM_PUBLIC int SVG_set_font(const char *font);
 /* TERM_PUBLIC void SVG_pointsize(double pointsize); */
@@ -111,7 +111,6 @@ TERM_PUBLIC void SVG_hypertext(int, const char *);
 
 #ifdef WRITE_PNG_IMAGE
 TERM_PUBLIC void SVG_image(unsigned m, unsigned n, coordval *image, gpiPoint *corner, t_imagecolor color_mode);
-static int SVG_imageno = 0;
 #endif
 
 #define SVG_SCALE	100.	/* Coordinate accuracy is 1/SVG_SCALE pixel */
@@ -133,6 +132,8 @@ static unsigned char SVG_green = 0;
 static unsigned char SVG_blue = 0;
 static double SVG_alpha = 0.0;
 static unsigned char SVG_color_mode = TC_DEFAULT;
+static unsigned int SVG_rgb = 0;
+static unsigned int SVG_patterncolor[8];
 static char *SVG_linecolor = NULL;
 static char *SVG_name = NULL;
 static char *SVG_scriptdir = NULL;
@@ -163,7 +164,7 @@ static double SVG_LineWidth = 1.0; /* current line width*/
 static double SVG_linewidth_factor = 1.0; /* Multiplier for linewidths */
 static double SVG_dashlength = 1.0; /* Multiplier for dash patterns */
 static t_linecap SVG_linecap = BUTT; /* linejoin and linecap */
-static int SVG_TextAngle = 0;	/* current text orientation*/
+static float SVG_TextAngle = 0;	/* current text orientation*/
 static enum JUSTIFY SVG_TextJust = LEFT; /* current text justification*/
 
 /* default text font family: */
@@ -437,10 +438,18 @@ SVG_DefineFillPattern(int fillpat)
 {
     char *path;
     char *style="stroke";
+    unsigned int newcolor;
 
     fillpat %= 8;
-    if (fillpat != SVG_fillPattern) {
+
+    if (SVG_color_mode == TC_RGB || SVG_color_mode == TC_LT)
+	newcolor = SVG_rgb;
+    else
+	newcolor = SVG_patterncolor[fillpat];
+
+    if (fillpat != SVG_fillPattern || newcolor != SVG_patterncolor[fillpat]) {
 	SVG_fillPattern = fillpat;
+	SVG_patterncolor[fillpat] = newcolor;
 	SVG_PathClose();
 	SVG_fillPatternIndex++;
 
@@ -479,12 +488,11 @@ SVG_DefineFillPattern(int fillpat)
 	if (*path) {
 	    char *figure = "fill:none;";
 	    if (!strcmp(style,"fill")) figure = "stroke:none;";
-	    if (SVG_color_mode == TC_RGB)
+	    if (SVG_color_mode == TC_RGB || SVG_color_mode == TC_LT)
 		fprintf(gpoutfile,"\t\t\t<path style='%s %s:rgb(%d,%d,%d)' d='%s'/>\n",
-			figure, style, SVG_red, SVG_green, SVG_blue, path);
-	    else if (SVG_color_mode == TC_LT)
-		fprintf(gpoutfile, "\t\t\t<path style = '%s %s:%s' d= '%s'/>\n",
-			figure, style, SVG_linecolor, path);
+			figure, style,
+			(newcolor >> 16) & 0xff, (newcolor >> 8) & 0xff, newcolor & 0xff,
+			path);
 	    else
 		fprintf(gpoutfile, "\t\t\t<path style = '%s %s:currentColor' d='%s'/>\n",
 			figure, style, path);
@@ -830,6 +838,9 @@ SVG_init ()
 		(SVG_background)&0xff);
 
     SVG_LineType = LT_NODRAW;
+
+    for (int i=0; i<8; i++)
+	SVG_patterncolor[i] = 0xff000000;
 
 /* set xmax, ymax*/
 
@@ -1227,14 +1238,15 @@ SVG_text ()
 	    fprintf(gpoutfile, "gnuplot_svg.plot_timeaxis_y = \"\";\n");
 
 	/* Hypertext font properties
-	 * NB: These will apply to all hypertext in the plot
-	 *     separate font for individual labels would require additional code
+	 * NB -	These will apply to all hypertext in the plot
+	 *	separate font for individual labels would require additional code
+	 *    -	We trimmed SVG_hypertext_fontName back to just the Family name
 	 */
 	fprintf(gpoutfile, "gnuplot_svg.hypertext_fontSize = %.1g;\n", SVG_hypertext_fontSize);
 	if (SVG_hypertext_fontName)
-	    fprintf(gpoutfile, "gnuplot_svg.hypertext_fontName = \"%s\";\n", SVG_hypertext_fontName);
+	    fprintf(gpoutfile, "gnuplot_svg.hypertext_fontFamily = \"%s\";\n", SVG_hypertext_fontName);
 	else
-	    fprintf(gpoutfile, "gnuplot_svg.hypertext_fontName = null;\n");
+	    fprintf(gpoutfile, "gnuplot_svg.hypertext_fontFamily = null;\n");
 	if (SVG_hypertext_fontStyle)
 	    fprintf(gpoutfile, "gnuplot_svg.hypertext_fontStyle = \"%s\";\n", SVG_hypertext_fontStyle);
 	else
@@ -1510,7 +1522,7 @@ SVG_justify_text (enum JUSTIFY mode)
 	SVG_text_angle
 ------------------------------------------------------------------------------------------------------------------------------------*/
 TERM_PUBLIC int
-SVG_text_angle (int ang)
+SVG_text_angle (float ang)
 {
     /* Can only do pure horizontal or vertical */
     SVG_TextAngle = ang;
@@ -1553,7 +1565,7 @@ SVG_put_text (unsigned int x, unsigned int y, const char *str)
 
     fprintf (gpoutfile, "\t<g transform=\"translate(%.*f,%.*f)", PREC, X(h), PREC, Y(v));
     if (SVG_TextAngle)
-	fprintf (gpoutfile, " rotate(%i)", -SVG_TextAngle);
+	fprintf (gpoutfile, " rotate(%.2f)", -SVG_TextAngle);
     fprintf (gpoutfile, "\" stroke=\"none\" fill=\"");
 
     if (SVG_color_mode == TC_RGB)
@@ -1690,6 +1702,7 @@ SVG_set_color(t_colorspec *colorspec)
 {
     rgb255_color rgb255;
     SVG_alpha = 0.0;
+    SVG_rgb = rgb_from_colorspec(colorspec);
 
     if (colorspec->type == TC_LT) {
         if (SVG_linecolor != SVG_pens[SVG_Pen_RealID (colorspec->lt)].color) {
@@ -1742,7 +1755,7 @@ SVG_filled_polygon(int points, gpiPoint* corners)
 {
     int i;
     int fillpar = corners->style >> 4;
-    int style = corners->style &= 0xf;
+    int style = corners->style & 0xf;
 
     if (style == FS_PATTERN || style == FS_TRANSPARENT_PATTERN) {
 	/* make sure the pattern is defined (with the current stroke color)
@@ -1874,21 +1887,28 @@ SVG_image (unsigned m, unsigned n, coordval *image, gpiPoint *corner, t_imagecol
 {
     SVG_PathClose();
 
-    /* Map image onto the terminal's coordinate system. */
-    fprintf(gpoutfile, "<image x='%.*f' y='%.*f' width='%.*f' height='%.*f' preserveAspectRatio='none' ",
+    /* Map image onto the terminal's coordinate system.
+     * Note: the image-rendering hints are not part of the SVG v2 standard.
+     * Rather they conform to CSS display hinting
+     * Firefox wants "crisp-edges"; Chrome wants "pixelated".
+     * Other programs may ignore one or both.
+     */
+    fprintf(gpoutfile,
+	    "<image x='%.*f' y='%.*f' width='%.*f' height='%.*f' preserveAspectRatio='none' "
+	    "image-rendering='crisp-edges' style='image-rendering: pixelated' ",
 	    PREC, X(corner[0].x), PREC, Y(corner[0].y),
 	    PREC, X(corner[1].x) - X(corner[0].x), PREC, Y(corner[1].y) - Y(corner[0].y));
 
     /* Feb 2017 - always embed images */
-    if (TRUE || SVG_standalone || SVG_domterm) {
+    #if (1)
 	/* Embed the PNG file in SVG by converting to base64 */
 	fprintf(gpoutfile, "xlink:href='data:image/png;base64,");
 	if (write_png_base64_image(m, n, image, color_mode, gpoutfile))
 	    os_error(NO_CARET, "SVG_image: could not write to gnuplot output file.");
 	fprintf(gpoutfile, "'/>\n");
-
-    } else {
+    #else
         /* Write the image to a png file */
+	static int SVG_imageno = 0;
 	char *image_file;
         char *base_name = SVG_name ? SVG_name : "gp";
 	int wpiresult;
@@ -1905,7 +1925,7 @@ SVG_image (unsigned m, unsigned n, coordval *image, gpiPoint *corner, t_imagecol
 
 	if (wpiresult != 0)
 	    os_error(NO_CARET, "SVG_image: could not write to PNG reference file.");
-    }
+    #endif
 }
 #endif
 
@@ -2196,7 +2216,7 @@ SVG_hypertext( int type, const char *text )
 	if (!text || !(*text))
 	    break;
 
-	sep = strcspn(text, ",: ");
+	sep = strcspn(text, ",:");
 	if (sep > 0) {
 	    SVG_hypertext_fontName = gp_strdup(text);
 	    SVG_hypertext_fontName[sep] = '\0';
@@ -2285,11 +2305,11 @@ TERM_TABLE_START (domterm_driver)
     SVG_move, SVG_vector, SVG_linetype, SVG_put_text, SVG_text_angle,
     SVG_justify_text, SVG_point, do_arrow, SVG_set_font, do_pointsize,
     TERM_CAN_DASH | TERM_ALPHA_CHANNEL|TERM_LINEWIDTH,
-    0 /* suspend */, 0 /* resume */ , SVG_fillbox, SVG_linewidth
+    0 /* suspend */, 0 /* resume */ , SVG_fillbox, SVG_linewidth,
 #ifdef USE_MOUSE
-   , 0, 0, 0, 0, 0 /* no mouse support for svg */
+   NULL, 0, 0, 0, 0, /* pseudo-mousing: replace NULL with term_waitforinput */
 #endif
-   , SVG_make_palette,
+   SVG_make_palette,
    SVG_previous_palette,
    SVG_set_color,
    SVG_filled_polygon

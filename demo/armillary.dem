@@ -49,15 +49,15 @@ array Longitude[13] = [267., 300., 328., 352., 29., 53., 90., 118., 138., 174., 
 do for [i=1:13] {
     set label i Zodiac[i] at polar Longitude[i], 1.1, 0 center font ",15"
     set obj i circle at polar Longitude[i], 1.1, 0 radius char 1.5
-    set obj i fs solid fc rgb hsv2rgb( Longitude[i]/360., 0.5, 1.0)
+    set obj i fs solid border lt -1 fc rgb hsv2rgb( Longitude[i]/360., 0.5, 1.0)
 }
 
 #
 # plot sampled parametric circles
 #
-splot sample [u=0:360] '+' using (cos(u)):(0):(sin(u)) lw 2, \
-             [u=0:360] '+' using (cos(u)):(sin(u)):(0) lw 2, \
-             [u=0:360] '+' using (0):(cos(u)):(sin(u)) lw 2
+splot [u=0:360:1] '+' using (cos(u)):(0):(sin(u)) lw 2, \
+      [u=0:360:1] '+' using (cos(u)):(sin(u)):(0) lw 2, \
+      [u=0:360:1] '+' using (0):(cos(u)):(sin(u)) lw 2
 
 pause -1 "Hit <cr> to continue"
 

@@ -503,7 +503,6 @@ do_draw_gdiplus(LPGW lpgw, Graphics &graphics, LPRECT rect, enum draw_target tar
 	POINT corners[4];			/* image corners */
 	int color_mode = 0;			/* image color mode */
 
-#ifdef EAM_BOXED_TEXT
 	struct s_boxedtext {
 		TBOOLEAN boxing;
 		t_textbox_options option;
@@ -512,7 +511,6 @@ do_draw_gdiplus(LPGW lpgw, Graphics &graphics, LPRECT rect, enum draw_target tar
 		RECT  box;
 		int   angle;
 	} boxedtext;
-#endif
 
 	/* point symbols */
 	enum win_pointtypes last_symbol = W_invalid_pointtype;
@@ -614,20 +612,13 @@ do_draw_gdiplus(LPGW lpgw, Graphics &graphics, LPRECT rect, enum draw_target tar
 		lpgw->keyboxes[i].top = 0;
 	}
 
-#ifdef EAM_BOXED_TEXT
 	boxedtext.boxing = FALSE;
-#endif
 
 	/* do the drawing */
 	blkptr = lpgw->gwopblk_head;
 	curptr = NULL;
-	if (blkptr != NULL) {
-		if (!blkptr->gwop)
-			blkptr->gwop = (struct GWOP *) GlobalLock(blkptr->hblk);
-		if (!blkptr->gwop)
-			return;
-		curptr = (struct GWOP *)blkptr->gwop;
-	}
+	if (blkptr != NULL)
+		curptr = blkptr->gwop;
 	if (curptr == NULL)
 		return;
 
@@ -757,7 +748,7 @@ do_draw_gdiplus(LPGW lpgw, Graphics &graphics, LPRECT rect, enum draw_target tar
 		if (!(skipplot || (gridline && lpgw->hidegrid)) ||
 			keysample || (curptr->op == W_line_type) || (curptr->op == W_setcolor)
 			          || (curptr->op == W_pointsize) || (curptr->op == W_line_width)
-			          || (curptr->op == W_dash_type)) {
+			          || (curptr->op == W_dash_type) || (curptr->op == W_setcolorrgb)) {
 
 		/* special case hypertexts */
 		if ((hypertext != NULL) && (hypertype == TERM_HYPERTEXT_TOOLTIP)) {
@@ -781,7 +772,7 @@ do_draw_gdiplus(LPGW lpgw, Graphics &graphics, LPRECT rect, enum draw_target tar
 			break;
 
 		case W_polyline: {
-			POINTL * poly = (POINTL *) LocalLock(curptr->htext);
+			POINTL * poly = (POINTL *) curptr->pdata;
 			if (poly == NULL) break; // memory allocation failed
 			polyi = curptr->x;
 			PointF * points = new PointF[polyi];
@@ -795,7 +786,6 @@ do_draw_gdiplus(LPGW lpgw, Graphics &graphics, LPRECT rect, enum draw_target tar
 					points[i].Y = rb - MulDiv(poly[i].y, rb - rt - 1, lpgw->ymax) + rt - 1;
 				}
 			}
-			LocalUnlock(poly);
 			if (poly_graphics == NULL)
 				gdiplusPolyline(graphics, pen, points, polyi);
 			else
@@ -874,12 +864,11 @@ do_draw_gdiplus(LPGW lpgw, Graphics &graphics, LPRECT rect, enum draw_target tar
 					lpgw->dashed ? lpgw->monopen[dt].lopnStyle : lpgw->colorpen[dt].lopnStyle;
 				gdiplusSetDashStyle(&pen, static_cast<DashStyle>(cur_penstruct.lopnStyle));
 			} else if (dt == DASHTYPE_CUSTOM) {
-				t_dashtype * dash = static_cast<t_dashtype *>(LocalLock(curptr->htext));
+				t_dashtype * dash = static_cast<t_dashtype *>(curptr->pdata);
 				if (dash == NULL) break; // memory allocation failed
 				INT count = 0;
 				while ((dash->pattern[count] != 0.) && (count < DASHPATTERN_LENGTH)) count++;
 				pen.SetDashPattern(dash->pattern, count);
-				LocalUnlock(curptr->htext);
 			}
 			break;
 		}
@@ -890,7 +879,7 @@ do_draw_gdiplus(LPGW lpgw, Graphics &graphics, LPRECT rect, enum draw_target tar
 
 		case W_put_text: {
 			char * str;
-			str = (char *) LocalLock(curptr->htext);
+			str = (char *) curptr->pdata;
 			if (str) {
 				LPWSTR textw = UnicodeText(str, lpgw->encoding);
 				if (textw) {
@@ -906,11 +895,7 @@ do_draw_gdiplus(LPGW lpgw, Graphics &graphics, LPRECT rect, enum draw_target tar
 					}
 					RectF size;
 					int dxl, dxr;
-#ifndef EAM_BOXED_TEXT
-					if (keysample) {
-#else
 					if (keysample || boxedtext.boxing) {
-#endif
 						graphics.MeasureString(textw, -1, font, PointF(0,0), &stringFormat, &size);
 						if (lpgw->justify == LEFT) {
 							dxl = 0;
@@ -926,7 +911,6 @@ do_draw_gdiplus(LPGW lpgw, Graphics &graphics, LPRECT rect, enum draw_target tar
 						draw_update_keybox(lpgw, plotno, xdash - dxl, ydash - size.Height / 2);
 						draw_update_keybox(lpgw, plotno, xdash + dxr, ydash + size.Height / 2);
 					}
-#ifdef EAM_BOXED_TEXT
 					if (boxedtext.boxing) {
 						if (boxedtext.box.left > (xdash - boxedtext.start.x - dxl))
 							boxedtext.box.left = xdash - boxedtext.start.x - dxl;
@@ -939,16 +923,14 @@ do_draw_gdiplus(LPGW lpgw, Graphics &graphics, LPRECT rect, enum draw_target tar
 						/* We have to remember the text angle as well. */
 						boxedtext.angle = lpgw->angle;
 					}
-#endif
 					free(textw);
 				}
 			}
-			LocalUnlock(curptr->htext);
 			break;
 		}
 
 		case W_enhanced_text: {
-			char * str = (char *) LocalLock(curptr->htext);
+			char * str = (char *) curptr->pdata;
 			if (str) {
 				RECT extend;
 				draw_enhanced_init(lpgw, graphics, solid_brush, rect);
@@ -959,7 +941,6 @@ do_draw_gdiplus(LPGW lpgw, Graphics &graphics, LPRECT rect, enum draw_target tar
 					draw_update_keybox(lpgw, plotno, xdash - extend.left, ydash - extend.top);
 					draw_update_keybox(lpgw, plotno, xdash + extend.right, ydash + extend.bottom);
 				}
-#ifdef EAM_BOXED_TEXT
 				if (boxedtext.boxing) {
 					if (boxedtext.box.left > (boxedtext.start.x - xdash - extend.left))
 						boxedtext.box.left = boxedtext.start.x - xdash - extend.left;
@@ -972,24 +953,20 @@ do_draw_gdiplus(LPGW lpgw, Graphics &graphics, LPRECT rect, enum draw_target tar
 					/* We have to store the text angle as well. */
 					boxedtext.angle = lpgw->angle;
 				}
-#endif
 			}
-			LocalUnlock(curptr->htext);
 			break;
 		}
 
 		case W_hypertext:
 			if (interactive) {
 				/* Make a copy for future reference */
-				char * str = (char *) LocalLock(curptr->htext);
+				char * str = (char *) curptr->pdata;
 				free(hypertext);
 				hypertext = UnicodeText(str, lpgw->encoding);
 				hypertype = curptr->x;
-				LocalUnlock(curptr->htext);
 			}
 			break;
 
-#ifdef EAM_BOXED_TEXT
 		case W_boxedtext:
 			if (seq == 0) {
 				boxedtext.option = (t_textbox_options) curptr->x;
@@ -1101,7 +1078,6 @@ do_draw_gdiplus(LPGW lpgw, Graphics &graphics, LPRECT rect, enum draw_target tar
 				break;
 			}
 			break;
-#endif
 
 		case W_fillstyle: {
 			/* HBB 20010916: new entry, needed to squeeze the many
@@ -1241,7 +1217,7 @@ do_draw_gdiplus(LPGW lpgw, Graphics &graphics, LPRECT rect, enum draw_target tar
 
 		case W_font: {
 			int size = curptr->x;
-			char * fontname = (char *) LocalLock(curptr->htext);
+			char * fontname = (char *) curptr->pdata;
 			delete font;
 #ifdef UNICODE
 			/* FIXME: Maybe this should be in win.trm instead. */
@@ -1251,7 +1227,6 @@ do_draw_gdiplus(LPGW lpgw, Graphics &graphics, LPRECT rect, enum draw_target tar
 #else
 			font = SetFont_gdiplus(graphics, rect, lpgw, fontname, size);
 #endif
-			LocalUnlock(curptr->htext);
 			/* recalculate shifting of rotated text */
 			hshift = - sin(M_PI / 180. * lpgw->angle) * lpgw->tmHeight / 2.;
 			vshift = - cos(M_PI / 180. * lpgw->angle) * lpgw->tmHeight / 2.;
@@ -1284,11 +1259,12 @@ do_draw_gdiplus(LPGW lpgw, Graphics &graphics, LPRECT rect, enum draw_target tar
 			last_symbol = W_invalid_pointtype;
 			break;
 
-		case W_setcolor: {
+		case W_setcolor:
+		case W_setcolorrgb: {
 			COLORREF color;
 
 			/* distinguish gray values and RGB colors */
-			if (curptr->htext != NULL) {	/* TC_LT */
+			if (curptr->op == W_setcolor) {	/* TC_LT */
 				int pen = (int)curptr->x % WGNUMPENS;
 				color = (pen <= LT_NODRAW) ? lpgw->background : lpgw->colorpen[pen + 2].lopnColor;
 				if (!lpgw->color || !isColor) {
@@ -1420,7 +1396,7 @@ do_draw_gdiplus(LPGW lpgw, Graphics &graphics, LPRECT rect, enum draw_target tar
 				corners[seq - 1].y = ydash + 0.5;
 			} else {
 				/* The last OP contains the image and it's size */
-				char * image = (char *) LocalLock(curptr->htext);
+				char * image = (char *) curptr->pdata;
 				if (image == NULL) break; // memory allocation failed
 				unsigned int width = curptr->x;
 				unsigned int height = curptr->y;
@@ -1476,7 +1452,6 @@ do_draw_gdiplus(LPGW lpgw, Graphics &graphics, LPRECT rect, enum draw_target tar
 					graphics.ResetClip();
 					graphics.SetPixelOffsetMode(PixelOffsetModeNone);
 				}
-				LocalUnlock(curptr->htext);
 			}
 			seq = (seq + 1) % 6;
 			break;
@@ -1626,18 +1601,14 @@ do_draw_gdiplus(LPGW lpgw, Graphics &graphics, LPRECT rect, enum draw_target tar
 		ngwop++;
 		curptr++;
 		if ((unsigned)(curptr - blkptr->gwop) >= GWOPMAX) {
-			GlobalUnlock(blkptr->hblk);
-			blkptr->gwop = (struct GWOP *)NULL;
 			if ((blkptr = blkptr->next) == NULL)
 				/* If exact multiple of GWOPMAX entries are queued,
 				 * next will be NULL. Only the next GraphOp() call would
 				 * have allocated a new block */
 				break;
-			if (!blkptr->gwop)
-				blkptr->gwop = (struct GWOP *)GlobalLock(blkptr->hblk);
-			if (!blkptr->gwop)
+			if (blkptr->gwop == NULL)
 				break;
-			curptr = (struct GWOP *)blkptr->gwop;
+			curptr = blkptr->gwop;
 		}
 	} /* while (ngwop < lpgw->nGWOP) */
 

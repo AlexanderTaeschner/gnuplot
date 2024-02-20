@@ -135,9 +135,19 @@ typedef struct lighting_model {
   int rot_x;		/* illumination angle */
   TBOOLEAN fixed;	/* TRUE means the light does not rotate */
   double spec2;		/* 2nd specular contribution from red spotlight on opposite side */
+  double spec2_rot_x;
+  double spec2_rot_z;
+  double spec2_Phong;
+  unsigned long spec2_rgb;
 } lighting_model;
 
 extern lighting_model pm3d_shade;
+
+typedef struct zslice {
+  double zlow;
+  double zhigh;
+  t_colorspec color;
+} zslice;
 
 /* Used to initialize `set pm3d border` */
 extern struct lp_style_type default_pm3d_border;

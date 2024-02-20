@@ -39,19 +39,22 @@
 #include "setshow.h"
 
 #include "alloc.h"
-#include "axis.h"
 #include "command.h"
 #include "contour.h"
 #include "datablock.h"
 #include "datafile.h"
 #include "eval.h"
+#include "filters.h"
 #include "fit.h"
 #include "gp_time.h"
 #include "graphics.h"
+#include "help.h"
 #include "hidden3d.h"
 #include "jitter.h"
 #include "misc.h"
 #include "gp_hist.h"
+#include "gplocale.h"
+#include "loadpath.h"
 #include "plot2d.h"
 #include "plot3d.h"
 #include "save.h"
@@ -59,9 +62,9 @@
 #include "tabulate.h"
 #include "util.h"
 #include "term_api.h"
-#include "variable.h"
 #include "version.h"
 #include "voxelgrid.h"
+#include "watch.h"
 #ifdef USE_MOUSE
 # include "mouse.h"
 #endif
@@ -100,6 +103,7 @@ static void show_style_rectangle(void);
 static void show_style_circle(void);
 static void show_style_ellipse(void);
 static void show_grid(void);
+static void show_help(void);
 static void show_raxis(void);
 static void show_paxis(void);
 static void show_zeroaxis(AXIS_INDEX);
@@ -115,7 +119,6 @@ static void show_parametric(void);
 static void show_pm3d(void);
 static void show_palette(void);
 static void show_palette_rgbformulae(void);
-static void show_palette_fit2rgbformulae(void);
 static void show_palette_palette(void);
 static void show_palette_gradient(void);
 static void show_palette_colornames(void);
@@ -176,6 +179,7 @@ static void show_ticdef(AXIS_INDEX);
 static void show_ticdefp(struct axis *);
        void show_position(struct position * pos, int ndim);
 static void show_functions(void);
+static void show_warnings(void);
 
 static int var_show_all = 0;
 
@@ -238,6 +242,9 @@ show_command()
     case S_CNTRLABEL:
 	show_contour();
 	break;
+    case S_CONTOURFILL:
+	save_contourfill(stderr);
+	break;
     case S_DEBUG:
 	fprintf(stderr,"debug level is %d\n",debug);
 	break;
@@ -261,6 +268,9 @@ show_command()
 	break;
     case S_GRID:
 	show_grid();
+	break;
+    case S_HELP:
+	show_help();
 	break;
     case S_RAXIS:
 	show_raxis();
@@ -424,6 +434,9 @@ show_command()
 	break;
     case S_WALL:
 	save_walls(stderr);
+	break;
+    case S_WARNINGS:
+	show_warnings();
 	break;
     case S_ANGLES:
 	show_angles();
@@ -622,7 +635,6 @@ show_command()
     case S_VARIABLES:
 	show_variables();
 	break;
-/* FIXME: get rid of S_*DTICS, S_*MTICS cases */
     case S_XTICS:
     case S_XDTICS:
     case S_XMTICS:
@@ -670,21 +682,27 @@ show_command()
 	break;
 
     case S_THETA:
-	fprintf(stderr,"Theta increases %s with origin at %s of plot\n",
+	fprintf(stderr,"\tTheta increases %s with origin at %s of plot\n",
 		theta_direction > 0 ? "counterclockwise" : "clockwise",
 		theta_origin == 180 ? "left" : theta_origin ==  90 ? "top" :
 		theta_origin == -90 ? "bottom" : "right");
 	break;
 
-    /* HBB 20010525: 'set commands' that don't have an
-     * accompanying 'show' version, for no particular reason: */
-    /* --- such case now, all implemented. */
+    case S_WATCH:
+	show_watchpoints();
+	break;
 
     case S_INVALID:
-	error_message = "Unrecognized option. See 'help show'.";
-	break;
     default:
-	error_message = "invalid or deprecated syntax";
+#ifdef WITH_CHI_SHAPES
+	if (almost_equals(c_token,"chi$_shapes")) {
+	    fprintf(stderr,"Default χ-shape parameter = %g of longest edge in convex hull\n",
+		chi_shape_default_fraction);
+	    c_token++;
+	    break;
+	}
+#endif
+	error_message = "Unrecognized option.";
 	break;
     }
 
@@ -777,6 +795,9 @@ disp_at(struct at_type *curr_at, int level)
 	    break;
 	case DOLLARS:
 	    fprintf(stderr, " %d\n", (int)(arg->v_arg.v.int_val));
+	    break;
+	case EVAL:
+	    fprintf(stderr, " function block %s\n", arg->udv_arg->udv_name);
 	    break;
 	default:
 	    (void) putc('\n', stderr);
@@ -995,12 +1016,7 @@ show_version(FILE *fp)
 		"";
 
 	    const char *nocwdrc =
-#ifdef USE_CWDRC
-		"+"
-#else
-		"-"
-#endif
-		"USE_CWDRC  ";
+		"-USE_CWDRC  ";
 
 	    const char *x11 =
 #ifdef X11
@@ -1024,14 +1040,38 @@ show_version(FILE *fp)
 	    const char *plotoptions=
 		"+OBJECTS  "
 #ifdef USE_STATS
-		"+STATS "
+		"+STATS  "
 #else
-		"-STATS "
+		"-STATS  "
+#endif
+#ifdef USE_WATCHPOINTS
+		"+WATCHPOINTS  "
+#else
+		"-WATCHPOINTS  "
 #endif
 #ifdef HAVE_EXTERNAL_FUNCTIONS
 		"+EXTERNAL_FUNCTIONS "
 #endif
+#ifdef USE_POLAR_GRID
+		"+POLARGRID "
+#else
+		"-POLARGRID "
+#endif
 	    "";
+
+	    const char *fblocks =
+#if defined(USE_FUNCTIONBLOCKS)
+		"+FUNCTIONBLOCKS ";
+#else
+		"-FUNCTIONBLOCKS ";
+#endif
+
+	    const char *chi_shapes =
+#if defined(WITH_CHI_SHAPES)
+		"+CHI_SHAPES ";
+#else
+		"-CHI_SHAPES ";
+#endif
 
 	    const char *unicodebuild =
 #if defined(_WIN32) && defined(UNICODE)
@@ -1040,11 +1080,13 @@ show_version(FILE *fp)
 		"";
 #endif
 
-	    sprintf(compile_options, "    %s%s\n    %s%s\n    %s%s%s%s\n    %s\n    %s%s%s%s\n",
+	    sprintf(compile_options,
+		    "    %s%s\n    %s%s\n    %s%s%s%s\n    %s\n    %s%s%s%s\n    %s%s\n",
 		    rdline, gnu_rdline, unicodebuild, plotoptions,
 		    complexfunc, libcerf, libamos, have_cexint,
 		    libgd,
-		    nocwdrc, x11, use_mouse, hiddenline
+		    nocwdrc, x11, use_mouse, hiddenline,
+		    fblocks, chi_shapes
 		    );
 	}
 
@@ -1060,11 +1102,7 @@ show_version(FILE *fp)
 	p += sizeof(prefix) - 1;
     } else {
 #ifdef BINDIR
-# ifdef X11
-	fprintf(fp, "#!%s/gnuplot -persist\n#\n", BINDIR);
-#  else
 	fprintf(fp, "#!%s/gnuplot\n#\n", BINDIR);
-# endif				/* not X11 */
 #endif /* BINDIR */
     }
 
@@ -1106,19 +1144,33 @@ show_version(FILE *fp)
     /* show version long */
     if (almost_equals(c_token, "l$ong")) {
 
+	/* We will use this to test for packing holes in struct coordinate */
+	struct gen_coord { coordval dummy[7]; enum coord_type type; };
+
 	c_token++;
 	fprintf(stderr, "\nCompile options:\n%s", compile_options);
 	fprintf(stderr, "    %d-bit integer arithmetic\n",(int)sizeof(intgr_t)*8);
 
-#ifdef X11
+#ifdef WITH_EXTRA_COORDINATE
+	fprintf(stderr, "    sizeof(struct coordinate) = %d with extra coordinate\n",
+		(int)(sizeof(struct coordinate)));
+	if (sizeof(struct coordinate) > sizeof(struct gen_coord))
+	    fprintf(stderr, "\tThis is a waste of space. "\
+	    "You should reconfigure using --without-extra-coordinate\n");
+#else
+	fprintf(stderr, "    sizeof(struct coordinate) = %d without extra coordinate\n",
+		(int)(sizeof(struct coordinate)));
+#endif
+
 	{
 	    char *driverdir = getenv("GNUPLOT_DRIVER_DIR");
-
-	    if (driverdir == NULL)
-		driverdir = X11_DRIVER_DIR;
-	    fprintf(stderr, "GNUPLOT_DRIVER_DIR = \"%s\"\n", driverdir);
-	}
+#ifdef GNUPLOT_DRIVER_DIR
+	    if (!driverdir)
+		driverdir = GNUPLOT_DRIVER_DIR;
 #endif
+	    fprintf(stderr, "GNUPLOT_DRIVER_DIR = \"%s\"\n",
+		    driverdir ? driverdir : "");
+	}
 
 	{
 	    char *psdir = getenv("GNUPLOT_PS_DIR");
@@ -1328,7 +1380,7 @@ show_contour()
 	    (draw_contour) ? "drawn" : "not drawn\n");
 
     if (draw_contour) {
-	fprintf(stderr, " in %d levels on ", contour_levels);
+	fprintf(stderr, " in %d levels on ", contour_params.levels);
 	switch (draw_contour) {
 	case CONTOUR_BASE:
 	    fputs("grid base\n", stderr);
@@ -1343,35 +1395,35 @@ show_contour()
 	    /* should not happen --- be easy: don't complain... */
 	    break;
 	}
-	switch (contour_kind) {
+	switch (contour_params.kind) {
 	case CONTOUR_KIND_LINEAR:
 	    fputs("\t\tas linear segments\n", stderr);
 	    break;
 	case CONTOUR_KIND_CUBIC_SPL:
-	    fprintf(stderr, "\t\tas cubic spline interpolation segments with %d pts\n", contour_pts);
+	    fprintf(stderr, "\t\tas cubic spline interpolation segments with %d pts\n", contour_params.npoints);
 	    break;
 	case CONTOUR_KIND_BSPLINE:
-	    fprintf(stderr, "\t\tas bspline approximation segments of order %d with %d pts\n", contour_order, contour_pts);
+	    fprintf(stderr, "\t\tas bspline approximation segments of order %d with %d pts\n", contour_params.order, contour_params.npoints);
 	    break;
 	}
-	switch (contour_levels_kind) {
+	switch (contour_params.levels_kind) {
 	case LEVELS_AUTO:
-	    fprintf(stderr, "\t\tapprox. %d automatic levels\n", contour_levels);
+	    fprintf(stderr, "\t\tapprox. %d automatic levels\n", contour_params.levels);
 	    break;
 	case LEVELS_DISCRETE:
 	    {
 		int i;
-		fprintf(stderr, "\t\t%d discrete levels at ", contour_levels);
+		fprintf(stderr, "\t\t%d discrete levels at ", contour_params.levels);
 		fprintf(stderr, "%g", contour_levels_list[0]);
-		for (i = 1; i < contour_levels; i++)
+		for (i = 1; i < contour_params.levels; i++)
 		    fprintf(stderr, ",%g ", contour_levels_list[i]);
 		putc('\n', stderr);
 		break;
 	    }
 	case LEVELS_INCREMENTAL:
-	    fprintf(stderr, "\t\t%d incremental levels starting at %g, step %g, end %g\n", contour_levels, contour_levels_list[0],
+	    fprintf(stderr, "\t\t%d incremental levels starting at %g, step %g, end %g\n", contour_params.levels, contour_levels_list[0],
 		    contour_levels_list[1],
-		    contour_levels_list[0] + (contour_levels - 1) * contour_levels_list[1]);
+		    contour_levels_list[0] + (contour_params.levels - 1) * contour_levels_list[1]);
 	    /* contour-levels counts both ends */
 	    break;
 	}
@@ -1380,14 +1432,14 @@ show_contour()
 	fprintf(stderr, "\tcontour lines are drawn in %s linetypes\n",
 		clabel_onecolor ? "the same" : "individual");
 	fprintf(stderr, "\tformat for contour labels is '%s' font '%s'\n",
-		contour_format, clabel_font ? clabel_font : "");
+		contour_params.format, clabel_font ? clabel_font : "");
 	fprintf(stderr, "\ton-plot labels placed at segment %d with interval %d\n",
 		clabel_start, clabel_interval);
-	if (contour_firstlinetype > 0)
-		fprintf(stderr, "\tfirst contour linetype will be %d\n", contour_firstlinetype);
+	if (contour_params.firstlinetype > 0)
+		fprintf(stderr, "\tfirst contour linetype will be %d\n", contour_params.firstlinetype);
 	else
 		fprintf(stderr, "\tfirst contour linetype will be chosen automatically\n");
-	fprintf(stderr, "\tcontour levels will be %ssorted\n", contour_sortlevels ? "" : "un");
+	fprintf(stderr, "\tcontour levels will be %ssorted\n", contour_params.sortlevels ? "" : "un");
     }
 }
 
@@ -1439,7 +1491,7 @@ show_dgrid3d()
 		reverse_table_lookup(dgrid3d_mode_tbl, dgrid3d_mode),
 		dgrid3d_x_scale,
 		dgrid3d_y_scale,
-		dgrid3d_kdensity ? ", kdensity2d mode" : "" );
+		dgrid3d_kdensity ? ", kdensity mode" : "" );
       }
     else
 	fputs("\tdata grid3d is disabled\n", stderr);
@@ -1577,15 +1629,19 @@ show_style()
 	show_style_ellipse();
 	c_token++;
 	break;
+    case SHOW_STYLE_WATCHPOINT:
+	show_style_watchpoint();
+	c_token++;
+	break;
     default:
 	/* show all styles */
 	show_styles("Data",data_style);
 	show_styles("Functions", func_style);
 	show_linestyle(0);
 	show_fillstyle();
-	show_increment();
 	show_histogram();
 	show_textbox();
+	show_style_watchpoint();
 	save_style_parallel(stderr);
 	show_arrowstyle(0);
 	show_boxplot();
@@ -1682,7 +1738,7 @@ show_grid()
 
     /* HBB 20010806: new storage method for grid options: */
     fprintf(stderr, "\t%s grid drawn at",
-	    (polar_grid_angle != 0) ? "Polar" : "Rectangular");
+	    (theta_grid_angle != 0) ? "Polar" : "Rectangular");
 #define SHOW_GRID(axis)						\
     if (axis_array[axis].gridmajor)				\
 	fprintf(stderr, " %s", axis_name(axis));	\
@@ -1706,14 +1762,24 @@ show_grid()
     fputc('\n', stderr);
     if (grid_vertical_lines)
 	fprintf(stderr, "\tVertical grid lines in 3D plots\n");
-    if (polar_grid_angle)
+    if (theta_grid_angle)
 	fprintf(stderr, "\tGrid radii drawn every %f %s\n",
-		polar_grid_angle / ang2rad,
+		theta_grid_angle / ang2rad,
 		(ang2rad == 1.0) ? "radians" : "degrees");
     if (grid_spiderweb)
 	fprintf(stderr, "\tGrid shown in spiderplots\n");
 
     fprintf(stderr, "\tGrid drawn at %s\n", (grid_layer==-1) ? "default layer" : ((grid_layer==0) ? "back" : "front"));
+}
+
+/* process 'show help' command */
+static void
+show_help()
+{
+#ifndef NO_GIH
+    fprintf(stderr,"\thelp subtopics are sorted by %s\n",
+	help_sort_by_rows ? "row" : "column");
+#endif
 }
 
 static void
@@ -1774,49 +1840,7 @@ show_label(int tag)
 		    this_label->tag,
 		    (this_label->text==NULL) ? "" : conv_text(this_label->text));
 	    show_position(&this_label->place, 3);
-	    if (this_label->hypertext)
-		fprintf(stderr, " hypertext");
-	    switch (this_label->pos) {
-	    case LEFT:{
-		    fputs(" left", stderr);
-		    break;
-		}
-	    case CENTRE:{
-		    fputs(" centre", stderr);
-		    break;
-		}
-	    case RIGHT:{
-		    fputs(" right", stderr);
-		    break;
-		}
-	    }
-	    if (this_label->rotate)
-	    	fprintf(stderr, " rotated by %d degrees (if possible)", this_label->rotate);
-	    else
-	    	fprintf(stderr, " not rotated");
-	    fprintf(stderr, " %s ", this_label->layer ? "front" : "back");
-	    if (this_label->font != NULL)
-		fprintf(stderr, " font \"%s\"", this_label->font);
-	    if (this_label->textcolor.type)
-		save_textcolor(stderr, &this_label->textcolor);
-	    if (this_label->noenhanced)
-		fprintf(stderr, " noenhanced");
-	    if ((this_label->lp_properties.flags & LP_SHOW_POINTS) == 0)
-		fprintf(stderr, " nopoint");
-	    else {
-		fprintf(stderr, " point with color of");
-		save_linetype(stderr, &(this_label->lp_properties), TRUE);
-		fprintf(stderr, " offset ");
-		show_position(&this_label->offset, 3);
-	    }
-
-	    if (this_label->boxed) {
-		fprintf(stderr," boxed");
-		if (this_label->boxed > 0)
-		    fprintf(stderr," bs %d",this_label->boxed);
-	    }
-
-	    /* Entry font added by DJL */
+	    save_label_style(stderr, this_label);
 	    fputc('\n', stderr);
 	}
     }
@@ -1953,6 +1977,8 @@ show_key()
 		break;
 	    }
 	}
+	fputs("  offset: ", stderr);
+	show_position(&key->offset, 2);
 	fputs("\n", stderr);
 	break;
     }
@@ -2209,79 +2235,6 @@ show_palette_rgbformulae()
     ++c_token;
 }
 
-
-static void
-show_palette_fit2rgbformulae()
-{
-#define rgb_distance(r,g,b) ((r)*(r) + (g)*(g) + (b)*(b))
-    int pts = 32; /* resolution: nb of points in the discrete raster for comparisons */
-    int i, p, ir, ig, ib;
-    int rMin=0, gMin=0, bMin=0;
-    int maxFormula = sm_palette.colorFormulae - 1; /* max formula number */
-    double gray, dist, distMin;
-    rgb_color *currRGB;
-    int *formulaeSeq;
-    double **formulae;
-    ++c_token;
-    if (sm_palette.colorMode == SMPAL_COLOR_MODE_RGB && sm_palette.cmodel == C_MODEL_RGB) {
-	fprintf(stderr, "\tCurrent palette is\n\t    set palette rgbformulae %i,%i,%i\n", sm_palette.formulaR, sm_palette.formulaG, sm_palette.formulaB);
-	return;
-    }
-    /* allocate and fill R, G, B values rastered on pts points */
-    currRGB = (rgb_color*)gp_alloc(pts * sizeof(rgb_color), "RGB pts");
-    for (p = 0; p < pts; p++) {
-	gray = (double)p / (pts - 1);
-	rgb1_from_gray(gray, &(currRGB[p]));
-    }
-    /* organize sequence of rgb formulae */
-    formulaeSeq = gp_alloc((2*maxFormula+1) * sizeof(int), "formulaeSeq");
-    for (i = 0; i <= maxFormula; i++)
-	formulaeSeq[i] = i;
-    for (i = 1; i <= maxFormula; i++)
-	formulaeSeq[maxFormula+i] = -i;
-    /* allocate and fill all +-formulae on the interval of given number of points */
-    formulae = gp_alloc((2*maxFormula+1) * sizeof(double*), "formulae");
-    for (i = 0; i < 2*maxFormula+1; i++) {
-	formulae[i] = gp_alloc(pts * sizeof(double), "formulae pts");
-	for (p = 0; p < pts; p++) {
-	    double gray = (double)p / (pts - 1);
-	    formulae[i][p] = GetColorValueFromFormula(formulaeSeq[i], gray);
-	}
-    }
-    /* Now go over all rastered formulae, compare them to the current one, and
-       find the minimal distance.
-     */
-    distMin = VERYLARGE;
-    for (ir = 0; ir <	 2*maxFormula+1; ir++) {
-	for (ig = 0; ig < 2*maxFormula+1; ig++) {
-	    for (ib = 0; ib < 2*maxFormula+1; ib++) {
-		dist = 0; /* calculate distance of the two rgb profiles */
-		for (p = 0; p < pts; p++) {
-		double tmp = rgb_distance(
-			    currRGB[p].r - formulae[ir][p],
-			    currRGB[p].g - formulae[ig][p],
-			    currRGB[p].b - formulae[ib][p] );
-		    dist += tmp;
-		}
-		if (dist < distMin) {
-		    distMin = dist;
-		    rMin = formulaeSeq[ir];
-		    gMin = formulaeSeq[ig];
-		    bMin = formulaeSeq[ib];
-		}
-	    }
-	}
-    }
-    fprintf(stderr, "\tThe best match of the current palette corresponds to\n\t    set palette rgbformulae %i,%i,%i\n", rMin, gMin, bMin);
-#undef rgb_distance
-    for (i = 0; i < 2*maxFormula+1; i++)
-	free(formulae[i]);
-    free(formulae);
-    free(formulaeSeq);
-    free(currRGB);
-}
-
-
 static void
 show_palette_palette()
 {
@@ -2322,6 +2275,7 @@ show_palette_palette()
 	(sm_palette.colorMode == SMPAL_COLOR_MODE_GRAY) ? "Gray" : "Color", colors);
     if (print_out_name)
 	fprintf(stderr," saved to \"%s\".", print_out_name);
+    fprintf(stderr,"\n");
 
     for (i = 0; i < colors; i++) {
 	char line[80];
@@ -2388,7 +2342,6 @@ show_palette_gradient()
 static void
 show_colornames(const struct gen_table *tbl)
 {
-    int i=0;
     while (tbl->key) {
 	/* Print color names and their rgb values, table with 1 column */
 	int r = ((tbl->value >> 16 ) & 255);
@@ -2398,7 +2351,6 @@ show_colornames(const struct gen_table *tbl)
 	fprintf( stderr, "\n  %-18s ", tbl->key );
 	fprintf(stderr, "#%02x%02x%02x = %3i %3i %3i", r,g,b, r,g,b);
 	++tbl;
-	++i;
     }
     fputs( "\n", stderr );
     ++c_token;
@@ -2431,6 +2383,9 @@ show_palette()
 	  case SMPAL_COLOR_MODE_GRADIENT:
 	    fputs( "\tcolor mapping by defined gradient\n", stderr );
 	    break;
+	  case SMPAL_COLOR_MODE_VIRIDIS:
+	    fputs( "\tgradient named viridis\n", stderr );
+	    break;
 	  case SMPAL_COLOR_MODE_FUNCTIONS:
 	    fputs("\tcolor mapping is done by user defined functions\n",stderr);
 	    if (sm_palette.Afunc.at && sm_palette.Afunc.definition)
@@ -2460,6 +2415,8 @@ show_palette()
 	else
 	    fputs("ALL remaining", stderr);
 	fputs(" color positions for discrete palette terminals\n", stderr);
+	if (sm_palette.colors > 0)
+	    fprintf(stderr,"\t\t(current terminal has provided %d)\n", sm_palette.colors);
 	fputs( "\tColor-Model: ", stderr );
 	switch( sm_palette.cmodel ) {
 	    default:
@@ -2500,11 +2457,6 @@ show_palette()
         show_palette_colornames();
 	return;
     }
-    else if (almost_equals(c_token, "fit2rgb$formulae" )) {
-        /* 'show palette fit2rgbformulae' */
-	show_palette_fit2rgbformulae();
-	return;
-    }
     else { /* wrong option to "show palette" */
         int_error( c_token, "Expecting 'gradient' or 'palette <n>' or 'rgbformulae' or 'colornames'");
     }
@@ -2515,19 +2467,14 @@ static void
 show_colorbox()
 {
     c_token++;
-    if (!color_box.border) {
-	fprintf(stderr, "\tcolor box without border");
+    if (color_box.border) {
+	fputs("\tcolor box with border, ", stderr);
+	if (color_box.border_lt_tag >= 0)
+	    fprintf(stderr,"line type %d is ", color_box.border_lt_tag);
+	else
+	    fputs("DEFAULT line type is ", stderr);
     } else {
-	fprintf(stderr, "\tcolor box with border lt");
-	if (color_box.border_lt_tag > 0)
-	    fprintf(stderr," %d", color_box.border_lt_tag);
-	else
-	    fprintf(stderr," default");
-	fprintf(stderr, " cbtics lt");
-	if (color_box.cbtics_lt_tag > 0)
-	    fprintf(stderr," %d ", color_box.cbtics_lt_tag);
-	else
-	    fprintf(stderr," same ");
+	fputs("\tcolor box without border is ", stderr);
     }
     if (color_box.where != SMCOLOR_BOX_NO) {
 	if (color_box.layer == LAYER_FRONT) fputs("drawn front\n\t", stderr);
@@ -2606,12 +2553,6 @@ show_pm3d()
 	save_linetype(stderr, &(pm3d.border), FALSE);
 	fprintf(stderr,"\n");
     }
-    if (pm3d_shade.strength > 0) {
-	fprintf(stderr,"\tlighting primary component %g specular component %g",
-		pm3d_shade.strength, pm3d_shade.spec);
-	fprintf(stderr," second spot contribution %g\n",
-		pm3d_shade.spec2);
-    }
     fprintf(stderr,"\tsteps for bilinear interpolation: %d,%d\n",
 	 pm3d.interp_i, pm3d.interp_j);
     fprintf(stderr,"\tquadrangle color according to ");
@@ -2624,6 +2565,10 @@ show_pm3d()
 	case PM3D_WHICHCORNER_MAX: fputs("maximum of 4 corners\n", stderr); break;
 	case PM3D_WHICHCORNER_RMS: fputs("root mean square of 4 corners\n", stderr); break;
 	default: fprintf(stderr, "corner %i\n", pm3d.which_corner_color - PM3D_WHICHCORNER_C1 + 1);
+    }
+    if (pm3d_shade.strength > 0) {
+	fprintf(stderr, "\tLighting model:\n");
+	save_pm3d_lighting(stderr, "\t");
     }
 }
 
@@ -2805,7 +2750,27 @@ static void
 show_polar()
 {
     SHOW_ALL_NL;
-    fprintf(stderr, "\tpolar is %s\n", (polar) ? "ON" : "OFF");
+    fprintf(stderr, "\tpolar mode is %s\n", (polar) ? "ON" : "OFF");
+#ifdef USE_POLAR_GRID
+    if (1) {
+	fprintf(stderr,"\tpolar grid uses %d theta wedges and %d radial segments\n",
+		polar_grid.theta_segments, polar_grid.r_segments);
+	fprintf(stderr,"\tmasked by theta range [%g:%g] radial range [%g:",
+		THETA_AXIS.min, THETA_AXIS.max, polar_grid.rmin);
+	if (polar_grid.rmax < VERYLARGE)
+		fprintf(stderr,"%g]\n",polar_grid.rmax);
+	else
+		fprintf(stderr,"*]\n");
+	fprintf(stderr,"\tpolar gridding scheme %s ",
+		reverse_table_lookup(dgrid3d_mode_tbl, polar_grid.mode));
+	if (polar_grid.mode == DGRID3D_QNORM)
+		fprintf(stderr,"%d\n", polar_grid.norm_q);
+	else
+		fprintf(stderr,"%s scale %g\n",
+			polar_grid.kdensity ? "kdensity" : "", polar_grid.scale);
+    } else
+	fprintf(stderr,"\tno polar gridding\n");
+#endif /* USE_POLAR_GRID */
 }
 
 
@@ -2871,8 +2836,11 @@ static void
 show_surface()
 {
     SHOW_ALL_NL;
-    fprintf(stderr, "\tsurface is %sdrawn %s\n",
-	draw_surface ? "" : "not ", implicit_surface ? "" : "only if explicitly requested");
+    if (!draw_surface)
+	fprintf(stderr, "\tsurface is not drawn\n");
+    else
+	fprintf(stderr, "\tsurface is drawn %s\n",
+	    implicit_surface ? "" : "only if explicitly requested");
 }
 
 
@@ -2890,11 +2858,15 @@ show_hidden3d()
 static void
 show_increment()
 {
+#ifdef BACKWARD_COMPATIBILITY
     fprintf(stderr,"\tPlot lines increment over ");
     if (prefer_line_styles)
 	fprintf(stderr, "user-defined line styles rather than default line types\n");
     else
 	fprintf(stderr, "default linetypes\n");
+#else
+    fprintf(stderr,"\t'set style increment' is deprecated\n");
+#endif
 }
 
 static void
@@ -3030,7 +3002,7 @@ show_mtics(struct axis *axis)
 	break;
     case MINI_USER:
 	fprintf(stderr, "\
-\tminor %stics are drawn with %d subintervals between major xtic marks\n",
+\tminor %stics are drawn with %d subintervals between major tic marks\n",
 		name, axis->mtic_freq);
 	break;
     case MINI_TIME:
@@ -3100,10 +3072,10 @@ show_xyzlabel(const char *name, const char *suffix, text_label *label)
     if (label->font)
 	fprintf(stderr, ", using font \"%s\"", conv_text(label->font));
 
-    if (label->tag == ROTATE_IN_3D_LABEL_TAG)
+    if (label->tag == LABEL_TAG_ROTATE_IN_3D)
 	fprintf(stderr, ", parallel to axis in 3D plots");
     else if (label->rotate)
-	fprintf(stderr, ", rotated by %d degrees in 2D plots", label->rotate);
+	fprintf(stderr, ", rotated by %g degrees in 2D plots", label->rotate);
 
     if (label->textcolor.type)
 	save_textcolor(stderr, &label->textcolor);
@@ -3350,6 +3322,8 @@ show_plot()
 {
     SHOW_ALL_NL;
     fprintf(stderr, "\tlast plot command was: %s\n", replot_line);
+    if (last_plot_was_multiplot)
+	fprintf(stderr, "\tlast plot was a multiplot (see $GPVAL_LAST_MULTIPLOT)\n");
 }
 
 
@@ -3397,7 +3371,9 @@ show_variables()
 	    fprintf(stderr, "\t%-*s ", len, udv->udv_name);
 	    fputs("= ", stderr);
 	    disp_value(stderr, &(udv->udv_value), TRUE);
-	    (void) putc('\n', stderr);
+	    if (udv->locality > 0)
+		fprintf(stderr, "\t(locality %d)", udv->locality);
+	    putc('\n', stderr);
 	}
 	udv = udv->next_udv;
     }
@@ -3554,7 +3530,7 @@ show_ticdefp(struct axis *this_axis)
 	fprintf(stderr,"  noenhanced");
     if (this_axis->tic_rotate) {
 	fprintf(stderr," rotated");
-	fprintf(stderr," by %d",this_axis->tic_rotate);
+	fprintf(stderr," by %g",this_axis->tic_rotate);
 	fputs(" in 2D mode, terminal permitting,\n\t", stderr);
     } else
 	fputs(" and are not rotated,\n\t", stderr);
@@ -3581,8 +3557,10 @@ show_ticdefp(struct axis *this_axis)
 		fputs(" from ", stderr);
 		save_num_or_time_input(stderr, this_axis->ticdef.def.series.start, this_axis);
 	    }
-	    fprintf(stderr, " by %g%s", this_axis->ticdef.def.series.incr,
-		    this_axis->datatype == DT_TIMEDATE ? " secs" : "");
+	    fprintf(stderr, " by %g %s", this_axis->ticdef.def.series.incr,
+		(this_axis->tictype == DT_TIMEDATE)
+		    ? clean_reverse_table_lookup(timelevels_tbl, this_axis->tic_units)
+		    : "");
 	    if (this_axis->ticdef.def.series.end != VERYLARGE) {
 		fputs(" until ", stderr);
 		save_num_or_time_input(stderr, this_axis->ticdef.def.series.end, this_axis);
@@ -3623,6 +3601,15 @@ show_ticdefp(struct axis *this_axis)
     if (this_axis->ticdef.font && *this_axis->ticdef.font) {
         fprintf(stderr,"\t  font \"%s\"\n", this_axis->ticdef.font);
     }
+}
+
+static void
+show_warnings()
+{
+    if (suppress_warnings)
+	fprintf(stderr, "\tno warnings are printed\n");
+    else
+	fprintf(stderr, "\twarnings are printed to stderr\n");
 }
 
 /* called by show_tics */

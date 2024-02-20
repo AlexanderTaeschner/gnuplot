@@ -49,7 +49,7 @@ TERM_PUBLIC void AQUA_linetype(int linetype);
 TERM_PUBLIC void AQUA_dashtype(int type, t_dashtype *custom_dash_type);
 TERM_PUBLIC void AQUA_put_text(unsigned int x, unsigned int y,const char *str);
 /* Optional entries */
-TERM_PUBLIC int AQUA_text_angle(int);
+TERM_PUBLIC int AQUA_text_angle(float ang);
 TERM_PUBLIC int AQUA_justify_text(enum JUSTIFY);
 TERM_PUBLIC int AQUA_set_font(const char *font);  /* "font,size" */
 TERM_PUBLIC void AQUA_set_pointsize(double size); /* notification of set pointsize */
@@ -593,9 +593,9 @@ AQUA_justify_text (enum JUSTIFY mode)
 }
 
 TERM_PUBLIC int
-AQUA_text_angle (int angle)
+AQUA_text_angle (float angle)
 {
-  AQUA_TextAngle = (float)angle;
+  AQUA_TextAngle = angle;
   return (TRUE);
 }
 
@@ -1012,7 +1012,7 @@ ENHAQUA_writec(int c)
 
 TERM_TABLE_START(aqua_driver)
   "aqua",
-  "Interface to graphics terminal server for Mac OS X",
+  "Interface to graphics terminal server for MacOS",
   0 /* xmax */ , 0 /* ymax */ , 0 /* vchar */ , 0 /* hchar */ ,
   0 /* vtic */ , 0 /* htic */ ,
   AQUA_options, AQUA_init, AQUA_reset,
@@ -1054,8 +1054,7 @@ START_HELP(aqua)
 "?terminal aqua",
 "?term aqua",
 "?aqua",
-"?Aqua",
-" This terminal relies on AquaTerm.app for display on Mac OS X.",
+" This terminal relies on AquaTerm.app for display on MacOS.",
 "",
 " Syntax:",
 "       set terminal aqua {<n>} {title \"<wintitle>\"} {size <x> <y>}",

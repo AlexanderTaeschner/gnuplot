@@ -63,10 +63,12 @@ extern const char *micro;
 extern const char *minus_sign;
 extern TBOOLEAN use_micro;
 extern TBOOLEAN use_minus_sign;
+extern char *micro_user;
 
 extern const char *current_prompt; /* needed by is_error() and friends */
 
 extern int debug;
+extern TBOOLEAN suppress_warnings;
 
 /* Functions exported by util.c: */
 
@@ -88,7 +90,6 @@ char *try_to_get_string(void);
 void parse_esc(char *);
 int type_udv(int);
 
-char *gp_stradd(const char *, const char *);
 #define isstringvalue(c_token) (isstring(c_token) || type_udv(c_token)==STRING)
 
 /* HBB 20010726: IMHO this one belongs into alloc.c: */
@@ -119,11 +120,9 @@ void int_error();
 void int_warn();
 void common_error_exit();
 #endif
+void warn_command();
 
 void squash_spaces(char *s, int remain);
-
-TBOOLEAN existdir(const char *);
-TBOOLEAN existfile(const char *);
 
 char *getusername(void);
 
@@ -139,5 +138,16 @@ char *texify_title(char *title, int plot_type);
 /* To disallow 8-bit characters in variable names, set this to */
 /* #define ALLOWED_8BITVAR(c) FALSE */
 #define ALLOWED_8BITVAR(c) ((c)&0x80)
+
+TBOOLEAN in_theta_wedge( double t, double tlow, double thigh );
+
+/* wxwidgets based on gtk versions greater than 2.8 do not survive the
+ * LONGJMP in bail_to_command_line() if event processing has not completed.
+ * Try to detect this state and invoke additional exception handling
+ * and/or warn that a crash may be imminent.
+ */
+#ifdef WXWIDGETS
+extern TBOOLEAN wxt_event_processing;
+#endif
 
 #endif /* GNUPLOT_UTIL_H */

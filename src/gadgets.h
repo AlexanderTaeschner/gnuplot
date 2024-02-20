@@ -1,7 +1,3 @@
-/*
- * gadgets.h,v 1.1.3.1 2000/05/03 21:47:15 hbb Exp
- */
-
 /* GNUPLOT - gadgets.h */
 
 /*[
@@ -41,13 +37,11 @@
 
 #include "term_api.h"
 
-/* Types and variables concerning graphical plot elements that are not
- * *terminal-specific, are used by both* 2D and 3D plots, and are not
- * *assignable to any particular * axis. I.e. they belong to neither
- * *term_api, graphics, graph3d, nor * axis .h files.
+/* The files gadgets.* are for types and variables describing graphical plot
+ * elements that are not terminal-specific, are used by both 2D and 3D plots,
+ * and are not assignable to any particular axis. I.e. they do not belong in
+ * any of {term_api.h graphics.h graph3d.h axis.h}.
  */
-
-/* #if... / #include / #define collection: */
 
 /* Default point size is taken from the global "pointsize" variable */
 #define PTSZ_DEFAULT    (-2)
@@ -81,7 +75,7 @@ typedef struct text_label {
     int tag;			/* identifies the label */
     t_position place;
     enum JUSTIFY pos;		/* left/center/right horizontal justification */
-    int rotate;
+    float rotate;
     int layer;
     int boxed;			/* 0 no box;  -1 default box props;  >0 boxstyle */
     char *text;
@@ -91,22 +85,29 @@ typedef struct text_label {
     struct position offset;
     TBOOLEAN noenhanced;
     TBOOLEAN hypertext;
+    TBOOLEAN hidden;
 } text_label;
 
-/* This is the default state for the axis, timestamp, and plot title labels
- * indicated by tag = -2 */
-#define NONROTATING_LABEL_TAG -2
-#define ROTATE_IN_3D_LABEL_TAG -3
-#define VARIABLE_ROTATE_LABEL_TAG -4
+#define LABEL_TAG_PLOTLABELS      -1
+#define LABEL_TAG_NONROTATING     -2
+#define LABEL_TAG_ROTATE_IN_3D    -3
+#define LABEL_TAG_VARIABLE_ROTATE -4
+#define LABEL_TAG_WATCH_MOUSE     -5
+#define LABEL_TAG_WATCH_X         -6
+#define LABEL_TAG_WATCH_Y         -7
+#define LABEL_TAG_WATCH_Z         -8
+#define LABEL_TAG_WATCH_FUNCTION  -9
+
+/* This is the default state for the axis, timestamp, and plot title labels */
 #define EMPTY_LABELSTRUCT \
-    {NULL, NONROTATING_LABEL_TAG, \
+    {NULL, LABEL_TAG_NONROTATING, \
      {character, character, character, 0.0, 0.0, 0.0}, CENTRE, 0, 0, \
      0, \
-     NULL, NULL, {TC_LT, -2, 0.0}, DEFAULT_LP_STYLE_TYPE, \
-     {character, character, character, 0.0, 0.0, 0.0}, FALSE, \
-     FALSE}
+     NULL, NULL, BLACK_COLORSPEC, DEFAULT_LP_STYLE_TYPE, \
+     {character, character, character, 0.0, 0.0, 0.0}, \
+     FALSE, FALSE, FALSE}
 
-/* Datastructure for implementing 'set arrow' */
+/* Data structure for implementing 'set arrow' */
 typedef enum arrow_type {
     arrow_end_absolute,
     arrow_end_relative,
@@ -273,8 +274,15 @@ typedef struct {
 } filledcurves_opts;
 #define EMPTY_FILLEDCURVES_OPTS { FILLEDCURVES_DEFAULT, 0, 0.0, 0.0 }
 
+typedef enum histogram_type {
+	HT_NONE,
+	HT_STACKED_IN_LAYERS,
+	HT_STACKED_IN_TOWERS,
+	HT_CLUSTERED,
+	HT_ERRORBARS
+} t_histogram_type;
 typedef struct histogram_style {
-    int type;		/* enum t_histogram_type */
+    t_histogram_type type;		/* enum t_histogram_type */
     int gap;		/* set style hist gap <n> (space between clusters) */
     int clustersize;	/* number of datasets in this histogram */
     TBOOLEAN keyentry;	/* FALSE suppresses extra blank line in key */
@@ -286,13 +294,6 @@ typedef struct histogram_style {
     struct histogram_style *next;
     struct text_label title;
 } histogram_style;
-typedef enum histogram_type {
-	HT_NONE,
-	HT_STACKED_IN_LAYERS,
-	HT_STACKED_IN_TOWERS,
-	HT_CLUSTERED,
-	HT_ERRORBARS
-} t_histogram_type;
 #define DEFAULT_HISTOGRAM_STYLE { HT_CLUSTERED, 2, 1, TRUE, 0.0, 0.0, LT_UNDEFINED, LT_UNDEFINED, 0, NULL, EMPTY_LABELSTRUCT }
 
 typedef enum en_boxplot_factor_labels {
@@ -328,6 +329,31 @@ typedef struct textbox_style {
     t_colorspec fillcolor;	/* only used if opaque is TRUE */
 } textbox_style;
 #define DEFAULT_TEXTBOX_STYLE { FALSE, FALSE, 1.0, 1.0, 1.0, BLACK_COLORSPEC, BACKGROUND_COLORSPEC }
+
+typedef struct hsteps_options {
+    double offset;
+    int    direction;
+    TBOOLEAN baseline;
+    TBOOLEAN link;
+    TBOOLEAN split;
+} hsteps_opts;
+#define DEFAULT_HSTEPS_OPTS { 0, HSTEPS_DIR_BOTHSIDES, TRUE, TRUE, FALSE }
+
+/*
+ * Used by dgrid3d in 3D gridding
+ * and polar_grid in 2D polar gridding
+ */
+typedef enum en_dgrid3d_mode {
+    DGRID3D_DEFAULT,
+    DGRID3D_QNORM,
+    DGRID3D_SPLINES,
+    DGRID3D_GAUSS,
+    DGRID3D_EXP,
+    DGRID3D_CAUCHY,
+    DGRID3D_BOX,
+    DGRID3D_HANN,
+    DGRID3D_OTHER
+} t_dgrid3d_mode;
 
 /***********************************************************/
 /* Variables defined by gadgets.c needed by other modules. */
@@ -377,6 +403,7 @@ typedef struct {
     int maxcols;		/* maximum no of columns for horizontal keys */
     int maxrows;		/* maximum no of rows for vertical keys */
     text_label title;		/* holds title line for the key as a whole */
+    struct position offset;	/* manual displacement of the entire key */
 } legend_key;
 
 extern legend_key keyT;
@@ -385,22 +412,6 @@ extern legend_key keyT;
 
 #define DEFAULT_KEY_POSITION { graph, graph, graph, 0.9, 0.9, 0. }
 #define DEFAULT_KEY_WIDTH { graph, graph, graph, 0., 0., 0. }
-
-#define DEFAULT_KEY_PROPS \
-		{ TRUE, \
-		GPKEY_AUTO_INTERIOR_LRTBC, GPKEY_RMARGIN, \
-		DEFAULT_KEY_POSITION, \
-		DEFAULT_KEY_WIDTH, 0, \
-		JUST_TOP, RIGHT, TRUE, \
-		GPKEY_RIGHT, GPKEY_VERTICAL, \
-		4.0, 1.0, 0.0, 0.0, \
-		FILENAME_KEYTITLES, \
-		FALSE, FALSE, FALSE, TRUE, \
-		DEFAULT_KEYBOX_LP, \
-		NULL, {TC_LT, LT_BLACK, 0.0}, \
-		BACKGROUND_COLORSPEC, \
-		{0,0,0,0}, 0, 0, \
-		EMPTY_LABELSTRUCT}
 
 
 /*
@@ -422,7 +433,6 @@ typedef struct {
   char rotation; /* 'v' or 'h' vertical or horizontal box */
   char border; /* if non-null, a border will be drawn around the box (default) */
   int border_lt_tag;
-  int cbtics_lt_tag;
   int layer; /* front or back */
   int xoffset;	/* To adjust left or right, e.g. for y2tics */
   struct position origin;
@@ -443,6 +453,7 @@ typedef struct t_image {
 
 extern BoundingBox plot_bounds;	/* Plot Boundary */
 extern BoundingBox page_bounds;	/* 3D boundary prior to view transformation */
+extern BoundingBox active_bounds; /* active mousing area within multiplot */
 extern BoundingBox canvas; 	/* Writable area on terminal */
 extern BoundingBox *clip_area;	/* Current clipping box */
 
@@ -578,6 +589,9 @@ extern int current_x11_windowid;
 /* initialization (called once on program entry */
 void init_gadgets(void);
 
+/* called by each 2D or 3D plot */
+void update_active_region(void);
+
 /* moved here from util3d: */
 int draw_clip_line(int, int, int, int);
 void draw_clip_polygon(int , gpiPoint *);
@@ -609,18 +623,18 @@ extern struct object default_rectangle;
 
 extern struct object default_circle;
 #define DEFAULT_CIRCLE_STYLE { NULL, -1, 0, OBJ_CIRCLE, OBJ_CLIP, \
-	{FS_SOLID, 100, 0, BLACK_COLORSPEC},   			\
-	{0, LT_BACKGROUND, 0, DASHTYPE_SOLID, 0, 0, 1.0, 0.0, DEFAULT_P_CHAR, BACKGROUND_COLORSPEC, DEFAULT_DASHPATTERN}, \
+	{FS_EMPTY, 100, 0, {TC_DEFAULT, -2, 0}},   			\
+	{0, LT_BACKGROUND, 0, DASHTYPE_SOLID, 0, 0, 1.0, 0.0, DEFAULT_P_CHAR, BLACK_COLORSPEC, DEFAULT_DASHPATTERN}, \
 	{.circle = {1, {0,0,0,0.,0.,0.}, {graph,0,0,0.02,0.,0.}, 0., 360., TRUE }} }
 
 extern struct object default_ellipse;
 #define DEFAULT_ELLIPSE_STYLE { NULL, -1, 0, OBJ_ELLIPSE, OBJ_CLIP, \
-	{FS_SOLID, 100, 0, BLACK_COLORSPEC},   			\
-	{0, LT_BACKGROUND, 0, DASHTYPE_SOLID, 0, 0, 1.0, 0.0, DEFAULT_P_CHAR, BACKGROUND_COLORSPEC, DEFAULT_DASHPATTERN}, \
+	{FS_EMPTY, 100, 0, {TC_DEFAULT, -2, 0}},   			\
+	{0, LT_BACKGROUND, 0, DASHTYPE_SOLID, 0, 0, 1.0, 0.0, DEFAULT_P_CHAR, BLACK_COLORSPEC, DEFAULT_DASHPATTERN}, \
 	{.ellipse = {ELLIPSEAXES_XY, {0,0,0,0.,0.,0.}, {graph,graph,0,0.05,0.03,0.}, 0. }} }
 
 #define DEFAULT_POLYGON_STYLE { NULL, -1, 0, OBJ_POLYGON, OBJ_CLIP, \
-	{FS_SOLID, 100, 0, BLACK_COLORSPEC},   			\
+	{FS_EMPTY, 100, 0, {TC_DEFAULT, -2, 0}},   			\
 	{0, LT_BLACK, 0, DASHTYPE_SOLID, 0, 0, 1.0, 0.0, DEFAULT_P_CHAR, BLACK_COLORSPEC, DEFAULT_DASHPATTERN}, \
 	{.polygon = {0, NULL} } }
 
@@ -673,9 +687,15 @@ extern struct object default_ellipse;
 extern filledcurves_opts filledcurves_opts_data;
 extern filledcurves_opts filledcurves_opts_func;
 
-/* Prefer line styles over plain line types */
-/* Mostly for backwards compatibility */
-extern TBOOLEAN prefer_line_styles;
+/* "set style increment user"
+ * causes plot commands to select line style N in preference to linetype N
+ * (deprecated in 5.0)
+ */
+#ifdef BACKWARD_COMPATIBILITY
+  extern TBOOLEAN prefer_line_styles;
+#else
+  #define prefer_line_styles FALSE
+#endif
 
 extern histogram_style histogram_opts;
 
@@ -695,6 +715,7 @@ int label_width(const char *, int *);
 TBOOLEAN pm3d_objects(void);
 
 void place_title(int title_x, int title_y);
+double effective_aspect_ratio(void);
 
 /* Image data or pm3d quadrangles can be masked by first loading a set
  * of masking polygons via dummy plotting style "with mask".

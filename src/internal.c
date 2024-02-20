@@ -36,11 +36,11 @@
 #include "stdfn.h"
 #include "alloc.h"
 #include "util.h"	/* for int_error() */
+#include "gplocale.h"	/* for locale handling */
 #include "gp_time.h"	/* for str(p|f)time */
 #include "command.h"	/* for do_system_func */
 #include "datablock.h"	/* for datablock_size() */
 #include "encoding.h"	/* for advance_one_utf8_char */
-#include "variable.h"	/* for locale handling */
 #include "parse.h"	/* for string_result_only */
 #include "datafile.h"	/* for evaluate_inside_using */
 
@@ -52,7 +52,7 @@
 #endif
 
 /*
- * FIXME: Any platforms that still want support for matherr should
+ * Any platforms that still want support for matherr should
  * add appropriate definitions here.  Everyone else can now ignore it.
  *
  * Use of matherr is out of date on linux, since the matherr
@@ -89,8 +89,10 @@ static int recursion_depth = 0;
 void
 eval_reset_after_error()
 {
+    reset_stack();
     recursion_depth = 0;
     undefined = FALSE;
+    eval_fail_soft = FALSE;
 }
 
 void
@@ -100,7 +102,7 @@ f_push(union argument *x)
 
     udv = x->udv_arg;
     if (udv->udv_value.type == NOTDEFINED) {
-	if (string_result_only)
+	if (string_result_only || eval_fail_soft)
 	/* We're only here to check whether this is a string. It isn't. */
 	    udv = udv_NaN;
 	else
@@ -166,7 +168,7 @@ f_call(union argument *x)
 
     udf = x->udf_arg;
     if (!udf->at) {
-	if (string_result_only) {
+	if (string_result_only || eval_fail_soft) {
 	    /* We're only here to check whether this is a string. It isn't. */
 	    f_pop(x);
 	    push(&(udv_NaN->udv_value));
@@ -207,6 +209,7 @@ f_call(union argument *x)
 	    gpfree_array(&udf->dummy_values[0]);
 	}
 	push(&top_of_stack);
+	gpfree_string(&top_of_stack);
     }
     gpfree_string(&udf->dummy_values[0]);
     udf->dummy_values[0] = save_dummy;
@@ -279,6 +282,7 @@ f_calln(union argument *x)
 	udf->dummy_values[i] = save_dummy[i];
     }
     push(&top_of_stack);
+    gpfree_string(&top_of_stack);
 
     recursion_depth--;
 }
@@ -299,7 +303,6 @@ f_sum(union argument *arg)
     struct value result;            /* accummulated sum */
     struct value f_i;
     struct value save_i;	    /* previous value of iteration variable */
-    int i;
     intgr_t llsum;		    /* integer sum */
     TBOOLEAN integer_terms = TRUE;
 
@@ -322,7 +325,7 @@ f_sum(union argument *arg)
     if (!udf)
 	int_error(NO_CARET, "internal error: lost expression to be evaluated during summation");
 
-    for (i=beg.v.int_val; i<=end.v.int_val; ++i) {
+    for (intgr_t i = beg.v.int_val; i <= end.v.int_val; ++i) {
 	double x, y;
 
 	/* calculate f_i = f() with user defined variable i */
@@ -958,7 +961,7 @@ f_mult(union argument *arg)
     case INTGR:
 	switch (b.type) {
 	case INTGR:
-	    /* FIXME: The test for overflow is complicated because (double)
+	    /* The test for overflow is complicated because (double)
 	     * does not have enough precision to simply compare against
 	     * 64-bit INTGR_MAX.
 	     */
@@ -1155,7 +1158,7 @@ f_power(union argument *arg)
 		(void) Ginteger(&result, 1);
 		break;
 	    } else if (b.v.int_val > 0) {
-		/* DEBUG - deal with overflow by empirical check */
+		/* deal with overflow by empirical check */
 		intgr_t tprev, t;
 		intgr_t tmag = labs(a.v.int_val);
 		tprev = t = 1;
@@ -1320,6 +1323,7 @@ void
 f_concatenate(union argument *arg)
 {
     struct value a, b, result;
+    char *newstring;
 
     (void) arg;			/* avoid -Wunused warning */
     (void) pop(&b);
@@ -1335,11 +1339,16 @@ f_concatenate(union argument *arg)
     if (a.type != STRING || b.type != STRING)
 	int_error(NO_CARET, nonstring_error);
 
-    (void) Gstring(&result, gp_stradd(a.v.string_val, b.v.string_val));
+    newstring = gp_alloc(strlen(a.v.string_val)+strlen(b.v.string_val)+1,"gp_stradd");
+    strcpy(newstring, a.v.string_val);
+    strcat(newstring, b.v.string_val);
+
+    Gstring(&result, newstring);
+    push(&result);
+
     gpfree_string(&a);
     gpfree_string(&b);
-    push(&result);
-    gpfree_string(&result); /* free string allocated within gp_stradd() */
+    gpfree_string(&result);
 }
 
 void
@@ -1503,6 +1512,8 @@ f_index(union argument *arg)
 	i = index.v.int_val;
     else if (index.type == CMPLX)
 	i = floor(index.v.cmplx_val.real);
+    else
+	int_error(NO_CARET, "non-numeric array index");
 
     if (array.type == ARRAY) {
 	if (i <= 0 || i > array.v.value_array[0].v.int_val)
@@ -1874,7 +1885,7 @@ f_gprintf(union argument *arg)
 }
 
 
-/* Output time given in seconds from year 2000 into string */
+/* Output time given in seconds from ZERO_YEAR into string */
 void
 f_strftime(union argument *arg)
 {
@@ -1920,7 +1931,7 @@ f_strftime(union argument *arg)
     free(buffer);
 }
 
-/* Convert string into seconds from year 2000 */
+/* Convert string into seconds from ZERO_YEAR */
 void
 f_strptime(union argument *arg)
 {
@@ -1956,7 +1967,7 @@ f_strptime(union argument *arg)
     push(Gcomplex(&val, result, 0.0));
 }
 
-/* Get current system time in seconds since 2000
+/* Get current system time in seconds since ZERO_YEAR.
  * The type of the value popped from the stack
  * determines what is returned.
  * If integer, the result is also an integer.
@@ -2009,6 +2020,7 @@ f_time(union argument *arg)
 	    push(&val); /* format string */
 	    push(Gcomplex(&val2, time_now, 0.0));
 	    f_strftime(arg);
+	    gpfree_string(&val);
 	    break;
 	default:
 	    int_error(NO_CARET,"internal error: invalid argument type");
@@ -2033,6 +2045,7 @@ sprintf_specifier(const char* format)
     const char illegal_spec[] = "hlLqjzZtCSpn*";
 
     int string_pos, real_pos, int_pos, illegal_pos;
+    int nonascii_pos;
 
     /* check if really format specifier */
     if (format[0] != '%')
@@ -2043,6 +2056,15 @@ sprintf_specifier(const char* format)
     real_pos    = strcspn(format, real_spec);
     int_pos     = strcspn(format, int_spec);
     illegal_pos = strcspn(format, illegal_spec);
+
+    /* Unfortunately snprintf can segfault on weird bytes in the format */
+    for (nonascii_pos=0; format[nonascii_pos]; nonascii_pos++) {
+	if (!isascii(format[nonascii_pos]))
+	    break;
+    }
+    if ( nonascii_pos < int_pos && nonascii_pos < real_pos
+	 && nonascii_pos < string_pos )
+	return INVALID_NAME;
 
     if ( illegal_pos < int_pos && illegal_pos < real_pos
 	 && illegal_pos < string_pos )
@@ -2099,21 +2121,34 @@ f_assign(union argument *arg)
 {
     struct udvt_entry *udv;
     struct value a, b, index;
+    struct value *dest;
     (void) arg;
     (void) pop(&b);	/* new value */
-    (void) pop(&a);	/* name of variable */
+    dest = pop(&a);	/* name of variable or pointer to array content */
 
-    if (a.type != STRING)
-	int_error(NO_CARET, "attempt to assign to something other than a named variable");
-    if (!strncmp(a.v.string_val,"GPVAL_",6) || !strncmp(a.v.string_val,"MOUSE_",6))
-	int_error(NO_CARET, "attempt to assign to a read-only variable");
-    if (b.type == ARRAY)
-	int_error(NO_CARET, "unsupported array operation");
+    if (dest->type == ARRAY) {
+	/* It's an assignment to an array element. We don't know the index yet */
+	;
 
-    udv = add_udv_by_name(a.v.string_val);
-    gpfree_string(&a);
+    } else {
+	if (dest->type != STRING)
+	    int_error(NO_CARET, "attempt to assign to something other than a named variable");
+	if (!strncmp(dest->v.string_val,"GPVAL_",6) || !strncmp(dest->v.string_val,"MOUSE_",6))
+	    int_error(NO_CARET, "attempt to assign to a read-only variable");
 
-    if (udv->udv_value.type == ARRAY) {
+	udv = add_udv_by_name(a.v.string_val);
+	gpfree_string(&a);	    /* This frees the name string, not the variable it names */
+	dest = &(udv->udv_value);   /* Now dest points to where the new value will go */
+    }
+
+    if (b.type == ARRAY) {
+	if (arg->v_arg.type == ARRAY)	/* Actually flags assignment to an array element */
+	    int_error(NO_CARET, "cannot nest arrays");
+	free_value(dest);
+	*dest = b;
+	make_array_permanent(dest);
+
+    } else if (dest->type == ARRAY) {
 	int i;
 	pop(&index);
 	if (index.type == INTGR)
@@ -2122,13 +2157,14 @@ f_assign(union argument *arg)
 	    i = floor(index.v.cmplx_val.real);
 	else
 	    int_error(NO_CARET, "non-numeric array index");
-	if (i <= 0 || i > udv->udv_value.v.value_array[0].v.int_val)
+	if (i <= 0 || i > dest->v.value_array[0].v.int_val)
 	    int_error(NO_CARET, "array index out of range");
-	gpfree_string(&udv->udv_value.v.value_array[i]);
-	udv->udv_value.v.value_array[i] = b;
+	gpfree_string(&dest->v.value_array[i]);
+	dest->v.value_array[i] = b;
+
     } else {
-	gpfree_string(&(udv->udv_value));
-	udv->udv_value = b;
+	free_value(dest);
+	*dest = b;
     }
 
     push(&b);
@@ -2160,8 +2196,8 @@ f_value(union argument *arg)
 	    result = p->udv_value;
 	    if (p->udv_value.type == NOTDEFINED)
 		p = NULL;
-	    else if (result.type == STRING)
-		result.v.string_val = gp_strdup(result.v.string_val);
+	    else
+		clone_string_value(&result);
 	    break;
 	}
 	p = p->next_udv;
@@ -2248,12 +2284,106 @@ f_trim(union argument *arg)
 	s++;
 
     /* Trim from back */
-    trim = strdup(s);
+    trim = s;
     s = &trim[strlen(trim)-1];
     while ((s > trim) && isspace((unsigned char) *s))
 	*(s--) = '\0';
 
-    free(a.v.string_val);
+    s = a.v.string_val;
     a.v.string_val = trim;
     push(&a);
+    free(s);
 }
+
+/*
+ * split ( "string", {"sep"} )
+ * Split string into an array of words.
+ * The second parameter is optional.
+ */
+void
+f_split(union argument *arg)
+{
+    struct value a;
+    char *string, *sep;
+    static char *whitespace = " ";
+
+    /* Determine number of parameters passed (1 or 2) */
+    (void)pop(&a);
+    if (a.v.int_val == 1) {
+	/* Separator defaults to whitespace, indicated by " " */
+	sep = whitespace;
+    } else if (a.v.int_val == 2) {
+	(void)pop(&a);
+	if (a.type != STRING)
+	    int_error(NO_CARET, nonstring_error);
+	sep = a.v.string_val;
+	if (*sep == '\0')
+	    sep = whitespace;
+    } else
+	int_error(NO_CARET, "too many parameters to split()");
+
+    (void)pop(&a);
+    if (a.type != STRING)
+	int_error(NO_CARET, nonstring_error);
+    string = a.v.string_val;
+
+    a.v.value_array = split(string, sep);
+    a.type = (a.v.value_array) ? ARRAY : NOTDEFINED;
+
+    if (sep != whitespace)
+	free(sep);
+    free(string);
+    push(&a);
+}
+
+/*
+ * join ( array, "sep" )
+ * Concatenate the string elements of array into a single longer string.
+ * The character sequence in "sep" is inserted between each element.
+ */
+void
+f_join(union argument *arg)
+{
+    struct value a;
+    struct value *array;
+    char *sep;
+    char *concatenation;
+    int i, n, size;
+
+    (void)pop(&a);
+    if (a.type != STRING)
+	int_error(NO_CARET, "join: expecting join(array, \"separator\")");
+    sep = a.v.string_val;
+
+    (void)pop(&a);
+    if (a.type != ARRAY)
+	int_error(NO_CARET, "join: expecting join(array, \"separator\")");
+
+    array = a.v.value_array;
+    n = array[0].v.int_val;
+    size = 0;
+    for (i=1; i<=n; i++) {
+	if (array[i].type == STRING)
+	    size += strlen(array[i].v.string_val);
+	size += strlen(sep);
+    }
+    concatenation = gp_alloc( size + 1, NULL );
+    *concatenation = '\0';
+    for (i=1; i<=n; i++) {
+	if (array[i].type == STRING)
+	    strcat(concatenation, array[i].v.string_val);
+	if (i<n)
+	    strcat(concatenation, sep);
+    }
+
+    if (array[0].type == TEMP_ARRAY)
+	gpfree_array(&a);
+
+    a.type = STRING; 
+    a.v.string_val = concatenation;
+    push(&a);
+
+    free(concatenation);
+    free(sep);
+}
+

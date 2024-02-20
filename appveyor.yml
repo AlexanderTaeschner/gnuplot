@@ -1,14 +1,15 @@
-version: 5.5.0-{build}
+version: 6.0.0-{build}
 branches:
   only:
   - main
   - dev
-image: Visual Studio 2019
+image: Visual Studio 2022
 install:
   - cd C:\Tools\vcpkg
   - git pull
   - .\bootstrap-vcpkg.bat
 #  - del /S /Q c:\tools\vcpkg\installed
+#  - del /S /Q C:\Users\appveyor\AppData\Local\vcpkg\archives
   - .\vcpkg.exe install --recurse fontconfig:%PLATFORM%-windows
   - .\vcpkg.exe install --recurse pango:%PLATFORM%-windows
   - .\vcpkg.exe install --recurse libgd:%PLATFORM%-windows

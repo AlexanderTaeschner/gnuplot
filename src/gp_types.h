@@ -46,10 +46,12 @@ enum DATA_TYPES {
 	CMPLX,
 	STRING,
 	DATABLOCK,
+	FUNCTIONBLOCK,
 	ARRAY,
 			/* ARRAY subcategories are marked in array->value_array[0].type */
 	COLORMAP_ARRAY,	/*    Array containing packed ARGB values */
 	TEMP_ARRAY,	/*    Array with lifetime limited to evaluation stack */
+	LOCAL_ARRAY,	/*    Array declared local (function block or bracketed clause) */
 	VOXELGRID,
 	NOTDEFINED,	/* exists, but value is currently undefined */
 	INVALID_VALUE,	/* used only for error return by external functions */
@@ -98,7 +100,7 @@ typedef enum PLOT_STYLE {
     STEPS        = 11*PLOT_STYLE_BITS + PLOT_STYLE_HAS_LINE,
     FILLSTEPS    = 11*PLOT_STYLE_BITS + PLOT_STYLE_HAS_FILL,
     FSTEPS       = 12*PLOT_STYLE_BITS + PLOT_STYLE_HAS_LINE,
-    HISTEPS      = 13*PLOT_STYLE_BITS + PLOT_STYLE_HAS_LINE,
+    HISTEPS      = 13*PLOT_STYLE_BITS + PLOT_STYLE_HAS_LINE + PLOT_STYLE_HAS_FILL,
     VECTOR       = 14*PLOT_STYLE_BITS + PLOT_STYLE_HAS_LINE + PLOT_STYLE_HAS_VECTOR,
     CANDLESTICKS = 15*PLOT_STYLE_BITS + (PLOT_STYLE_HAS_ERRORBAR | PLOT_STYLE_HAS_FILL),
     FINANCEBARS  = 16*PLOT_STYLE_BITS + PLOT_STYLE_HAS_LINE,
@@ -115,7 +117,7 @@ typedef enum PLOT_STYLE {
     CIRCLES      = 28*PLOT_STYLE_BITS + PLOT_STYLE_HAS_LINE + PLOT_STYLE_HAS_FILL,
     BOXPLOT      = 29*PLOT_STYLE_BITS + PLOT_STYLE_HAS_FILL + PLOT_STYLE_HAS_POINT,
     ELLIPSES     = 30*PLOT_STYLE_BITS + PLOT_STYLE_HAS_LINE + PLOT_STYLE_HAS_FILL,
-    SURFACEGRID  = 31*PLOT_STYLE_BITS + PLOT_STYLE_HAS_LINE,
+    SURFACEGRID  = 31*PLOT_STYLE_BITS + PLOT_STYLE_HAS_LINE + PLOT_STYLE_HAS_FILL,
     PARALLELPLOT = 32*PLOT_STYLE_BITS + PLOT_STYLE_HAS_LINE,
     TABLESTYLE   = 33*PLOT_STYLE_BITS,
     ZERRORFILL   = 34*PLOT_STYLE_BITS + PLOT_STYLE_HAS_FILL,
@@ -124,6 +126,9 @@ typedef enum PLOT_STYLE {
     SPIDERPLOT   = 37*PLOT_STYLE_BITS + PLOT_STYLE_HAS_FILL + PLOT_STYLE_HAS_POINT,
     POLYGONS     = 38*PLOT_STYLE_BITS + PLOT_STYLE_HAS_FILL,
     POLYGONMASK  = 39*PLOT_STYLE_BITS,
+    SECTORS      = 40*PLOT_STYLE_BITS + PLOT_STYLE_HAS_LINE + PLOT_STYLE_HAS_FILL,
+    CONTOURFILL  = 41*PLOT_STYLE_BITS + PLOT_STYLE_HAS_FILL,
+    HSTEPS       = 42*PLOT_STYLE_BITS + PLOT_STYLE_HAS_FILL,
     PLOT_STYLE_NONE = -1
 } PLOT_STYLE;
 
@@ -144,13 +149,27 @@ typedef enum PLOT_SMOOTH {
     SMOOTH_FREQUENCY_NORMALISED,
     SMOOTH_ZSORT,
     SMOOTH_PATH,
-    SMOOTH_CONVEX_HULL,
-    SMOOTH_SMOOTH_HULL,
-    SMOOTH_MASK
+    SMOOTH_SMOOTH_HULL	/* DEPRECATED */
 } PLOT_SMOOTH;
+
+typedef enum PLOT_FILTER {
+    FILTER_NONE = 0,
+    FILTER_BINS,
+    FILTER_CONVEX_HULL,
+    FILTER_CONCAVE_HULL,
+    FILTER_DELAUNAY,
+    FILTER_MASK,
+    FILTER_ZSORT,
+    FILTER_SHARPEN
+} PLOT_FILTER;
 
 struct cmplx {
 	double real, imag;
+};
+
+struct fblock {
+	char **data_array;
+	char **parnames;
 };
 
 typedef struct value {
@@ -160,6 +179,7 @@ typedef struct value {
 	struct cmplx cmplx_val;
 	char *string_val;
 	char **data_array;
+	struct fblock functionblock;
 	struct value *value_array;
 	struct vgrid *vgrid;
     } v;
@@ -187,24 +207,41 @@ typedef enum coord_type {
 #define CRD_G xlow         /* Used by splot styles RGBIMAGE and RGBA_IMAGE */
 #define CRD_B xhigh        /* Used by splot styles RGBIMAGE and RGBA_IMAGE */
 #define CRD_A ylow         /* Used by splot styles RGBIMAGE and RGBA_IMAGE */
+#define CRD_ASTYLE ylow    /* Used by splot styles VECTOR and ARROWS */
+#define CRD_ZLOW xlow      /* Used by splot style ZERRORFILL */
+#define CRD_ZHIGH xhigh    /* Used by splot style ZERRORFILL */
 #define CRD_COLOR yhigh    /* Used by all splot styles with variable color */
+
 #define CRD_ROTATE ylow    /* Used by "with labels" */
 #define CRD_PTSIZE xlow    /* Used by "with points|linespoints|labels" */
 #define CRD_PTTYPE xhigh   /* Used by "with points|linespoints|labels" */
 #define CRD_PTCHAR ylow    /* Used by "with points pt variable */
-#define CRD_ZLOW xlow      /* Used by splot style ZERRORFILL */
-#define CRD_ZHIGH xhigh    /* Used by splot style ZERRORFILL */
 #define CRD_XJITTER xlow   /* Used to hold jitter offset on x */
 #define CRD_YJITTER yhigh  /* Used to hold jitter offset on y */
 #define CRD_PATH xhigh     /* Used by 3D spline code to hold path coordinate */
 #define PATHCOORD 6        /*    must match sequence order of field CRD_PATH */
 
+/*
+ * If the C compiler pads struct coordinate to an 8-byte boundary
+ * (true for all the compilers I have tested) then there is a hole
+ * that we might as well use to hold an extra coordinate property.
+ * The Delaunay triangulation code needs this extra storage.
+ */
+#if defined(WITH_CHI_SHAPES) && !(defined(WITH_EXTRA_COORDINATE))
+  #define WITH_EXTRA_COORDINATE
+#endif
+#ifdef WITH_EXTRA_COORDINATE
+  #define EXTRA_COORDINATE int extra;
+#else
+  #define EXTRA_COORDINATE
+#endif
 
 typedef struct coordinate {
-    enum coord_type type;	/* see above */
     coordval x, y, z;
     coordval ylow, yhigh;	/* ignored in 3d */
     coordval xlow, xhigh;	/* also ignored in 3d */
+    enum coord_type type;	/* INRANGE/OUTRANGE/UNDEFINED */
+    EXTRA_COORDINATE		/* otherwise unused space in structure */
 } coordinate;
 
 typedef enum lp_class {

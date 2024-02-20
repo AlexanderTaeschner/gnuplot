@@ -415,9 +415,6 @@ particular conversion chore."
     (search-forward "@node")
     ;; (beginning-of-line)
     ;; (insert "\n\n" d2t-main-menu "\n\n")
-    (search-forward "@node Bugs")	; `texinfo-all-menus-update' seems
-    (beginning-of-line)			; to miss this one.  how odd.
-    (insert "@menu\n* Bugs::\t\t\t\n@end menu\n\n")
     (goto-char (point-max))
     (insert d2t-texi-footer))
   (load-library "texinfo") ;; now do the hard stuff with texinfo-mode
@@ -482,8 +479,8 @@ the end of `d2t-get-terminals'.")
     (save-excursion
       (when (re-search-forward "^<3" (point-max) t)
 	(beginning-of-line)
-	(insert "@c ")
-	(forward-line 1)
+	(let ((eol (save-excursion (end-of-line) (point-marker))))
+	  (delete-region (point-marker) eol))
 	(dolist (elem list)
           (and d2t-verbose (message "    %s ..." elem))
           (setq file (concat d2t-terminal-directory elem ".trm"))

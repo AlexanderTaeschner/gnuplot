@@ -31,7 +31,7 @@
 ]*/
 
 /*
- * this file is used by doc2ipf, doc2html, doc2rtf and doc2info
+ * this file is used by doc2ipf, doc2html, doc2rtf, doc2info, and doc2web
  *
  * MUST be included after termdoc.c (since termdoc.c redefines fgets() )
  *
@@ -331,3 +331,88 @@ refs( int l, FILE *f, char *start, char *end, char *format)
     if (inlist && end)		/* trailer */
 	fprintf(f, "%s", end);
 }
+
+
+/*
+ * Same as refs() but writes a multi-column table.
+ * Two additional parameters
+ *	ncolumns = split table of subtopics into this many columns
+ *	char *newcolumn inserted after every maxrows to start a new column
+ *
+ * The whole menu is bracketed by start ... end as with refs().
+ */
+void
+reftable( int l, FILE *f, char *start, char *end, char *format,
+      int ncolumns, char *newcolumn)
+{
+    int curlevel, i;
+    char *c;
+    int inlist = FALSE;
+    int entries = 0;	/* entries (so far) in this column */
+    int maxrows = 1;
+    struct LIST *savehead;
+
+    /* find current line */
+    list = head;
+    while (list->line != l)
+	list = list->next;
+    curlevel = list->level;
+    list = list->next;	/* look at next element before going on */
+    savehead = list;
+
+    /* Count number of subtopics in advance so we know how many to leave room for */
+    for (entries = 0; list != NULL; list = list->next) {
+	if (list->level <= curlevel)
+	    break;
+	if (list->level == curlevel + 1)
+	    ++entries;
+    }
+    /* Find size of columns */
+    maxrows = 1 + (entries / ncolumns);
+    list = savehead;
+    entries = 0;
+
+    if ((start != NULL) && (list != NULL) && (list->level > curlevel)) {
+	/* don't write start if there's no menu at all */
+	inlist = TRUE;
+	fprintf(f, "%s", start);
+    }
+    while (list != NULL) {
+	/* we are onto the next topic so stop */
+	if (list->level <= curlevel)
+	    break;
+	/* these are the next topics down the list */
+	if (list->level == curlevel + 1) {
+	    c = list->string;
+	    while (isspace((int)(*c)))
+		c++;		/* strip leading whitespace */
+
+	    if (format != NULL) {
+		for (i = 0; format[i] != '%' && format[i] != '\0'; i++);
+		if (format[i] != '\0') {
+		    if (format[i + 1] == 'd') {
+			/* line number has to be printed first */
+			fprintf(f, format, list->line, c);
+		    }
+		    else {
+			++i;
+			for (; format[i] != '%' && format[i] != '\0'; i++);
+			if (format[i] != '\0')	/* line number is second */
+			    fprintf(f, format, c, list->line);
+			else	/* no line number at all */
+			    fprintf(f, format, c);
+		    }
+		}
+		if ((++entries >= maxrows) && (newcolumn != NULL)) {
+		    fprintf(f, "%s", newcolumn);
+		    entries = 0;
+		}
+	    }
+	}
+	list = list->next;
+    }
+    if (inlist && end)		/* trailer */
+	fprintf(f, "%s", end);
+}
+
+

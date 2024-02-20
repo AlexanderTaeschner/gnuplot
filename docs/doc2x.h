@@ -53,14 +53,16 @@
 #endif
 
 #if defined(DOCS_TERMDOC_MAIN) || defined(DOCS_XREF_MAIN)
-extern char *termtext[];
+extern char *termtext_en[];
+extern char *termtext_ja[];
+extern char **termtext;
 #else
 
 /* a complete lie, but they dont need it ! */
 # define TERM_DRIVER_H
 # define TERM_HELP
 
-char *termtext[] = {
+char *termtext_en[] = {
 # ifdef ALL_TERM_DOC
 #  include "allterm.h"
 # else
@@ -68,6 +70,20 @@ char *termtext[] = {
 # endif
     NULL
 };
+
+char *termtext_ja[] = {
+# ifdef ALL_TERM_DOC
+#  undef PS_COMMON_PROLOG_INFO
+#  undef PS_COMMON_DOC1
+#  undef PS_COMMON_DOC2
+#  define JAPANESE_DOC
+#    include "allterm-ja.h"
+#  undef JAPANESE_DOC
+# endif
+    NULL
+};
+
+char **termtext = termtext_en;
 #endif /* !DOCS_TERMDOC_MAIN */
 
 /* From termdoc.c */

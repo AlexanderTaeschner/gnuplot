@@ -38,12 +38,13 @@
 #include "eval.h"
 #include "fit.h"
 #include "gp_hist.h"
+#include "gplocale.h"
+#include "loadpath.h"
 #include "misc.h"
 #include "readline.h"
 #include "setshow.h"
 #include "term_api.h"
 #include "util.h"
-#include "variable.h"
 #include "version.h"
 #include "voxelgrid.h"
 #include "encoding.h"
@@ -61,22 +62,11 @@
 # include <io.h>
 #endif
 
-#ifdef VMS
-# include "vms.h"
-# ifndef __GNUC__
-#  include <unixio.h>
-# endif
-# include <smgdef.h>
-# include <ssdef.h>
-extern smg$create_virtual_keyboard();
-extern smg$create_key_table();
-#endif /* VMS */
-
 #ifdef _WIN32
 # include <windows.h>
 # include "win/winmain.h"
 # include "win/wcommon.h"
-# include <io.h>           // for isatty
+# include <io.h>           /* for isatty */
 #endif /* _WIN32 */
 
 /* GNU readline
@@ -91,14 +81,17 @@ extern smg$create_key_table();
 /* BSD editline
 */
 #ifdef HAVE_LIBEDITLINE
-# include <editline/readline.h>
+#  include <editline/readline.h>
+#  ifdef GNUPLOT_HISTORY
+#    include <histedit.h>
+#  endif
 #endif
 
 /* enable gnuplot history with readline */
 #ifdef GNUPLOT_HISTORY
-# ifndef GNUPLOT_HISTORY_FILE
-#  define GNUPLOT_HISTORY_FILE "~/.gnuplot_history"
-# endif
+#  ifndef GNUPLOT_HISTORY_FILE
+#    define GNUPLOT_HISTORY_FILE "~/.gnuplot_history"
+#  endif
 /*
  * expanded_history_filename points to the value from 'tilde_expand()',
  * which expands '~' to the user's home directory, or $HOME.
@@ -209,6 +202,12 @@ bail_to_command_line()
 #endif
     if (fit_env)
 	LONGJMP(*fit_env, TRUE);
+#if defined (WXWIDGETS) && defined (HAVE_GTK)
+    else if (wxt_event_processing) {
+	extern JMP_BUF *wxt_env;
+	LONGJMP(*wxt_env, TRUE);
+    }
+#endif
     else
 	LONGJMP(command_line_env, TRUE);
 }
@@ -257,12 +256,6 @@ main(int argc_orig, char **argv)
     }
 #endif
 
-/* malloc large blocks, otherwise problems with fragmented mem */
-#ifdef MALLOCDEBUG
-    malloc_debug(7);
-#endif
-
-
 /* init progpath and get helpfile from executable directory */
 #if defined(MSDOS) || defined(OS2)
     {
@@ -294,7 +287,7 @@ main(int argc_orig, char **argv)
 		*s = NUL;
 	}
     }
-#endif /* DJGPP */
+#endif /* MSDOS || OS2 */
 
 #if (defined(PIPE_IPC) || defined(_WIN32)) && (defined(HAVE_LIBREADLINE) || (defined(HAVE_LIBEDITLINE) && defined(X11)))
     /* Editline needs this to be set before the very first call to readline(). */
@@ -316,6 +309,16 @@ main(int argc_orig, char **argv)
     history_init();
 #endif
 #endif
+
+#if defined(HAVE_LIBREADLINE) && defined(RL_VERSION_MAJOR)
+    /* Starting with readline v8.1 bracketed paste mode is on by default.
+     * This breaks multi-line pasted input to gnuplot because it looks like
+     * one long run-on line.
+     */
+    if (RL_VERSION_MAJOR >= 8)
+	rl_variable_bind ("enable-bracketed-paste", "off");
+#endif
+
 #if defined(HAVE_LIBREADLINE) && !defined(MISSING_RL_TILDE_EXPANSION)
     rl_complete_with_tilde_expansion = 1;
 #endif
@@ -324,6 +327,13 @@ main(int argc_orig, char **argv)
 	if (!argv[i])
 	    continue;
 
+	if (!strcmp(argv[i], "-c")) {
+	    /* The rest of the command line is a scriptfile and its arguments.
+	     * Do not try to interpret them here (ignore -V, --help, etc).
+	     */
+	    break;
+	}
+
 	if (!strcmp(argv[i], "-V") || !strcmp(argv[i], "--version")) {
 	    printf("gnuplot %s patchlevel %s\n",
 		    gnuplot_version, gnuplot_patchlevel);
@@ -331,9 +341,6 @@ main(int argc_orig, char **argv)
 
 	} else if (!strcmp(argv[i], "-h") || !strcmp(argv[i], "--help")) {
 	    printf( "Usage: gnuplot [OPTION] ... [FILE]\n"
-#ifdef X11
-		    "for X11 options see 'help X11->command-line-options'\n"
-#endif
 		    "  -V, --version\n"
 		    "  -h, --help\n"
 		    "  -p  --persist\n"
@@ -368,15 +375,6 @@ main(int argc_orig, char **argv)
 	    skip_gnuplotrc = TRUE;
 	}
     }
-
-#ifdef X11
-    /* the X11 terminal removes tokens that it recognizes from argv. */
-    {
-	int n = X11_args(argc, argv);
-	argv += n;
-	argc -= n;
-    }
-#endif
 
     setbuf(stderr, (char *) NULL);
 
@@ -437,24 +435,8 @@ main(int argc_orig, char **argv)
 	}
     }
 
-    /* Need this before show_version is called for the first time */
-
-    if (interactive)
-	show_version(stderr);
-    else
-	show_version(NULL); /* Only load GPVAL_COMPILE_OPTIONS */
-
-    update_gpval_variables(3);  /* update GPVAL_ variables available to user */
-
 #ifdef VMS
-    /* initialise screen management routines for command recall */
-    {
-    unsigned int ierror;
-    if (ierror = smg$create_virtual_keyboard(&vms_vkid) != SS$_NORMAL)
-	done(ierror);
-    if (ierror = smg$create_key_table(&vms_ktid) != SS$_NORMAL)
-	done(ierror);
-    }
+    vms_init_screen();
 #endif /* VMS */
 
     if (!SETJMP(command_line_env, 1)) {
@@ -474,18 +456,44 @@ main(int argc_orig, char **argv)
 #endif
 	init_gadgets();
 
-	/* April 2017: Now that error handling is in place, it is safe parse
-	 * GNUTERM during terminal initialization.
-	 * atexit processing is done in reverse order. We want
-	 * the generic terminal shutdown in term_reset to be executed before
-	 * any terminal specific cleanup requested by individual terminals.
+	/* Now that error handling is in place, it is safe to parse GNUTERM
+	 * during terminal initialization.  However if terminal initialization
+	 * exits via int_error(), the session and history state initialization
+	 * can only be reached via a GOTO from the error return.
 	 */
 	init_terminal();
 	push_terminal(0);	/* remember the initial terminal */
+
+	/* atexit processing is done in reverse order. We want
+	 * the generic terminal shutdown in term_reset to be executed before
+	 * any terminal specific cleanup requested by individual terminals.
+	 */
 	gp_atexit(term_reset);
+
+#ifdef X11
+	/* the X11 terminal removes tokens that it recognizes from argv. */
+	if (term && !strcmp(term->name, "x11")) {
+	    int n = X11_args(argc, argv);
+	    argv += n;
+	    argc -= n;
+	}
+#endif
+	FALLBACK_ONCE_FROM_INIT_FAILURE:
+
+	/* Version 6:  defer splash page until after initialization */
+	if (interactive)
+	    show_version(stderr);
+	else
+	    show_version(NULL); /* Only load GPVAL_COMPILE_OPTIONS */
+
+	/* update GPVAL_ variables available to user */
+	update_gpval_variables(3);
 
 	/* Execute commands in ~/.gnuplot */
 	init_session();
+
+	if (interactive)
+	   fprintf(stderr, "\n\tTerminal type is now %s\n", term->name);
 
 	if (interactive && term != 0) {		/* not unknown */
 #ifdef GNUPLOT_HISTORY
@@ -512,7 +520,7 @@ main(int argc_orig, char **argv)
 	    /*
 	     * It is safe to ignore the return values of 'atexit()' and
 	     * 'on_exit()'. In the worst case, there is no history of your
-	     * current session and you have to type all again in your next
+	     * current session and you have to type it all again in your next
 	     * session.
 	     */
 	    gp_atexit(wrapper_for_write_history);
@@ -525,9 +533,16 @@ main(int argc_orig, char **argv)
     } else {
 	/* come back here from int_error() */
 	if (!successful_initialization) {
-	    /* Only print the warning once */
+	    /* Only warn and attempt a fall-back on the first failure.
+	     * There is no guarantee that we will come out of this in a
+	     * usable state, but the only truly safe alternative would be
+	     * to give up and exit the program.
+	     */
 	    successful_initialization = TRUE;
-	    fprintf(stderr,"WARNING: Error during initialization\n\n");
+	    fprintf(stderr, "WARNING: Error during initialization\n");
+	    fprintf(stderr, "         Check initialization files and environment variables (e.g. GNUTERM)\n");
+	    change_term("unknown", 7);
+	    goto FALLBACK_ONCE_FROM_INIT_FAILURE;
 	}
 	if (interactive == FALSE)
 	    exit_status = EXIT_FAILURE;
@@ -537,10 +552,17 @@ main(int argc_orig, char **argv)
 	    rl_reset_after_signal ();
 	}
 #endif
-	SET_CURSOR_ARROW;
-	/* Reset bookkeeping for load stack and nested clauses. */
+
+	/* If we were in a "load", "call", or nested bracketed clause 
+	 * clean up the lf_push/pop stack and restore shadowed variables.
+	 */
 	clause_reset_after_error();
-	reset_load_stack_after_error();
+	lf_reset_after_error();
+
+	/* We are certainly no longer in a plot command */
+	inside_plot_command = FALSE;
+
+	SET_CURSOR_ARROW;
 
 #ifdef VMS
 	/* after catching interrupt */
@@ -630,9 +652,9 @@ RECOVER_FROM_ERROR_IN_DASH:
 		    gp_exit(EXIT_FAILURE);
 		}
 		call_argc = GPMIN(9, argc - 1);
-		for (i=0; i<=call_argc; i++) {
+		for (i = 0; i < call_argc; i++) {
 		    /* Need to stash argv[i] somewhere visible to load_file() */
-		    call_args[i] = gp_strdup(argv[i+1]);
+		    call_args[i] = gp_strdup(argv[i + 1]);
 		}
 
 		load_file(loadpath_fopen(*argv, "r"), gp_strdup(*argv), 5);
@@ -735,11 +757,16 @@ init_session()
 	/* Undefine any previously-used variables */
 	del_udv_by_name("",TRUE);
 
+	/* Clear any previous customization of linetypes */
+	while (first_perm_linestyle != NULL)
+	    delete_linestyle(&first_perm_linestyle, NULL, first_perm_linestyle);
+
 	/* Restore default colors before loading local preferences */
 	set_colorsequence(1);
 
 	/* Reset program variables not handled by 'reset' */
 	overflow_handling = INT64_OVERFLOW_TO_FLOAT;
+	suppress_warnings = FALSE;
 
 	/* Reset voxel data structures if supported */
 	init_voxelsupport();
@@ -749,7 +776,6 @@ init_session()
 	 */
 	reset_command();	/* FIXME: this does c_token++ */
 	load_rcfile(0);		/* System-wide gnuplotrc if configured */
-	load_rcfile(1);		/* ./.gnuplot if configured */
 
 	/* After this point we allow pipes and system commands */
 	successful_initialization = TRUE;
@@ -761,8 +787,8 @@ init_session()
 /*
  * Read commands from an initialization file.
  * where = 0: look for gnuplotrc in system shared directory
- * where = 1: look for .gnuplot in current directory
- * where = 2: look for .gnuplot in home directory
+ * where = 1: look for .gnuplot in current directory (DEPRECATED)
+ * where = 2: look for .gnuplot in user's home directory
  */
 static void
 load_rcfile(int where)
@@ -784,14 +810,6 @@ load_rcfile(int where)
 # endif
 	plotrc = fopen(rcfile, "r");
 #endif
-
-    } else if (where == 1) {
-#ifdef USE_CWDRC
-    /* Allow check for a .gnuplot init file in the current directory */
-    /* This is a security risk, as someone might leave a malicious   */
-    /* init file in a shared directory.                              */
-	plotrc = fopen(PLOTRC, "r");
-#endif /* !USE_CWDRC */
 
     } else if (where == 2 && user_homedir) {
 	/* length of homedir + directory separator + length of file name + \0 */

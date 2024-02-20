@@ -37,11 +37,11 @@
 #include "datablock.h"
 #include "encoding.h"
 #include "graphics.h"
+#include "loadpath.h"
+#include "multiplot.h"
 #include "plot.h"
 #include "tables.h"
 #include "util.h"
-#include "variable.h"
-#include "axis.h"
 #include "scanner.h"		/* so that scanner() can count curly braces */
 #include "setshow.h"
 #ifdef _WIN32
@@ -51,7 +51,8 @@
 # endif
 #endif
 
-static void prepare_call(int calltype);
+static void prepare_call(int calltype, udvt_entry *functionblock);
+static void lf_exit_scope(int depth);
 
 /* State information for load_file(), to recover from errors
  * and properly handle recursive load_file calls
@@ -70,7 +71,7 @@ static char *failed_file_name = NULL;
 char *loadpath_fontname = NULL;
 
 static void
-prepare_call(int calltype)
+prepare_call(int calltype, udvt_entry *functionblock)
 {
     struct udvt_entry *udv;
     struct value *ARGV;
@@ -85,7 +86,7 @@ prepare_call(int calltype)
     for (argindex = 0; argindex < 9; argindex++)
 	argval[argindex].type = NOTDEFINED;
 
-    if (calltype == 2) {
+    if (calltype == 2 || calltype == 7) {
 	call_argc = 0;
 	while (!END_OF_COMMAND && call_argc < 9) {
 	    call_args[call_argc] = try_to_get_string();
@@ -147,6 +148,42 @@ prepare_call(int calltype)
 	    lf_head->call_args[argindex] = NULL;	/* just to be safe */
 	}
 
+#ifdef USE_FUNCTIONBLOCKS
+    } else if (calltype == 8) {
+	/* $functionblock(arg1, ...) */
+	cache_at(&lf_head->shadow_at, &lf_head->shadow_at_size);
+	memcpy(argval, eval_parameters, sizeof(argval));
+	call_argc = 0;
+	while ((call_argc < 9) && (argval[call_argc].type != NOTDEFINED)) {
+	    /* Execute the equivalent of local paramN = ARGV[N] */
+	    if (functionblock->udv_value.v.functionblock.parnames) {
+		char *name = functionblock->udv_value.v.functionblock.parnames[call_argc];
+		if (name) {
+		    struct udvt_entry *udv = add_udv_local(0, name, lf_head->depth);
+		    udv->udv_value = eval_parameters[call_argc];
+		    if (udv->udv_value.type == STRING)
+			udv->udv_value.v.string_val = strdup(udv->udv_value.v.string_val);
+		    if (udv->udv_value.type == ARRAY) {
+			/* local arrays are freed only by lf_exit_scope() */
+			make_array_permanent(&(udv->udv_value));
+			udv->udv_value.v.value_array[0].type = LOCAL_ARRAY;
+		    }
+		    lf_head->local_variables = TRUE;
+		}
+	    }
+	    call_argc++;
+	}
+	if ((call_argc < 9)
+	&&  (functionblock->udv_value.v.functionblock.parnames != NULL)
+	&&  (functionblock->udv_value.v.functionblock.parnames[call_argc] != NULL))
+	    int_warn(c_token-1, "Not enough parameters for %s", lf_head->name);
+	if (evaluate_inside_functionblock == 0) {
+	    evaluate_inside_functionblock = lf_head->depth + 1;
+	    FPRINTF((stderr, "setting flag evaluate_inside_functionblock to %d\n",
+		    lf_head->depth + 1));
+	}
+#endif
+
     } else {
 	/* "load" command has no arguments */
 	call_argc = 0;
@@ -159,15 +196,22 @@ prepare_call(int calltype)
     udv = add_udv_by_name("ARGC");
     Ginteger(&(udv->udv_value), call_argc);
 
+    udv = add_udv_by_name("ARGV");
+    argv_size = GPMIN(call_argc, 9);
+    init_array(udv, argv_size);
+    ARGV = udv->udv_value.v.value_array;
+
+#ifdef USE_FUNCTIONBLOCKS
+    if (calltype == 8) {
+	for (argindex = 1; argindex <= argv_size; argindex++)
+	    ARGV[argindex] = argval[argindex-1];
+	return;
+    }
+#endif
+
     udv = add_udv_by_name("ARG0");
     gpfree_string(&(udv->udv_value));
     Gstring(&(udv->udv_value), gp_strdup(lf_head->name));
-
-    argv_size = GPMIN(call_argc, 9);
-
-    udv = add_udv_by_name("ARGV");
-    init_array(udv, argv_size);
-    ARGV = udv->udv_value.v.value_array;
 
     for (argindex = 1; argindex <= 9; argindex++) {
 	char *argstring = call_args[argindex-1];
@@ -193,6 +237,8 @@ prepare_call(int calltype)
  * (4) to execute script files given on the command line (acts like "load")
  * (5) to execute a single script file given with -c (acts like "call")
  * (6) "load $datablock"
+ * (7) "call $datablock"
+ * (8) execute commands in function block (called from f_eval)
  */
 void
 load_file(FILE *fp, char *name, int calltype)
@@ -204,10 +250,20 @@ load_file(FILE *fp, char *name, int calltype)
     int stop = FALSE;
     udvt_entry *gpval_lineno = NULL;
     char **datablock_input_line = NULL;
+    udvt_entry *functionblock = NULL;
 
     /* Support for "load $datablock" */
-    if (calltype == 6)
+    if (calltype == 6 || calltype == 7)
 	datablock_input_line = get_datablock(name);
+
+#ifdef USE_FUNCTIONBLOCKS
+    /* Support for function blocks */
+    if (calltype == 8) {
+	functionblock = (udvt_entry *)(name);
+	datablock_input_line = functionblock->udv_value.v.functionblock.data_array;
+	name = strdup(functionblock->udv_name);
+    }
+#endif
 
     if (!fp && !datablock_input_line) {
 	failed_file_name = name;
@@ -229,7 +285,7 @@ load_file(FILE *fp, char *name, int calltype)
     }
 
     /* We actually will read from a file */
-    prepare_call(calltype);
+    prepare_call(calltype, functionblock);
 
     /* things to do after lf_push */
     inline_num = 0;
@@ -337,6 +393,20 @@ load_file(FILE *fp, char *name, int calltype)
 	    if (do_line())
 		stop = TRUE;
 	}
+
+	/* If this line is part of a multiplot, save it for later replay.
+	 * Note that the line has already been accepted and executed without error.
+	 */
+	if (multiplot && !multiplot_playback & !evaluate_inside_functionblock) {
+	    /* Replay would filter out datablock definitions anyway,
+	     * but saving the first line with no actual data would leave an
+	     * invalid command sequence in GPVAL_LAST_MULTIPLOT.
+	     */
+	    if (equals(num_tokens-2, "<<") && isletter(num_tokens-1))
+		; /* don't save this line */
+	    else
+		append_multiplot_line(gp_input_line);
+	}
     }
 
     /* pop state */
@@ -377,24 +447,29 @@ lf_pop()
 	}
 	call_argc = lf->call_argc;
 
-	/* Restore ARGC and ARG0 ... ARG9 */
+	/* Restore ARGC */
 	if ((udv = get_udv_by_name("ARGC"))) {
 	    Ginteger(&(udv->udv_value), call_argc);
 	}
 
-	if ((udv = get_udv_by_name("ARG0"))) {
-	    gpfree_string(&(udv->udv_value));
-	    Gstring(&(udv->udv_value),
-		(lf->prev && lf->prev->name) ? gp_strdup(lf->prev->name) : gp_strdup(""));
-	}
-
-	for (argindex = 1; argindex <= 9; argindex++) {
-	    if ((udv = get_udv_by_name(argname[argindex]))) {
+	/* function block calls do not touch ARG0..ARG9
+	 * so there is no point in restoring them
+	 */
+	if (!lf->shadow_at) {
+	    if ((udv = get_udv_by_name("ARG0"))) {
 		gpfree_string(&(udv->udv_value));
-		if (!call_args[argindex-1])
-		    udv->udv_value.type = NOTDEFINED;
-		else
-		    Gstring(&(udv->udv_value), gp_strdup(call_args[argindex-1]));
+		Gstring(&(udv->udv_value),
+		    (lf->prev && lf->prev->name) ? gp_strdup(lf->prev->name) : gp_strdup(""));
+	    }
+
+	    for (argindex = 1; argindex <= 9; argindex++) {
+		if ((udv = get_udv_by_name(argname[argindex]))) {
+		    gpfree_string(&(udv->udv_value));
+		    if (!call_args[argindex-1])
+			udv->udv_value.type = NOTDEFINED;
+		    else
+			Gstring(&(udv->udv_value), gp_strdup(call_args[argindex-1]));
+		}
 	    }
 	}
 
@@ -431,6 +506,21 @@ lf_pop()
     free(lf->name);
     free(lf->cmdline);
 
+    /* Clean up any local variables going out of scope */
+    if (lf->local_variables)
+	lf_exit_scope(lf->depth);
+
+#ifdef USE_FUNCTIONBLOCKS
+    /* Restore action table context from which function block was called */
+    if (lf->shadow_at)
+	uncache_at(lf->shadow_at, lf->shadow_at_size);
+    if (evaluate_inside_functionblock > lf->depth) {
+	evaluate_inside_functionblock = 0;
+	FPRINTF((stderr, "Clearing flag evaluate_inside_functionblock on return to depth %d\n",
+		lf->depth));
+    }
+#endif
+
     lf_head = lf->prev;
     free(lf);
     return (TRUE);
@@ -463,6 +553,18 @@ lf_push(FILE *fp, char *name, char *cmdline)
     lf->inline_num = inline_num;	/* save current line number */
     lf->call_argc = call_argc;
 
+    lf->depth = lf_head ? lf_head->depth+1 : 1;	/* recursion depth */
+    if (lf->depth > STACK_DEPTH)
+	int_error(NO_CARET, "load/eval nested too deeply");
+
+    /* call/load/functionblock all establish a new scope for local variables.
+     * do_string (bracketed clauses and single-line evaluate) does not.
+     */
+    if (cmdline == NULL)
+	lf->locality = lf->depth;
+    else
+	lf->locality = lf_head ? lf_head->locality : 0;
+
     /* Call arguments are irrelevant if invoked from do_string_and_free */
     if (cmdline == NULL) {
 	struct udvt_entry *udv;
@@ -475,7 +577,14 @@ lf_push(FILE *fp, char *name, char *cmdline)
 	lf->argv[0].v.int_val = 0;
 	lf->argv[0].type = NOTDEFINED;
 	if ((udv = get_udv_by_name("ARGV")) && udv->udv_value.type == ARRAY) {
+	    /* When called from the command line (-c option) call_argc correctly
+	     * enumerates the entities on the command line, but they were not
+	     * previously saved in ARGV.
+	     */
+	    int saved_args = udv->udv_value.v.value_array[0].v.int_val;
 	    for (argindex = 0; argindex <= call_argc; argindex++) {
+		if (argindex > saved_args)
+		    break;
 		lf->argv[argindex] = udv->udv_value.v.value_array[argindex];
 		if (lf->argv[argindex].type == STRING)
 		    lf->argv[argindex].v.string_val =
@@ -483,16 +592,18 @@ lf_push(FILE *fp, char *name, char *cmdline)
 	    }
 	}
     }
-    lf->depth = lf_head ? lf_head->depth+1 : 0;	/* recursion depth */
-    if (lf->depth > STACK_DEPTH)
-	int_error(NO_CARET, "load/eval nested too deeply");
     lf->if_open_for_else = if_open_for_else;
+    lf->local_variables = FALSE;
     lf->c_token = c_token;
     lf->num_tokens = num_tokens;
     lf->tokens = gp_alloc((num_tokens+1) * sizeof(struct lexical_unit),
 			  "lf tokens");
     memcpy(lf->tokens, token, (num_tokens+1) * sizeof(struct lexical_unit));
     lf->input_line = gp_strdup(gp_input_line);
+
+    /* Only relevant for function block calls */
+    lf->shadow_at = NULL;
+    lf->shadow_at_size = 0;
 
     lf->prev = lf_head;		/* link to stack */
     lf_head = lf;
@@ -507,14 +618,52 @@ lf_top()
     return (lf_head->fp);
 }
 
-/* called from main to pop everything off the stack of loaded files */
+/* Guard against deleting or overwriting a script we are running from */
+TBOOLEAN
+called_from(const char *name)
+{
+    LFS *frame = lf_head;
+    for (frame = lf_head; frame; frame = frame->prev) {
+	if (frame->name && !strcmp(name, frame->name))
+	    return TRUE;
+    }
+    return FALSE;
+}
+
+/* Clean up from error inside a "load" or "call" scope
+ * (called from main).
+ */
 void
-reset_load_stack_after_error()
+lf_reset_after_error()
 {
     free(failed_file_name);
     failed_file_name = NULL;
+    /* pop off everything on stack */
     while (lf_pop());
 }
+
+/* Delete any local variables declared at this depth.
+ * Any local variables declared at a deeper locality should already be gone
+ * but if we see one here then delete it silently.
+ */
+static void
+lf_exit_scope(int depth)
+{
+    struct udvt_entry *udv;
+    struct udvt_entry *prev_udv = first_udv;
+
+    for (prev_udv = first_udv, udv = prev_udv->next_udv;
+	 udv;  prev_udv = udv, udv = udv->next_udv) {
+	if (udv->locality >= depth) {
+	    free_value(&udv->udv_value);
+	    prev_udv->next_udv = udv->next_udv;
+	    free(udv->udv_name);
+	    free(udv);
+	    udv = prev_udv;
+	}
+    }
+}
+
 
 FILE *
 loadpath_fopen(const char *filename, const char *mode)
@@ -523,9 +672,6 @@ loadpath_fopen(const char *filename, const char *mode)
 
     /* The global copy of fullname is only for the benefit of post.trm's
      * automatic fontfile conversion via a constructed shell command.
-     * FIXME: There was a Feature Request to export the directory path
-     * in which a loaded file was found to a user-visible variable for the
-     * lifetime of that load.  This is close but without the lifetime.
      */
     free(loadpath_fontname);
     loadpath_fontname = NULL;
@@ -859,15 +1005,15 @@ lp_parse(struct lp_style_type *lp, lp_class destination_class, TBOOLEAN allow_po
     }
 
     while (!END_OF_COMMAND) {
+	TBOOLEAN lt_really_means_lc = FALSE;
 
-	/* This special case is to flag an attempt to "set object N lt <lt>",
-	 * which would otherwise be accepted but ignored, leading to confusion
-	 * FIXME:  Couldn't this be handled at a higher level?
+	/* This special case is to catch an attempt to "set object N lt <lt>",
+	 * which would otherwise be accepted but ignored, leading to confusion.
 	 */
 	if ((destination_class == LP_NOFILL)
 	&&  (equals(c_token,"lt") || almost_equals(c_token,"linet$ype"))) {
-	    int_error(c_token, "object linecolor must be set using fillstyle border");
-	}
+	    lt_really_means_lc = TRUE;
+	} else
 
 	if (almost_equals(c_token, "linet$ype") || equals(c_token, "lt")) {
 	    if (set_lt++)
@@ -887,7 +1033,7 @@ lp_parse(struct lp_style_type *lp, lp_class destination_class, TBOOLEAN allow_po
 			break;
 		    c_token--;
 		    parse_colorspec(&(newlp.pm3d_color), TC_Z);
-		} else if (equals(c_token,"bgnd")) {
+		} else if (equals(c_token,"bgnd") || equals(c_token,"background")) {
 		    *lp = background_lp;
 		    c_token++;
 		} else if (equals(c_token,"black")) {
@@ -925,11 +1071,14 @@ lp_parse(struct lp_style_type *lp, lp_class destination_class, TBOOLEAN allow_po
 	if ((destination_class == LP_NOFILL || destination_class == LP_ADHOC)
 	&&  (equals(c_token,"fc") || almost_equals(c_token,"fillc$olor"))
 	&&  (!almost_equals(c_token+1, "pal$ette"))
-	   )
+	&&  (!almost_equals(c_token+1, "var$iable")) ) {
+	    FPRINTF((stderr, "ignoring 'fc' request\n"));
 	    break;
+	}
 
 	if (equals(c_token,"lc") || almost_equals(c_token,"linec$olor")
 	||  equals(c_token,"fc") || almost_equals(c_token,"fillc$olor")
+	|| lt_really_means_lc
 	   ) {
 	    if (set_pal++)
 		break;
@@ -951,7 +1100,7 @@ lp_parse(struct lp_style_type *lp, lp_class destination_class, TBOOLEAN allow_po
 		    c_token--;
 		    parse_colorspec(&(newlp.pm3d_color), TC_Z);
 		}
-	    } else if (equals(c_token,"bgnd")) {
+	    } else if (equals(c_token,"bgnd") || equals(c_token,"background")) {
 		newlp.pm3d_color.type = TC_LT;
 		newlp.pm3d_color.lt = LT_BACKGROUND;
 		c_token++;
@@ -988,7 +1137,7 @@ lp_parse(struct lp_style_type *lp, lp_class destination_class, TBOOLEAN allow_po
 	    continue;
 	}
 
-	if (equals(c_token,"bgnd")) {
+	if (equals(c_token,"bgnd") || equals(c_token,"background")) {
 	    if (set_lt++)
 		break;;
 	    c_token++;
@@ -1198,8 +1347,7 @@ parse_fillstyle(struct fill_style_type *fs)
 			fs->fillpattern = int_expression();
 			if (fs->fillpattern < 0)
 			    fs->fillpattern = 0;
-		    } else
-			int_error(c_token, "this fill style does not have a parameter");
+		    }
 		}
 		continue;
 	}
@@ -1262,7 +1410,7 @@ parse_colorspec(struct t_colorspec *tc, int options)
     if (almost_equals(c_token,"def$ault")) {
 	c_token++;
 	tc->type = TC_DEFAULT;
-    } else if (equals(c_token,"bgnd")) {
+    } else if (equals(c_token,"bgnd") || equals(c_token,"background")) {
 	c_token++;
 	tc->type = TC_LT;
 	tc->lt = LT_BACKGROUND;
@@ -1630,4 +1778,102 @@ pixmap_from_colormap(t_pixmap *pixmap)
 
     pixmap->ncols = 1;
     pixmap->nrows = size;
+}
+
+
+/*
+ * Parse hsteps/steps/fsteps/histeps/fillsteps plot options
+ */
+
+void
+parse_hsteps (enum PLOT_STYLE plot_style, hsteps_opts *hso, filledcurves_opts *fco)
+{
+    *fco = (filledcurves_opts) EMPTY_FILLEDCURVES_OPTS;
+    *hso = (hsteps_opts) DEFAULT_HSTEPS_OPTS;
+
+    /* Setting options for steps/fsteps/histeps/fillsteps emulation */
+    if (plot_style == STEPS) {
+	hso->direction = HSTEPS_DIR_FORWARD;
+	hso->baseline  = FALSE;
+	return;
+    } else if (plot_style == FSTEPS) {
+	hso->direction = HSTEPS_DIR_BACKWARD;
+	hso->baseline  = FALSE;
+	return;
+    } else if (plot_style == HISTEPS) {
+	return;
+    } else if (plot_style == FILLSTEPS) {
+	hso->direction = HSTEPS_DIR_FORWARD;
+	hso->baseline  = FALSE;
+	get_filledcurves_style_options(fco);
+	return;
+    }
+
+    /* Setting options for hsteps */
+
+    while (TRUE) {
+
+	get_filledcurves_style_options(fco);
+
+	/* direction */
+	if (almost_equals(c_token, "fo$rward")) {
+	    c_token++;
+	    hso->direction = HSTEPS_DIR_FORWARD;
+	    continue;
+	}
+
+	if (almost_equals(c_token, "ba$ckward")) {
+	    c_token++;
+	    hso->direction = HSTEPS_DIR_BACKWARD;
+	    continue;
+	}
+
+	/* connecting lines */
+	if (almost_equals(c_token, "base$line")) {
+	    c_token++;
+	    hso->baseline = TRUE;
+	    hso->link     = TRUE;
+	    hso->split    = FALSE;
+	    continue;
+	}
+
+	if (almost_equals(c_token, "pillar$s")) {
+	    c_token++;
+	    hso->baseline = TRUE;
+	    hso->link     = TRUE;
+	    hso->split    = TRUE;
+	    continue;
+	}
+
+	if (equals(c_token, "link")) {
+	    c_token++;
+	    hso->baseline = FALSE;
+	    hso->link     = TRUE;
+	    hso->split    = FALSE;
+	    continue;
+	}
+
+	if (equals(c_token, "nolink")) {
+	    c_token++;
+	    hso->baseline = FALSE;
+	    hso->link     = FALSE;
+	    hso->split    = FALSE;
+	    continue;
+	}
+
+	/* offset */
+	if (equals(c_token, "offset")) {
+	    c_token++;
+	    hso->offset = real_expression();
+	    continue;
+	}
+
+	break;
+    }
+
+    /* The 'link/nolink' should ignore the 'above/below' and 'y=<baseline>' */
+    if (!hso->baseline)
+	*fco = (filledcurves_opts) EMPTY_FILLEDCURVES_OPTS;
+
+    return;
 }

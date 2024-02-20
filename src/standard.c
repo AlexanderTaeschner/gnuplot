@@ -47,16 +47,16 @@ static double carlson_elliptic_rj(double x,double y,double z,double p);
 
 /* April 2018
  * libm does not provide Bessel approximations for i0 and i1
- * so we do not include these in the conditional HAVE_LIBM
+ * so we do not include these in the conditional HAVE_JN
  */
 static double ri0(double x);
 static double ri1(double x);
 
-#ifndef HAVE_LIBM
+#ifndef HAVE_JN
 
 /* June 2017
  * These hard-coded Bessel approximations are used only if we
- * can't use the functions in libm
+ * can't use the functions in libm (or some other library)
  */
 
 static double jzero(double x);
@@ -283,7 +283,7 @@ static double qyone[] = {
 	0.1e+1
 };
 
-#endif	/* hard-coded Bessel approximations if not HAVE_LIBM */
+#endif	/* hard-coded Bessel approximations if not HAVE_JN */
 
 /* Chebyshev coefficients for exp(-x) I0(x)
  * in the interval [0,8].
@@ -985,6 +985,31 @@ f_sqrt(union argument *arg)
 
 
 void
+f_cbrt(union argument *arg)
+{
+    struct value a;
+    double mag;
+
+    (void) arg;			/* avoid -Wunused warning */
+    (void) pop(&a);
+    if (imag(&a) == 0.0) {
+#if HAVE_CBRT
+	mag = cbrt(real(&a));
+#else
+	if (real(&a) >= 0.0)
+	    mag = pow(real(&a), 1.0/3.0);
+	else
+	    mag = -pow(-real(&a), 1.0/3.0);
+#endif
+	push(Gcomplex(&a, mag, 0.0));
+    } else {
+	undefined = TRUE;
+	push(Gcomplex(&a, not_a_number(), 0.0));
+    }
+}
+
+
+void
 f_exp(union argument *arg)
 {
     struct value a;
@@ -1118,15 +1143,15 @@ f_exists(union argument *arg)
     (void) pop(&a);
 
     if (a.type == STRING) {
-	struct udvt_entry *udv = add_udv_by_name(a.v.string_val);
+	struct udvt_entry *udv = get_udv_by_name(a.v.string_val);
 	gpfree_string(&a);
-	push(Ginteger(&a, udv->udv_value.type == NOTDEFINED ? 0 : 1));
+	push(Ginteger(&a, (udv && (udv->udv_value.type != NOTDEFINED))));
     } else {
 	push(Ginteger(&a, 0));
     }
 }
 
-#ifdef HAVE_LIBM
+#ifdef HAVE_JN
 
 /* June 2017
  * Use the Bessel functions from libm if possible
@@ -1340,7 +1365,7 @@ ry1(double x)
 #define jn(n,x) not_a_number()
 #define yn(n,x) not_a_number()
 
-#endif	/* hard-coded Bessel approximations if not HAVE_LIBM */
+#endif	/* hard-coded Bessel approximations if not HAVE_JN */
 
 /*
  * Evaluates the series (with n coefficients stored in array[])
@@ -1397,10 +1422,9 @@ ri1(double x)
 }
 
 
-/* FIXME HBB 20010726: should bessel functions really call int_error,
- * right in the middle of evaluating some mathematical expression?
- * Couldn't they just flag 'undefined', or ignore the real part of the
- * complex number? */
+/* Warn if the user passes an argument with non-zero imaginary component */
+static const char *bessel_error
+    = "For complex Bessel functions use BesselI, BesselJ, BesselY, BesselK";
 
 void
 f_besi0(union argument *arg)
@@ -1410,7 +1434,7 @@ f_besi0(union argument *arg)
     (void) arg;			/* avoid -Wunused warning */
     (void) pop(&a);
     if (fabs(imag(&a)) > zero)
-	int_error(NO_CARET, "can only do bessel functions of reals");
+	int_error(NO_CARET, bessel_error);
     push(Gcomplex(&a, ri0(real(&a)), 0.0));
 }
 
@@ -1422,7 +1446,7 @@ f_besi1(union argument *arg)
     (void) arg;			/* avoid -Wunused warning */
     (void) pop(&a);
     if (fabs(imag(&a)) > zero)
-	int_error(NO_CARET, "can only do bessel functions of reals");
+	int_error(NO_CARET, bessel_error);
     push(Gcomplex(&a, ri1(real(&a)), 0.0));
 }
 
@@ -1434,7 +1458,7 @@ f_besj0(union argument *arg)
     (void) arg;			/* avoid -Wunused warning */
     (void) pop(&a);
     if (fabs(imag(&a)) > zero)
-	int_error(NO_CARET, "can only do bessel functions of reals");
+	int_error(NO_CARET, bessel_error);
     push(Gcomplex(&a, rj0(real(&a)), 0.0));
 }
 
@@ -1447,7 +1471,7 @@ f_besj1(union argument *arg)
     (void) arg;			/* avoid -Wunused warning */
     (void) pop(&a);
     if (fabs(imag(&a)) > zero)
-	int_error(NO_CARET, "can only do bessel functions of reals");
+	int_error(NO_CARET, bessel_error);
     push(Gcomplex(&a, rj1(real(&a)), 0.0));
 }
 
@@ -1460,7 +1484,7 @@ f_besy0(union argument *arg)
     (void) arg;			/* avoid -Wunused warning */
     (void) pop(&a);
     if (fabs(imag(&a)) > zero)
-	int_error(NO_CARET, "can only do bessel functions of reals");
+	int_error(NO_CARET, bessel_error);
     if (real(&a) > 0.0)
 	push(Gcomplex(&a, ry0(real(&a)), 0.0));
     else {
@@ -1478,7 +1502,7 @@ f_besy1(union argument *arg)
     (void) arg;			/* avoid -Wunused warning */
     (void) pop(&a);
     if (fabs(imag(&a)) > zero)
-	int_error(NO_CARET, "can only do bessel functions of reals");
+	int_error(NO_CARET, bessel_error);
     if (real(&a) > 0.0)
 	push(Gcomplex(&a, ry1(real(&a)), 0.0));
     else {
@@ -1497,7 +1521,7 @@ f_besjn(union argument *arg)
     if ((n.type != INTGR) || (fabs(imag(&a)) > zero)) {
 	push(Gcomplex(&a, 0.0, 0.0));
 	undefined = TRUE;
-	int_error(NO_CARET, "improper argument to besjn(int,real)");
+	int_error(NO_CARET, bessel_error);
     } else {
 	push(Gcomplex(&a, jn(n.v.int_val, real(&a)), 0.0));
     }
@@ -1513,7 +1537,7 @@ f_besyn(union argument *arg)
     if ((n.type != INTGR) || (fabs(imag(&a)) > zero)) {
 	push(Gcomplex(&a, 0.0, 0.0));
 	undefined = TRUE;
-	int_error(NO_CARET, "improper argument to besyn(int,real)");
+	int_error(NO_CARET, bessel_error);
     } else {
 	push(Gcomplex(&a, yn(n.v.int_val, real(&a)), 0.0));
     }

@@ -47,11 +47,11 @@
  * but better than mixing internal status and the user interface as we
  * used to have it, in set.c and setshow.h */
 
-legend_key keyT = DEFAULT_KEY_PROPS;
+legend_key keyT;
 
 /* Description of the color box associated with CB_AXIS */
 color_box_struct color_box; /* initialized in init_color() */
-color_box_struct default_color_box = {SMCOLOR_BOX_DEFAULT, 'v', 1, -1, 0, LAYER_FRONT, 0,
+color_box_struct default_color_box = {SMCOLOR_BOX_DEFAULT, 'v', 1, LT_BLACK, LAYER_FRONT, 0,
 					{screen, screen, screen, 0.90, 0.2, 0.0},
 					{screen, screen, screen, 0.05, 0.6, 0.0}, FALSE,
 					{0,0,0,0} };
@@ -61,6 +61,9 @@ BoundingBox plot_bounds;
 
 /* The bounding box for 3D plots prior to applying view transformations */
 BoundingBox page_bounds;
+
+/* The region within a multiplot belonging to the current plot */
+BoundingBox active_bounds;
 
 /* The bounding box for the entire drawable area  of current terminal */
 BoundingBox canvas;
@@ -200,8 +203,9 @@ struct object default_ellipse = DEFAULT_ELLIPSE_STYLE;
 filledcurves_opts filledcurves_opts_data = EMPTY_FILLEDCURVES_OPTS;
 filledcurves_opts filledcurves_opts_func = EMPTY_FILLEDCURVES_OPTS;
 
-/* Prefer line styles over plain line types */
+#ifdef BACKWARD_COMPATIBILITY
 TBOOLEAN prefer_line_styles = FALSE;
+#endif
 
 /* If current terminal claims to be monochrome, don't try to send it colors */
 #define monochrome_terminal ((t->flags & TERM_MONOCHROME) != 0)
@@ -370,9 +374,13 @@ draw_clip_arrow( double dsx, double dsy, double dex, double dey, t_arrow_head he
     if (dx < 25 && dy < 25) {
 
 	/* draw the body of the vector (rounding errors are a problem) */
-	if (dx > 1 || dy > 1)
+	if (dx > 1 || dy > 1) {
 	    if (!((t->flags & TERM_IS_LATEX)))
 		(*t->arrow)(sx, sy, ex, ey, SHAFT_ONLY | head);
+	} else {
+	    /* if it is vanishingly short, just draw a dot */
+	    (*t->point)(ex,ey,-1);
+	}
 
 	/* if we're not supposed to be drawing any heads, we're done */
 	if ((head & BOTH_HEADS) == NOHEAD)
@@ -443,8 +451,8 @@ clip_line(int *x1, int *y1, int *x2, int *y2)
      * when the line passes directly through at least one corner).
      */
     count = 0;
-    dx = *x2 - *x1;
-    dy = *y2 - *y1;
+    dx = (double)(*x2) - (double)(*x1);
+    dy = (double)(*y2) - (double)(*y1);
     /* Find intersections with the x parallel bbox lines: */
     if (dy != 0) {
 	x = (clip_area->ybot - *y2) * dx / dy + *x2;	/* Test for clip_area->ybot boundary. */
@@ -554,16 +562,22 @@ vertex_is_inside(gpiPoint test_vertex, gpiPoint *clip_boundary)
 void
 intersect_polyedge_with_boundary(gpiPoint first, gpiPoint second, gpiPoint *intersect, gpiPoint *clip_boundary)
 {
-    /* this routine is called only if one point is outside and the other
-       is inside, which implies that clipping is needed at a horizontal
-       boundary, that second.y is different from first.y and no division
-       by zero occurs. Same for vertical boundary and x coordinates. */
+    /* This routine is called only if one point is outside and the other
+     * is inside, which implies that clipping is needed at a horizontal
+     * boundary, that second.y is different from first.y and no division
+     * by zero occurs. Same for vertical boundary and x coordinates.
+     * Conversion to double is needed to prevent integer overflow.
+     */
+    double dx = (second.x - first.x);
+    double dy = (second.y - first.y);
     if (clip_boundary[0].y == clip_boundary[1].y) { /* horizontal */
 	(*intersect).y = clip_boundary[0].y;
-	(*intersect).x = first.x + (clip_boundary[0].y - first.y) * (second.x - first.x)/(second.y - first.y);
+	(*intersect).x = first.x
+			+ (double)(clip_boundary[0].y - first.y) * dx/dy;
     } else { /* vertical */
 	(*intersect).x = clip_boundary[0].x;
-	(*intersect).y = first.y + (clip_boundary[0].x - first.x) * (second.y - first.y)/(second.x - first.x);
+	(*intersect).y = first.y
+			+ (double)(clip_boundary[0].x - first.x) * dy/dx;
     }
 }
 
@@ -761,8 +775,9 @@ apply_pm3dcolor(struct t_colorspec *tc)
     struct termentry *t = term;
     double cbval;
 
-    /* V5 - term->linetype(LT_BLACK) would clobber the current	*/
-    /* dashtype so instead we use term->set_color(black).	*/
+    /* term->linetype(LT_BLACK) would clobber the current dashtype
+     * as well as the color, so instead we use term->set_color(black).
+     */
     static t_colorspec black = BLACK_COLORSPEC; 
 
     /* Replace colorspec with that of the requested line style */
@@ -781,12 +796,14 @@ apply_pm3dcolor(struct t_colorspec *tc)
 	return;
     }
     if (tc->type == TC_RGB) {
-	/* FIXME: several plausible ways for monochrome terminals to handle color request
+	/* There are several plausible ways monochrome terminals might handle color request
 	 * (1) Allow all color requests despite the label "monochrome"
 	 * (2) Choose any color you want so long as it is black
 	 * (3) Convert colors to gray scale (NTSC?)
+	 *
+	 * We go for a modified (1):
+	 * Monochrome terminals are still allowed to display rgb variable colors.
 	 */
-	/* Monochrome terminals are still allowed to display rgb variable colors */
 	if (monochrome_terminal && tc->value >= 0)
 	    t->set_color(&black);
 	else
@@ -828,7 +845,7 @@ void
 default_arrow_style(struct arrow_style_type *arrow)
 {
     static const struct lp_style_type tmp_lp_style = 
-	{0, LT_DEFAULT, 0, DASHTYPE_SOLID, 0, 0, 1.0, 0.0, DEFAULT_P_CHAR,
+	{0, LT_SOLID, 0, DASHTYPE_SOLID, 0, 0, 1.0, 0.0, DEFAULT_P_CHAR,
 	DEFAULT_COLORSPEC, DEFAULT_DASHPATTERN};
 
     arrow->tag = -1;
@@ -865,20 +882,41 @@ apply_head_properties(struct arrow_style_type *arrow_properties)
     }
 }
 
+/* Used by arrow-drawing code in graphics.c graph3d.c */
+double effective_aspect_ratio(void)
+{
+#ifdef _WIN32
+    if (strcmp(term->name, "windows") == 0) {
+	double xscale = (axis_array[FIRST_X_AXIS].term_upper - axis_array[FIRST_X_AXIS].term_lower)
+			/ (axis_array[FIRST_X_AXIS].max - axis_array[FIRST_X_AXIS].min);
+	double yscale = (axis_array[FIRST_Y_AXIS].term_upper - axis_array[FIRST_Y_AXIS].term_lower)
+			/ (axis_array[FIRST_Y_AXIS].max - axis_array[FIRST_Y_AXIS].min);
+	double aspect_ratio = fabs(yscale/xscale);
+	return aspect_ratio;
+    }
+#endif
+
+    return (double)term->v_tic / (double)term->h_tic;
+}
+
 void
 free_labels(struct text_label *label)
 {
 struct text_label *temp;
 char *master_font = label->font;
 
-    /* Labels generated by 'plot with labels' all use the same font */
-    if (master_font)
-    	free(master_font);
+    /* Labels generated by 'plot with labels' all use the same font.
+     * Free it once and then skip the duplicate appearances below.
+     * Watchpoint labels also all use the same font, taken from the style,
+     * but that controlling copy should not be freed here.
+     */
+    if (label->tag == LABEL_TAG_PLOTLABELS || label->tag == LABEL_TAG_VARIABLE_ROTATE)
+	free(master_font);
 
     while (label) {
 	if (label->text)
 	    free(label->text);
-	if (label->font && label->font != master_font)
+	if (label->font != master_font)
 	    free(label->font);
 	temp=label->next;
 	free(label);
@@ -970,18 +1008,23 @@ write_label(int x, int y, struct text_label *this_label)
 	    if (textbox->opaque) {
 		apply_pm3dcolor(&textbox->fillcolor);
 		(*term->boxed_text)(0,0, TEXTBOX_BACKGROUNDFILL);
-		apply_pm3dcolor(&(this_label->textcolor));
-		/* Init for each of fill and border */
-		if (!textbox->noborder)
-		    (*term->boxed_text)(x + htic, y + vtic, TEXTBOX_INIT);
-		if (this_label->rotate && (*term->text_angle) (this_label->rotate)) {
-		    write_multiline(x + htic, y + vtic, this_label->text,
-				this_label->pos, justify, this_label->rotate,
-				this_label->font);
-		    (*term->text_angle) (0);
-		} else {
-		    write_multiline(x + htic, y + vtic, this_label->text,
-				this_label->pos, justify, 0, this_label->font);
+		/* The epslatex/cairolatex terminals reuse a previously saved textbox
+		 * so explicitly re-writing it here is at best redundant.
+		 */
+		if ((term->flags & TERM_REUSES_BOXTEXT) == 0) {
+		    apply_pm3dcolor(&(this_label->textcolor));
+		    /* Init for each of fill and border */
+		    if (!textbox->noborder)
+			(*term->boxed_text)(x + htic, y + vtic, TEXTBOX_INIT);
+		    if (this_label->rotate && (*term->text_angle) (this_label->rotate)) {
+			write_multiline(x + htic, y + vtic, this_label->text,
+				    this_label->pos, justify, this_label->rotate,
+				    this_label->font);
+			(*term->text_angle) (0);
+		    } else {
+			write_multiline(x + htic, y + vtic, this_label->text,
+				    this_label->pos, justify, 0, this_label->font);
+		    }
 		}
 	    }
 
@@ -999,7 +1042,12 @@ write_label(int x, int y, struct text_label *this_label)
 	/* write_multiline() clips text to on_page; do the same for any point */
 	if ((this_label->lp_properties.flags & LP_SHOW_POINTS) && on_page(x,y)) {
 	    term_apply_lp_properties(&this_label->lp_properties);
-	    (*term->point) (x, y, this_label->lp_properties.p_type);
+	    if (this_label->lp_properties.p_type == PT_CHARACTER) {
+		(*term->justify_text) (CENTRE);
+		(*term->put_text) (x, y, this_label->lp_properties.p_char);
+	    } else if (this_label->lp_properties.p_type >= 0) {
+		(*term->point) (x, y, this_label->lp_properties.p_type);
+	    }
 	    /* the default label color is that of border */
 	    term_apply_lp_properties(&border_lp);
 	}
@@ -1217,4 +1265,19 @@ construct_2D_mask_set( struct coordinate *points, int p_count )
 	if (polygon < end_of_list)
 	    polygon++;
     }
+}
+
+/* Calculate the region on the canvas used by the current plot.
+ * This can be saved to guide subsequent mousing.
+ */
+void
+update_active_region(void)
+{
+    active_bounds.xleft = term->xmax * xoffset;
+    active_bounds.xright = term->xmax * (xoffset + xsize);
+    active_bounds.ybot = term->ymax * yoffset;
+    active_bounds.ytop = term->ymax * (yoffset + ysize);
+    FPRINTF((stderr, "active region: %d %d %d %d\n",
+	    active_bounds.xleft, active_bounds.xright,
+	    active_bounds.ybot, active_bounds.ytop));
 }

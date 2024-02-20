@@ -49,6 +49,9 @@ void OutLine(const char *M){fputs(M,stderr);}
 # include <graph.h>
 #endif
 
+/* User control of help layout "set help {columns|rows}" */
+TBOOLEAN help_sort_by_rows = FALSE;
+
 /*
  ** help -- help subsystem that understands defined keywords
  **
@@ -259,6 +262,9 @@ LoadHelp(char *path)
 	head = firsthead;
 	while ((fgets(buf, MAX_LINE_LEN - 1, helpfp) != (char *) NULL)
 	       && (buf[0] != KEYFLAG)) {
+	    /* Ignore text for null key */
+	    if (key->key[0] == '?')
+		continue;
 	    /* save text line */
 	    head->next = storeline(buf);
 	    head = head->next;
@@ -570,9 +576,8 @@ ShowSubtopics(
  * the next column is skipped */
 #define COLLENGTH	18
 
-#ifndef COLUMN_HELP
-    {
-	/* sort subtopics by row - default */
+if (help_sort_by_rows) {
+	/* sort subtopics by row */
 	int subtopic;
 	int spacelen = 0, ispacelen;
 	int pos = 0;
@@ -607,9 +612,9 @@ ShowSubtopics(
 	    (void) strcat(line, "\n");
 	    OutLine_InternalPager(line);
 	}
-    }
-#else /* COLUMN_HELP */
-    {
+
+    } else {
+
 	/* sort subtopics by column */
 	int subtopic, sublen;
 	int spacelen = 0, ispacelen;
@@ -640,7 +645,6 @@ ShowSubtopics(
 	    OutLine_InternalPager(line);
 	}
     }
-#endif /* COLUMN_HELP */
 
     if (subtopics)
 	*subtopics = (subt != 0);

@@ -86,8 +86,11 @@ struct at_type * create_call_column_at(char *);
 struct at_type * create_call_columnhead(void);
 struct udvt_entry * add_udv(int t_num);
 struct udft_entry * add_udf(int t_num);
+struct udvt_entry * add_udv_local(int t_num, char *name, int locality);
 void cleanup_udvlist(void);
 int is_function(int t_num);
+
+struct value *split(const char *string, const char *sep);
 
 /* Code that uses the iteration routines here must provide */
 /* a blank iteration structure to use for bookkeeping.     */
@@ -95,25 +98,36 @@ typedef struct iterator {
 	struct iterator *next;		/* linked list */
 	struct udvt_entry *iteration_udv;
 	t_value original_udv_value;	/* prior value of iteration variable */
-	char *iteration_string;
-	int iteration_start;
-	int iteration_end;
-	int iteration_increment;
-	int iteration_current;		/* start + increment * iteration */
-	int iteration;			/* runs from 0 to (end-start)/increment */
+	t_value iteration_array;	/* holds array A for [a in A] */
+	char *iteration_string;		/* holds string S for [s in S] */
+	intgr_t iteration_start;
+	intgr_t iteration_end;
+	intgr_t iteration_increment;
+	intgr_t iteration_current;	/* start + increment * iteration */
+	intgr_t iteration;		/* runs from 0 to (end-start)/increment */
+	TBOOLEAN iteration_NODATA;	/* set when an unbounded iteration dead-ends */
 	struct at_type *start_at;	/* expression that evaluates to iteration_start */
 	struct at_type *end_at;		/* expression that evaluates to iteration_end */
 } t_iterator;
 
 extern t_iterator * plot_iterator;	/* Used for plot and splot */
 extern t_iterator * set_iterator;	/* Used by set/unset commands */
+extern t_iterator * print_iterator;	/* Used by print command */
 
 /* These are used by the iteration code */
 t_iterator * check_for_iteration(void);
 TBOOLEAN next_iteration (t_iterator *);
 TBOOLEAN empty_iteration (t_iterator *);
-TBOOLEAN forever_iteration (t_iterator *);
+int forever_iteration (t_iterator *);
+void flag_iteration_nodata(t_iterator *iter);
+void warn_if_too_many_unbounded_iterations(t_iterator *iter);
+
 t_iterator * cleanup_iteration(t_iterator *);
+void parse_array_constant(t_value *array);
+
+/* These are used by the function block evaluation code */
+void cache_at( struct at_type **shadow_at, int *shadow_at_size);
+void uncache_at( struct at_type *shadow_at, int shadow_at_size);
 
 void parse_link_via(struct udft_entry *);
 

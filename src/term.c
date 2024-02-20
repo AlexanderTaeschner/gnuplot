@@ -196,6 +196,9 @@ int mono_recycle_count = 0;
 
 /* Internal variables */
 
+/* cleared on entry when terminal is first initialised */
+TBOOLEAN term_on_entry = TRUE;
+
 /* true if terminal is in graphics mode */
 static TBOOLEAN term_graphics = FALSE;
 
@@ -221,8 +224,14 @@ static void do_point(unsigned int x, unsigned int y, int number);
 static void do_pointsize(double size);
 static void do_arrow(unsigned int sx, unsigned int sy, unsigned int ex, unsigned int ey, int headstyle);
 static void null_dashtype(int type, t_dashtype *custom_dash_pattern);
+#ifdef USE_MOUSE
+static void null_tmptext(int i, const char *s);
+static void null_set_ruler(int x, int y);
+static void null_set_cursor(int c, int x, int y);
+static void null_set_clipboard(const char *s);
+#endif
 
-static int null_text_angle(int ang);
+static int null_text_angle(float ang);
 static int null_justify_text(enum JUSTIFY just);
 static int null_scale(double x, double y);
 static void null_layer(t_termlayer layer);
@@ -499,20 +508,15 @@ term_initialise()
 void
 term_start_plot()
 {
-    FPRINTF((stderr, "term_start_plot()\n"));
-
     if (!term_initialised)
 	term_initialise();
 
     if (!term_graphics) {
-	FPRINTF((stderr, "- calling term->graphics()\n"));
 	(*term->graphics) ();
 	term_graphics = TRUE;
     } else if (multiplot && term_suspended) {
-	if (term->resume) {
-	    FPRINTF((stderr, "- calling term->resume()\n"));
+	if (term->resume)
 	    (*term->resume) ();
-	}
 	term_suspended = FALSE;
     }
 
@@ -667,8 +671,7 @@ term_apply_lp_properties(struct lp_style_type *lp)
     } else /* All normal lines will be solid unless a dashtype is given */
 	(*term->linetype) (LT_SOLID);
 
-    /* Version 5.4.2
-     * If the line is not wanted at all, setting dashtype can only hurt.
+    /* If the line is not wanted at all, setting dashtype can only hurt.
      * But we might still want to set a color so that points can use it.
      */
     if (lt == LT_NODRAW) {
@@ -685,10 +688,9 @@ term_apply_lp_properties(struct lp_style_type *lp)
     else if (dt == DASHTYPE_SOLID)
 	(*term->dashtype) (dt, NULL);
     else if (dt >= 0)
-	/* The null_dashtype() routine or a version 5 terminal's private  */
-	/* dashtype routine converts this into a call to term->linetype() */
-	/* yielding the same result as in version 4 except possibly for a */
-	/* different line width.					  */
+	/* The null_dashtype() routine or a terminal's private
+	 * dashtype routine converts this into a call to term->linetype()
+	 */
 	(*term->dashtype) (dt, NULL);
 
     /* Finally adjust the color of the line */
@@ -770,7 +772,7 @@ write_multiline(
     char *text,
     JUSTIFY hor,                /* horizontal ... */
     VERT_JUSTIFY vert,          /* ... and vertical just - text in hor direction despite angle */
-    int angle,                  /* assume term has already been set for this */
+    float angle,               /* assume term has already been set for this */
     const char *font)           /* NULL or "" means use default */
 {
     struct termentry *t = term;
@@ -1226,7 +1228,7 @@ do_arc(
    * 1 is vertical bottom to top (90 deg rotate)
  */
 static int
-null_text_angle(int ang)
+null_text_angle(float ang)
 {
     return (ang == 0);
 }
@@ -1269,7 +1271,7 @@ static void
 graphics_null()
 {
     fprintf(stderr,
-	    "WARNING: Plotting with an 'unknown' terminal.\n"
+	    "WARNING: Plotting with 'unknown' terminal.\n"
 	    "No output will be generated. Please select a terminal with 'set terminal'.\n");
 }
 
@@ -1334,6 +1336,107 @@ null_dashtype(int type, t_dashtype *custom_dash_pattern)
 	type = LT_SOLID;
     term->linetype(type);
 }
+
+#ifdef USE_MOUSE
+
+/*
+ * This routine dummies up mouse events for terminals that can
+ * plot directly into the console (no separate graphics window).
+ * If "pause mouse" is active, it filters characters from stdin through
+ * the current mouse key bindings.  It attempts to handle arrow keys.
+ * Otherwise it returns the next character read from stdin.
+ *
+ * EAM - May 2023
+ *
+ * FIXME:  handle "pause -1" in additional to "pause mouse"
+ * FIXME:  can we somehow catch actual mouse events?
+ * FIXME:  how to detect shift/control/alt modifiers?
+ *	   empirical tests suggests <033><073><065> is control
+ *				    <033><073><062> is shift
+ */
+#if defined(HAVE_LIBREADLINE)
+  #define raw() rl_prep_terminal(1)
+  #define cook() rl_deprep_terminal()
+  #define nextchar() rl_getc(stdin)
+#elif defined(HAVE_LIBEDITLINE)
+  #define raw() rl_prep_terminal(1)
+  #define cook() rl_deprep_terminal()
+  #define nextchar() fgetc(stdin)
+#elif defined(READLINE)
+  #define raw() set_termio()
+  #define cook() reset_termio()
+  #define nextchar() fgetc(stdin)
+#endif
+
+int
+term_waitforinput(int options)
+{
+    int nextchar;
+
+    if (options == TERM_ONLY_CHECK_MOUSING)
+	return '\0';
+
+    if (paused_for_mouse) {
+	/* Read single character at a time */
+	raw();
+	nextchar = nextchar();
+	if (debug)
+		fprintf(stderr,"<\\%03o>",nextchar);
+
+	/* Normal exit from "pause mouse" */
+	if (nextchar == '\n' || nextchar == '\r') {
+	    paused_for_mouse = 0;
+	    cook();
+	    exec_event( GE_reset, 0, 0, 0, 0, 0 );
+	    return nextchar;
+	}
+
+	/* Try to catch arrow key escape sequences */
+	if (nextchar == '\033') {
+	    if ((nextchar = nextchar()) == '[') {
+		nextchar = nextchar();
+		switch (nextchar) {
+		case 'A':	nextchar = GP_Up; break;
+		case 'B':	nextchar = GP_Down; break;
+		case 'C':	nextchar = GP_Right; break;
+		case 'D':	nextchar = GP_Left; break;
+		default:	/* unrecognized */
+				return '\0';
+				break;
+		}
+	    } else {
+		/* Some unrecognized escape sequence */
+	    }
+	}
+
+	/* Feed to active key binding.
+	 * I.e. act as if this key had been pressed while focus was
+	 * in an active plot window (which it is, kind of).
+	 */
+	exec_event( GE_keypress, 0, 0, nextchar, 0, 0 );
+	return '\0';
+    } else {
+	nextchar = getchar();
+    }
+    return nextchar;
+}
+
+static void
+null_tmptext(int i, const char *s)
+{}
+
+static void
+null_set_ruler(int x, int y)
+{}
+
+static void
+null_set_cursor(int c, int x, int y)
+{}
+
+static void
+null_set_clipboard(const char *s)
+{}
+#endif
 
 /* setup the magic macros to compile in the right parts of the
  * terminal drivers included by term.h
@@ -1448,7 +1551,8 @@ set_term()
 
     if (!t) {
 	change_term("unknown", 7);
-	int_error(c_token-1, "unknown or ambiguous terminal type; type just 'set terminal' for a list");
+	int_warn(c_token-1, "unknown or ambiguous terminal type; type 'set terminal' for a list");
+	return term;
     }
 
     /* otherwise the type was changed */
@@ -1479,6 +1583,11 @@ change_term(const char *origname, int length)
     if (!strncmp(origname,"eps",length)) {
 	name = "epscairo";
 	length = 8;
+    }
+    /* To allow "set term kitty" as short for "set term kittycairo" */
+    if (!strncmp(origname,"kitty",length)) {
+	name = "kittycairo";
+	length = 10;
     }
 #endif
 #ifdef HAVE_LIBGD
@@ -1511,6 +1620,8 @@ change_term(const char *origname, int length)
     term_initialised = FALSE;
 
     /* check that optional fields are initialised to something */
+    if (term->options == 0)
+	term->options = options_null;
     if (term->text_angle == 0)
 	term->text_angle = null_text_angle;
     if (term->justify_text == 0)
@@ -1536,7 +1647,18 @@ change_term(const char *origname, int length)
     if (term->dashtype == 0)
 	term->dashtype = null_dashtype;
 
-    if (interactive)
+#ifdef USE_MOUSE
+    if (term->put_tmptext == NULL)
+	term->put_tmptext = null_tmptext;
+    if (term->set_ruler == NULL)
+	term->set_ruler = null_set_ruler;
+    if (term->set_cursor == NULL)
+	term->set_cursor = null_set_cursor;
+    if (term->set_clipboard == NULL)
+	term->set_clipboard = null_set_clipboard;
+#endif
+
+    if (interactive && !term_on_entry)
 	fprintf(stderr, "\nTerminal type is now '%s'\n", term->name);
 
     /* Invalidate any terminal-specific structures that may be active */
@@ -1570,14 +1692,19 @@ init_terminal()
     gnuterm = getenv("GNUTERM");
     if (gnuterm != (char *) NULL) {
 	/* April 2017 - allow GNUTERM to include terminal options */
+	char *set_term_command;
+	char *semicolon = NULL;
 	char *set_term = "set term ";
-	char *set_term_command = gp_alloc(strlen(set_term) + strlen(gnuterm) + 4, NULL);
+	/* scrub any extraneous commands possibly hidden in GNUTERM */
+	if ( (semicolon = strchr(gnuterm, ';')) != NULL)
+	    *semicolon = '\0';
+	set_term_command = gp_alloc(strlen(set_term) + strlen(gnuterm) + 4, NULL);
 	strcpy(set_term_command, set_term);
 	strcat(set_term_command, gnuterm);
-	do_string(set_term_command);
-	free(set_term_command);
+	do_string_and_free(set_term_command);
 	/* replicate environmental variable GNUTERM for internal use */
 	Gstring(&(add_udv_by_name("GNUTERM")->udv_value), gp_strdup(gnuterm));
+	term_on_entry = FALSE;
 	return;
 
     } else {
@@ -1673,16 +1800,20 @@ init_terminal()
 	if (change_term(term_name, namelength)) {
 	    if (strcmp(term->name,"x11"))
 		term->options();
+	    term_on_entry = FALSE;
 	    return;
 	}
 	fprintf(stderr, "Unknown or ambiguous terminal name '%s'\n", term_name);
     }
     change_term("unknown", 7);
+    term_on_entry = FALSE;
 }
 
 
-/* test terminal by drawing border and text */
-/* called from command test */
+/*
+ * test page for terminal capabilities and current properties
+ * (lines, points, fill, test, polygons, text rotation, ...).
+ */
 void
 test_term()
 {
@@ -1695,6 +1826,7 @@ test_term()
     int p_width;
     TBOOLEAN already_in_enhanced_text_mode;
     static t_colorspec black = BLACK_COLORSPEC;
+    struct lp_style_type ls = DEFAULT_LP_STYLE_TYPE;
 
     already_in_enhanced_text_mode = t->flags & TERM_ENHANCED_TEXT;
     if (!already_in_enhanced_text_mode)
@@ -1738,6 +1870,7 @@ test_term()
 	(*t->put_text) (x0 + t->h_char * 2, y0 + ymax_t - t->v_char * 2.25, tbuf);
     }
 
+    /* axis line type (lt 0) used for xzeroaxis, yzeroaxis, should always be dotted */
     (*t->linetype) (LT_AXIS);
     (*t->move) (x0 + xmax_t / 2, y0);
     (*t->vector) (x0 + xmax_t / 2, y0 + ymax_t - 1);
@@ -1790,6 +1923,15 @@ test_term()
 	(*t->set_font)("");
 	if (!already_in_enhanced_text_mode)
 	    do_string("set termopt noenh");
+    } else if (t->flags & TERM_IS_LATEX) {
+	char *tmptext1 =   "\\LaTeX:  $\\int{x_{0}^{n+1}}$";
+	(*t->put_text) (x0 + xmax_t * 0.5, y0 + ymax_t * 0.37, tmptext1);
+    }
+
+    /* Test for UTF8 support */
+    {
+	char *tmptext1 = "utf8: Å→∞";
+	(*t->put_text) (x0 + xmax_t * 0.5, y0 + ymax_t * 0.30, tmptext1);
     }
 
     /* test justification */
@@ -1811,7 +1953,7 @@ test_term()
 			y0 + ymax_t / 2 + t->v_char * 4, str);
 
     /* test tic size */
-    (*t->linetype)(2);
+    (*t->linetype)(LT_BLACK);
     (*t->move) ((unsigned int) (x0 + xmax_t / 2 + t->h_tic * (1 + axis_array[FIRST_X_AXIS].ticscale)), y0 + (unsigned int) ymax_t - 1);
     (*t->vector) ((unsigned int) (x0 + xmax_t / 2 + t->h_tic * (1 + axis_array[FIRST_X_AXIS].ticscale)),
 		  (unsigned int) (y0 + ymax_t - axis_array[FIRST_X_AXIS].ticscale * t->v_tic));
@@ -1823,15 +1965,14 @@ test_term()
 		    y0 + (unsigned int) (ymax_t - t->v_char),
 		    "show ticscale");
     (void) (*t->justify_text) (LEFT);
-    (*t->linetype)(LT_BLACK);
 
-    /* test line and point types */
+    /*
+     * line and point types
+     */
     x = x0 + xmax_t - t->h_char * 7 - p_width;
     y = y0 + ymax_t - key_entry_height;
     (*t->pointsize) (pointsize);
     for (i = -2; y > y0 + key_entry_height; i++) {
-	struct lp_style_type ls = DEFAULT_LP_STYLE_TYPE;
-	ls.l_width = 1;
 	load_linetype(&ls,i+1);
 	term_apply_lp_properties(&ls);
 
@@ -1848,8 +1989,9 @@ test_term()
     }
 
     /* test arrows (should line up with rotated text) */
-    (*t->linewidth) (1.0);
-    (*t->linetype) (0);
+    load_linetype(&ls, 2);
+    ls.l_width = 1;
+    term_apply_lp_properties(&ls);
     (*t->dashtype) (DASHTYPE_SOLID, NULL);
     x = x0 + 2. * t->v_char;
     y = y0 + ymax_t/2;
@@ -1865,7 +2007,6 @@ test_term()
     curr_arrow_headfilled = i;
 
     /* test text angle (should match arrows) */
-    (*t->linetype)(0);
     str = "rotated ce+ntred text";
     if ((*t->text_angle) (TEXT_VERTICAL)) {
 	if ((*t->justify_text) (CENTRE))
@@ -1972,15 +2113,17 @@ test_term()
 		corners[n].x = corners[0].x;
 		corners[n].y = corners[0].y;
 		if (j == 0) {
-		    (*t->linetype)(2);
+		    load_linetype(&ls, 3);
+		    term_apply_lp_properties(&ls);
 		    corners->style = FS_OPAQUE;
 		} else {
-		    (*t->linetype)(1);
+		    load_linetype(&ls, 4);
+		    term_apply_lp_properties(&ls);
 		    corners->style = FS_TRANSPARENT_SOLID + (50<<4);
 		}
 		term->filled_polygon(n+1, corners);
 	    }
-	    str = "filled polygons:";
+	    str = "filled polygons";
 	} else
 	    str = "No filled polygons";
 	(*t->linetype)(LT_BLACK);
@@ -2358,9 +2501,9 @@ enhanced_recursion(
 		    break;
 		}
 
-	    /*     FIXME: non-utf8 environments not yet supported.
-	     *     Note that some terminals may have an alternative way to handle unicode
-	     *     escape sequences that is not dependent on encoding.
+	    /*     Non-utf8 environments not supported here.
+	     *     Note that some terminals have an alternative way to handle unicode
+	     *     escape sequences that is not dependent on gnuplot's encoding.
 	     *     E.g. svg and html output could convert to xml sequences &#xhhhh;
 	     *     For these cases we must retain the leading backslash so that the
 	     *     unicode escape sequence can be recognized by the terminal driver.

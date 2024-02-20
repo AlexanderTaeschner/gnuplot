@@ -40,7 +40,9 @@
 #include "datablock.h"
 #include "encoding.h"
 #include "eval.h"
+#include "filters.h"
 #include "fit.h"
+#include "gplocale.h"
 #include "graphics.h"
 #include "interpol.h"
 #include "misc.h"
@@ -51,11 +53,7 @@
 #include "tabulate.h"
 #include "term_api.h"
 #include "util.h"
-#include "variable.h" /* For locale handling */
-
-#ifndef _WIN32
-# include "help.h"
-#endif
+#include "watch.h"
 
 /* minimum size of points[] in curve_points */
 #define MIN_CRV_POINTS 100
@@ -77,6 +75,25 @@ static int check_or_add_boxplot_factor(struct curve_points *plot, char* string, 
 static void add_tics_boxplot_factors(struct curve_points *plot);
 static void parse_kdensity_options(struct curve_points *this_plot);
 static void parse_hull_options(struct curve_points *this_plot);
+static int evaluate_iteration(struct curve_points *this_plot);
+
+#ifdef USE_POLAR_GRID
+    static void grid_polar_data(struct curve_points *this_plot);
+    static double polar_dist( double t_data, double r_data, double t_grid, double r_grid );
+    static void store_polar_point(struct curve_points *, int i, double v[MAXDATACOLS]);
+
+    struct pgrid default_polar_grid = {
+	.mode = DGRID3D_QNORM,
+	.theta_segments = 24,
+	.r_segments = 10,
+	.norm_q = 1,
+	.kdensity = FALSE,
+	.scale = 1.0,
+	.rmin = 0.0,
+	.rmax = VERYLARGE
+    };
+    struct pgrid polar_grid;
+#endif /* USE_POLAR_GRID */
 
 /* internal and external variables */
 
@@ -110,12 +127,14 @@ cp_alloc(int num)
     struct lp_style_type default_lp_properties = DEFAULT_LP_STYLE_TYPE;
 
     cp = (struct curve_points *) gp_alloc(sizeof(struct curve_points), "curve");
-    memset(cp,0,sizeof(struct curve_points));
+    memset(cp, 0, sizeof(struct curve_points));
 
     cp->p_max = (num >= 0 ? num : 0);
-    if (num > 0)
+    if (num > 0) {
 	cp->points = (struct coordinate *)
 	    gp_alloc(num * sizeof(struct coordinate), "curve points");
+	memset(cp->points, 0, num * sizeof(struct coordinate)); 
+    }
 
     /* Initialize various fields */
     cp->lp_properties = default_lp_properties;
@@ -148,7 +167,6 @@ cp_extend(struct curve_points *cp, int num)
 				/* true end in case two slots are used at once	*/
 				/* (e.g. redundant final point of closed curve)	*/
     } else {
-	/* FIXME: Does this ever happen?  Should it call cp_free() instead? */
 	free(cp->points);
 	cp->points = NULL;
 	cp->p_max = 0;
@@ -181,6 +199,9 @@ cp_free(struct curve_points *cp)
 	if (cp->labels)
 	    free_labels(cp->labels);
 	cp->labels = NULL;
+	free_at(cp->plot_function.at);
+	free_watchlist(cp->watchlist);
+	cp->watchlist = NULL;
 
 	free(cp);
 	cp = next;
@@ -240,25 +261,34 @@ plotrequest()
 	}
     }
 
-    /* If we are called from a mouse zoom operation we should ignore	*/
-    /* any range limits because otherwise the zoom won't zoom.		*/
+    /* If we are called from a mouse zoom operation we should ignore
+     * any range limits because otherwise the zoom won't zoom.
+     */
     if (inside_zoom) {
-	while (equals(c_token,"["))
-	    parse_skip_range();
+	while (equals(c_token,"[") && (parse_skip_range() == TRUE))
+	    /* consume multiple range specifiers */
+	    ;
     }
 
-    /* Range limits for the entire plot are optional but must be given	*/
-    /* in a fixed order. The keyword 'sample' terminates range parsing.	*/
-    if (parametric || polar) {
+    /* Axis range limits for the entire plot are optional but must be given
+     * in the fixed order x y x2 y2.
+     * A sampling range [var=start:end:increment] terminates parsing of axis
+     * range limits.  The keyword 'sample' also terminates range parsing.
+     */
+    if (parametric || polar)
 	dummy_token = parse_range(T_AXIS);
-	parse_range(FIRST_X_AXIS);
-    } else {
+    else
 	dummy_token = parse_range(FIRST_X_AXIS);
-    }
-    parse_range(FIRST_Y_AXIS);
-    parse_range(SECOND_X_AXIS);
-    parse_range(SECOND_Y_AXIS);
-    if (equals(c_token,"sample") && equals(c_token+1,"["))
+#define SAMPLING_RANGE -2
+    if (dummy_token == SAMPLING_RANGE)
+	dummy_token = 0;
+    else if ((parse_range(FIRST_Y_AXIS) != SAMPLING_RANGE)
+         &&  (parse_range(SECOND_X_AXIS) != SAMPLING_RANGE)
+         &&  (parse_range(SECOND_Y_AXIS) != SAMPLING_RANGE))
+		; /* Nothing to do */
+#undef SAMPLING_RANGE
+    /* FIXME: would like to deprecate the "sample" keyword altogether */
+    if (equals(c_token,"sample"))
 	c_token++;
 
     /* Clear out any tick labels read from data files in previous plot */
@@ -383,8 +413,10 @@ get_data(struct curve_points *current_plot)
 	    variable_color = TRUE;
 	if (current_plot->lp_properties.l_type == LT_COLORFROMCOLUMN)
 	    variable_color = TRUE;
-	if (current_plot->plot_smooth != SMOOTH_NONE
-	&&  current_plot->plot_smooth != SMOOTH_ZSORT) {
+	if ((current_plot->plot_style == VECTOR || current_plot->plot_style == ARROWS)
+	&&  (current_plot->arrow_properties.tag == AS_VARIABLE))
+	    variable_color = TRUE;
+	if (current_plot->plot_smooth != SMOOTH_NONE) {
 	    /* FIXME:  It would be possible to support smooth cspline lc palette */
 	    /* but it would require expanding and interpolating plot->varcolor   */
 	    /* in parallel with the y values.                                    */
@@ -402,7 +434,12 @@ get_data(struct curve_points *current_plot)
      * Set it to NO_AXIS to account for that. For styles that use
      * the z coordinate as a real coordinate (i.e. not a width or
      * 'delta' component, change the setting inside the switch: */
-    current_plot->z_axis = NO_AXIS;
+    if ((current_plot->plot_filter == FILTER_ZSORT)
+    ||  (current_plot->plot_style == SURFACEGRID)) {
+	current_plot->z_axis = FIRST_Z_AXIS;
+	axis_init(&axis_array[FIRST_Z_AXIS], TRUE);
+    } else
+	current_plot->z_axis = NO_AXIS;
 
     /* HBB NEW 20060427: if there's only one, explicit using column,
      * it's y data.  df_axis[] has to reflect that, so df_readline()
@@ -467,10 +504,10 @@ get_data(struct curve_points *current_plot)
 	    df_axis[2] = df_axis[3] = df_axis[1];
 	break;
 
-    case VECTOR:	/* x, y, dx, dy, variable color or arrow style */
-    case ARROWS:	/* x, y, len, ang, variable color or arrow style */
+    case VECTOR:	/* x, y, dx, dy, variable arrow style and/or variable color */
+    case ARROWS:	/* x, y, len, ang, variable arrow style and/or variable color */
 	min_cols = 4;
-	max_cols = 5;
+	max_cols = 6;
 	break;
 
     case XERRORLINES:
@@ -486,7 +523,7 @@ get_data(struct curve_points *current_plot)
     case YERRORLINES:
     case YERRORBARS:
 	min_cols = 2;
-	max_cols = 5;
+	max_cols = 7;
 	if (df_no_use_specs >= 4)
 	    /* HBB 20060427: signal 3rd and 4th column are absolute y
 	     * data --- needed so time/date parsing works */
@@ -506,9 +543,13 @@ get_data(struct curve_points *current_plot)
 	break;
 
     case BOXES:
+    case HSTEPS:
+	/* 1 column: y coordinate only */
+	/* 2 columns: x and y coordinates */
+	/* 3 columns: x and y coordinates and width */
+	/* extra columns allow variable colors */
 	min_cols = 1;
 	max_cols = 4;
-
 	break;
 
     case FILLEDCURVES:
@@ -518,6 +559,8 @@ get_data(struct curve_points *current_plot)
 	break;
 
     case IMPULSES:	/* 2 + possible variable color */
+    case HISTEPS:
+    case FILLSTEPS:
     case POLYGONS:
     case LINES:
     case DOTS:
@@ -527,9 +570,9 @@ get_data(struct curve_points *current_plot)
 
     case LABELPOINTS:
 	/* 3 column data: X Y Label */
-	/* extra columns allow variable pointsize, pointtype, and/or rotation */
+	/* extra columns allow variable rotation, pointsize, pointtype, textcolor */
 	min_cols = 3;
-	max_cols = 6;
+	max_cols = 7;
 	expect_string( 3 );
 	break;
 
@@ -551,6 +594,11 @@ get_data(struct curve_points *current_plot)
     case CIRCLES:	/* 3 + possible variable color, or 5 + possible variable color */
 	min_cols = 2;
 	max_cols = 6;
+	break;
+
+    case SECTORS:	/* 3 + possible variable color, or 4 + possible variable color */
+	min_cols = 4;
+	max_cols = 7;
 	break;
 
     case ELLIPSES:
@@ -582,6 +630,11 @@ get_data(struct curve_points *current_plot)
 	max_cols = MAXDATACOLS;
 	break;
 
+    case SURFACEGRID:
+	min_cols = 3;
+	max_cols = 3;
+	break;
+
     default:
 	min_cols = 1;
 	max_cols = 2;
@@ -592,19 +645,12 @@ get_data(struct curve_points *current_plot)
     switch (current_plot->plot_smooth) {
     case SMOOTH_NONE:
 	break;
-    case SMOOTH_ZSORT:
-	min_cols = 3;
-	if (current_plot->plot_style != POINTSTYLE)
-	    int_error(NO_CARET, "'smooth zsort' only possible in plots 'with points'");
-	break;
     case SMOOTH_ACSPLINES:
 	max_cols++;
 	break;
-    case SMOOTH_MASK:
-	/* warn about limitations? currently only implemented for image styles */
-	break;
     default:
-	if (df_no_use_specs > 2 && current_plot->plot_style != FILLEDCURVES)
+	if (df_no_use_specs > 2 && current_plot->plot_style != FILLEDCURVES
+	&&  current_plot->plot_filter != FILTER_ZSORT)
 	    int_warn(NO_CARET, "extra columns ignored by smoothing option");
 	break;
     }
@@ -612,8 +658,7 @@ get_data(struct curve_points *current_plot)
 	if (current_plot->filledcurves_options.closeto == FILLEDCURVES_CLOSED) {
 	    if (current_plot->plot_smooth == SMOOTH_CSPLINES)
 		current_plot->plot_smooth = SMOOTH_PATH;
-	    if (current_plot->plot_smooth != SMOOTH_PATH
-	    &&  current_plot->plot_smooth != SMOOTH_SMOOTH_HULL) {
+	    if (current_plot->plot_smooth != SMOOTH_PATH) {
 		current_plot->plot_smooth = SMOOTH_NONE;
 		int_warn(NO_CARET, "only 'smooth path' or 'smooth cspline' is supported for closed curves");
 	    }
@@ -632,7 +677,7 @@ get_data(struct curve_points *current_plot)
     }
 
     if (df_no_use_specs > max_cols)
-	int_error(NO_CARET, "Too many using specs for this style");
+	int_warn(NO_CARET, "more using specs than expected for this style");
 
     if (df_no_use_specs > 0 && df_no_use_specs < min_cols)
 	int_error(NO_CARET, "Not enough columns for this style");
@@ -776,6 +821,9 @@ get_data(struct curve_points *current_plot)
 	    case VECTOR:
 	    case ARROWS:
 			    if (j < 5) int_error(NO_CARET,errmsg);
+			    /* j can be 5 if the variable styles have constant color */
+			    if (j == 5 && current_plot->arrow_properties.tag == AS_VARIABLE)
+				v[j++] = 0;
 			    break;
 	    case LABELPOINTS:
 	    case BOXERROR:
@@ -787,6 +835,9 @@ get_data(struct curve_points *current_plot)
 			    break;
 	    case CIRCLES:
 			    if (j == 5 || j < 3) int_error(NO_CARET,errmsg);
+			    break;
+	    case SECTORS:
+			    if (j < 4) int_error(NO_CARET,errmsg);
 			    break;
 	    case ELLIPSES:
 	    case BOXES:
@@ -827,6 +878,8 @@ get_data(struct curve_points *current_plot)
 	if (j == 1 && !(current_plot->plot_style == HISTOGRAMS)) {
 	    if (default_smooth_weight(current_plot->plot_smooth))
 		v[1] = 1.0;
+	    else if (current_plot->plot_filter == FILTER_BINS)
+		v[1] = 1.0;
 	    else {
 		v[1] = v[0];
 		v[0] = df_datum;
@@ -860,8 +913,10 @@ get_data(struct curve_points *current_plot)
 	    coordval var_ps = current_plot->lp_properties.p_size;
 	    coordval var_pt = current_plot->lp_properties.p_type;
 	    coordval var_char = 0;
-	    if (current_plot->plot_smooth == SMOOTH_ZSORT)
+	    if (current_plot->plot_filter == FILTER_ZSORT)
 		weight = v[var++];
+	    if (var_ps == PTSZ_VARIABLE)
+		var_ps = v[var++];
 	    if (var_pt == PT_VARIABLE) {
 		if (isnan(v[var]) && df_tokens[var]) {
 		    safe_strncpy( (char *)(&var_char), df_tokens[var], sizeof(coordval));
@@ -869,8 +924,6 @@ get_data(struct curve_points *current_plot)
 		}
 		var_pt = v[var++];
 	    }
-	    if (var_ps == PTSZ_VARIABLE)
-		var_ps = v[var++];
 	    if (var > j)
 		int_error(NO_CARET, "Not enough using specs");
 	    if (var_pt < 0)
@@ -890,12 +943,12 @@ get_data(struct curve_points *current_plot)
 	    coordval var_ps = current_plot->labels->lp_properties.p_size;
 	    coordval var_pt = current_plot->labels->lp_properties.p_type;
 
-	    if (current_plot->labels->tag == VARIABLE_ROTATE_LABEL_TAG)
+	    if (current_plot->labels->tag == LABEL_TAG_VARIABLE_ROTATE)
 		var_rotation = v[var++];
-	    if (var_pt == PT_VARIABLE)
-		var_pt = v[var++];
 	    if (var_ps == PTSZ_VARIABLE)
 		var_ps = v[var++];
+	    if (var_pt == PT_VARIABLE)
+		var_pt = v[var++] - 1;
 	    if (var > j)
 		int_error(NO_CARET, "Not enough using specs");
 
@@ -952,11 +1005,37 @@ get_data(struct curve_points *current_plot)
 
 	case YERRORLINES:
 	case YERRORBARS:
-	{   /* x y ydelta   or    x y ylow yhigh */
-	    coordval ylow  = (j > 3) ? v[2] : v[1] - v[2];
-	    coordval yhigh = (j > 3) ? v[3] : v[1] + v[2];
-	    store2d_point(current_plot, i++, v[0], v[1],
-			v[0], v[0], ylow, yhigh, -1.0);
+	{   /* NB: assumes CRD_PTSIZE == xlow CRD_PTTYPE == xhigh CRD_PTCHAR == ylow
+		   lc variable, if present, was already extracted and j reduced by 1
+	     */
+	    /* x y ylow yhigh {var_ps} {var_pt} {lc variable} */
+	    coordval ylow  = v[2];
+	    coordval yhigh = v[3];
+	    coordval var_pt = current_plot->lp_properties.p_type;
+	    coordval var_ps = current_plot->lp_properties.p_size;
+
+	    if (var_pt == PT_VARIABLE) {
+		if (j < 4)
+		    int_error(NO_CARET, "Not enough using specs");
+		var_pt = v[--j];
+	    }
+	    if (!(var_pt > 0)) /* Catches CRD_PTCHAR (NaN) also */
+		var_pt = 0;
+	    if (var_ps == PTSZ_VARIABLE) {
+		if (j < 4)
+		    int_error(NO_CARET, "Not enough using specs");
+		var_ps = v[--j];
+	    }
+	    if (j == 3) {
+		ylow = v[1] - v[2];
+		yhigh = v[1] + v[2];
+	    }
+	    if (polar) /* Polar mode bars need both xlow/high and ylow/high */
+		store2d_point(current_plot, i++, v[0], v[1],
+					v[0], v[0], ylow, yhigh, -1.0);
+	    else
+		store2d_point(current_plot, i++, v[0], v[1],
+					var_ps, var_pt, ylow, yhigh, -1.0);
 	    break;
 	}
 
@@ -1048,21 +1127,56 @@ get_data(struct curve_points *current_plot)
 	    break;
 	}
 
+	case HSTEPS:
+	{
+	   /* 2 columns: x y
+	    * 3 columns: x y width
+	    */
+	    coordval xlow  = v[0];
+	    coordval xhigh = v[0];
+	    coordval ylow  = v[1] + current_plot->hsteps_options.offset;
+	    coordval yhigh = v[1] + current_plot->hsteps_options.offset;
+	    coordval width = -1.0;
+	    if (j == 2) {
+		/* We cannot calculate xlow/xhigh yet since they
+		 * depend on both adjacent segments.
+		 */
+	    } else if ( j == 3 && v[2] >= 0 ) {
+		/* Setting: direction */
+		int hsteps_type = current_plot->hsteps_options.direction;
+		double anchor = ( hsteps_type == HSTEPS_DIR_FORWARD )  ? 0 :
+				( hsteps_type == HSTEPS_DIR_BACKWARD ) ? 1 :
+					                                0.5;
+		width = v[2];
+		xlow  = v[0] - anchor*width;
+		xhigh = v[0] + (1.0-anchor)*width;
+	    }
+	    store2d_point(current_plot, i++, v[0], v[1],
+			    xlow, xhigh, ylow, yhigh, width);
+	    break;
+	}
+
 	case FILLEDCURVES:
 	{   /* 2 columns:  x y
 	     * 3 columns:  x y1 y2
 	     */
 	    coordval y1 = v[1];
 	    coordval y2;
-	    coordval w = 0.0;	/* only needed for SMOOTH_ACSPLINES) */
+	    coordval w;
+
+	    if (current_plot->plot_smooth == SMOOTH_ACSPLINES)
+		w = 1.0;
+	    else
+		w = 0.0;
+
 	    if (j==2) {
 		if (current_plot->filledcurves_options.closeto == FILLEDCURVES_CLOSED
 		||  current_plot->filledcurves_options.closeto == FILLEDCURVES_DEFAULT)
 		    y2 = y1;
 		else
 		    y2 = current_plot->filledcurves_options.at;
-	    } else if (current_plot->plot_smooth == SMOOTH_SMOOTH_HULL
-	           ||  current_plot->plot_smooth == SMOOTH_CONVEX_HULL) {
+	    } else if ((current_plot->plot_filter == FILTER_CONVEX_HULL)
+		   ||  (current_plot->plot_filter == FILTER_CONCAVE_HULL)) {
 		y2 = y1;
 	    } else {
 		y2 = v[2];
@@ -1113,25 +1227,24 @@ get_data(struct curve_points *current_plot)
 	}
 
 	case VECTOR:
-	{   /* 4 columns:	x y xdelta ydelta [arrowstyle variable] */
+	{   /* 	x y xdelta ydelta [arrowstyle variable] */
 	    coordval xlow  = v[0];
 	    coordval xhigh = v[0] + v[2];
 	    coordval ylow  = v[1];
 	    coordval yhigh = v[1] + v[3];
-	    coordval arrowstyle = (j == 5) ? v[4] : 0.0;
-
+	    coordval arrowstyle = (j >= 5) ? v[4] : 0.0;
 	    store2d_point(current_plot, i++, v[0], v[1],
 			  xlow, xhigh, ylow, yhigh, arrowstyle);
 	    break;
 	}
 
 	case ARROWS:
-	{   /* 4 columns:	x y len ang [arrowstyle variable] */
+	{   /* 	x y length angle [arrowstyle variable] */
 	    coordval xlow  = v[0];
 	    coordval ylow  = v[1];
 	    coordval len = v[2];
 	    coordval ang = v[3];
-	    coordval arrowstyle = (j == 5) ? v[4] : 0.0;
+	    coordval arrowstyle = (j >= 5) ? v[4] : 0.0;
 	    store2d_point(current_plot, i++, v[0], v[1],
 			  xlow, len, ylow, ang, arrowstyle);
 	    break;
@@ -1160,6 +1273,21 @@ get_data(struct curve_points *current_plot)
 	    break;
 	}
 
+	case SECTORS:
+	{   /*  corner_azimuth corner_radius sector_angle annulus_width
+                corner_azimuth corner_radius sector_angle annulus_width center_x center_y
+	     */
+	    coordval x = (j >= 6) ? v[4] : 0.0; /* center_x */
+	    coordval y = (j >= 6) ? v[5] : 0.0; /* center_y */
+	    coordval xlow  = v[0];              /* corner_azimuth */
+	    coordval xhigh = v[1];              /* corner_radius */
+	    coordval ylow  = v[2];              /* sector_angle */
+	    coordval yhigh = v[3];              /* annulus_width */
+	    store2d_point(current_plot, i++, x, y,
+			  xlow, xhigh, ylow, yhigh, 0.0);
+	    break;
+	}
+
 	case ELLIPSES:
 	{   /* x y
 	     * x y diam  (used for both major and minor axis)
@@ -1173,7 +1301,7 @@ get_data(struct curve_points *current_plot)
 	    coordval orientation = (j >= 5) ? v[4] : 0.0;
 	    coordval flag = (major_axis <= 0 || minor_axis <= 0) ?  DEFAULT_RADIUS : 0;
 
-	    if (j == 2)	/* FIXME: why not also for j == 3 or 4? */
+	    if ((j == 2) || (j == 3) || (j == 4))
 		orientation = default_ellipse.o.ellipse.orientation;
 
 	    store2d_point(current_plot, i++, x, y,
@@ -1271,9 +1399,22 @@ get_data(struct curve_points *current_plot)
 	    break;
 	}
 
+	case SURFACEGRID:
+	{   /* Avoid calling store2d_point(), which would convert to Cartesian coordinates. */
+	    if (!polar)
+		int_error(NO_CARET, "For non-polar gridded surfaces use splot");
+#ifdef USE_POLAR_GRID
+	    store_polar_point(current_plot, i++, v);
+#else
+	    int_error(NO_CARET,
+		"This copy of gnuplot was built without support for polar surfaces");
+#endif
+	    break;
+	}
+
 	/* These exist for 3D (splot) but not for 2D (plot) */
 	case PM3DSURFACE:
-	case SURFACEGRID:
+	case CONTOURFILL:
 	case ZERRORFILL:
 	case ISOSURFACE:
 	    int_error(NO_CARET, "This plot style only available for splot");
@@ -1309,9 +1450,6 @@ get_data(struct curve_points *current_plot)
 
     /* We are finished reading user input; return to C locale for internal use */
     reset_numeric_locale();
-
-    /* Deferred evaluation of plot title now that we know column headers */
-    reevaluate_plot_title(current_plot);
 
     return ngood;                   /* 0 indicates an 'empty' file */
 }
@@ -1372,7 +1510,11 @@ store2d_point(
 	    double radius = (xhigh - xlow)/2.0;
 	    xlow = x - radius;
 	    xhigh = x + radius;
-
+	} else if (current_plot->plot_style == POINTSTYLE
+		|| current_plot->plot_style == LABELPOINTS
+		|| current_plot->plot_style == LINESPOINTS
+		|| current_plot->plot_style == SECTORS) {
+            ;
 	} else {
 	    /* Jan 2017 - now skipping range check on rhigh, rlow */
 	    (void) polar_to_xy(xhigh, yhigh, &xhigh, &yhigh, FALSE);
@@ -1418,6 +1560,15 @@ store2d_point(
 	cp->ylow = ylow;
 	cp->yhigh = yhigh;
 	break;
+    case YERRORBARS:		/* auto-scale ylow yhigh */
+    case YERRORLINES:		/* auto-scale ylow yhigh */
+	cp->xlow = xlow;	/* really theta if polar; CRD_PTSIZE otherwise */
+	cp->xhigh = xhigh;	/* really theta if polar; CRD_PTTYPE otherwise */
+	STORE_AND_UPDATE_RANGE(cp->ylow, ylow, cp->type, current_plot->y_axis,
+				current_plot->noautoscale, cp->ylow = -VERYLARGE);
+	STORE_AND_UPDATE_RANGE(cp->yhigh, yhigh, cp->type, current_plot->y_axis,
+				current_plot->noautoscale, cp->yhigh = -VERYLARGE);
+	break;
     case BOXES:			/* auto-scale to xlow xhigh */
     case BOXPLOT:		/* auto-scale to xlow xhigh, factor is already in z */
 	cp->ylow = ylow;	/* ylow yhigh not really needed but store them anyway */
@@ -1437,6 +1588,12 @@ store2d_point(
 	cp->xhigh = yhigh;	/* arc end */
 	if (fabs(ylow) > 1000. || fabs(yhigh) > 1000.) /* safety check for insane arc angles */
 	    cp->type = UNDEFINED;
+	break;
+    case SECTORS:
+        cp->xlow  = xlow;
+        cp->xhigh = xhigh;
+        cp->ylow  = ylow;
+        cp->yhigh = yhigh;
 	break;
     case ELLIPSES:
 	/* We want to pass the parameters to the ellipse drawing routine as they are, 
@@ -1735,7 +1892,7 @@ histogram_range_fiddling(struct curve_points *plot)
 			axis_array[FIRST_X_AXIS].min = xlow;
 		}
 		if (axis_array[FIRST_X_AXIS].autoscale & AUTOSCALE_MAX) {
-		    /* FIXME - why did we increment p_count on UNDEFINED points? */
+		    /* Why did we increment p_count on UNDEFINED points? */
 		    while (plot->p_count > 0
 			&& plot->points[plot->p_count-1].type == UNDEFINED) {
 			plot->p_count--;
@@ -1779,6 +1936,8 @@ histogram_range_fiddling(struct curve_points *plot)
 			    axis_array[plot->y_axis].min = ylow;
 		}
 		break;
+	default:
+		break;
     }
 }
 
@@ -1788,21 +1947,26 @@ histogram_range_fiddling(struct curve_points *plot)
  * resulting plot will not be centered at the origin.
  */
 void
-polar_range_fiddling(struct curve_points *plot)
+polar_range_fiddling(struct axis *xaxis, struct axis *yaxis)
 {
     if (axis_array[POLAR_AXIS].set_autoscale & AUTOSCALE_MAX) {
-	double plotmax_x, plotmax_y, plotmax;
-	plotmax_x = GPMAX(axis_array[plot->x_axis].max, -axis_array[plot->x_axis].min);
-	plotmax_y = GPMAX(axis_array[plot->y_axis].max, -axis_array[plot->y_axis].min);
+	double plotmax_x, plotmax_y, plotmax_r, plotmax;
+	plotmax_x = GPMAX(xaxis->max, -xaxis->min);
+	plotmax_y = GPMAX(yaxis->max, -yaxis->min);
 	plotmax = GPMAX(plotmax_x, plotmax_y);
 
-	if ((axis_array[plot->x_axis].set_autoscale & AUTOSCALE_BOTH) == AUTOSCALE_BOTH) {
-	    axis_array[plot->x_axis].max = plotmax;
-	    axis_array[plot->x_axis].min = -plotmax;
+	plotmax_r = (axis_array[POLAR_AXIS].log)
+		  ? axis_array[POLAR_AXIS].linked_to_primary->max
+		  : axis_array[POLAR_AXIS].max;
+	plotmax = GPMAX(plotmax, plotmax_r);
+
+	if ((xaxis->set_autoscale & AUTOSCALE_BOTH) == AUTOSCALE_BOTH) {
+	    xaxis->max = plotmax;
+	    xaxis->min = -plotmax;
 	}
-	if ((axis_array[plot->y_axis].set_autoscale & AUTOSCALE_BOTH) == AUTOSCALE_BOTH) {
-	    axis_array[plot->y_axis].max = plotmax;
-	    axis_array[plot->y_axis].min = -plotmax;
+	if ((yaxis->set_autoscale & AUTOSCALE_BOTH) == AUTOSCALE_BOTH) {
+	    yaxis->max = plotmax;
+	    yaxis->min = -plotmax;
 	}
     }
 }
@@ -2035,6 +2199,9 @@ eval_plots()
     paxis_end = -1;
     paxis_current = -1;
 
+    /* Watch condition bookkeeping */
+    reset_watches();
+
     uses_axis[FIRST_X_AXIS] =
 	uses_axis[FIRST_Y_AXIS] =
 	uses_axis[SECOND_X_AXIS] =
@@ -2075,6 +2242,7 @@ eval_plots()
      * the xrange is defined.
      */
     plot_iterator = check_for_iteration();
+    warn_if_too_many_unbounded_iterations(plot_iterator);
     while (TRUE) {
 
 	/* Forgive trailing comma on a multi-element plot command */
@@ -2137,19 +2305,26 @@ eval_plots()
 	    newhist_pattern = fs.fillpattern;
 	    if (!equals(c_token,","))
 		int_error(c_token,"syntax error");
+	    was_definition = FALSE;
 
 	} else if (almost_equals(c_token, "newspider$plot")) {
 	    c_token++;
 	    paxis_current = 0;
 	    if (!equals(c_token,","))
 		int_error(c_token,"syntax error (missing comma)");
+	    was_definition = FALSE;
 
 	} else if (is_definition(c_token)) {
 	    define();
 	    if (equals(c_token,","))
 		c_token++;
-	    was_definition = TRUE;
-	    continue;
+	    if (equals(c_token,"for"))
+		/* fall through to iteration check at the end of the loop */
+		c_token--;
+	    else {
+		was_definition = TRUE;
+		continue;
+	    }
 
 	} else {
 	    int specs = 0;
@@ -2206,10 +2381,10 @@ eval_plots()
 		strcpy(c_dummy_var[0], orig_dummy_var);
 
 	    /* If string_or_express finds a function, it will construct an
-	     * action table that retrieves its dummy parameters from plot_func.
-	     * Later we will store values there prior to function evaluation.
+	     * action table for this plot.  Later we will store dummy variable
+	     * values for it prior to function evaluation.
 	     */
-	    dummy_func = &plot_func;
+	    dummy_func = &(this_plot->plot_function);
 	    name_str = string_or_express(NULL);
 	    dummy_func = NULL;
 
@@ -2221,15 +2396,17 @@ eval_plots()
 		if (*name_str == '$' && !get_datablock(name_str))
 		    int_error(c_token-1, "cannot plot voxel data");
 
-		if (*tp_ptr)
+		if (*tp_ptr) {
 		    this_plot = *tp_ptr;
-		else {          /* no memory malloc()'d there yet */
+		    cp_extend(this_plot, MIN_CRV_POINTS);
+		} else {
 		    this_plot = cp_alloc(MIN_CRV_POINTS);
 		    *tp_ptr = this_plot;
 		}
 		this_plot->plot_type = DATA;
 		this_plot->plot_style = data_style;
 		this_plot->plot_smooth = SMOOTH_NONE;
+		this_plot->plot_filter = FILTER_NONE;
 		this_plot->filledcurves_options = filledcurves_opts_data;
 
 		/* Only relevant to "with table" */
@@ -2311,14 +2488,18 @@ eval_plots()
 	    while (!END_OF_COMMAND) {
 		int save_token = c_token;
 
+		/* Previous keyword was problematic */
+		if (duplication)
+		    break;
+
 		/* bin the data if requested */
 		if (equals(c_token, "bins")) {
 		    if (set_smooth) {
-			duplication=TRUE;
+			duplication = TRUE;
 			break;
 		    }
 		    c_token++;
-		    this_plot->plot_smooth = SMOOTH_BINS;
+		    this_plot->plot_filter = FILTER_BINS;
 		    nbins = samples_1;
 		    if (equals(c_token, "=")) {
 			c_token++;
@@ -2359,29 +2540,54 @@ eval_plots()
 		    continue;
 		}
 
-		/* "convexhull" is unsmoothed; "smooth convexhull is smoothed */
-		if (equals(c_token, "convexhull")) {
-		    set_smooth = TRUE; 
-		    this_plot->plot_smooth = SMOOTH_CONVEX_HULL;
-		    this_plot->filledcurves_options.closeto = FILLEDCURVES_CLOSED;
+		/* "sharpen" applies only to function plots */
+		if (equals(c_token, "sharpen")) {
+		    if (this_plot->plot_type == FUNC)
+			this_plot->plot_filter = FILTER_SHARPEN;
+		    else
+			int_warn(c_token, "only function plots can be sharpened");
 		    c_token++;
 		    continue;
 		}
+
+		if (equals(c_token, "convexhull")) {
+		    this_plot->plot_filter = FILTER_CONVEX_HULL;
+		    c_token++;
+		    continue;
+		}
+
+#ifdef WITH_CHI_SHAPES
+		if (equals(c_token, "concavehull")) {
+		    this_plot->plot_filter = FILTER_CONCAVE_HULL;
+		    c_token++;
+		    continue;
+		}
+		/* This was added to help debug concave hulls.
+		 * Should we keep and document this as a filter?
+		 */
+		if (equals(c_token, "delaunay")) {
+		    this_plot->plot_filter = FILTER_DELAUNAY;
+		    c_token++;
+		    continue;
+		}
+#endif
+
+		if (this_plot->plot_filter == FILTER_CONVEX_HULL
+		||  this_plot->plot_filter == FILTER_CONCAVE_HULL)
+		    parse_hull_options(this_plot);
 
 		/* deal with smooth */
 		if (almost_equals(c_token, "s$mooth")) {
 		    int found_token;
 
-		    if (set_smooth) {
-			duplication=TRUE;
-			break;
-		    }
 		    found_token = lookup_table(plot_smooth_tbl, ++c_token);
 		    c_token++;
 
 		    switch(found_token) {
 		    case SMOOTH_BINS:
-			/* catch the "bins" keyword by itself on the next pass */
+			/* "smooth bins" is the same as "bins".
+			 *  Catch the "bins" keyword as a filter on the next pass
+			 */
 			c_token--;
 			continue;
 		    case SMOOTH_UNWRAP:
@@ -2405,32 +2611,44 @@ eval_plots()
 			this_plot->plot_style = LINES;	/* can override later */
 			break;
 		    case SMOOTH_ZSORT:
-			this_plot->plot_smooth = SMOOTH_ZSORT;
-			this_plot->plot_style = POINTSTYLE;
+			/* Jan 2022: same as filter "zsort" */
+			this_plot->plot_filter = FILTER_ZSORT;
 			break;
-		    case SMOOTH_CONVEX_HULL:
-			this_plot->plot_smooth = SMOOTH_SMOOTH_HULL;
-			parse_hull_options(this_plot);
+		    case SMOOTH_SMOOTH_HULL:
+			/* deprecated synonym for "convexhull smooth path" */
+			this_plot->plot_smooth = SMOOTH_PATH;
+			this_plot->plot_filter = FILTER_CONVEX_HULL;
+			this_plot->plot_style = LINES;	/* can override later */
 			break;
 		    case SMOOTH_NONE:
 		    default:
 			int_error(c_token, "unrecognized 'smooth' option");
 			break;
 		    }
-		    set_smooth = TRUE;
+
+		    /* Sanity check - very few smooth options work with polar coords */
+		    if (polar) {
+			switch(this_plot->plot_smooth) {
+			default:
+			    int_error(c_token, "this smooth option not possible with polar coordinates");
+			case SMOOTH_NONE:
+			case SMOOTH_PATH:
+			    break;
+			}
+		    }
+
+		    if (set_smooth)
+			duplication = TRUE;
+		    else
+			set_smooth = TRUE;
+
 		    continue;
 		}
 
-		/* "mask" is currently implemented as if it were a smoothing
-		 * category, but giving it a separate keyword will make it
-		 * easier to separate later.
-		 */
+		/* "mask" is currently implemented as a filter */
 		if (equals(c_token, "mask")) {
 		    c_token++;
-		    if (set_smooth)
-			duplication = TRUE;
-		    set_smooth = TRUE;
-		    this_plot->plot_smooth = SMOOTH_MASK;
+		    this_plot->plot_filter = FILTER_MASK;
 		    continue;
 		}
 
@@ -2438,7 +2656,7 @@ eval_plots()
 		if (almost_equals(c_token, "ax$es")
 		    || almost_equals(c_token, "ax$is")) {
 		    if (set_axes) {
-			duplication=TRUE;
+			duplication = TRUE;
 			break;
 		    }
 		    if (parametric && in_parametric)
@@ -2490,18 +2708,28 @@ eval_plots()
 		/* deal with style */
 		if (almost_equals(c_token, "w$ith")) {
 		    if (set_with) {
-			duplication=TRUE;
+			duplication = TRUE;
 			break;
 		    }
 		    if (parametric && in_parametric)
 			int_error(c_token, "\"with\" allowed only after parametric function fully specified");
 		    this_plot->plot_style = get_style();
 
-		    if (this_plot->plot_style == FILLEDCURVES
-		    ||  this_plot->plot_style == FILLSTEPS) {
+		    if (this_plot->plot_style == FILLEDCURVES) {
 			/* read a possible option for 'with filledcurves' */
 			get_filledcurves_style_options(&this_plot->filledcurves_options);
+			if ((this_plot->plot_filter == FILTER_CONVEX_HULL)
+			||  (this_plot->plot_filter == FILTER_CONCAVE_HULL))
+			    this_plot->filledcurves_options.closeto = FILLEDCURVES_CLOSED;
 		    }
+
+		    if (this_plot->plot_style == HSTEPS
+		    ||  this_plot->plot_style == STEPS
+		    ||  this_plot->plot_style == FSTEPS
+		    ||  this_plot->plot_style == FILLSTEPS
+		    ||  this_plot->plot_style == HISTEPS)
+			parse_hsteps(this_plot->plot_style, &(this_plot->hsteps_options),
+					&(this_plot->filledcurves_options));
 
 		    if (this_plot->plot_style == IMAGE
 		    ||  this_plot->plot_style == RGBIMAGE
@@ -2574,7 +2802,7 @@ eval_plots()
 		    arrow_parse(&(this_plot->arrow_properties), TRUE);
 		    if (stored_token != c_token) {
 			if (set_lpstyle) {
-			    duplication=TRUE;
+			    duplication = TRUE;
 			    break;
 			} else {
 			    set_lpstyle = TRUE;
@@ -2584,7 +2812,7 @@ eval_plots()
 		}
 
 		/* pick up the special 'units' keyword the 'ellipses' style allows */
-		if (this_plot->plot_style == ELLIPSES) {
+		if (this_plot->plot_style == ELLIPSES || this_plot->plot_style == SECTORS) {
 		    int stored_token = c_token;
 		    
 		    if (!set_ellipseaxes_units)
@@ -2604,7 +2832,7 @@ eval_plots()
 		    }
 		    if (stored_token != c_token) {
 			if (set_ellipseaxes_units) {
-			    duplication=TRUE;
+			    duplication = TRUE;
 			    break;
 			} else {
 			    set_ellipseaxes_units = TRUE;
@@ -2646,7 +2874,7 @@ eval_plots()
 
 		    if (stored_token != c_token) {
 			if (set_lpstyle) {
-			    duplication=TRUE;
+			    duplication = TRUE;
 			    break;
 			} else {
 			    this_plot->lp_properties = lp;
@@ -2667,7 +2895,7 @@ eval_plots()
 		    int stored_token = c_token;
 
 		    if (this_plot->labels == NULL) {
-			this_plot->labels = new_text_label(-1);
+			this_plot->labels = new_text_label(LABEL_TAG_PLOTLABELS);
 			this_plot->labels->pos = CENTRE;
 			this_plot->labels->layer = LAYER_PLOTLABELS;
 		    }
@@ -2676,7 +2904,10 @@ eval_plots()
 			if (!set_labelstyle)
 			    this_plot->labels->textcolor.type = TC_DEFAULT;
 		    }
-		    parse_label_options(this_plot->labels, 2);
+		    if (this_plot->plot_type == KEYENTRY)
+			parse_label_options(this_plot->labels, 4);
+		    else
+			parse_label_options(this_plot->labels, 2);
 		    if (stored_token != c_token) {
 			if (set_labelstyle) {
 			    duplication = TRUE;
@@ -2694,13 +2925,11 @@ eval_plots()
 		    if (equals(c_token,"fs") || almost_equals(c_token,"fill$style")) {
 			if (this_plot->plot_style == SPIDERPLOT)
 			    this_plot->fill_properties = spiderplot_style.fillstyle;
-			else
+			else {
 			    this_plot->fill_properties = default_fillstyle;
-			this_plot->fill_properties.fillpattern = pattern_num;
+			    this_plot->fill_properties.fillpattern = pattern_num;
+			}
 			parse_fillstyle(&this_plot->fill_properties);
-			if (this_plot->plot_style == FILLEDCURVES
-			&& this_plot->fill_properties.fillstyle == FS_EMPTY)
-			    this_plot->fill_properties.fillstyle = FS_SOLID;
 			set_fillstyle = TRUE;
 		    }
 		    if (equals(c_token,"fc") || almost_equals(c_token,"fillc$olor")) {
@@ -2711,9 +2940,29 @@ eval_plots()
 			continue;
 		}
 
+#ifdef USE_WATCHPOINTS
+		/* Watch conditions (only supported for "plot with lines") */
+		if (equals(c_token, "watch")) {
+		    parse_watch(this_plot);
+		    continue;
+		}
+#endif
+
 		break; /* unknown option */
 
 	    } /* while (!END_OF_COMMAND) */
+
+	    /* This allows substitution of HSTEPS for older step modes that
+	     * were set by default with "set style {data|func}"
+	     */
+	    if (!set_with) {
+		if (this_plot->plot_style == STEPS
+		||  this_plot->plot_style == FSTEPS
+		||  this_plot->plot_style == FILLSTEPS
+		||  this_plot->plot_style == HISTEPS)
+		    parse_hsteps(this_plot->plot_style, &(this_plot->hsteps_options),
+					&(this_plot->filledcurves_options));
+	    }
 
 	    if (duplication)
 		int_error(c_token, "duplicated or contradicting arguments in plot options");
@@ -2732,7 +2981,11 @@ eval_plots()
 	    this_plot->title_is_automated = FALSE;
 	    if (!set_title) {
 		this_plot->title_no_enhanced = TRUE; /* filename or function cannot be enhanced */
-		if (key->auto_titles == FILENAME_KEYTITLES) {
+		if (this_plot->plot_type == KEYENTRY) {
+		    this_plot->title = strdup(" ");
+		} else if (key->auto_titles == COLUMNHEAD_KEYTITLES) {
+		    this_plot->title_is_automated = TRUE;
+		} else if (key->auto_titles == FILENAME_KEYTITLES) {
 		    m_capture(&(this_plot->title), start_token, end_token);
 		    if (in_parametric)
 			xtitle = this_plot->title;
@@ -2812,14 +3065,23 @@ eval_plots()
 		case DOTS:
 		case VECTOR:
 		case FILLEDCURVES:
+		case POLYGONS:
 		case LABELPOINTS:
 		case CIRCLES:
+		case SECTORS:
 		case YERRORBARS:
 		case YERRORLINES:
+		case SURFACEGRID:
 				break;
 		default:
 				int_error(NO_CARET, 
 				    "This plot style is not available in polar mode");
+	    }
+
+	    /* Rule out incompatible filter options */
+	    if (this_plot->plot_filter != FILTER_NONE) {
+		if (this_plot->plot_style == LABELPOINTS)
+		    int_error(NO_CARET, "label plots cannot use data filters");
 	    }
 
 	    /* If we got this far without initializing the fill style, do it now */
@@ -2827,17 +3089,21 @@ eval_plots()
 		if (!set_fillstyle) {
 		    if (this_plot->plot_style == SPIDERPLOT)
 			this_plot->fill_properties = spiderplot_style.fillstyle;
-		    else
+		    else {
 			this_plot->fill_properties = default_fillstyle;
-		    this_plot->fill_properties.fillpattern = pattern_num;
+			this_plot->fill_properties.fillpattern = pattern_num;
+		    }
 		    parse_fillstyle(&this_plot->fill_properties);
 		}
 		if ((this_plot->fill_properties.fillstyle == FS_PATTERN)
 		  ||(this_plot->fill_properties.fillstyle == FS_TRANSPARENT_PATTERN))
 		    pattern_num = this_plot->fill_properties.fillpattern + 1;
 		if (this_plot->plot_style == FILLEDCURVES
-		&& this_plot->fill_properties.fillstyle == FS_EMPTY)
-		    this_plot->fill_properties.fillstyle = FS_SOLID;
+		||  this_plot->plot_style == SURFACEGRID)
+		    if (this_plot->fill_properties.fillstyle == FS_EMPTY) {
+			this_plot->fill_properties.fillstyle = FS_SOLID;
+			this_plot->fill_properties.filldensity = 100;
+		}
 	    }
 
 	    this_plot->x_axis = x_axis;
@@ -2847,7 +3113,7 @@ eval_plots()
 	    if (this_plot->plot_style & PLOT_STYLE_HAS_POINT
 	    &&  this_plot->lp_properties.p_type == PT_CHARACTER) {
 		if (this_plot->labels == NULL) {
-		    this_plot->labels = new_text_label(-1);
+		    this_plot->labels = new_text_label(LABEL_TAG_PLOTLABELS);
 		    this_plot->labels->pos = CENTRE;
 		    parse_label_options(this_plot->labels, 2);
 		}
@@ -2856,7 +3122,7 @@ eval_plots()
 	    /* If we got this far without initializing the label list, do it now */
 	    if (this_plot->plot_style == LABELPOINTS) {
 		if (this_plot->labels == NULL) {
-		    this_plot->labels = new_text_label(-1);
+		    this_plot->labels = new_text_label(LABEL_TAG_PLOTLABELS);
 		    this_plot->labels->pos = CENTRE;
 		    this_plot->labels->layer = LAYER_PLOTLABELS;
 		}
@@ -2892,12 +3158,12 @@ eval_plots()
 
 	    /* We can skip a lot of stuff if this is not a real plot */
 	    if (this_plot->plot_type == KEYENTRY)
-		goto SKIPPED_EMPTY_FILE;
+		goto NOTHING_HERE_BUT_PLOT_TITLE;
 
 	    /* Initialize the label list in case the BOXPLOT style needs it to store factors */
 	    if (this_plot->plot_style == BOXPLOT) {
 		if (this_plot->labels == NULL)
-		    this_plot->labels = new_text_label(-1);
+		    this_plot->labels = new_text_label(LABEL_TAG_PLOTLABELS);
 		/* We only use the list to store strings, so this is all we need here. */
 	    }
 
@@ -2956,11 +3222,16 @@ eval_plots()
 	    }
 
 	    /* Styles that use palette */
+	    if (this_plot->plot_style == SURFACEGRID) {
+		/* Used for the key sample, if nothing else */
+		t_colorspec mid_palette = {TC_FRAC, 0, 0.5};
+		this_plot->lp_properties.pm3d_color = mid_palette;
+	    }
 
-	    /* we can now do some checks that we deferred earlier */
+	    /* We can now do some checks that we deferred earlier */
 
 	    if (this_plot->plot_type == DATA) {
-		if (specs < 0) {
+		if (specs == DF_EOF) {
 		    /* Error check to handle missing or unreadable file */
 		    ++line_num;
 		    this_plot->plot_type = NODATA;
@@ -2984,7 +3255,7 @@ eval_plots()
 			int_error(c_token, "Need using spec for y time data");
 		}
 
-		/* NB: df_axis is used only for timedate data and 3D cbticlabels */
+		/* NB: df_axis is used only for timedate data */
 		df_axis[0] = x_axis;
 		df_axis[1] = y_axis;
 
@@ -3025,7 +3296,10 @@ eval_plots()
 
 		/* actually get the data now */
 		if (get_data(this_plot) == 0) {
-		    if (!forever_iteration(plot_iterator))
+		    if (forever_iteration(plot_iterator)) {
+			flag_iteration_nodata(plot_iterator);
+			line_num--;
+		    } else
 			int_warn(NO_CARET,"Skipping data file with no valid points");
 		    this_plot->plot_type = NODATA;
 		    goto SKIPPED_EMPTY_FILE;
@@ -3040,14 +3314,51 @@ eval_plots()
 			    ninrange++;
 		    if (ninrange == 0) {
 			this_plot->plot_type = NODATA;
+			flag_iteration_nodata(plot_iterator);
+			line_num--;
 			goto SKIPPED_EMPTY_FILE;
 		    }
 		}
 
-		/* If we are to bin the data, do that first */
-		if (this_plot->plot_smooth == SMOOTH_BINS) {
+		/* The file was not really empty, but "plot with table" bypasses  */
+		/* filters, smoothing, range checks, and graphics, so we're done. */
+		if (this_plot->plot_style == TABLESTYLE)
+		    goto SKIPPED_EMPTY_FILE;
+
+		/* Jan 2022: Filter operations are performed immediately after
+		 * reading in the data, before any smoothing.
+		 */
+		if (this_plot->plot_filter == FILTER_BINS) {
 		    make_bins(this_plot, nbins, binlow, binhigh, binwidth, binopt);
 		}
+		if (this_plot->plot_filter == FILTER_CONVEX_HULL) {
+		    convex_hull(this_plot);
+		    if (this_plot->smooth_parameter != 0)
+			expand_hull(this_plot);
+		}
+		if (this_plot->plot_filter == FILTER_ZSORT) {
+		    zsort_points(this_plot);
+		    zrange_points(this_plot);
+		}
+
+#ifdef USE_POLAR_GRID
+		if (this_plot->plot_style == SURFACEGRID) {
+		    grid_polar_data(this_plot);
+		}
+#endif
+
+#ifdef WITH_CHI_SHAPES
+		if (this_plot->plot_filter == FILTER_CONCAVE_HULL) {
+		    delaunay_triangulation(this_plot);
+		    concave_hull(this_plot);
+		    if (this_plot->smooth_parameter != 0)
+			expand_hull(this_plot);
+		}
+		if (this_plot->plot_filter == FILTER_DELAUNAY) {
+		    delaunay_triangulation(this_plot);
+		    save_delaunay_triangles(this_plot);
+		}
+#endif
 
 		/* Restore auto-scaling prior to smoothing operation */
 		switch (this_plot->plot_smooth) {
@@ -3071,7 +3382,7 @@ eval_plots()
 		if (this_plot->plot_style == IMPULSES)
 		    impulse_range_fiddling(this_plot);
 		if (polar)
-		    polar_range_fiddling(this_plot);
+		    polar_range_fiddling(&axis_array[this_plot->x_axis], &axis_array[this_plot->y_axis]);
 
 		/* sort */
 		switch (this_plot->plot_smooth) {
@@ -3089,12 +3400,6 @@ eval_plots()
 		    cp_implode(this_plot);
 		    break;
 		case SMOOTH_ZSORT:
-		    zsort_points(this_plot);
-		    break;
-		case SMOOTH_CONVEX_HULL:
-		case SMOOTH_SMOOTH_HULL:
-		    convex_hull(this_plot);
-		    break;
 		case SMOOTH_NONE:
 		case SMOOTH_PATH:
 		case SMOOTH_BEZIER:
@@ -3133,10 +3438,6 @@ eval_plots()
 		case SMOOTH_MONOTONE_CSPLINE:
 		    mcs_interp(this_plot);
 		    break;
-		case SMOOTH_SMOOTH_HULL:
-		    expand_hull(this_plot);
-		    gen_2d_path_splines(this_plot);
-		    break;
 		case SMOOTH_PATH:
 		    gen_2d_path_splines(this_plot);
 		    break;
@@ -3160,7 +3461,14 @@ eval_plots()
 		    process_image(this_plot, IMG_UPDATE_AXES);
 		}
 
-	    }
+	    }	/* plot_type == DATA */
+
+	    /* Deferred evaluation of plot title
+	     * now that we know column headers (loaded in get_data)
+	     * and potentially stats from filters, smoothing and image processing.
+	     */
+	    NOTHING_HERE_BUT_PLOT_TITLE:
+	    reevaluate_plot_title(this_plot);
 
 	    SKIPPED_EMPTY_FILE:
 	    /* Note position in command line for second pass */
@@ -3173,7 +3481,7 @@ eval_plots()
 		this_plot->sample_var2->udv_value = original_value_sample_var2;
 	    }
 
-	} /* !is_defn */
+	} /* !is_definition */
 
 	if (in_parametric) {
 	    if (equals(c_token, ",")) {
@@ -3183,19 +3491,10 @@ eval_plots()
 		break;
 	}
 
-	/* Iterate-over-plot mechanism */
-	if (empty_iteration(plot_iterator) && this_plot)
-	    this_plot->plot_type = NODATA;
-	if (forever_iteration(plot_iterator) && !this_plot)
-	    int_error(NO_CARET,"unbounded iteration in something other than a data plot");
-	else if (forever_iteration(plot_iterator) && (this_plot->plot_type == NODATA)) {
-	    FPRINTF((stderr,"Ending * iteration at %d\n",plot_iterator->iteration));
-	    /* Clearing the plot title ensures that it will not appear in the key */
-	    free (this_plot->title);
-	    this_plot->title = NULL;
-	} else if (forever_iteration(plot_iterator) && (this_plot->plot_type != DATA)) {
-	    int_error(NO_CARET,"unbounded iteration in something other than a data plot");
-	} else if (next_iteration(plot_iterator)) {
+	/* If we are in the middle of an iterated plot clause
+	 * go back and run it again.
+	 */
+	if (evaluate_iteration(this_plot)) {
 	    c_token = start_token;
 	    continue;
 	}
@@ -3204,6 +3503,7 @@ eval_plots()
 	if (equals(c_token, ",")) {
 	    c_token++;
 	    plot_iterator = check_for_iteration();
+	    warn_if_too_many_unbounded_iterations(plot_iterator);
 	} else
 	    break;
     }
@@ -3301,8 +3601,13 @@ eval_plots()
 		define();
 		if (equals(c_token, ","))
 		    c_token++;
-		was_definition = TRUE;
-		continue;
+		if (equals(c_token,"for"))
+		    /* fall through to iteration check at the end of the loop */
+		    c_token--;
+		else {
+		    was_definition = TRUE;
+		    continue;
+		}
 
 	    } else {
 		struct at_type *at_ptr;
@@ -3323,11 +3628,12 @@ eval_plots()
 		plot_num++;
 
 		/* Check for a sampling range. */
-		/* Only relevant to function plots, and only needed in second pass. */
 		if (!parametric && !polar)
 		    init_sample_range(axis_array + x_axis, FUNC);
 		sample_range_token = parse_range(SAMPLE_AXIS);
-		dummy_func = &plot_func;
+		if (sample_range_token > 0 && equals(sample_range_token, "u"))
+		    parse_range(V_AXIS);
+		dummy_func = &(this_plot->plot_function);
 
 		if (almost_equals(c_token, "newhist$ogram")) {
 		    /* Make sure this isn't interpreted as a function */
@@ -3356,7 +3662,8 @@ eval_plots()
 		    if (this_plot->plot_style == TABLESTYLE)
 			int_warn(NO_CARET, "'with table' requires a data source not a pure function");
 
-		    plot_func.at = at_ptr;
+		    /* Used to generate samples and to optimize watchpoints */
+		    this_plot->plot_function.at = at_ptr;
 
 		    if (!parametric && !polar) {
 			t_min = axis_array[SAMPLE_AXIS].min;
@@ -3374,6 +3681,16 @@ eval_plots()
 
 			t_step = (t_max - t_min) / (samples_1 - 1);
 		    }
+
+		    /* If this plot structure was previously used to plot something
+		     * with only a few points, the storage space is not big enough.
+		     */
+		    if (samples_1 > this_plot->p_max) {
+			FPRINTF((stderr,"extending plot with space for %d points to hold %d\n",
+				this_plot->p_max, samples_1+1));
+			cp_extend(this_plot, samples_1 + 1);
+		    }
+
 		    for (i = 0; i < samples_1; i++) {
 			double x, temp;
 			struct value a;
@@ -3385,15 +3702,17 @@ eval_plots()
 			    AXIS *vis = axis_array[SAMPLE_AXIS].linked_to_primary->linked_to_secondary;
 			    t = eval_link_function(vis, t_min + i * t_step);
 			} else {
-			    /* Zero is often a special point in a function domain. */
-			    /* Make sure we don't miss it due to round-off error.  */
+			    /* Zero is often a special point in a function domain.
+			     * Make sure we don't miss it due to round-off error.
+			     * See also the "sharpen" filter code.
+			     */
 			    if ((fabs(t) < 1.e-9) && (fabs(t_step) > 1.e-6))
 				t = 0.0;
 			}
 
 			x = t;
-			(void) Gcomplex(&plot_func.dummy_values[0], x, 0.0);
-			evaluate_at(plot_func.at, &a);
+			Gcomplex(&this_plot->plot_function.dummy_values[0], x, 0.0);
+			evaluate_at(this_plot->plot_function.at, &a);
 
 			if (undefined) {
 			    this_plot->points[i].type = UNDEFINED;
@@ -3518,6 +3837,14 @@ eval_plots()
 		    this_plot->p_count = i;     /* samples_1 */
 		}
 
+		/* Most filters apply only to data plots.
+		 * "sharpen" is an exception that applies only to functions.
+		 */
+		if (this_plot->plot_filter == FILTER_SHARPEN) {
+		    if (this_plot->plot_style == LINES)
+			sharpen(this_plot);
+		}
+
 		/* skip all modifiers func / whole of data plots */
 		c_token = this_plot->token;
 
@@ -3568,7 +3895,7 @@ eval_plots()
 
 	/* This is the earliest that polar autoscaling can be done for function plots */
 	if (polar) {
-	    polar_range_fiddling(first_plot);
+	    polar_range_fiddling(&axis_array[first_plot->x_axis], &axis_array[first_plot->y_axis]);
 	}
 
     }   /* some_functions */
@@ -3601,9 +3928,7 @@ eval_plots()
     if (spiderplot)
 	spiderplot_range_fiddling(first_plot);
 
-    /* gnuplot version 5.0 always used x1 to track autoscaled range
-     * regardless of whether x1 or x2 was used to plot the data. 
-     * In version 5.2 we track the x1/x2 axis data limits separately.
+    /* We track the x1/x2 axis data limits separately.
      * However if x1 and x2 are linked to each other we must now
      * reconcile their data limits before plotting.
      */
@@ -3655,21 +3980,37 @@ eval_plots()
     } else if (this_plot && this_plot->plot_style == PARALLELPLOT) {
 	/* we should maybe check one of the parallel axes? */
 	;
-    } else if (uses_axis[FIRST_Y_AXIS] && nonlinear(&axis_array[FIRST_Y_AXIS])) {
-	axis_checked_extend_empty_range(FIRST_Y_AXIS, "all points y value undefined!");
-	update_primary_axis_range(&axis_array[FIRST_Y_AXIS]);
-	extend_autoscaled_log_axis(&axis_array[FIRST_Y_AXIS]);
     } else if (uses_axis[FIRST_Y_AXIS]) {
-	axis_checked_extend_empty_range(FIRST_Y_AXIS, "all points y value undefined!");
-	axis_check_range(FIRST_Y_AXIS);
+	/* Autoscaling y to input data may have been fine initially but later zooming
+	 * to a region with no data points causes y autoscaling to become undefined
+	 * on refresh.  In this case we use the range requested by zoom.
+	 */
+	if (inside_zoom) {
+	    axis_array[FIRST_Y_AXIS].min = axis_array[FIRST_Y_AXIS].set_min;
+	    axis_array[FIRST_Y_AXIS].max = axis_array[FIRST_Y_AXIS].set_max;
+	}
+	if (nonlinear(&axis_array[FIRST_Y_AXIS])) {
+	    axis_checked_extend_empty_range(FIRST_Y_AXIS, "all points y value undefined!");
+	    update_primary_axis_range(&axis_array[FIRST_Y_AXIS]);
+	    extend_autoscaled_log_axis(&axis_array[FIRST_Y_AXIS]);
+	} else {
+	    axis_checked_extend_empty_range(FIRST_Y_AXIS, "all points y value undefined!");
+	    axis_check_range(FIRST_Y_AXIS);
+	}
     }
-    if (uses_axis[SECOND_Y_AXIS] && axis_array[SECOND_Y_AXIS].linked_to_primary) {
-	axis_checked_extend_empty_range(SECOND_Y_AXIS, "all points y2 value undefined!");
-	update_primary_axis_range(&axis_array[SECOND_Y_AXIS]);
-	extend_autoscaled_log_axis(&axis_array[SECOND_Y_AXIS]);
-    } else if (uses_axis[SECOND_Y_AXIS]) {
-	axis_checked_extend_empty_range(SECOND_Y_AXIS, "all points y2 value undefined!");
-	axis_check_range(SECOND_Y_AXIS);
+    if (uses_axis[SECOND_Y_AXIS]) {
+	if (inside_zoom) {
+	    axis_array[SECOND_Y_AXIS].min = axis_array[SECOND_Y_AXIS].set_min;
+	    axis_array[SECOND_Y_AXIS].max = axis_array[SECOND_Y_AXIS].set_max;
+	}
+	if (axis_array[SECOND_Y_AXIS].linked_to_primary) {
+	    axis_checked_extend_empty_range(SECOND_Y_AXIS, "all points y2 value undefined!");
+	    update_primary_axis_range(&axis_array[SECOND_Y_AXIS]);
+	    extend_autoscaled_log_axis(&axis_array[SECOND_Y_AXIS]);
+	} else {
+	    axis_checked_extend_empty_range(SECOND_Y_AXIS, "all points y2 value undefined!");
+	    axis_check_range(SECOND_Y_AXIS);
+	}
     } else {
 	assert(uses_axis[FIRST_Y_AXIS]);
     }
@@ -3688,6 +4029,7 @@ eval_plots()
 	m_capture(&replot_line, plot_token, c_token - 1);
 	plot_token = -1;
 	fill_gpval_string("GPVAL_LAST_PLOT", replot_line);
+	last_plot_was_multiplot = FALSE;
     }
 
     if (table_mode) {
@@ -3816,6 +4158,54 @@ parametric_fixup(struct curve_points *start_plot, int *plot_num)
     *last_pointer = free_list;
 }
 
+/*
+ * Track the progress of iteration inside a plot command.
+ * This became complicated enough to split out into a
+ * separate routine for readability.
+ * In the future a non-zero return value may carry more information.
+ *
+ * Return:
+ *	0 = no more in this iteration
+ *	    continue to the next plot clause
+ *  non-0 = iteration counters have been incremented
+ *	    loop back up to the next iteration
+ */
+static int
+evaluate_iteration( struct curve_points *this_plot )
+{
+    /* Iterate-over-plot mechanism */
+    if (empty_iteration(plot_iterator) && this_plot)
+	this_plot->plot_type = NODATA;
+    if (forever_iteration(plot_iterator) && !this_plot)
+	int_error(NO_CARET,
+		"unbounded iteration in something other than a data plot");
+
+    /* This handles the case a nested unbounded iteration.
+     * If the top level iteration is bounded, next_iteration will advance it.
+     * If the top level iteration is unbounded, next_iteration will warn and
+     * return FALSE.
+     */
+    if (plot_iterator && (forever_iteration(plot_iterator->next) < 0)
+    &&  (this_plot->plot_type == NODATA)) {
+	if (next_iteration(plot_iterator))
+	    return 1;
+    }
+
+    if (forever_iteration(plot_iterator)
+    &&  (this_plot->plot_type == NODATA)) {
+	/* Clearing the plot title ensures that it will not appear in the key */
+	free (this_plot->title);
+	this_plot->title = NULL;
+    } else if (forever_iteration(plot_iterator) && this_plot->plot_type != DATA) {
+	int_error(NO_CARET,
+		"unbounded iteration in something other than a data plot");
+    } else if (next_iteration(plot_iterator)) {
+	return 1;
+    }
+
+    /* This is the 'normal' return - no continuing iteration to handle */
+    return 0;
+}
 
 /*
  * handle optional keywords for
@@ -3847,10 +4237,11 @@ parse_kdensity_options(struct curve_points *this_plot)
 static void
 parse_hull_options(struct curve_points *this_plot)
 {
-    this_plot->smooth_parameter = 0;
     if (equals(c_token,"expand")) {
 	c_token++;
-	this_plot->smooth_parameter = real_expression();
+	if ((this_plot->plot_filter == FILTER_CONVEX_HULL)
+	||  (this_plot->plot_filter == FILTER_CONCAVE_HULL))
+	    this_plot->smooth_parameter = real_expression();
     }
 }
 
@@ -3898,8 +4289,6 @@ parse_plot_title(struct curve_points *this_plot, char *xtitle, char *ytitle, TBO
 	} else if (equals(c_token,"at")) {
 	    *set_title = FALSE;
 	} else {
-	    int save_token = c_token;
-
 	    /* If the command is "plot ... notitle <optional title text>" */
 	    /* we can throw the result away now that we have stepped over it  */
 	    if (this_plot->title_is_suppressed) {
@@ -3911,33 +4300,16 @@ parse_plot_title(struct curve_points *this_plot, char *xtitle, char *ytitle, TBO
 	     * data file rather than once per data set within the file.
 	     */
 	    } else if (isstring(c_token) && !equals(c_token+1,".")) {
+		char *tmp = try_to_get_string();
 		free_at(df_plot_title_at);
 		df_plot_title_at = NULL;
 		free(this_plot->title);
-		this_plot->title = try_to_get_string();
+		this_plot->title = tmp;
 
 	    /* Create an action table that can generate the title later */
 	    } else { 
 		free_at(df_plot_title_at);
 		df_plot_title_at = perm_at();
-
-		/* We can evaluate the title for a function plot immediately */
-		/* FIXME: or this code could go into eval_plots() so that    */
-		/*        function and data plots are treated the same way.  */
-		if (this_plot->plot_type == FUNC || this_plot->plot_type == FUNC3D
-		||  this_plot->plot_type == VOXELDATA
-		||  this_plot->plot_type == KEYENTRY) {
-		    struct value a;
-		    evaluate_at(df_plot_title_at, &a);
-		    if (a.type == STRING) {
-			free(this_plot->title);
-			this_plot->title = a.v.string_val;
-		    } else {
-			int_warn(save_token, "expecting string for title");
-		    }
-		    free_at(df_plot_title_at);
-		    df_plot_title_at = NULL;
-		}
 	    }
 	}
 	if (equals(c_token,"at")) {
@@ -3954,7 +4326,7 @@ parse_plot_title(struct curve_points *this_plot, char *xtitle, char *ytitle, TBO
 		this_plot->title_position->y = RIGHT;
 		c_token++;
 	    } else {
-		get_position_default(this_plot->title_position, screen, 2);
+		get_position_default(this_plot->title_position, screen, TRUE, 2);
 	    }
 	    if (save_token == c_token)
 		int_error(c_token, "expecting \"at {beginning|end|<xpos>,<ypos>}\"");
@@ -4016,7 +4388,15 @@ reevaluate_plot_title(struct curve_points *this_plot)
 		free_at(df_plot_title_at);
 		df_plot_title_at = NULL;
 	    }
+	} else {
+	    int_warn(NO_CARET, "plot title must be a string");
 	}
+    }
+
+    else if (!this_plot->title && this_plot->title_is_automated
+	 &&  (&keyT)->auto_titles == COLUMNHEAD_KEYTITLES) {
+	this_plot->title = df_key_title;
+	df_key_title = NULL;
     }
 
     if (this_plot->plot_style == PARALLELPLOT
@@ -4026,3 +4406,199 @@ reevaluate_plot_title(struct curve_points *this_plot)
     }
 }
 
+#ifdef USE_POLAR_GRID
+
+/*
+ * Alternative to store2d_point(), which would convert to Cartesian coordinates.
+ * Store theta in radians, r in user coordinates.
+ */
+static void
+store_polar_point(struct curve_points *current_plot, int i, double v[MAXDATACOLS])
+{
+    AXIS *r_axis = &axis_array[POLAR_AXIS];
+    coordval theta = v[0] * ang2rad;
+    coordval r = v[1];
+    current_plot->points[i].type = INRANGE;
+
+    /* Wrap theta to lie in [0:2pi].  Autoscale r */
+    if (theta < -630)
+	current_plot->points[i].type = OUTRANGE;
+    else
+	while (theta < 0) theta += 2*M_PI;
+    if (theta > 630)
+	current_plot->points[i].type = OUTRANGE;
+    else
+	while (theta > 2*M_PI) theta -= 2*M_PI;
+    if ((r_axis->set_autoscale & AUTOSCALE_MAX) && (r > r_axis->max))
+	r_axis->max = r;
+
+    current_plot->points[i].x = theta;
+    current_plot->points[i].y = r;
+    current_plot->points[i].z = v[2];
+}
+
+/*
+ * Replace original points with a polar grid.
+ * This code is modeled on the dgrid3d mode grid_nongrid_data().
+ */
+static void
+grid_polar_data(struct curve_points *this_plot)
+{
+    int i, j, k;
+    double t, r, z, w, dt, dr;
+    double tmin, tmax, rmin, rmax;
+    double zmin, zmax;
+    double dist;
+    AXIS *r_axis = &axis_array[POLAR_AXIS];
+    struct coordinate *old_points = this_plot->points;
+    struct coordinate *opoint;
+    int old_pcount = this_plot->p_count;
+    struct coordinate *point;
+
+    /* nothing to grid */
+    if (this_plot->p_count == 0)
+	return;
+
+    /* These limits are for the grid, not the data.
+     * All data points contribute to the grid values.
+     * Note that the grid theta is in degrees.
+     * The grid always uses rrange [0:rmax] and trange [0:360].
+     * The grid can be clipped to range later.
+     */
+    tmin = 0.0;
+    tmax = 360.0;
+    rmin = 0.0;
+    if (r_axis->log)
+	rmin = r_axis->set_min;
+    rmax = r_axis->max;
+
+    /* Extend the top segment a little beyond the last data point */
+    if (r_axis->set_autoscale & AUTOSCALE_MAX) {
+	dr = (rmax - rmin) / polar_grid.r_segments;
+	rmax += dr/4;
+	r_axis->max = rmax;
+    }
+
+    dr = (rmax - rmin) / polar_grid.r_segments;
+    dt = (tmax - tmin) / polar_grid.theta_segments;
+
+    /* Create the new grid structure and fill in grid point values
+     * derived from the original data point values.
+     */
+    this_plot->points = NULL;
+    cp_extend(this_plot, 0);
+    this_plot->p_count = polar_grid.theta_segments * polar_grid.r_segments;
+    cp_extend(this_plot, this_plot->p_count);
+
+    point = this_plot->points;
+    for (i = 0, r = rmin; i < polar_grid.r_segments; i++, r += dr) {
+	for (j = 0, t = tmin; j < polar_grid.theta_segments; j++, t+=dt, point++) {
+	    opoint = old_points;
+	    z = w = 0.0;
+
+	    for (k = 0; k < old_pcount; k++, opoint++) {
+
+		if (opoint->type == UNDEFINED)
+		    continue;
+
+		/* Distance from data point to center of polar grid section */
+		dist=polar_dist(opoint->x, opoint->y, t + dt/2., r + dr/2.);
+
+		if (polar_grid.mode == DGRID3D_QNORM) {
+		    int q = polar_grid.norm_q;
+		    if (q == 2)
+			dist = dist*dist;
+		    if (q > 2)
+			dist = pow(dist,q);
+		    if (dist == 0.0) {
+			point->type = UNDEFINED;
+			z = opoint->z;
+			w = 1.0;
+			break;	/* out of loop over oldpoints */
+		    } else {
+			z += opoint->z / dist;
+			w += 1.0/dist;
+		    }
+
+		} else { /* not qnorm */
+		    double weight = 0.0;
+		    dist /= polar_grid.scale;
+
+		    if (polar_grid.mode == DGRID3D_GAUSS) {
+			weight = exp( -dist*dist );
+		    } else if (polar_grid.mode == DGRID3D_CAUCHY) {
+			weight = 1.0/(1.0 + dist*dist );
+		    } else if (polar_grid.mode == DGRID3D_EXP) {
+			weight = exp( -dist );
+		    } else if (polar_grid.mode == DGRID3D_BOX) {
+			weight = (dist<1.0) ? 1.0 : 0.0;
+		    } else if (polar_grid.mode == DGRID3D_HANN) {
+			if (dist < 1.0)
+			    weight = 0.5*(1+cos(M_PI*dist));
+		    } else
+			int_error(NO_CARET, "This gridding mode not supported in polar plots");
+		    z += opoint->z * weight;
+		    w += weight;
+		}
+	    }
+
+	    if (!polar_grid.kdensity) {
+		z = z / w;
+	    }
+
+	    /* We have looped over all contributing points.
+	     * Fill in the bounding region and value for this polar pixel.
+	     * Every pixel is marked INRANGE; clipping can be done later.
+	     */
+	    point->type = INRANGE;
+	    point->x = t;
+	    point->y = r;
+            point->xlow  = t;
+	    point->ylow  = r;
+            point->xhigh = t + dt;
+	    point->yhigh = r + dr;
+	    point->z = z;
+	}
+    }
+
+    /* Delete the original points */
+    free(old_points);
+
+    /* Autoscale z of gridded data */
+    zmin = VERYLARGE;
+    zmax = -VERYLARGE;
+    point = this_plot->points;
+    for (i = 0;  i < this_plot->p_count; i++, point++) {
+	if (zmin > point->z)
+	    zmin = point->z;
+	if (zmax < point->z)
+	    zmax = point->z;
+    }
+    autoscale_one_point((&axis_array[FIRST_Z_AXIS]), zmin);
+    autoscale_one_point((&axis_array[FIRST_Z_AXIS]), zmax);
+    autoscale_one_point((&axis_array[COLOR_AXIS]), zmin);
+    autoscale_one_point((&axis_array[COLOR_AXIS]), zmax);
+}
+
+static double
+polar_dist( double t_data, double r_data, double t_grid, double r_grid )
+{
+    double del_theta;
+    double dist;
+
+    /* Grid theta is always in degrees.
+     * Data is always in radians.  Assume it has been collapsed back into [0:2pi].
+     */
+    t_grid *= DEG2RAD;
+
+    del_theta = fabs(t_grid - t_data);
+    if (del_theta > M_PI)
+	del_theta = 2*M_PI - del_theta;
+
+    dist = sqrt(  (r_grid - r_data*cos(del_theta)) * (r_grid - r_data*cos(del_theta))
+		+ (r_data*sin(del_theta) * r_data*sin(del_theta)) );
+
+    return dist;
+}
+
+#endif /* USE_POLAR_GRID */

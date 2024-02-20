@@ -128,7 +128,9 @@ extern "C" {
 #include <wx/printdlg.h>
 
 extern "C" {
+#if (wxMAJOR_VERSION >= 3)
 #include "xdg.h"
+#endif
 #ifdef HAVE_CONFIG_H
 # include "config.h"
 #endif
@@ -611,6 +613,10 @@ void wxtFrame::OnExport( wxCommandEvent& WXUNUSED( event ) )
 		cairo_scale(panel->plot.cr,
 			1./(double)panel->plot.oversampling_scale,
 			1./(double)panel->plot.oversampling_scale);
+
+		/* FIXME: how were previous settings clobbered? */
+		gp_cairo_set_lineprops(&(panel->plot));
+
 		panel->wxt_cairo_refresh();
 
 		cairo_show_page(panel->plot.cr);
@@ -638,6 +644,10 @@ void wxtFrame::OnExport( wxCommandEvent& WXUNUSED( event ) )
 		cairo_scale(panel->plot.cr,
 			1./(double)panel->plot.oversampling_scale,
 			1./(double)panel->plot.oversampling_scale);
+
+		/* FIXME: how were previous settings clobbered? */
+		gp_cairo_set_lineprops(&(panel->plot));
+
 		panel->wxt_cairo_refresh();
 
 		cairo_show_page(panel->plot.cr);
@@ -883,7 +893,6 @@ void wxtFrame::OnClose( wxCloseEvent& event )
 /* when the window is resized,
  * resize the panel to fit in the frame.
  * If the tool widget setting for "redraw on resize" is set, replot in new size.
- * FIXME : Loses all but most recent component of a multiplot.
  */
 void wxtFrame::OnSize( wxSizeEvent& event )
 {
@@ -1092,14 +1101,14 @@ void wxtPanel::DrawToDC(wxDC &dc, wxRegion &region)
 	/* fill in gray when the aspect ratio conservation has let empty space in the panel */
 	if (plot.device_xmax*plot.ymax > plot.device_ymax*plot.xmax) {
 		dc.SetPen( *wxTRANSPARENT_PEN );
-		dc.SetBrush( wxBrush( wxT("LIGHT GREY"), wxSOLID ) );
+		dc.SetBrush( wxBrush( wxT("LIGHT GREY"), wxBRUSHSTYLE_SOLID ) );
 		dc.DrawRectangle((int) (plot.xmax/plot.oversampling_scale*plot.xscale),
 				0,
 				plot.device_xmax - (int) (plot.xmax/plot.oversampling_scale*plot.xscale),
 				plot.device_ymax);
 	} else if (plot.device_xmax*plot.ymax < plot.device_ymax*plot.xmax) {
 		dc.SetPen( *wxTRANSPARENT_PEN );
-		dc.SetBrush( wxBrush( wxT("LIGHT GREY"), wxSOLID ) );
+		dc.SetBrush( wxBrush( wxT("LIGHT GREY"), wxBRUSHSTYLE_SOLID ) );
 		dc.DrawRectangle(0,
 				(int) (plot.ymax/plot.oversampling_scale*plot.yscale),
 				plot.device_xmax,
@@ -1108,21 +1117,17 @@ void wxtPanel::DrawToDC(wxDC &dc, wxRegion &region)
 
 #ifdef USE_MOUSE
 	if (wxt_zoombox) {
-		tmp_pen = wxPen(wxT("black"), 1, wxSOLID);
+		tmp_pen = wxPen( wxt_dark_background ? wxT("white") : wxT("black") );
+
 		tmp_pen.SetCap( wxCAP_ROUND );
 		dc.SetPen( tmp_pen );
-#ifndef __WXOSX_COCOA__
-		/* wx 2.9 Cocoa bug workaround, which has no logical functions support */
-#if (GTK_MAJOR_VERSION < 3)
-		dc.SetLogicalFunction( wxINVERT );
-#endif
-#endif
+
 		dc.DrawLine( zoom_x1, zoom_y1, mouse_x, zoom_y1 );
 		dc.DrawLine( mouse_x, zoom_y1, mouse_x, mouse_y );
 		dc.DrawLine( mouse_x, mouse_y, zoom_x1, mouse_y );
 		dc.DrawLine( zoom_x1, mouse_y, zoom_x1, zoom_y1 );
 		dc.SetPen( *wxTRANSPARENT_PEN );
-		dc.SetBrush( wxBrush( wxT("LIGHT BLUE"), wxSOLID ) );
+		dc.SetBrush( wxBrush( wxT("LIGHT BLUE"), wxBRUSHSTYLE_SOLID ) );
 		dc.SetLogicalFunction( wxAND );
 		dc.DrawRectangle( zoom_x1, zoom_y1, mouse_x -zoom_x1, mouse_y -zoom_y1);
 		dc.SetLogicalFunction( wxCOPY );
@@ -1147,15 +1152,9 @@ void wxtPanel::DrawToDC(wxDC &dc, wxRegion &region)
 	}
 
 	if (wxt_ruler) {
-		tmp_pen = wxPen(wxT("black"), 1, wxSOLID);
+		tmp_pen = wxPen( wxt_dark_background ? wxT("white") : wxT("black") );
 		tmp_pen.SetCap(wxCAP_BUTT);
 		dc.SetPen( tmp_pen );
-#ifndef __WXOSX_COCOA__
-		/* wx 2.9 Cocoa bug workaround, which has no logical functions support */
-#if (GTK_MAJOR_VERSION < 3)
-		dc.SetLogicalFunction( wxINVERT );
-#endif
-#endif
 #ifdef __WXMSW__
 		dc.DrawLine(0, (int)wxt_ruler_y, plot.device_xmax, (int)wxt_ruler_y);
 		dc.DrawLine((int)wxt_ruler_x, 0, (int)wxt_ruler_x, plot.device_ymax);
@@ -1166,15 +1165,9 @@ void wxtPanel::DrawToDC(wxDC &dc, wxRegion &region)
 	}
 
 	if (wxt_ruler && wxt_ruler_lineto) {
-		tmp_pen = wxPen(wxT("black"), 1, wxSOLID);
+		tmp_pen = wxPen( wxt_dark_background ? wxT("white") : wxT("black") );
 		tmp_pen.SetCap(wxCAP_BUTT);
 		dc.SetPen( tmp_pen );
-#ifndef __WXOSX_COCOA__
-		/* wx 2.9 Cocoa bug workaround, which has no logical functions support */
-#if (GTK_MAJOR_VERSION < 3)
-		dc.SetLogicalFunction( wxINVERT );
-#endif
-#endif
 		dc.DrawLine((int)wxt_ruler_x, (int)wxt_ruler_y, mouse_x, mouse_y);
 		dc.SetLogicalFunction( wxCOPY );
 	}
@@ -1574,11 +1567,12 @@ static void wxt_initialize_hidden(int i)
 static void wxt_update_key_box( unsigned int x, unsigned int y )
 {
 	if (wxt_max_key_boxes <= wxt_cur_plotno) {
+		int first_new_keybox = wxt_max_key_boxes;
 		wxt_max_key_boxes = wxt_cur_plotno + 10;
 		wxt_key_boxes = (wxtBoundingBox *)realloc(wxt_key_boxes,
 				wxt_max_key_boxes * sizeof(wxtBoundingBox));
-		wxt_initialize_key_boxes(wxt_cur_plotno);
-		wxt_initialize_hidden(wxt_cur_plotno);
+		wxt_initialize_key_boxes(first_new_keybox);
+		wxt_initialize_hidden(first_new_keybox);
 	}
 	wxtBoundingBox *bb = &(wxt_key_boxes[wxt_cur_plotno]);
 	y = term->ymax - y;
@@ -2398,7 +2392,7 @@ void wxt_put_text(unsigned int x, unsigned int y, const char * string)
 		wxt_command_push(temp_command);
 
 		/* set up the global variables needed by enhanced_recursion() */
-		enhanced_fontscale = wxt_set_fontscale;
+		enhanced_fontscale = 1.0;
 		strncpy(enhanced_escape_format, "%c", sizeof(enhanced_escape_format));
 
 		/* Set the recursion going. We say to keep going until a
@@ -2410,7 +2404,7 @@ void wxt_put_text(unsigned int x, unsigned int y, const char * string)
 
 		while (*(string = enhanced_recursion((char*)string, TRUE,
 				wxt_enhanced_fontname,
-				wxt_current_plot->fontsize * wxt_set_fontscale,
+				wxt_current_plot->fontsize,
 				0.0, TRUE, TRUE, 0))) {
 			wxt_enhanced_flush();
 
@@ -2430,8 +2424,9 @@ void wxt_put_text(unsigned int x, unsigned int y, const char * string)
 		return;
 	}
 
-	temp_command.command = command_put_text;
+	/* We reach here only if this is *not* enhanced text */
 
+	temp_command.command = command_put_text;
 	temp_command.x1 = x;
 	temp_command.y1 = term->ymax - y;
 	/* Note : we must take '\0' (EndOfLine) into account */
@@ -2439,6 +2434,7 @@ void wxt_put_text(unsigned int x, unsigned int y, const char * string)
 	strcpy(temp_command.string, string);
 
 	wxt_command_push(temp_command);
+	return;
 }
 
 void wxt_linetype(int lt)
@@ -2492,7 +2488,7 @@ int wxt_set_font (const char *font)
 
 	char *fontname = NULL;
 	gp_command temp_command;
-	int fontsize = 0;
+	double fontsize = 0;
 
 	temp_command.command = command_set_font;
 
@@ -2500,7 +2496,7 @@ int wxt_set_font (const char *font)
 		int sep = strcspn(font,",");
 		fontname = strdup(font);
 		if (font[sep] == ',') {
-			sscanf(&(font[sep+1]), "%d", &fontsize);
+			sscanf(&(font[sep+1]), "%lf", &fontsize);
 			fontname[sep] = '\0';
 		}
 	} else {
@@ -2527,22 +2523,20 @@ int wxt_set_font (const char *font)
 			fontsize = wxt_set_fontsize;
 	}
 
-	/* Reset the term variables (hchar, vchar, h_tic, v_tic).
-	 * They may be taken into account in next plot commands */
+	/* Reset the term variables (hchar, vchar, h_tic, v_tic)
+	 * so that the core code can use them in subsequent plot commands.
+	 */
 	gp_cairo_set_font(wxt_current_plot, fontname, fontsize * wxt_set_fontscale);
-	gp_cairo_set_termvar(wxt_current_plot, &(term->v_char),
-	                                       &(term->h_char));
-	gp_cairo_set_font(wxt_current_plot, fontname, fontsize);
+	gp_cairo_set_termvar(wxt_current_plot, &(term->v_char), &(term->h_char));
 
 	wxt_MutexGuiLeave();
 	wxt_sigint_check();
 	wxt_sigint_restore();
 
-	/* Note : we must take '\0' (EndOfLine) into account */
+	/* Push the equivalent command onto the wxt display list */
 	temp_command.string = new char[strlen(fontname)+1];
 	strcpy(temp_command.string, fontname);
-	temp_command.integer_value = fontsize * wxt_set_fontscale;
-
+	temp_command.double_value = fontsize * wxt_set_fontscale;
 	wxt_command_push(temp_command);
 
 	/* Enhanced text processing needs to know the new font also */
@@ -2621,7 +2615,7 @@ void wxt_linewidth(double lw)
 	wxt_command_push(temp_command);
 }
 
-int wxt_text_angle(int angle)
+int wxt_text_angle(float angle)
 {
 	if (wxt_status != STATUS_OK)
 		return 1;
@@ -2697,6 +2691,8 @@ void wxt_filled_polygon(int n, gpiPoint *corners)
 
 	temp_command.command = command_filled_polygon;
 	temp_command.integer_value = n;
+	temp_command.x1 = corners[0].x;
+	temp_command.y1 = term->ymax - corners[0].y;
 	temp_command.corners = new gpiPoint[n];
 	/* can't use memcpy() here, as we have to mirror the y axis */
 	gpiPoint *corners_copy = temp_command.corners;
@@ -2769,12 +2765,11 @@ void wxt_image(unsigned int M, unsigned int N, coordval * image, gpiPoint * corn
  */
 void wxt_layer(t_termlayer layer)
 {
-	/* There are two classes of meta-information.  The first class	*/
-	/* is tied to the current state of the user interface or the	*/
-	/* main gnuplot thread.  Any action on these must be done here,	*/
-	/* immediately.  The second class relates to the sequence of	*/
-	/* operations in the plot itself.  These are buffered for later	*/
-	/* execution in sequential order.				*/
+	/* There are two classes of meta-information.
+	 * The first class is tied to the current state of the user interface
+	 * or the main gnuplot thread.  Any action on these must be done here,
+	 * immediately.
+	 */
 	if (layer == TERM_LAYER_BEFORE_ZOOM) {
 		return;
 	}
@@ -2783,6 +2778,10 @@ void wxt_layer(t_termlayer layer)
 			return;
 	}
 
+	/* The second class of meta-information relates to the sequence of
+	 * operations in the plot itself.  These are buffered for later
+	 * execution in sequential order.
+	 */
 	gp_command temp_command;
 	temp_command.command = command_layer;
 	temp_command.integer_value = layer;
@@ -3206,7 +3205,7 @@ void wxtPanel::wxt_cairo_exec_command(gp_command command)
 		gp_cairo_enhanced_writec(&plot, command.integer_value);
 		return;
 	case command_set_font :
-		gp_cairo_set_font(&plot, command.string, command.integer_value);
+		gp_cairo_set_font(&plot, command.string, command.double_value);
 		return;
 	case command_linewidth :
 		gp_cairo_set_linewidth(&plot, command.double_value);;
@@ -3899,11 +3898,50 @@ void wxtPanel::wxt_cairo_free_platform_context()
 # define FPRINTF2(a)
 #endif
 
+#if defined (HAVE_GTK)
+/* -------------------------------------------------------------------- */
+/* Attempt to trap int_error() called from inside wxt event processing.	*/
+/* Normally int_error() would LONGJMP back to the command line but this	*/
+/* causes wxgtk to segfault if the event processing context is not 	*/
+/* unwound cleanly.   So we try to do that unwinding here.		*/
+/* -------------------------------------------------------------------- */
+JMP_BUF *wxt_env = NULL;
+#endif
+
 #ifdef USE_MOUSE
+
 /* process one event, returns true if it ends the pause */
 bool wxt_process_one_event(struct gp_event_t *event)
 {
+
+#if defined (HAVE_GTK)
+	/* Set up exception handler for int_error() called
+	 * during event processing.
+	 */
+	int save_interactive = interactive;
+	static JMP_BUF wxt_jumppoint;
+	wxt_env = &wxt_jumppoint;
+	if (SETJMP(*wxt_env,1)) {
+		fprintf(stderr,
+		    "*** error during wxt event processing - trying to recover ***\n");
+		/* Is there anything else that needs cleanup? */
+		wxt_env = NULL;
+		wxt_event_processing = FALSE;
+		paused_for_mouse = 0;
+		interactive = save_interactive;
+		return false;
+	}
+	wxt_event_processing = TRUE;
+
 	do_event( event );
+
+	/* Cancel exception handling */
+	wxt_event_processing = FALSE;
+	wxt_env = NULL;
+#else
+	do_event( event );
+#endif
+
 	if (event->type == GE_buttonrelease && (paused_for_mouse & PAUSE_CLICK)) {
 		int button = event->par1;
 		if (button == 1 && (paused_for_mouse & PAUSE_BUTTON1))
@@ -4136,7 +4174,8 @@ int wxt_waitforinput(int options)
 		FD_SET(0, &read_fd);
 		retval = select(1, &read_fd, NULL, NULL, &tv);
 		if (retval == -1)
-			int_error(NO_CARET, "input select error");
+			/* select error or ^C */
+			return '\0';
 		else if (was_paused_for_mouse && !paused_for_mouse)
 			/* The wxTheApp event loop caught a signal */
 			return '\0';
@@ -4396,7 +4435,8 @@ void wxt_MutexGuiLeave()
 /* our custom SIGINT handler, that just sets a flag */
 void wxt_sigint_handler(int WXUNUSED(sig))
 {
-	FPRINTF((stderr,"custom interrupt handler called\n"));
+	FPRINTF((stderr,"\nwxt custom interrupt handler called %s\n",
+		wxt_event_processing ? "from inside event" : "outside event processing"));
 	signal(SIGINT, wxt_sigint_handler);
 
 	/* If this happens, it's bad.  We already flagged that we want	*/

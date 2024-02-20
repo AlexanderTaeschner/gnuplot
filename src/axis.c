@@ -39,7 +39,7 @@
 #include "gadgets.h"
 #include "gp_time.h"
 #include "term_api.h"
-#include "variable.h"
+#include "gplocale.h"
 
 /* HBB 20000725: gather all per-axis variables into a struct, and set
  * up a single large array of such structs. Next step might be to use
@@ -103,6 +103,20 @@ const struct gen_table axisname_tbl[] =
     { NULL, -1}
 };
 
+/* If time axis tics are specified in units of minutes/hours/.../years
+ * we need to convert to seconds for tic generation
+ */
+const double approx_time_steps[] =
+{
+    1.0,	/* default to seconds */
+    1.0,	/* TIMELEVEL_SECONDS */
+    60.,	/* TIMELEVEL_MINUTES */
+    3600.,	/* TIMELEVEL_HOURS */
+    DAY_SEC,	/* TIMELEVEL_DAYS */
+    WEEK_SEC,	/* TIMELEVEL_WEEKS */
+    MON_SEC,	/* TIMELEVEL_MONTHS */
+    YEAR_SEC	/* TIMELEVEL_YEARS */
+};
 
 /* penalty for doing tics by callback in gen_tics is need for global
  * variables to communicate with the tic routines. Dont need to be
@@ -142,7 +156,7 @@ int grid_layer = LAYER_BEHIND;
 TBOOLEAN grid_tics_in_front = FALSE;
 TBOOLEAN grid_vertical_lines = FALSE;
 TBOOLEAN grid_spiderweb = FALSE;
-double polar_grid_angle = 0;	/* nonzero means a polar grid */
+double theta_grid_angle = 0;	/* nonzero means a polar grid */
 TBOOLEAN raxis = FALSE;
 double theta_origin = 0.0;	/* default origin at right side */
 double theta_direction = 1;	/* counterclockwise from origin */
@@ -150,7 +164,9 @@ double theta_direction = 1;	/* counterclockwise from origin */
 /* Length of the longest tics label, set by widest_tic_callback(): */
 int widest_tic_strlen;
 
-/* flag to indicate that in-line axis ranges should be ignored */
+/* flag to indicate that in-line axis ranges should be ignored
+ * and zoom/pan range limits take precedence over auto-scaling
+ */
 TBOOLEAN inside_zoom;
 
 /* axes being used by the current plot */
@@ -303,11 +319,8 @@ extend_parallel_axis(int paxis)
 }
 
 /*
- * Most of the crashes found during fuzz-testing of version 5.1 were a
+ * Most of the crashes found during fuzz-testing of version 5 were a
  * consequence of an axis range being corrupted, i.e. NaN or Inf.
- * Corruption became easier with the introduction of nonlinear axes,
- * but even apart from that autoscaling bad data could cause a fault.
- * NB: Some platforms may need help with isnan() and isinf().
  */
 TBOOLEAN
 bad_axis_range(struct axis *axis)
@@ -370,6 +383,8 @@ bad_axis_range(struct axis *axis)
  * HBB 2000/05/01: added an additional up-front test, active only if
  *   the new 'mesg' parameter is non-NULL.
  *
+ * EAM Jan 2024:  also catch and extend a zero-height zoom box
+ *
  * === USAGE ===
  *
  * Arguments:
@@ -407,11 +422,11 @@ axis_checked_extend_empty_range(AXIS_INDEX axis, const char *mesg)
 
     /* pass msg == NULL if for some reason you trust the axis range */
     if (mesg && bad_axis_range(this_axis))
-	    int_error(c_token, mesg);
+	int_error(c_token, mesg);
 
     if (dmax - dmin == 0.0) {
 	/* empty range */
-	if (this_axis->autoscale) {
+	if (this_axis->autoscale || inside_zoom) {
 	    /* range came from autoscaling ==> widen it */
 	    double widen = (dmax == 0.0) ?
 		FIXUP_RANGE__WIDEN_ZERO_ABS
@@ -419,11 +434,10 @@ axis_checked_extend_empty_range(AXIS_INDEX axis, const char *mesg)
 	    if (!(axis == FIRST_Z_AXIS && !mesg)) /* set view map */
 		fprintf(stderr, "Warning: empty %s range [%g:%g], ",
 		    axis_name(axis), dmin, dmax);
-	    /* HBB 20010525: correctly handle single-ended
-	     * autoscaling, too: */
-	    if (this_axis->autoscale & AUTOSCALE_MIN)
+	    /* HBB 20010525: correctly handle single-ended autoscaling */
+	    if ((this_axis->autoscale & AUTOSCALE_MIN) || inside_zoom)
 		this_axis->min -= widen;
-	    if (this_axis->autoscale & AUTOSCALE_MAX)
+	    if ((this_axis->autoscale & AUTOSCALE_MAX) || inside_zoom)
 		this_axis->max += widen;
 	    if (!(axis == FIRST_Z_AXIS && !mesg)) /* set view map */
 		fprintf(stderr, "adjusting to [%g:%g]\n",
@@ -465,6 +479,7 @@ make_auto_time_minitics(t_timelevel tlevel, double incr)
     if ((int)tlevel < TIMELEVEL_SECONDS)
 	tlevel = TIMELEVEL_SECONDS;
     switch (tlevel) {
+    case TIMELEVEL_DEFAULT:
     case TIMELEVEL_SECONDS:
     case TIMELEVEL_MINUTES:
 	if (incr >= 5)
@@ -597,7 +612,6 @@ copy_or_invent_formatstring(struct axis *this_axis)
 	    double axmax = this_axis->max;
 	    int precision = ceil(-log10(GPMIN(fabs(axmax-axmin),fabs(axmin))));
 	    /* FIXME: Does horrible things for large value of precision */
-	    /* FIXME: Didn't I have a better patch for this? */
 	    if ((axmin*axmax > 0) && 4 < precision && precision < 10)
 		sprintf(tempfmt, "%%.%df", precision);
 	}
@@ -734,9 +748,9 @@ make_tics(struct axis *this_axis, int guide)
     if (xr >= VERYLARGE) {
 	int_warn(NO_CARET, "%s axis range undefined or overflow, resetting to [0:0]",
 	    axis_name(this_axis->index));
-	/* FIXME: this used to be int_error but there were false positives
+	/* This used to be int_error but there were false positives
 	 * (bad range on unused axis).  However letting +/-VERYLARGE through
-	 * can overrun data structures for time conversions. Zero avoids this.
+	 * can overrun data structures for time conversions. min = max avoids this.
 	 */
 	this_axis->min = this_axis->max = 0;
     }
@@ -870,9 +884,6 @@ round_outward(
 
     if (this_axis->tictype == DT_TIMEDATE) {
 	double ontime = time_tic_just(this_axis->timelevel, result);
-
-	/* FIXME: how certain is it that we don't want to *always*
-	 * return 'ontime'? */
 	if ((upwards && (ontime > result))
 	||  (!upwards && (ontime < result)))
 	    return ontime;
@@ -939,12 +950,21 @@ setup_tics(struct axis *this, int max)
 	autoextend_min = autoextend_max = FALSE;
     }
 
+    /* It is disconcerting when the response to pan or zoom is asymmetric */
+    if (inside_zoom)
+	autoextend_min = autoextend_max = FALSE;
+
     /* If an explicit stepsize was set, axis->timelevel wasn't defined,
      * leading to strange misbehaviours of minor tics on time axes.
      * We used to call quantize_time_tics, but that also caused strangeness.
      */
     if (this->tictype == DT_TIMEDATE && ticdef->type == TIC_SERIES) {
-	if      (tic >= 365*24*60*60.) this->timelevel = TIMELEVEL_YEARS;
+	if (this->tic_units != TIMELEVEL_DEFAULT) {
+		this->timelevel = this->tic_units;
+		this->ticstep = tic = 
+		    ticdef->def.series.incr * approx_time_steps[this->tic_units];
+	}
+	else if (tic >= 365*24*60*60.) this->timelevel = TIMELEVEL_YEARS;
 	else if (tic >=  28*24*60*60.) this->timelevel = TIMELEVEL_MONTHS;
 	else if (tic >=   7*24*60*60.) this->timelevel = TIMELEVEL_WEEKS;
 	else if (tic >=     24*60*60.) this->timelevel = TIMELEVEL_DAYS;
@@ -1042,7 +1062,7 @@ gen_tics(struct axis *this, tic_callback callback)
 		/* string constant that contains no format keys */
 		ticlabel = mark->label;
 	    } else if (this->index >= PARALLEL_AXES) {
-		/* FIXME: needed because axis->ticfmt is not maintained for parallel axes */
+		/* Needed because axis->ticfmt is not maintained for parallel axes */
 		gprintf(label, sizeof(label),
 			mark->label ? mark->label : this->formatstring,
 			log10_base, mark->position);
@@ -1084,7 +1104,7 @@ gen_tics(struct axis *this, tic_callback callback)
     /* series-tics, either TIC_COMPUTED ("autofreq") or TIC_SERIES (user-specified increment)
      *
      * We need to distinguish internal user coords from user coords.
-     * Now that we have nonlinear axes (as of version 5.2)
+     * Now that we have nonlinear axes
      *  	internal = primary axis, user = secondary axis
      *		TIC_COMPUTED ("autofreq") tries for equal spacing on primary axis
      *		TIC_SERIES   requests equal spacing on secondary (user) axis
@@ -1102,6 +1122,11 @@ gen_tics(struct axis *this, tic_callback callback)
 	double lmin = this->min, lmax = this->max;
 
 	reorder_if_necessary(lmin, lmax);
+
+	/* Clipping theta tics (ttics) based on theta range is undesireable */
+	if (this == &THETA_AXIS) {
+	    lmin = 0; lmax = 360;
+	}
 
 	/* {{{  choose start, step and end */
 	switch (def->type) {
@@ -1139,6 +1164,9 @@ gen_tics(struct axis *this, tic_callback callback)
 		start = def->def.series.start;
 		step = def->def.series.incr;
 		end = def->def.series.end;
+		/* time increment was given in minutes/hours/days/... */
+		if (this->tictype == DT_TIMEDATE && this->tic_units > 1)
+		    step = def->def.series.incr * approx_time_steps[this->tic_units];
 		if (start == -VERYLARGE)
 		    start = step * floor(lmin / step);
 		if (end == VERYLARGE)
@@ -1183,7 +1211,7 @@ gen_tics(struct axis *this, tic_callback callback)
 	reorder_if_necessary(start, end);
 	step = fabs(step);
 
-	if ((minitics != MINI_OFF) && (this->miniticscale != 0)) {
+	if (minitics != MINI_OFF) {
 	    FPRINTF((stderr,"axis.c: %d  start = %g end = %g step = %g base = %g\n",
 			__LINE__, start, end, step, this->base));
 
@@ -1204,11 +1232,9 @@ gen_tics(struct axis *this, tic_callback callback)
 		    miniend = step;
  		}
 	    } else if (nonlinear(this) && this->ticdef.logscaling) {
-		/* FIXME: Not sure this works for all values of step */
 		ministart = ministep = step / (this->base - 1);
 		miniend = step;
 	    } else if (this->tictype == DT_TIMEDATE) {
-		/* CHANGE ver 5.5 (Jun 2021) */
 		if (minitics == MINI_DEFAULT) {
 		    minitics = MINI_OFF;
 		} else if (minitics != MINI_TIME) {
@@ -1386,7 +1412,7 @@ gen_tics(struct axis *this, tic_callback callback)
 		/* We will do time tics in a separate pass */
 		continue;
 
-	    if ((minitics != MINI_OFF) && (this->miniticscale != 0)) {
+	    if (minitics != MINI_OFF) {
 		/* {{{  process minitics */
 		double mplace, mtic_user, mtic_internal;
 
@@ -1503,6 +1529,7 @@ gen_time_minitics(struct axis *this, double start, double end, tic_callback call
 		    tm.tm_min += this->mtic_freq;
 		    break;
 	case TIMELEVEL_SECONDS:
+	case TIMELEVEL_DEFAULT:
 		    tm.tm_sec += this->mtic_freq;
 		    break;
 	}
@@ -1649,7 +1676,7 @@ axis_output_tics(
 	    && inrange(axis_coord, axis_array[zeroaxis_basis].min,
 		       axis_array[zeroaxis_basis].max)
 	    ) {
-	    tic_start = AXIS_MAP(zeroaxis_basis, axis_coord);
+	    tic_start = axis_map(&axis_array[zeroaxis_basis], axis_coord);
 	    tic_direction = axis_is_second ? 1 : -1;
 	    if (axis_array[axis].ticmode & TICS_MIRROR)
 		tic_mirror = tic_start;
@@ -1723,7 +1750,7 @@ axis_position_zeroaxis(AXIS_INDEX axis)
 	this->term_zero = (this->max < this->min)
 	    ? this->term_lower : this->term_upper;
     } else {
-	this->term_zero = AXIS_MAP(axis, 0.0);
+	this->term_zero = axis_map(this, 0.0);
 	is_inside = TRUE;
     }
 
@@ -2021,7 +2048,7 @@ some_grid_selected()
 	if (axis_array[i].gridmajor || axis_array[i].gridminor)
 	    return TRUE;
     /* Dec 2016 - CHANGE */
-    if (polar_grid_angle > 0)
+    if (theta_grid_angle > 0)
 	return TRUE;
     if (grid_spiderweb)
 	return TRUE;
@@ -2121,21 +2148,23 @@ get_position_type(enum position_type *type, AXIS_INDEX *axes)
 void
 get_position(struct position *pos)
 {
-    get_position_default(pos, first_axes, 3);
+    get_position_default(pos, first_axes, TRUE, 3);
 }
 
 /* get_position() - reads a position for label,arrow,key,...
  * with given default coordinate system
- * ndim = 2 only reads x,y
- * otherwise it reads x,y,z
+ * clear = TRUE  if 2nd or 3rd coordinate is missing, set it to zero
+ * ndim = 2 only reads x,y  otherwise it reads x,y,z
  */
 void
-get_position_default(struct position *pos, enum position_type default_type, int ndim)
+get_position_default(struct position *pos, enum position_type default_type,
+		TBOOLEAN clear, int ndim)
 {
     AXIS_INDEX axes;
     enum position_type type = default_type;
 
-    memset(pos, 0, sizeof(struct position));
+    if (clear)
+	memset(pos, 0, sizeof(struct position));
 
     get_position_type(&type, &axes);
     pos->scalex = type;
@@ -2146,7 +2175,7 @@ get_position_default(struct position *pos, enum position_type default_type, int 
 	get_position_type(&type, &axes);
 	pos->scaley = type;
 	GET_NUMBER_OR_TIME(pos->y, axes, FIRST_Y_AXIS);
-    } else {
+    } else if (clear) {
 	pos->y = 0;
 	pos->scaley = type;
     }
@@ -2162,7 +2191,7 @@ get_position_default(struct position *pos, enum position_type default_type, int 
 	}
 	pos->scalez = type;
 	GET_NUMBER_OR_TIME(pos->z, axes, FIRST_Z_AXIS);
-    } else {
+    } else if (clear) {
 	pos->z = 0;
 	pos->scalez = type;	/* same as y */
     }
@@ -2345,15 +2374,18 @@ char *c, *cfmt;
 /* Accepts a range of the form [MIN:MAX] or [var=MIN:MAX]
  * Loads new limiting values into axis->min axis->max
  * Returns
+ *	>0 = token indexing the leading variable name [foo=min:max]
  *	 0 = no range spec present
- *	-1 = range spec with no attached variable name
- *	>0 = token indexing the attached variable name
+ *	-1 = range spec with no leading variable name
+ *	-2 = found a second colon, so it must be a sampling range
  */
 int
 parse_range(AXIS_INDEX axis)
 {
     struct axis *this_axis = &axis_array[axis];
     int dummy_token = -1;
+    int starting_token = c_token;
+    struct axis saved_axis;
 
     /* No range present */
     if (!equals(c_token, "["))
@@ -2372,8 +2404,22 @@ parse_range(AXIS_INDEX axis)
 	c_token += 2;
     }
 
+    /* Save entire axis state before loading range, so we can back out if necessary */
+    memcpy(&saved_axis, this_axis, sizeof(struct axis));
+
     this_axis->autoscale = load_range(this_axis, &this_axis->min, &this_axis->max,
 					this_axis->autoscale);
+
+    /* A second colon is permitted only in a sampling range.
+     * If we see one now, back out from trying to interpret this as a primary axis.
+     */
+    if (equals(c_token, ":")
+    && !(axis == SAMPLE_AXIS || axis == T_AXIS || axis == U_AXIS || axis == V_AXIS)) {
+	c_token = starting_token;
+	/* restore original axis range */
+	memcpy(this_axis, &saved_axis, sizeof(struct axis));
+	return -2;
+    }
 
     /* Nonlinear axis - find the linear range equivalent */
     if (this_axis->linked_to_primary) {
@@ -2396,7 +2442,9 @@ parse_range(AXIS_INDEX axis)
 	this_axis->SAMPLE_INTERVAL = 0;
 	if (equals(c_token, ":")) {
 	    c_token++;
-	    this_axis->SAMPLE_INTERVAL = real_expression();
+	    /* Allow empty expression to act as the default would */
+	    if (!equals(c_token, "]"))
+		this_axis->SAMPLE_INTERVAL = real_expression();
 	}
     }
 
@@ -2407,14 +2455,26 @@ parse_range(AXIS_INDEX axis)
     return dummy_token;
 }
 
-/* Called if an in-line range is encountered while inside a zoom command */
-void
+/* Called if an in-line range is encountered while inside a zoom command.
+ * On entry c_token indexes the opening '['.
+ */
+TBOOLEAN
 parse_skip_range()
 {
-    while (!equals(c_token++,"]"))
+    int start_token = c_token;
+    int ncolons = 0;
+
+    while (!equals(c_token++,"]")) {
+	if (equals(c_token,":"))
+	    ncolons++;
 	if (END_OF_COMMAND)
 	    break;
-    return;
+    }
+    if (ncolons >= 2) {
+	c_token = start_token;
+	return FALSE;
+    }
+    return TRUE;
 }
 
 /*
@@ -2431,8 +2491,14 @@ clone_linked_axes(AXIS *axis1, AXIS *axis2)
     if (axis2->link_udf == NULL || axis2->link_udf->at == NULL)
 	return;
 
+    /* Failure to confirm link functions should produce a warning
+     * rather than a fatal error.
+     */
+    eval_fail_soft = TRUE;
+
     /* Transform the min/max limits of linked secondary axis */
     inverse_function_sanity_check:
+    {
 	axis2->set_min = eval_link_function(axis2, axis1->set_min);
 	axis2->set_max = eval_link_function(axis2, axis1->set_max);
 	axis2->min = eval_link_function(axis2, axis1->min);
@@ -2479,6 +2545,9 @@ clone_linked_axes(AXIS *axis1, AXIS *axis2)
 	    dump_axis_range(axis1);
 	    dump_axis_range(axis2);
 	}
+    }
+
+    eval_fail_soft = FALSE;
 }
 
 /* Evaluate the function linking secondary axis to primary axis */
@@ -2651,9 +2720,7 @@ extend_autoscaled_log_axis(AXIS *primary)
 }
 
 /*
- * gnuplot version 5.0 always maintained autoscaled range on x1
- * specifically, transforming from x2 coordinates if necessary.
- * In version 5.2 we track the x1 and x2 axis data limits separately.
+ * We track the x1 and x2 axis data limits separately.
  * However if x1 and x2 are linked to each other we must reconcile
  * their data limits before plotting.
  */
@@ -2689,8 +2756,10 @@ reconcile_linked_axes(AXIS *primary, AXIS *secondary)
 double
 map_x_double(double value)
 {
-    if (axis_array[x_axis].linked_to_primary) {
-	AXIS *primary = axis_array[x_axis].linked_to_primary;
+    AXIS *xaxis = &axis_array[x_axis];
+
+    if (xaxis->linked_to_primary) {
+	AXIS *primary = xaxis->linked_to_primary;
 	if (primary->link_udf->at) {
 	    value = eval_link_function(primary, value);
 	    if (undefined)
@@ -2698,7 +2767,7 @@ map_x_double(double value)
 	    return axis_map_double(primary, value);
 	}
     }
-    return AXIS_MAP_DOUBLE(x_axis, value);
+    return axis_map_double(xaxis, value);
 }
 
 int
@@ -2713,8 +2782,10 @@ map_x(double value)
 double
 map_y_double(double value)
 {
-    if (axis_array[y_axis].linked_to_primary) {
-	AXIS *primary = axis_array[y_axis].linked_to_primary;
+    AXIS *yaxis = &axis_array[y_axis];
+
+    if (yaxis->linked_to_primary) {
+	AXIS *primary = yaxis->linked_to_primary;
 	if (primary->link_udf->at) {
 	    value = eval_link_function(primary, value);
 	    if (undefined)
@@ -2722,14 +2793,33 @@ map_y_double(double value)
 	    return axis_map_double(primary, value);
 	}
     }
-    return AXIS_MAP_DOUBLE(y_axis, value);
+    return axis_map_double(yaxis, value);
 }
 
 int
 map_y(double value)
 {
     double y = map_y_double(value);
-    if(isnan(y)) return intNaN;
+    if (isnan(y))
+	return intNaN;
+    return axis_map_toint(y);
+}
+
+/*
+ * This routine substitues for map_y() when drawing lines with
+ * option "sharpen".   It prevents extremely large values from
+ * being treated as UNDEFINED rather than OUTRANGE.
+ */
+int
+map_ysharp(double value)
+{
+    double y = map_y_double(value);
+    if (isnan(y))
+	return intNaN;
+    if (y >= (double)(INT_MAX))
+	return INT_MAX/2;
+    if (y <= (double)(-INT_MAX))
+	return -(INT_MAX/2);
 
     return axis_map_toint(y);
 }
@@ -2767,7 +2857,7 @@ polar_to_xy( double theta, double r, double *x, double *y, TBOOLEAN update)
 		if (R_AXIS.autoscale & AUTOSCALE_MAX)	{
 		    if ((R_AXIS.max_constraint & CONSTRAINT_UPPER)
 		    &&  (R_AXIS.max_ub < r))
-			    R_AXIS.max = R_AXIS.max_ub;
+			R_AXIS.max = R_AXIS.max_ub;
 		    else
 			R_AXIS.max = r;
 		} else {
@@ -2781,8 +2871,11 @@ polar_to_xy( double theta, double r, double *x, double *y, TBOOLEAN update)
 	AXIS *shadow = R_AXIS.linked_to_primary;
 	if (R_AXIS.log && r <= 0)
 	    r = not_a_number();
-	else
+	else {
 	    r = eval_link_function(shadow, r) - shadow->min;
+	    if (update && (R_AXIS.autoscale & AUTOSCALE_MAX) && (r > shadow->max))
+		shadow->max = r;
+	}
     } else if (inverted_raxis) {
 	r = R_AXIS.set_min - r;
     } else if ((R_AXIS.autoscale & AUTOSCALE_MIN)) {
@@ -2928,3 +3021,25 @@ autoscale_one_point(struct axis *axis, double x)
 	    axis->max = x;
     }
 }
+
+/*
+ * read one of the limiting values in a range of the form:
+ *    [min:max] [*:*] [*:max] [min:*]
+ * advance past following separator
+ */
+double
+parse_one_range_limit( double default_value )
+{
+    double limit = default_value;
+
+    if (equals(c_token, "*"))
+	c_token++;
+    else if (equals(c_token, ":") || equals(c_token, "]"))
+	;
+    else
+	limit = real_expression();
+    c_token++;
+
+    return limit;
+}
+	

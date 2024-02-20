@@ -98,13 +98,14 @@
  *	Revisit use of brush for thick lines with alpha channel
  *	+ setting alpha in the brush itself works OK up to about lw 4.
  *	  After that the repeated composition of the brush wipes out the transparency.
- *	- TODO:
- *	  The brushed line could be written to a separate layer as an opaque object,
- *	  then composited back onto the main canvas with alpha applied.
- *	  term->path(start|end) could wrap that, but as of now the core code doesn't use
- *	  start/end path for most lines.  Alternatively it might be triggered by
- *	  term->set_color with alpha channel present and last until the color is changed
- *	  again.
+ *
+ * Ethan Merritt Jan 2023:
+ *	Newer antialiasing support in gdlib makes it actually work with the native
+ *	implementation for linewidth > 1.  But it requires truecolor.
+ *	Conversely, using the brush alternative (via "rounded") has become very slow.
+ * CHANGE:
+ *	Default to "set term png butt truecolor"
+ *	gif and sixel default to "butt notruecolor"
  */
 
 #define GD_DEFINED_COLORS	96	/* Must not exceed size of pm3d_color_names_tbl[] */
@@ -127,7 +128,7 @@ TERM_PUBLIC void PNG_vector(unsigned int x, unsigned int y);
 TERM_PUBLIC void PNG_put_text(unsigned int x, unsigned int y, const char str[]);
 TERM_PUBLIC int PNG_justify_text(enum JUSTIFY mode);
 TERM_PUBLIC void PNG_point(unsigned int x, unsigned int y, int number);
-TERM_PUBLIC int PNG_text_angle(int ang);
+TERM_PUBLIC int PNG_text_angle(float ang);
 TERM_PUBLIC void PNG_reset(void);
 TERM_PUBLIC int PNG_set_font(const char *fontname);
 TERM_PUBLIC void PNG_pointsize(double ptsize);
@@ -209,7 +210,7 @@ static void PNG_init_brush(int);
 #ifndef TERM_PROTO_ONLY
 #ifdef TERM_BODY
 
-static TBOOLEAN PNG_initialized = FALSE;	/* Set when terminal first initialized */
+static const char *PNG_initialized = NULL;	/* Which terminal was previously used? */
 
 static struct {
     gdImagePtr image;
@@ -222,7 +223,7 @@ static struct {
     int n_colors;
     int color_table[PNG_MAX_COLORS];
     int rgb_table[PNG_MAX_COLORS];
-    int angle;
+    float angle;
     enum JUSTIFY justify;
     int flags;
     int linetype;
@@ -239,12 +240,14 @@ static struct {
     double    dashfraction;	/* Where in a dot-dash pattern we left off */
     /* Variables for animated gif support: */
     TBOOLEAN  animate;		/* Only gif supports animation */
+    TBOOLEAN  anchor;		/* sixel and kitty treat it as synonym for "anchor" */
     int       loop_count;	/* Number of times to repeat sequence */
     int       frame_count;	/* Number of frames in animation */
     int       frame_delay;	/* Time between frames in .01 seconds */
     TBOOLEAN  frame_optimization;
     gdImagePtr previous_image;	/* Needed to encode animation as a series of deltas */
-} png_state;
+} png_state
+= {.anchor = TRUE};
 
 #define PNG_USE_TRANSPARENT 1
 #define PNG_USE_INTERLACE   2
@@ -262,6 +265,7 @@ enum PNG_id {
     PNG_TRUECOLOR, PNG_NOTRUECOLOR,
     PNG_LINEWIDTH, PNG_BUTT, PNG_ROUNDED, PNG_DASHLENGTH,
     GIF_ANIMATE, GIF_DELAY, GIF_LOOP, GIF_NOOPT, GIF_OPT,
+    PNG_ANCHOR, PNG_SCROLL,
     PNG_OTHER
 };
 
@@ -305,6 +309,8 @@ static struct gen_table PNG_opts[] =
     { "notrue$color", PNG_NOTRUECOLOR },
     { "linew$idth", PNG_LINEWIDTH },
     { "anim$ate", GIF_ANIMATE }, /* gif animation options */
+    { "anchor", PNG_ANCHOR },   /* sixel/kitty image drawn at top left */
+    { "scroll", PNG_SCROLL },   /* sixel/kitty image scrolls with text */
     { "delay", GIF_DELAY },
     { "loop", GIF_LOOP },
     { "noopt$imize", GIF_NOOPT },
@@ -641,8 +647,8 @@ PNG_options()
     unsigned long color;
     TBOOLEAN gif_anim_option = FALSE; /* set to TRUE if an animated gif option given */
 
-    if (!PNG_initialized) {
-	PNG_initialized = TRUE;
+    if (PNG_initialized != term->name) {
+	PNG_initialized = term->name;
 	term_options[0] = '\0';
 	term->h_char = PNG_HCHAR; /* Default to medium font */
 	png_state.default_font = gdfont;
@@ -654,10 +660,13 @@ PNG_options()
 	png_state.default_ttfsize = 0;
 	png_state.fontscale = 1;
 	png_state.justify = CENTRE;
-	png_state.TrueColor = FALSE;
 	PNG_linewidth_factor = 1.0;
 	PNG_dashlength_factor = 1.0;
-	png_state.capbutt = FALSE; /* to preserve previous default behavior */
+	png_state.capbutt = TRUE; /* Change Jan 2023 */
+	if (!strcmp(term->name, "gif") || !strcmp(term->name, "sixelgd"))
+	    png_state.TrueColor = FALSE;
+	else
+	    png_state.TrueColor = TRUE;
 #ifdef _WIN32
 	/* Set the default search path for fonts to something useful. */
 	if (getenv("GDFONTPATH") == NULL) {
@@ -676,9 +685,8 @@ PNG_options()
 	}
 #endif
     } else {
-	/* FIXME EAM - these should never happen! */
 	if (!png_state.default_font) {
-	    fprintf(stderr,"gd.trm: caught initialization error\n");
+	    int_warn(NO_CARET, "gd.trm: caught initialization error");
 	    png_state.default_font = gdfont;
 	}
     }
@@ -909,13 +917,30 @@ PNG_options()
 		PNG_dashlength_factor = 1.0;
 	    break;
 
+	/* anchor/scroll choice for sixel and kitty in-terminal output */
+	case PNG_ANCHOR:
+	    c_token++;
+	    png_state.anchor = TRUE;
+	    break;
+	case PNG_SCROLL:
+	    c_token++;
+	    png_state.anchor = FALSE;
+	    break;
+
 	/* parse gif animation options */
 	case GIF_ANIMATE:
-	    if (strncmp("gif",term->name,3) == 0)
-		gif_anim_option = 1;
-	    else if (strncmp("sixel",term->name,5) != 0)
-		int_error(c_token,"This terminal does not support animation");
 	    c_token++;
+	    if (strncmp("gif",term->name,3) == 0) {
+		gif_anim_option = 1;
+	    } else if (strncmp("sixel",term->name,5) == 0) {
+		png_state.anchor = TRUE;
+		break;
+	    } else if (strncmp("kitty",term->name,5) == 0) {
+		png_state.anchor = TRUE;
+		break;
+	    } else {
+		int_error(c_token,"This terminal does not support animation");
+	    }
 	    png_state.animate = TRUE;
 	    png_state.frame_count = 0;
 	    png_state.frame_delay = 10;
@@ -1080,6 +1105,8 @@ PNG_options()
 	term->flags |= TERM_ALPHA_CHANNEL;
     } else if (png_state.TrueColor) {
 	strcat(term_options, "truecolor ");
+    } else {
+	strcat(term_options, "notruecolor ");
     }
     if (!(png_state.flags & PNG_USE_CROP)) {
 	strcat(term_options, "no");
@@ -1098,19 +1125,20 @@ PNG_options()
 	sprintf(term_options + strlen(term_options),
 	    "dashlength %3.1f ", PNG_dashlength_factor);
 
-    if (png_state.capbutt) {
+    sprintf(term_options + strlen(term_options),
+	png_state.capbutt ? "butt " : "rounded ");
+
+    if ((strncmp("kitty",term->name,5) == 0)
+    ||  (strncmp("sixel",term->name,5) == 0)) {
 	sprintf(term_options + strlen(term_options),
-	    "butt ");
+		png_state.anchor ? "anchor " : "scroll ");
     }
 
     if (png_state.animate) {
-	if (strncmp("sixel",term->name,5) == 0)
-	    sprintf(term_options + strlen(term_options), "animate ");
-	else
-	    sprintf(term_options + strlen(term_options),
-		"animate delay %d loop %d %soptimize ",
-		png_state.frame_delay, png_state.loop_count,
-		png_state.frame_optimization ? "" : "no");
+	sprintf(term_options + strlen(term_options),
+	    "animate delay %d loop %d %soptimize ",
+	    png_state.frame_delay, png_state.loop_count,
+	    png_state.frame_optimization ? "" : "no");
     }
 
     sprintf(term_options + strlen(term_options),
@@ -1211,11 +1239,19 @@ PNG_init_brush(int width)
 	}
 	brush->last_rgb = png_state.color;
 
-	/* EAM - quick and dirty is to fill the entire brush (square nib) */
-	/* Logically it would be better to approximate a circular nib by  */
-	/* selectively coloring the individual pixels of the brush image, */
-	/* but I tried that and it was not an improvement.                */
+	/* The simplest choice is to fill the entire brush (square nib).
+	 * Logically it would be better to approximate a circular nib by
+	 * selectively coloring the individual pixels of the brush image,
+	 * but the difference is only apparent for dots, not lines.
+	 * Version 6: Approximate by removing the corners.
+	 */
 	gdImageFilledRectangle(brush->im, 0, 0, width-1, width-1, brush->fgnd);
+	if (width > 2) {
+	    gdImageSetPixel(brush->im, 0, 0, brush->bgnd);
+	    gdImageSetPixel(brush->im, 0, width-1, brush->bgnd);
+	    gdImageSetPixel(brush->im, width-1, 0, brush->bgnd);
+	    gdImageSetPixel(brush->im, width-1, width-1, brush->bgnd);
+	}
 
     }
 }
@@ -1250,26 +1286,6 @@ PNG_reset()
     }
 #endif
 }
-
-#if 0
-/* use  #if 1  that's just for debugging */
-void
-PNG_show_current_palette()
-{
-    int i;
-
-    fprintf(stderr, "*****\n SHOW THE PALETTE! total=%i\n",
-	    gdImageColorsTotal(png_state.image));
-    for (i=0; i < gdImageColorsTotal(png_state.image); i++) {
-	/* Use access macros to learn colors. */
-	fprintf(stderr, "%i\tr=%d\t g=%d\tb=%d\n",
-		i,
-		gdImageRed(png_state.image,i),
-		gdImageGreen(png_state.image,i),
-		gdImageBlue(png_state.image,i));
-    }
-}
-#endif
 
 /*
 How this works: Gray interval [0;1] will be mapped to interval
@@ -1314,7 +1330,6 @@ TERM_PUBLIC int PNG_make_palette (t_sm_palette *palette)
     return 0;
 }
 
-
 TERM_PUBLIC
 void PNG_set_color (t_colorspec *colorspec)
 {
@@ -1354,11 +1369,15 @@ void PNG_set_color (t_colorspec *colorspec)
 	    return;
 	} else {
 	    int png_color;
-	    if (sm_palette.use_maxcolors > 0)
-		gray = quantize_gray(gray);
-	    png_color = (gray <= 0) ? 0 : (int)(gray * sm_palette.colors);
-	    if (png_color >= sm_palette.colors)
-		png_color = sm_palette.colors - 1;
+	    if (CHECK_SMPAL_IS_DISCRETE_GRADIENT) {
+		png_color = index_from_gray(gray);
+	    } else {
+		if (sm_palette.use_maxcolors > 0)
+		    gray = quantize_gray(gray);
+		png_color = (gray <= 0) ? 0 : (int)(gray * sm_palette.colors);
+	        if (png_color >= sm_palette.colors)
+		    png_color = sm_palette.colors - 1;
+	    }
 	    /* map [0;1] to interval [0;png_smooth_colors-1] */
 	    png_state.color = png_smooth_color[ png_color ];
 	}
@@ -1656,23 +1675,12 @@ PNG_vector(unsigned int x, unsigned int y)
 
     /* All other (not dashed) vectors */
     } else {
-	if (png_state.linewidth == 1) {
-#if defined(gdAntiAliased)
-	    gdImageSetThickness(png_state.image,1);
+	if (png_state.capbutt) {
+	    /* Assume working antialiasing (gd version >? 2.0.12) */
+	    gdImageSetThickness(png_state.image,png_state.linewidth);
 	    gdImageSetAntiAliased(png_state.image, png_state.color);
 	    gdImageLine(png_state.image, png_state.x, Y(png_state.y),
 			x, Y(y), gdAntiAliased);
-#else
-	    gdImageLine(png_state.image, png_state.x, Y(png_state.y),
-			x, Y(y), png_state.color);
-#endif
-
-	} else if (png_state.capbutt){
-
-	    gdImageSetThickness(png_state.image,png_state.linewidth);
-	    gdImageLine(png_state.image, png_state.x, Y(png_state.y),
-			x, Y(y), png_state.color);
-
 	} else {
 	    /* EAM - Implement linewidth by using a brush */
 	    PNG_init_brush(lw);
@@ -1753,14 +1761,14 @@ PNG_put_text(unsigned int x, unsigned int y, const char *string)
 	/* then draw it again, centered.                             */
 	err = gdImageStringFT(NULL, brect, png_state.color,
 			png_state.ttffont, png_state.ttfsize*png_state.fontscale,
-			(double)png_state.angle * M_PI_2 / 90. ,
+			png_state.angle * M_PI_2 / 90. ,
 			x, Y(y), (char *)string);
 	if (err) {
 	    fprintf(stderr,"gdImageStringFT: %s while printing string %s with font %s\n",
 		err,string,png_state.ttffont);
 	} else {
-	    x += sin((double)png_state.angle * M_PI_2/90.) * (double)png_state.charh/4.;
-	    y -= cos((double)png_state.angle * M_PI_2/90.) * (double)png_state.charh/4.;
+	    x += sin(png_state.angle * M_PI_2/90.) * (float)png_state.charh/4.;
+	    y -= cos(png_state.angle * M_PI_2/90.) * (float)png_state.charh/4.;
 	    switch (png_state.justify) {
 		case RIGHT:
 				x -= (brect[2]-brect[0]);
@@ -1775,7 +1783,7 @@ PNG_put_text(unsigned int x, unsigned int y, const char *string)
 	    }
 	    err = gdImageStringFT(png_state.image, brect, png_state.color,
 			png_state.ttffont, png_state.ttfsize*png_state.fontscale,
-			(double)png_state.angle * M_PI_2 / 90.,
+			png_state.angle * M_PI_2 / 90.,
 			x, Y(y), (char *)string);
 	    if (err)
 		fprintf(stderr,"gdImageStringFT: %s while printing string %s with font %s\n",
@@ -1845,7 +1853,7 @@ PNG_put_text(unsigned int x, unsigned int y, const char *string)
 
 
 TERM_PUBLIC int
-PNG_text_angle(int ang)
+PNG_text_angle(float ang)
 {
     while (ang < -180) ang += 360;	/* Should not be needed, but reported to */
     while (ang > 180) ang -= 360;	/* avoid a bug in some libgd versions    */
@@ -1869,10 +1877,6 @@ PNG_point(unsigned int x, unsigned int y, int number)
 {
     int save_color = png_state.color;
 
-    if (number < 0) { /* Dot */
-	gdImageSetPixel(png_state.image, x, Y(y), png_state.color);
-	return;
-    }
     /* Use current linewidth to draw the point symbol */
     if (png_state.linewidth > 1) {
 	/* EAM - Implement linewidth by using a brush */
@@ -1883,6 +1887,12 @@ PNG_point(unsigned int x, unsigned int y, int number)
     }
 
     y = Y(y);
+
+    if (number < 0) { /* Dot */
+	gdImageSetPixel(png_state.image, x, y, png_state.color);
+	png_state.color = save_color;
+	return;
+    }
 
     switch (number % 13) {
     case 0: /* plus */
@@ -2095,10 +2105,10 @@ ENHGD_FLUSH()
 
     x = png_state.x;
     y = png_state.y;
-    x -= sin((double)png_state.angle * M_PI_2/90.) * ENHgd_base;
-    y += cos((double)png_state.angle * M_PI_2/90.) * ENHgd_base;
-    x += sin((double)png_state.angle * M_PI_2/90.) * (double)png_state.charh/4.;
-    y -= cos((double)png_state.angle * M_PI_2/90.) * (double)png_state.charh/4.;
+    x -= sin(png_state.angle * M_PI_2/90.) * ENHgd_base;
+    y += cos(png_state.angle * M_PI_2/90.) * ENHgd_base;
+    x += sin(png_state.angle * M_PI_2/90.) * (float)png_state.charh/4.;
+    y -= cos(png_state.angle * M_PI_2/90.) * (float)png_state.charh/4.;
 
     /* First try the old GDFONTPATH mechanism for locating fonts */
     (void)gdUseFontConfig(0);
@@ -2116,14 +2126,14 @@ ENHGD_FLUSH()
 		(ENHgd_show && !ENHgd_sizeonly) ? png_state.image : NULL,
 		brect, png_state.color,
 		ENHgd_font, ENHgd_fontsize,
-		(double)png_state.angle * M_PI_2/90.,
+		png_state.angle * M_PI_2/90.,
 		x, Y(y), fragment, &PNG_FONT_INFO);
     if (err && gdUseFontConfig(1)) {
 	err = gdImageStringFTEx(
 		(ENHgd_show && !ENHgd_sizeonly) ? png_state.image : NULL,
 		brect, png_state.color,
 		ENHgd_font, ENHgd_fontsize,
-		(double)png_state.angle * M_PI_2/90.,
+		png_state.angle * M_PI_2/90.,
 		x, Y(y), fragment, &PNG_FONT_INFO);
     }
 #else
@@ -2131,14 +2141,14 @@ ENHGD_FLUSH()
 		(ENHgd_show && !ENHgd_sizeonly) ? png_state.image : NULL,
 		brect, png_state.color,
 		ENHgd_font, ENHgd_fontsize,
-		(double)png_state.angle * M_PI_2/90.,
+		png_state.angle * M_PI_2/90.,
 		x, Y(y), fragment);
     if (err && gdUseFontConfig(1)) {
 	err = gdImageStringFT(
 		(ENHgd_show && !ENHgd_sizeonly) ? png_state.image : NULL,
 		brect, png_state.color,
 		ENHgd_font, ENHgd_fontsize,
-		(double)png_state.angle * M_PI_2/90.,
+		png_state.angle * M_PI_2/90.,
 		x, Y(y), fragment);
     }
 #endif
@@ -2184,7 +2194,6 @@ ENHGD_put_text(unsigned int x, unsigned int y, const char *str)
      * punt the string to PNG_put_text()
      */
     if (!strpbrk(str, "{}^_@&~") && !contains_unicode(str)) {
-	/* FIXME: do something to ensure default font is selected */
 	PNG_put_text(x,y,str);
 	return;
     }
@@ -2545,15 +2554,18 @@ START_HELP(png)
 " lines drawn, i.e. they are multiplied by values requested in various drawing",
 " commands.",
 "",
-" By default output png images use 256 indexed colors. The `truecolor` option",
-" instead creates TrueColor images with 24 bits of color information per pixel.",
+" By default the png terminal creates TrueColor images with 24 bits of color",
+" information per pixel. The `notruecolor` option instead uses only 8 bits,",
+" (256 indexed colors).",
 " Transparent fill styles require the `truecolor` option. See `fillstyle`.",
 " A transparent background is possible in either indexed or TrueColor images.",
+" Antialiasing also requires TrueColor.",
 "",
 " `butt` instructs the driver to use a line drawing method that does",
 " not overshoot the desired end point of a line.  This setting is only",
-" applicable for line widths greater than 1.  This setting is most useful when",
-" drawing horizontal or vertical lines.  Default is `rounded`.",
+" relevant for line widths greater than 1.  The alternative is `rounded`,",
+" which produces somewhat more uniform curved lines if antialiasing is not",
+" available (`notruecolor`) but can be much slower.",
 "",
 " The details of font selection are complicated.",
 " Two equivalent simple examples are given below:",
@@ -2568,18 +2580,14 @@ START_HELP(png)
 "",
 "2 examples",
 "?set term png examples",
-"       set terminal png medium size 640,480 background '#ffffff'",
 "",
-" Use the medium size built-in non-scaleable, non-rotatable font.",
-" Use white (24-bit RGB in hexadecimal) for the non-transparent background.",
-"",
-"       set terminal png font arial 14 size 800,600",
+"       set terminal png font \"arial,14\" size 800,600 background \"white\"",
 "",
 " Searches for a scalable font with face name 'arial' and sets the font",
 " size to 14pt.  Please see `fonts` for details of how the font search",
 " is done.",
 "",
-"       set terminal png transparent truecolor enhanced",
+"       set terminal png transparent enhanced",
 "",
 " Use 24 bits of color information per pixel, with a transparent background.",
 " Use the `enhanced text` mode to control the layout of strings to be printed.",
@@ -2697,8 +2705,7 @@ START_HELP(jpeg)
 "",
 " `butt` instructs the driver to use a line drawing method that does",
 " not overshoot the desired end point of a line.  This setting is only",
-" applicable for line widths greater than 1.  This setting is most useful when",
-" drawing horizontal or vertical lines.  Default is `rounded`.",
+" relevant for line widths greater than 1. The alternative is `rounded`.",
 "",
 " The details of font selection are complicated.",
 " Two equivalent simple examples are given below:",
@@ -2855,7 +2862,7 @@ START_HELP(gif)
 " `butt` instructs the driver to use a line drawing method that does",
 " not overshoot the desired end point of a line.  This setting is only",
 " applicable for line widths greater than 1.  This setting is most useful when",
-" drawing horizontal or vertical lines.  Default is `rounded`.",
+" drawing horizontal or vertical lines.",
 "",
 " The output plot size <x,y> is given in pixels---it defaults to 640x480.",
 " Please see additional information under `canvas` and `set size`.",
@@ -2965,8 +2972,8 @@ SIXELGD_text()
 {
     image_do_crop();
 
-    /* The 'animate' option makes each plot write in place rather than scrolling */
-    if (png_state.animate)
+    /* The 'anchor' option restarts each plot at the top left */
+    if (png_state.anchor)
 	fprintf(gpoutfile,  "\033[H");
 
     /* maximum number of palette colors (256), no truecolor images, fill optimization */
@@ -2994,7 +3001,7 @@ TERM_TABLE_START(sixelgd_driver)
     PNG_boxfill,
     PNG_linewidth,
 #ifdef USE_MOUSE
-    0, 0, 0, 0, 0, /* no mouse support */
+    term_waitforinput, 0, 0, 0, 0, /* pseudo-mousing during "pause mouse" */
 #endif
     PNG_make_palette,
     0, /* previous_palette() ... no, single array of 256 colours for PNG */
@@ -3027,64 +3034,210 @@ START_HELP(sixelgd)
 "?sixelgd",
 " Syntax:",
 "       set terminal sixelgd",
-"              {{no}enhanced} {{no}truecolor}",
-"              {{no}transparent} {rounded|butt}",
+"              {{no}enhanced} {{no}truecolor} {rounded|butt}",
 "              {linewidth <lw>} {dashlength <dl>}",
 "              {tiny | small | medium | large | giant}",
 "              {font \"<face> {,<pointsize>}\"} {fontscale <scale>}",
-"              {size <x>,<y>} {{no}crop} {animate}",
+"              {size <x>,<y>} {anchor|scroll} {{no}transparent}",
 "              {background <rgb_color>}",
 "",
 " The `sixel` output format was originally used by DEC terminals and printers.",
-" This driver produces a sixel output stream by converting a PNG image created",
-" internally using the gd library. The sixel output stream can be viewed in the",
-" terminal as it is created or it can be written to a file so that it can be",
-" replayed later by echoing the file to the terminal.",
+" The gnuplot sixelgd driver produces a sixel output stream by converting a",
+" PNG image created internally using the gd library. The sixel output stream",
+" can be viewed in the terminal as it is created or it can be written to a file",
+" so that it can be replayed later by echoing the file to the terminal.",
 "",
 " The sixel terminal is also useful for displaying gnuplot graphics on the",
 " linux console when no windowing system or graphics display manager is active.",
 " See `linux console`.",
 "",
-" `transparent` instructs the driver to make the background color transparent.",
-" Default is `notransparent`.",
-"",
 " The `linewidth` and `dashlength` options are scaling factors that affect all",
 " lines drawn.  They are multiplied by values requested in drawing commands.",
 "",
 " By default the sixel output uses 16 indexed colors. The `truecolor` option",
-" instead creates a TrueColor png image that is mapped down onto 256 colors",
+" instead creates a 24-bit RGB png image that is mapped down onto 256 colors",
 " in the output sixel image. Transparent fill styles require the `truecolor`",
 " option. See `fillstyle`.",
-" A `transparent` background is possible in either indexed or TrueColor images.",
 "",
 " `butt` instructs the driver to use a line drawing method that does",
 " not overshoot the desired end point of a line.  This setting is only",
-" applicable for line widths greater than 1.  This setting is most useful when",
-" drawing horizontal or vertical lines.  Default is `rounded`.",
+" relevant for line widths greater than 1.  The alternative is `rounded`,",
+" which produces somewhat more uniform curved lines but can be much slower.",
 "",
-" The details of font selection are complicated.",
+" The details of font selection in the gdlib terminals are complicated.",
 " For more information please see `fonts`.",
 "",
-" The output plot size <x,y> is given in pixels---it defaults to 640x480.",
-" Please see additional information under `canvas` and `set size`.",
-" Blank space at the edges of the finished plot may be trimmed using the `crop`",
-" option, resulting in a smaller final image size. Default is `nocrop`."
+" The output plot size <x,y> is given in pixels.  It defaults to 640x480,",
+" which is probably smaller than the size of your terminal window.",
 "",
-" The terminal has been successfully tested with the xterm, mlterm and mintty",
-" terminals.  The later two support the `truecolor` mode using 256 sixel",
-" colors out of box. Distributed copies of xterm may or may not have been",
-" configured to support sixel graphics and may be limited to 16 colors.",
+" `transparent` instructs the driver to make the background color transparent,",
+" but most terminal emulators do not support this. Default is `notransparent`.",
 "",
-"?set terminal sixelgd animate",
-"?set term sixelgd animate",
-"?term sixelgd animate",
-"      set term sixel animate",
+" Gnuplot's sixelgd output has been successfully tested with terminal",
+" emulators including konsole, mlterm, mintty, and the vt340 mode of xterm",
+" (note that distributed copies of xterm may not have been configured",
+" to support sixel graphics). Sixel support in the KDE konsole terminal",
+" was added in version 22.04.0.",
 "",
-" The `animate` option resets the cursor position to the terminal top left at",
-" the start of every plot so that successive plots overwrite the same area on",
-" the screen rather than having earlier plots scroll off the top. This may be",
-" desirable in order to create an in-place animation.",
+" By default (`anchor`) each plot is drawn by overwriting the area at the top",
+" left of the window.  This allows redrawing to create an in-place animation",
+" and pseudo-mousing using the arrow keys during `pause mouse`.",
+" The `scroll` option instead starts each plot at the current cursor position",
+" so that successive plots scroll with any intervening text.",
 ""
 END_HELP(sixelgd)
 #endif /* TERM_HELP */
 #endif /* WITH_GD_SIXEL */
+
+#ifdef HAVE_KITTY_TERM
+#ifdef TERM_REGISTER
+register_term(kittygd)
+#endif
+
+#ifdef TERM_PROTO
+TERM_PUBLIC void KITTYGD_text(void);
+#define GOT_NEXT_PROTO
+#endif
+
+#ifndef TERM_PROTO_ONLY
+
+#ifdef TERM_BODY
+
+typedef struct KITTYGD_io_ctx {
+  struct gdIOCtx gdio;
+  base64s *b64;
+} KITTYGD_io_ctx;
+
+static void
+KITTYGD_putc(struct gdIOCtx *ctx, int ch) {
+  unsigned char real_ch = ch;
+  base64s *b64 = ((KITTYGD_io_ctx *)ctx)->b64;
+  piecemeal_write_base64_data(&real_ch, 1, b64);
+}
+
+static int
+KITTYGD_putbuf(struct gdIOCtx *ctx, const void *buf, int n) {
+  base64s *b64 = ((KITTYGD_io_ctx *)ctx)->b64;
+  piecemeal_write_base64_data(buf, n, b64);
+  return n;
+}
+
+/*
+ * All functions except the final write to file
+ * are actually performed by the PNG driver code
+ */
+TERM_PUBLIC void
+KITTYGD_text()
+{
+    base64s *b64;
+    KITTYGD_io_ctx ioctx;
+    image_do_crop();
+
+    /* The 'anchor' option makes each plot write in place rather than scrolling */
+    if (png_state.anchor)
+	fprintf(gpoutfile,  "\033[H");
+
+    kitty_init(KITTY_FORMAT_PNG);
+    b64 = gp_alloc(sizeof(base64s), "base64s");
+    init_base64_state_data(b64, kitty_writechar, NULL);
+
+    ioctx.gdio.putC = KITTYGD_putc;
+    ioctx.gdio.putBuf = KITTYGD_putbuf;
+    ioctx.b64 = b64;
+
+    gdImagePngCtx(png_state.image, &(ioctx.gdio));
+    piecemeal_write_base64_data_finish(b64);
+    free(b64);
+    kitty_flush(FALSE);
+    fputc('\n', gpoutfile);
+    gdImageDestroy(png_state.image);
+}
+
+#endif /* TERM_BODY */
+
+#ifdef TERM_TABLE
+
+TERM_TABLE_START(kittygd_driver)
+    "kittygd", "kitty in-terminal graphics using libgd",
+    GREG_XMAX, GREG_YMAX, PNG_VCHAR, PNG_HCHAR,
+    PNG_TICSIZE, PNG_TICSIZE, PNG_options, PNG_init, PNG_reset,
+    KITTYGD_text, null_scale, PNG_graphics, PNG_move, PNG_vector,
+    PNG_linetype, PNG_put_text, PNG_text_angle,
+    PNG_justify_text, PNG_point, do_arrow, PNG_set_font,
+    PNG_pointsize,
+    TERM_CAN_MULTIPLOT|TERM_BINARY|TERM_ALPHA_CHANNEL|TERM_LINEWIDTH|TERM_FONTSCALE,
+    0 /*suspend*/, 0 /*resume*/,
+    PNG_boxfill,
+    PNG_linewidth,
+#ifdef USE_MOUSE
+    term_waitforinput, 0, 0, 0, 0, /* pseudo-mousing */
+#endif
+    PNG_make_palette,
+    0, /* previous_palette() ... no, single array of 256 colours for PNG */
+    PNG_set_color,
+    PNG_filled_polygon,
+    PNG_image,
+    ENHGD_OPEN, ENHGD_FLUSH, do_enh_writec,
+    NULL,		/* layering */
+    NULL,		/* path */
+    0.0,		/* tscale */
+    NULL		/* hypertext */
+    , ENHGD_boxed_text
+TERM_TABLE_END(kittygd_driver)
+
+#undef LAST_TERM
+#define LAST_TERM kittygd_driver
+
+#endif /* TERM_TABLE */
+#endif /* TERM_PROTO_ONLY */
+
+
+#ifdef TERM_HELP
+START_HELP(kittygd)
+"1 kittygd",
+"?commands set terminal kittygd",
+"?set terminal kittygd",
+"?set term kittygd",
+"?terminal kittygd",
+"?term kittygd",
+"?kittygd",
+" Syntax:",
+"       set terminal kittygd",
+"                    {{no}enhanced} {{no}truecolor} {rounded|butt}",
+"                    {linewidth <lw>} {dashlength <dl>}",
+"                    {font \"<face> {,<pointsize>}\"} {fontscale <scale>}",
+"                    {size <x>,<y>} {anchor|scroll}",
+"                    {background <rgb_color>}",
+"",
+" The `kittygd` terminal generates in-window output on terminal emulators",
+" that support the kitty graphics protocol.  The plot is composed using the",
+" gdlib library. By default the library creates a 24-bit RGB png image that",
+" is mapped down onto 256 colors (`truecolor`) for output.",
+" `notruecolor` restricts the output to fewer colors but there is no obvious",
+" advantage to this.",
+" Transparent fill styles require the `truecolor` option. See `fillstyle`.",
+" If your copy of gnuplot was built with support for cairo graphics,",
+" the `kittycairo` terminal may be preferable.",
+"",
+" This terminal processes labels and other text using enhanced formatting",
+" by default. See `enhanced`.",
+"",
+" The width of al lines in the pot can be modified by the factor <lw> specified",
+" in `linewidth`. The font size can similarly be uniformly modified by the",
+" scale factor provided in `fontscale`.  For discussion of font and text",
+" encoding options, see the `png` terminal.",
+"",
+" `butt` instructs the driver to use a line drawing method that does",
+" not overshoot the desired end point of a line.  This setting is only",
+" relevant for line widths greater than 1.  The alternative is `rounded`,",
+" which produces somewhat more uniform curved lines but can be much slower.",
+"",
+" The size of the plot is given in screen pixels.",
+" By default (`anchor`) each new plot is drawn starting at the top left of the",
+" window.  This is useful for animation or pseudo-mousing using the keyboard",
+" (see `pseudo-mousing`).  The `scroll` option instead plots at the current",
+" cursor position so that successive plots scroll with the terminal text.", 
+""
+END_HELP(kittygd)
+#endif /* TERM_HELP */
+#endif /* WITH_GD_KITTY */

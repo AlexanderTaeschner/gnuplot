@@ -4,7 +4,7 @@
 
 /*
 
-Copyright (c) 2020 Bastian Maerkisch. All rights reserved.
+Copyright (c) 2020-2022 Bastian Maerkisch. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without modification,
 are permitted provided that the following conditions are met:
@@ -43,6 +43,7 @@ TERM_PUBLIC void BLOCK_text(void);
 TERM_PUBLIC void BLOCK_graphics(void);
 TERM_PUBLIC void BLOCK_put_text(unsigned int x, unsigned int y, const char *str);
 TERM_PUBLIC void BLOCK_point(unsigned int x, unsigned int y, int point);
+TERM_PUBLIC void BLOCK_arrow(unsigned int sx, unsigned int sy, unsigned int ex, unsigned int ey, int head);
 TERM_PUBLIC void BLOCK_linetype(int linetype);
 TERM_PUBLIC void BLOCK_set_color(t_colorspec *color);
 #endif
@@ -54,19 +55,21 @@ TERM_PUBLIC void BLOCK_set_color(t_colorspec *color);
 # include <iconv.h>
 #endif
 
-// default values for quadrants
+// default values for quadrants, the default mode
 #define BLOCK_XMAX  (DUMB_XMAX)
 #define BLOCK_YMAX  (DUMB_YMAX)
 #define BLOCK_VCHAR (2)
 #define BLOCK_HCHAR (2)
-// we want really small point symbols
-// FIXME: Should we go for 1, 2? Aspect ratio?
-#define BLOCK_VTIC  (2)
+// We want really small tics. Approximate aspect ratio.
+#define BLOCK_VTIC  (1)
 #define BLOCK_HTIC  (2)
 
 enum BLOCK_modes {
-    BLOCK_MODE_DOT, BLOCK_MODE_HALF, BLOCK_MODE_HALFH,
-    BLOCK_MODE_QUAD, BLOCK_MODE_SEXT, BLOCK_MODE_BRAILLE
+    BLOCK_MODE_DOT, BLOCK_MODE_HALF,
+    BLOCK_MODE_QUAD,
+    BLOCK_MODE_SEXT, BLOCK_MODE_SEXT_PUA,
+    BLOCK_MODE_OCT, BLOCK_MODE_OCT_PUA,
+    BLOCK_MODE_BRAILLE
 };
 
 typedef struct {
@@ -87,29 +90,46 @@ static int BLOCK_mode = BLOCK_MODE_HALF;
 #else
 static int BLOCK_mode = BLOCK_MODE_QUAD;
 #endif
+static TBOOLEAN BLOCK_animate = FALSE;
 static int BLOCK_xchars = BLOCK_XMAX;
 static int BLOCK_ychars = BLOCK_YMAX;
 static TBOOLEAN BLOCK_optimize = TRUE;
-static TBOOLEAN BLOCK_charpoints = FALSE;
-static BLOCK_modeinfo_entry BLOCK_modeinfo[6] = {
+
+enum BLOCK_pointtypes {
+    BLOCK_POINT_CHAR, BLOCK_POINT_NUM, BLOCK_POINT_GP
+};
+#if defined(OS2) || defined(MSDOS)
+static int BLOCK_pointtype = BLOCK_POINT_CHAR;
+#else
+static int BLOCK_pointtype = BLOCK_POINT_NUM;
+#endif
+
+#define BLOCK_BGTRANSPARENT 0xffffffff
+static uint32_t BLOCK_background = BLOCK_BGTRANSPARENT;
+static BLOCK_modeinfo_entry BLOCK_modeinfo[] = {
     { BLOCK_MODE_DOT,     1, 1 },
     { BLOCK_MODE_HALF,    1, 2 },
-    { BLOCK_MODE_HALFH,   2, 1 },
     { BLOCK_MODE_QUAD,    2, 2 },
     { BLOCK_MODE_SEXT,    2, 3 },
+    { BLOCK_MODE_SEXT_PUA,2, 3 },
+    { BLOCK_MODE_OCT,     2, 4 },
+    { BLOCK_MODE_OCT_PUA, 2, 4 },
     { BLOCK_MODE_BRAILLE, 2, 4 }
 };
 
 enum BLOCK_id {
     BLOCK_ENH, BLOCK_NOENH,
     // The code relies on those having the same order as the modes.
-    BLOCK_DOT, BLOCK_HALF, BLOCK_HALFH,
-      BLOCK_QUADRANTS, BLOCK_SEXTANTS, BLOCK_BRAILLE,
+    BLOCK_DOT, BLOCK_HALF, BLOCK_QUADRANTS,
+      BLOCK_SEXTANTS, BLOCK_SEXTANTS_PUA,
+      BLOCK_OCTANTS, BLOCK_OCTANTS_PUA,
+      BLOCK_BRAILLE,
     BLOCK_ANSI, BLOCK_ANSI256, BLOCK_ANSIRGB, BLOCK_NOCOLOR,
     BLOCK_OPTIMIZE, BLOCK_NOOPTIMIZE,
-    BLOCK_CHARPOINTS, BLOCK_GPPOINTS,
+    BLOCK_CHARPOINTS, BLOCK_GPPOINTS, BLOCK_NUMPOINTS,
     BLOCK_ATTRIBUTES, BLOCK_NOATTRIBUTES,
-    BLOCK_SIZE,
+    BLOCK_SIZE, BLOCK_BACKGROUND, BLOCK_TRANSPARENT,
+    BLOCK_ANIMATE, BLOCK_NOANIMATE,
     BLOCK_OTHER
 };
 
@@ -119,10 +139,15 @@ static struct gen_table BLOCK_opts[] =
     { "noe$nhanced", BLOCK_NOENH },
     { "dot", BLOCK_DOT },
     { "half", BLOCK_HALF },
-    { "halfh", BLOCK_HALFH },
     { "quad$rants", BLOCK_QUADRANTS },
-    { "sex$tants", BLOCK_SEXTANTS },
+    { "sext$ants", BLOCK_SEXTANTS },
+    { "sextpua", BLOCK_SEXTANTS_PUA },
+    { "sextantspua", BLOCK_SEXTANTS_PUA },
+    { "oct$ants", BLOCK_OCTANTS },
+    { "octpua", BLOCK_OCTANTS_PUA },
+    { "octantspua", BLOCK_OCTANTS_PUA },
     { "br$aille", BLOCK_BRAILLE },
+    { "mono", BLOCK_NOCOLOR },
     { "ansi", BLOCK_ANSI },
     { "ansi256", BLOCK_ANSI256 },
     { "pal$ette", BLOCK_ANSI256 },
@@ -130,12 +155,16 @@ static struct gen_table BLOCK_opts[] =
     { "tru$ecolor", BLOCK_ANSIRGB },
     { "opt$imize", BLOCK_OPTIMIZE },
     { "noopt$imize", BLOCK_NOOPTIMIZE },
-    { "chars$ymbols", BLOCK_CHARPOINTS },
-    { "gps$ymbols", BLOCK_GPPOINTS },
-    { "mono", BLOCK_NOCOLOR },
+    { "charp$oints", BLOCK_CHARPOINTS },
+    { "nump$oints", BLOCK_NUMPOINTS },
+    { "gpp$oints", BLOCK_GPPOINTS },
     { "siz$e", BLOCK_SIZE },
     { "attr$ibutes", BLOCK_ATTRIBUTES },
     { "noattr$ibutes", BLOCK_NOATTRIBUTES },
+    { "back$ground", BLOCK_BACKGROUND },
+    { "transp$arent", BLOCK_TRANSPARENT },
+    { "anim$ate", BLOCK_ANIMATE },
+    { "noanim$ate", BLOCK_NOANIMATE },
     { NULL, BLOCK_OTHER }
 };
 
@@ -159,9 +188,11 @@ BLOCK_options()
 #endif
 	case BLOCK_DOT:
 	case BLOCK_HALF:
-	case BLOCK_HALFH:
 	case BLOCK_QUADRANTS:
 	case BLOCK_SEXTANTS:
+	case BLOCK_SEXTANTS_PUA:
+	case BLOCK_OCTANTS:
+	case BLOCK_OCTANTS_PUA:
 	case BLOCK_BRAILLE:
 	    BLOCK_mode = BLOCK_MODE_DOT + cmd - BLOCK_DOT;
 	    c_token++;
@@ -169,17 +200,19 @@ BLOCK_options()
 	case BLOCK_ANSI:
 	case BLOCK_ANSI256:
 	case BLOCK_ANSIRGB:
-	    c_token++;
+#ifndef NO_DUMB_COLOR_SUPPORT
 	    if (cmd == BLOCK_ANSI)
 		dumb_colormode = DUMB_ANSI;
 	    else if (cmd == BLOCK_ANSI256)
 		dumb_colormode = DUMB_ANSI256;
 	    else
 		dumb_colormode = DUMB_ANSIRGB;
-#ifndef NO_DUMB_COLOR_SUPPORT
 	    term->make_palette = DUMB_make_palette;
 	    term->flags &= ~TERM_MONOCHROME;
+#else
+	    int_warn(c_token, "block terminal built without color support");
 #endif
+	    c_token++;
 	    break;
 	case BLOCK_NOCOLOR:
 	    c_token++;
@@ -205,11 +238,15 @@ BLOCK_options()
 	    break;
 	case BLOCK_CHARPOINTS:
 	    c_token++;
-	    BLOCK_charpoints = TRUE;
+	    BLOCK_pointtype = BLOCK_POINT_CHAR;
+	    break;
+	case BLOCK_NUMPOINTS:
+	    c_token++;
+	    BLOCK_pointtype = BLOCK_POINT_NUM;
 	    break;
 	case BLOCK_GPPOINTS:
 	    c_token++;
-	    BLOCK_charpoints = FALSE;
+	    BLOCK_pointtype = BLOCK_POINT_GP;
 	    break;
 	case BLOCK_SIZE: {
 	    float width, height;
@@ -220,6 +257,22 @@ BLOCK_options()
 	    BLOCK_ychars = height;
 	    break;
 	}
+	case BLOCK_BACKGROUND:
+	    c_token++;
+	    BLOCK_background = parse_color_name();
+	    break;
+	case BLOCK_TRANSPARENT:
+	    c_token++;
+	    BLOCK_background = BLOCK_BGTRANSPARENT;
+	    break;
+	case BLOCK_ANIMATE:
+	    c_token++;
+	    BLOCK_animate = TRUE;
+	    break;
+	case BLOCK_NOANIMATE:
+	    c_token++;
+	    BLOCK_animate = FALSE;
+	    break;
 	case BLOCK_OTHER:
 	default:
 	    int_error(c_token, "unknown option");
@@ -232,17 +285,29 @@ BLOCK_options()
 
     // init options string
     {
+	//Note: These need to be in the same order as the corresponding definitions.
 	const char * mode_strings[] =
-	    { "dot", "half", "halfh", "quadrants", "sextants", "braille" };
+	    { "dot", "half", "quadrants", "sextants", "sextpua", "octants", "octpua", "braille" };
 	const char * color_strings[] =
 	    {"mono", "ansi", "ansi256", "ansirgb"};
+	const char * pointtype_strings[] =
+	    {"char", "num", "gp"};
+	char bg_str[32];
 
-	sprintf(term_options, "%s %s %soptimize %senhanced size %d,%d",
+	if (BLOCK_background == BLOCK_BGTRANSPARENT)
+	    strcpy(bg_str, "transparent");
+	else
+	    sprintf(bg_str, "background rgb \"0x%06X\"", BLOCK_background);
+	sprintf(term_options, "%s %s %s %soptimize %senhanced %sattributes %spoints size %d,%d %s",
 	    mode_strings[BLOCK_mode],
 	    color_strings[dumb_colormode == 0 ? 0 : dumb_colormode - DUMB_ANSI + 1],
-	    (BLOCK_optimize ? "" : "no"),
+	    bg_str,
+	    (BLOCK_optimize && (BLOCK_mode != BLOCK_MODE_BRAILLE) ? "" : "no"),
 	    (term->flags & TERM_ENHANCED_TEXT) ? "" : "no",
-	    BLOCK_xchars, BLOCK_ychars);
+	    (dumb_text_attributes ? "" : "no"),
+	    pointtype_strings[BLOCK_pointtype],
+	    BLOCK_xchars, BLOCK_ychars,
+	    BLOCK_animate ? "animate" : "");
     }
 }
 
@@ -278,14 +343,21 @@ BLOCK_init()
 
     term->h_char = BLOCK_modeinfo[BLOCK_mode].cellx;
     term->v_char = BLOCK_modeinfo[BLOCK_mode].celly;
-    // FIXME: is this correct or should the -1 go?
     dumb_xmax = BLOCK_xchars - 1;
     dumb_ymax = BLOCK_ychars - 1;
+
     // guide the aspect ratio calculation in the core layer
-    if (BLOCK_mode == BLOCK_MODE_QUAD || BLOCK_mode == BLOCK_MODE_DOT)
-	term->h_tic = BLOCK_HTIC * 2;
-    else
+    if (BLOCK_mode == BLOCK_MODE_QUAD || BLOCK_mode == BLOCK_MODE_DOT) {
 	term->h_tic = BLOCK_HTIC;
+	term->v_tic = BLOCK_VTIC;
+    } else if (BLOCK_mode == BLOCK_MODE_SEXT || BLOCK_mode == BLOCK_MODE_SEXT_PUA) {
+	term->h_tic = BLOCK_HTIC * 3 / 2;
+	term->v_tic = BLOCK_VTIC * 2;
+    } else { // BLOCK_MODE_HALF, BLOCK_MODE_OCT, BLOCK_MODE_OCT_PUA, BLOCK_MODE_BRAILLE
+	term->h_tic = BLOCK_HTIC / 2;
+	term->v_tic = BLOCK_VTIC;
+    }
+
     DUMB_init();
 }
 
@@ -303,13 +375,6 @@ BLOCK_reset()
 */
 static uint32_t block_half_map[4] = {
     0x00A0, 0x2580, 0x2584, 0x2588
-};
-
-/*
-  Halfblocks, horizontal:
-*/
-static uint32_t block_halfh_map[4] = {
-    0x00A0, 0x2590, 0x258D, 0x2588
 };
 
 /*
@@ -352,18 +417,63 @@ static uint32_t block_sextant_map[64] = {
     0x1FB39,  0x1FB3A,  0x1FB3B,   0x2588,  // 3456, 13456, 23456, *12345* (full)
 };
 
+/*
+  Octant map. Non-continuous.
+    1 2
+    3 4
+    5 6
+    7 8
+*/
+static uint32_t block_octant_map[256] = {
+    0x00A0,  0x1CEA8, 0x1CEAB, 0x1FB82, 0x1CD00, 0x2598,  0x1CD01, 0x1CD02,
+    0x1CD03, 0x1CD04, 0x259D,  0x1CD05, 0x1CD06, 0x1CD07, 0x1CD08, 0x2580,
+    0x1CD09, 0x1CD0A, 0x1CD0B, 0x1CD0C, 0x1FBE7, 0x1CD0D, 0x1CD0E, 0x1CD0F,
+    0x1CD10, 0x1CD11, 0x1CD12, 0x1CD13, 0x1CD14, 0x1CD15, 0x1CD16, 0x1CD17,
+    0x1CD18, 0x1CD19, 0x1CD1A, 0x1CD1B, 0x1CD1C, 0x1CD1D, 0x1CD1E, 0x1CD1F,
+    0x1FBE6, 0x1CD20, 0x1CD21, 0x1CD22, 0x1CD23, 0x1CD24, 0x1CD25, 0x1CD26,
+    0x1CD27, 0x1CD28, 0x1CD29, 0x1CD2A, 0x1CD2B, 0x1CD2C, 0x1CD2D, 0x1CD2E,
+    0x1CD2F, 0x1CD30, 0x1CD31, 0x1CD32, 0x1CD33, 0x1CD34, 0x1CD35, 0x1FB85,
+    0x1CEA3, 0x1CD36, 0x1CD37, 0x1CD38, 0x1CD39, 0x1CD3A, 0x1CD3B, 0x1CD3C,
+    0x1CD3D, 0x1CD3E, 0x1CD3F, 0x1CD40, 0x1CD41, 0x1CD42, 0x1CD43, 0x1CD44,
+    0x2596,  0x1CD45, 0x1CD46, 0x1CD47, 0x1CD48, 0x258C,  0x1CD49, 0x1CD4A,
+    0x1CD4B, 0x1CD4C, 0x259E,  0x1CD4D, 0x1CD4E, 0x1CD4F, 0x1CD50, 0x259B,
+    0x1CD51, 0x1CD52, 0x1CD53, 0x1CD54, 0x1CD55, 0x1CD56, 0x1CD57, 0x1CD58,
+    0x1CD59, 0x1CD5A, 0x1CD5B, 0x1CD5C, 0x1CD5D, 0x1CD5E, 0x1CD5F, 0x1CD60,
+    0x1CD61, 0x1CD62, 0x1CD63, 0x1CD64, 0x1CD65, 0x1CD66, 0x1CD67, 0x1CD68,
+    0x1CD69, 0x1CD6A, 0x1CD6B, 0x1CD6C, 0x1CD6D, 0x1CD6E, 0x1CD6F, 0x1CD70,
+    0x1CEA0, 0x1CD71, 0x1CD72, 0x1CD73, 0x1CD74, 0x1CD75, 0x1CD76, 0x1CD77,
+    0x1CD78, 0x1CD79, 0x1CD7A, 0x1CD7B, 0x1CD7C, 0x1CD7D, 0x1CD7E, 0x1CD7F,
+    0x1CD80, 0x1CD81, 0x1CD82, 0x1CD83, 0x1CD84, 0x1CD85, 0x1CD86, 0x1CD87,
+    0x1CD88, 0x1CD89, 0x1CD8A, 0x1CD8B, 0x1CD8C, 0x1CD8D, 0x1CD8E, 0x1CD8F,
+    0x2597,  0x1CD90, 0x1CD91, 0x1CD92, 0x1CD93, 0x259A,  0x1CD94, 0x1CD95,
+    0x1CD96, 0x1CD97, 0x2590,  0x1CD98, 0x1CD99, 0x1CD9A, 0x1CD9B, 0x259C,
+    0x1CD9C, 0x1CD9D, 0x1CD9E, 0x1CD9F, 0x1CDA0, 0x1CDA1, 0x1CDA2, 0x1CDA3,
+    0x1CDA4, 0x1CDA5, 0x1CDA6, 0x1CDA7, 0x1CDA8, 0x1CDA9, 0x1CDAA, 0x1CDAB,
+    0x2582,  0x1CDAC, 0x1CDAD, 0x1CDAE, 0x1CDAF, 0x1CDB0, 0x1CDB1, 0x1CDB2,
+    0x1CDB3, 0x1CDB4, 0x1CDB5, 0x1CDB6, 0x1CDB7, 0x1CDB8, 0x1CDB9, 0x1CDBA,
+    0x1CDBB, 0x1CDBC, 0x1CDBD, 0x1CDBE, 0x1CDBF, 0x1CDC0, 0x1CDC1, 0x1CDC2,
+    0x1CDC3, 0x1CDC4, 0x1CDC5, 0x1CDC6, 0x1CDC7, 0x1CDC8, 0x1CDC9, 0x1CDCA,
+    0x1CDCB, 0x1CDCC, 0x1CDCD, 0x1CDCE, 0x1CDCF, 0x1CDD0, 0x1CDD1, 0x1CDD2,
+    0x1CDD3, 0x1CDD4, 0x1CDD5, 0x1CDD6, 0x1CDD7, 0x1CDD8, 0x1CDD9, 0x1CDDA,
+    0x2584,  0x1CDDB, 0x1CDDC, 0x1CDDD, 0x1CDDE, 0x2599,  0x1CDDF, 0x1CDE0,
+    0x1CDE1, 0x1CDE2, 0x259F,  0x1CDE3, 0x2586,  0x1CDE4, 0x1CDE5, 0x2588
+};
+
 /* optimization bit patterns */
-const int quad_pat[10] = {
-    0x0e, 0x0d, 0x0b, 0x07,  // 3 bits
-    0x0c, 0x0a, 0x09,        // 2 bits
-    0x06, 0x05,
-    0x03
+// half blocks: 1
+const int half_pat[] = { 0x01 };
+const int nhalf_pats = 1;
+// quadrants: 4!/3! + 4!/(2!+2!) = 4 + 6 = 10
+const int quad_pat[] = {
+    0x0e, 0x0d, 0x0b, 0x07,              // 3 bits
+    0x0c, 0x0a, 0x09, 0x06, 0x05, 0x03   // 2 bits
 };
 const int nquad_pats = sizeof(quad_pat) / sizeof(int);
+// sextants: 6!/5! + 6!/(4!*2!) + 6!/(3!*3!) = 6 + 15 + 20 = 41
 const int sext_pat[] = {
     0x3e, 0x3d, 0x3b, 0x37, 0x2f, 0x1f,  // 5 bits
-    0x3c, 0x3a, 0x39, 0x36, 0x35, 0x33,
-    0x2e, 0x2d, 0x2b, 0x27,              // 4 bits
+    0x3c, 0x3a, 0x39, 0x36, 0x35, 0x33,  // 4 bits
+    0x2e, 0x2d, 0x2b, 0x27,
     0x1e, 0x1d, 0x1b, 0x17,
     0x0f,
     0x38, 0x34, 0x32, 0x31,              // 3 bits
@@ -372,6 +482,44 @@ const int sext_pat[] = {
     0x0e, 0x0d, 0x0b, 0x07
 };
 const int nsext_pats = sizeof(sext_pat) / sizeof(int);
+// octants: 8!/7! + 8!/(6!*2!) + 8!/(5!*3!) + 8!/(4!*4!) =  8 + 28 + 56 + 70 = 162
+const int oct_pat[] = {
+    0xfe, 0xfd, 0xfb, 0xf7,              // 7 bits
+    0xef, 0xdf, 0xbf, 0x7f,
+    0xfc, 0xfa, 0xf9, 0xf6, 0xf5, 0xf3,  // 6 bits
+    0xee, 0xed, 0xeb, 0xe7,
+    0xde, 0xdd, 0xdb, 0xd7,
+    0xbe, 0xbd, 0xbb, 0xb7,
+    0x7e, 0x7d, 0x7b, 0x77,
+    0xcf, 0xaf, 0x9f, 0x6f, 0x5f, 0x3f,
+    0xf8, 0xf4, 0xf2, 0xf1,              // 5 bits
+    0xec, 0xea, 0xe9, 0xe6, 0xe5, 0xe3,
+    0xdc, 0xda, 0xd9, 0xd6, 0xd5, 0xd3,
+    0xbc, 0xba, 0xb9, 0xb6, 0xb5, 0xb3,
+    0x7c, 0x7a, 0x79, 0x76, 0x75, 0x73,
+    0xce, 0xae, 0x9e, 0x6e, 0x5e, 0x3e,
+    0xcd, 0xad, 0x9d, 0x6d, 0x5d, 0x3d,
+    0xcb, 0xab, 0x9b, 0x6b, 0x5b, 0x3b,
+    0xc7, 0xa7, 0x97, 0x67, 0x57, 0x37,
+    0x8f, 0x4f, 0x2f, 0x1f,
+    0xf0,                                // 4 bits
+    0xe8, 0xe4, 0xe2, 0xe1,
+    0xd8, 0xd4, 0xd2, 0xd1,
+    0xb8, 0xb4, 0xb2, 0xb1,
+    0x78, 0x74, 0x72, 0x71,
+    0xcc, 0xca, 0xc9, 0xc6, 0xc5, 0xc3,
+    0xac, 0xaa, 0xa9, 0xa6, 0xa5, 0xa3,
+    0x9c, 0x9a, 0x99, 0x96, 0x95, 0x93,
+    0x6c, 0x6a, 0x69, 0x66, 0x65, 0x63,
+    0x5c, 0x5a, 0x59, 0x56, 0x55, 0x53,
+    0x3c, 0x3a, 0x39, 0x36, 0x35, 0x33,
+    0x8e, 0x8d, 0x8b, 0x87,
+    0x4e, 0x4d, 0x4b, 0x47,
+    0x2e, 0x2d, 0x2b, 0x27,
+    0x1e, 0x1d, 0x1b, 0x17,
+    0x0f
+};
+const int noct_pats = sizeof(oct_pat) / sizeof(int);
 
 
 #ifndef NO_DUMB_COLOR_SUPPORT
@@ -423,7 +571,7 @@ ansi_bg_colorstring(t_colorspec * color)
 	rgb255.g = (color->lt >>  8) & 0xff;
 	rgb255.b = (color->lt >>  0) & 0xff;
 	n = nearest_ansi(rgb255);
-	if (n <= 8) {
+	if (n < 8) {
 	    sprintf(colorstring, "\033[%im", 40 + (n % 8));
 	} else {
 	    // For color >= 8, we try to set both, the (dark) background color,
@@ -458,25 +606,22 @@ BLOCK_text()
     const int idx_half[2]      = { 0x02, 0x01 };
     const int idx_quadrants[4] = { 0x04, 0x08, 0x01, 0x02 };
     const int idx_sextants[6]  = { 0x10, 0x20, 0x04, 0x08, 0x01, 0x02 };
+    const int idx_octants[8]   = { 0x40, 0x80, 0x10, 0x20, 0x04, 0x08, 0x01, 0x02 };
     const int idx_braille[8]   = { 0x40, 0x80, 0x04, 0x20, 0x02, 0x10, 0x01, 0x08 };
-    const int * idx_list[6] = { idx_dot, idx_half, idx_half, idx_quadrants,
-			        idx_sextants, idx_braille };
-#ifndef NO_DUMB_COLOR_SUPPORT
-#ifdef DEBUG_BLOCK_OPTI
-    unsigned nfullcells = 0;
-    unsigned noptimisable = 0;
-    unsigned noptimised = 0;
-#endif
-    unsigned nsets, set;
-    const int * pattern;
+    const int * idx_list[] = { idx_dot, idx_half, idx_quadrants,
+			        idx_sextants, idx_sextants,
+			        idx_octants, idx_octants, idx_braille };
     size_t bufsiz;
     text_attr prev_text_attr;
+#ifndef NO_DUMB_COLOR_SUPPORT
+    unsigned nsets, set;
+    const int * pattern;
+    char bg_str[32] = "";
 #if defined(HAVE_ICONV) && !defined(_WIN32)
     iconv_t cd = (iconv_t) -1;
 
     {
 	enum set_encoding_id encoding = encoding_from_locale();
-	printf("enc %i, name %s, tty %i\n", encoding, iconv_encoding_name(encoding), isatty(fileno(gpoutfile)));
 	if (isatty(fileno(gpoutfile)) &&  /* only convert if output to terminal */
 	    encoding != S_ENC_UTF8 && encoding != S_ENC_DEFAULT &&
 	    iconv_encoding_name(encoding) != NULL) {
@@ -486,7 +631,6 @@ BLOCK_text()
 # ifndef OS2
 	    strcat(tocode, "//TRANSLIT//IGNORE");
 # endif
-	    puts(tocode);
 	    if ((cd = iconv_open(tocode, "UTF-8")) == (iconv_t) -1)
 		int_warn(NO_CARET, "iconv_open failed");
 	}
@@ -509,20 +653,36 @@ BLOCK_text()
     idx = idx_list[BLOCK_mode];
 #ifndef NO_DUMB_COLOR_SUPPORT
     switch (BLOCK_mode) {
-    case BLOCK_MODE_HALF:
-    case BLOCK_MODE_HALFH:
     default:
 	nsets = 0;
 	pattern = NULL;
+	break;
+    case BLOCK_MODE_HALF:
+	nsets = nhalf_pats;
+	pattern = half_pat;
 	break;
     case BLOCK_MODE_QUAD:
 	nsets = nquad_pats;
 	pattern = quad_pat;
 	break;
     case BLOCK_MODE_SEXT:
+    case BLOCK_MODE_SEXT_PUA:
 	nsets = nsext_pats;
 	pattern = sext_pat;
 	break;
+    case BLOCK_MODE_OCT:
+    case BLOCK_MODE_OCT_PUA:
+	nsets = noct_pats;
+	pattern = oct_pat;
+	break;
+    }
+
+    // Generate background string once
+    if (BLOCK_background != BLOCK_BGTRANSPARENT) {
+	t_colorspec color;
+	color.type = TC_RGB,
+	color.lt = BLOCK_background;
+	strcpy(bg_str, ansi_bg_colorstring(&color));
     }
 #endif
 
@@ -538,6 +698,15 @@ BLOCK_text()
 	int yd = y / celly; // character cell coordinate
 
 	s = (unsigned char *) line;
+
+#ifndef NO_DUMB_COLOR_SUPPORT
+	// Set background color.
+	if (bg_str[0] != NUL) {
+	    strcpy((char *) s, bg_str);
+	    s += strlen(bg_str);
+	}
+#endif
+
 	for (x = 0; x <= term->xmax; x += cellx) {
 	    int xd = x / cellx;  // character cell coordinate
 	    int i = 0;  // index to character map
@@ -545,8 +714,8 @@ BLOCK_text()
 	    const char * c;
 	    t_colorspec color;
 
-	    // increase buffer size if necessary
-	    if (((char *)s - line) > (bufsiz - 50)) {
+	    // increase buffer size if necessary, assuming a maximum of 100 bytes per cell
+	    if (((char *)s - line) > (bufsiz - 100)) {
 		char * l;
 		bufsiz += (term->xmax + 1) * 8;
 		l = realloc(line, bufsiz);
@@ -561,6 +730,43 @@ BLOCK_text()
 #ifndef NO_DUMB_COLOR_SUPPORT
 		// Handle the character's color first.
 		t_colorspec * color;
+		int n = 0; // number of set pixels in charcell
+		int r = 0, g = 0, b = 0;  // color components
+		int k;
+		rgb255_color col;
+
+		// Text "transparency": if all pixels are set, we average over
+		// the cell to set the background color.
+		if ((dumb_colormode > 0) && BLOCK_optimize && (BLOCK_mode != BLOCK_MODE_BRAILLE)) {
+		    // get all pixels within charcell
+		    for (k = 0; k < (cellx * celly); k++) {
+			v = b_getpixel(x + (k % cellx), y + (k / cellx));
+			// Is the pixel set? (first plane is "opacity")
+			if (v & 1) {
+			    // sum up RGB colors
+			    to_rgb255(v >> 1, &col);
+			    r += USQR(col.r);
+			    g += USQR(col.g);
+			    b += USQR(col.b);
+			    n++;
+			}
+		    }
+		    if (n == cellx * celly) {
+			t_colorspec color;
+			color.type = TC_RGB;
+			color.lt = ((unsigned) sqrt(r / n) << 16) +
+				   ((unsigned) sqrt(g / n) <<  8) +
+				   ((unsigned) sqrt(b / n));
+			c = ansi_bg_colorstring(&color);
+			if (c != NULL && strcmp(bg_str, c) != 0) {
+			    strcpy((char *) s, c);
+			    s += strlen(c);
+			    resetbg = TRUE;
+			}
+		    }
+		}
+
+		// Set color _after_ the background color.
 		color = &dumb_colors[dumb_xmax * yd + xd];
 		c = ansi_colorstring(color, &dumb_prev_color);
 		if (c[0] != NUL) {
@@ -569,6 +775,7 @@ BLOCK_text()
 		}
 		memcpy(&dumb_prev_color, color, sizeof(t_colorspec));
 #endif
+
 		// Copy the character.
 		c = (char *)(&DUMB_PIXEL(xd, yd));
 		if (*c != NUL) { /* Do not print cells occupied by wide characters. */
@@ -598,6 +805,7 @@ BLOCK_text()
 #endif
 
 		// get all pixels within charcell
+		i = 0;
 		for (k = 0; k < (cellx * celly); k++) {
 		    cell[k] = v = b_getpixel(x + (k % cellx), y + (k / cellx));
 		    // Is the pixel set? (first plane is "opacity")
@@ -616,63 +824,42 @@ BLOCK_text()
 		}
 
 #ifndef NO_DUMB_COLOR_SUPPORT
-#ifdef DEBUG_BLOCK_OPTI
-		if (n == cellx * celly) {
-		    TBOOLEAN issame = TRUE;
-		    nfullcells++;
-		    for (int kk = 1; kk < (cellx*celly); kk++)
-			issame &= (cell[0] == cell[kk]);
-		    if (!issame)
-			noptimisable++;
-		}
-#endif
 		// In case all pixels of the charcell are set, we do try to optimize
 		// changing both, fore- and background colors. This always
 		// works for half-blocks, mostly for quadrants, but is increasingly
-		// difficult for sextants. We cannot do that for Braille symbols.
+		// difficult for sextants and octants. We cannot do that for Braille symbols.
 		if ((dumb_colormode > 0) && BLOCK_optimize &&
-		    ((((BLOCK_mode == BLOCK_MODE_HALF) ||
-		       (BLOCK_mode == BLOCK_MODE_HALFH))& (n == 2) &&
+		    (((BLOCK_mode == BLOCK_MODE_HALF) && (n == 2) &&
 		       !(cell[0] == cell[1])) ||
 		     ((BLOCK_mode == BLOCK_MODE_QUAD) && (n == 4) &&
 		      !(cell[0] == cell[1] && cell[1] == cell[2] && cell[2] == cell[3])) ||
-		     ((BLOCK_mode == BLOCK_MODE_SEXT) && (n == 6) &&
+		     ((BLOCK_mode == BLOCK_MODE_SEXT || BLOCK_mode == BLOCK_MODE_SEXT_PUA) && (n == 6) &&
 		      !(cell[0] == cell[1] && cell[1] == cell[2] && cell[2] == cell[3] &&
-		        cell[3] == cell[4] && cell[4] == cell[5])))) {
-		    TBOOLEAN found = (n == 2);
-		    unsigned mask, first;
+		        cell[3] == cell[4] && cell[4] == cell[5])) ||
+		     ((BLOCK_mode == BLOCK_MODE_OCT || BLOCK_mode == BLOCK_MODE_OCT_PUA) && (n == 8) &&
+		      !(cell[0] == cell[1] && cell[1] == cell[2] && cell[2] == cell[3] &&
+		        cell[3] == cell[4] && cell[4] == cell[5] && cell[5] == cell[6] &&
+		        cell[6] == cell[7])) )) {
+		    int wmin = INT_MAX;
+		    int r2, g2, b2, m;
+		    int ropt = 0, gopt = 0, bopt = 0;
+		    int r2opt = 0, g2opt = 0, b2opt = 0;
+		    int nopt = 0, mopt = 0, iopt = 0;
 
-		    for (set = 0; set < nsets && !found; set++) {
-			// The pattern list entries really are bit-maps of the
-			// pixel combinations to test.
-			mask = pattern[set];
-			// look for the first pixel set
-			first = 0;
-			while ((mask & 1) == 0) {
-			    mask >>= 1;
-			    first++;
-			}
-			// now test the others for equality
-			for (k = first + 1, found = TRUE; k < cellx*celly; k++) {
-			    mask >>= 1;
-			    if (mask & 1)
-				found &= (cell[first] == cell[k]);
-			}
-		    }
-		    if (found) {
-			int r2 = 0, g2 = 0, b2 = 0;
-			int m = 0;
+		    // Find optimum average color combination for fore- and background.
+		    i = 0;
+		    // Loop over all pixel patterns.
+		    for (set = 0; set < nsets; set++) {
+			unsigned mask;
+			int rm, gm, bm;
+			int rm2, gm2, bm2;
+			int w;
 
+			// Determine color averages for fore- and background.
 			r = g = b = 0;
-			n = i = 0;
-#ifdef DEBUG_BLOCK_OPTI
-			noptimised++;
-#endif
-			if (BLOCK_mode == BLOCK_MODE_HALF ||
-			    BLOCK_mode == BLOCK_MODE_HALFH)
-			    mask = 0x01;
-			else
-			    mask = pattern[set - 1];
+			r2 = g2 = b2 = 0;
+			n = m = i = 0;
+			mask = pattern[set];
 			for (k = 0; k < cellx*celly; k++) {
 			    if (mask & 1) {
 				r += USQR(col[k].r);
@@ -688,16 +875,53 @@ BLOCK_text()
 			    }
 			    mask >>= 1;
 			}
-			color.type = TC_RGB;
-			color.lt = ((unsigned) sqrt(r2 / m) << 16) +
-				   ((unsigned) sqrt(g2 / m) <<  8) +
-				   ((unsigned) sqrt(b2 / m));
-			c = ansi_bg_colorstring(&color);
-			if (c != NULL) {
-			    strcpy((char *) s, c);
-			    s += strlen(c);
-			    resetbg = TRUE;
+			rm = sqrt(r / n); gm = sqrt(g / n); bm = sqrt(b / n);
+			rm2 = sqrt(r2 / m); gm2 = sqrt(g2 / m); bm2 = sqrt(b2 / m);
+
+			// Determine weight of this combination.
+			mask = pattern[set];
+			w = 0;
+			for (k = 0; k < cellx * celly; k++) {
+			    if (mask & 1) {
+				w += USQR(col[k].r - rm);
+				w += USQR(col[k].g - gm);
+				w += USQR(col[k].b - bm);
+			    } else {
+				w += USQR(col[k].r - rm2);
+				w += USQR(col[k].g - gm2);
+				w += USQR(col[k].b - bm2);
+			    }
+			    mask >>= 1;
 			}
+
+			// Did we find a new optimum?
+			if (w < wmin) {
+			    wmin = w;
+			    nopt = n;
+			    ropt = r; gopt = g; bopt = b;
+			    mopt = m;
+			    r2opt = r2; g2opt = g2; b2opt = b2;
+			    iopt = i;
+			}
+		    }
+
+		    // Use optimum values.
+		    n = nopt;
+		    r = ropt; g = gopt; b = bopt;
+		    m = mopt;
+		    r2 = r2opt; g2 = g2opt; b2 = b2opt;
+		    i = iopt;
+
+		    // Set background color.
+		    color.type = TC_RGB;
+		    color.lt = ((unsigned) sqrt(r2 / m) << 16) +
+			       ((unsigned) sqrt(g2 / m) <<  8) +
+			       ((unsigned) sqrt(b2 / m));
+		    c = ansi_bg_colorstring(&color);
+		    if (c != NULL && strcmp(bg_str, c) != 0) {
+			strcpy((char *) s, c);
+			s += strlen(c);
+			resetbg = TRUE;
 		    }
 		}
 
@@ -730,19 +954,29 @@ BLOCK_text()
 		switch (BLOCK_mode) {
 		case BLOCK_MODE_DOT:
 		    // v = (n > 0 ? '*' : ' ');
-		    v = (n > 0 ? 0x25CF : 0x00A0);
+		    v = (n > 0 ? 0x25cf : 0x00a0);
 		    break;
 		case BLOCK_MODE_HALF:
 		    v = block_half_map[i];
-		    break;
-		case BLOCK_MODE_HALFH:
-		    v = block_halfh_map[i];
 		    break;
 		case BLOCK_MODE_QUAD:
 		    v = block_quadrant_map[i];
 		    break;
 		case BLOCK_MODE_SEXT:
 		    v = block_sextant_map[i];
+		    break;
+		case BLOCK_MODE_SEXT_PUA:
+		    // Sextants in the KreativeKorp PUA are ordered and complete,
+		    // so no need for a mapping table.
+		    v = 0xf2c0 + i;
+		    break;
+		case BLOCK_MODE_OCT:
+		    v = block_octant_map[i];
+		    break;
+		case BLOCK_MODE_OCT_PUA:
+		    // Octants in the KreativeKorp PUA are ordered and complete,
+		    // so no need for a mapping table.
+		    v = 0xf300 + i;
 		    break;
 		case BLOCK_MODE_BRAILLE:
 		    // Braille characters are well-ordered,
@@ -754,19 +988,36 @@ BLOCK_text()
 		}
 
 		s += ucs4toutf8(v, s);
+	    }
 
 #ifndef NO_DUMB_COLOR_SUPPORT
-		// turn bg color off again
-		if (resetbg) {
+	    // turn bg color off again
+	    if (resetbg) {
+		if (bg_str[0] != NUL) {
+		    strcpy((char *) s, bg_str);
+		    s += strlen(bg_str);
+		} else {
 #if defined(OS2) || defined(MSDOS)
-		    sprintf((char *) s, "\033[40m"); s += 5; /* reset background color to black */
+		    strcpy((char *) s, "\033[40m"); s += 5; /* reset background color to black */
 #else
-		    sprintf((char *) s, "\033[49m"); s += 5; /* reset background color to default */
+		    strcpy((char *) s, "\033[49m"); s += 5; /* reset background color to default */
 #endif
 		}
-#endif
 	    }
+#endif
 	}
+
+#ifndef NO_DUMB_COLOR_SUPPORT
+	// turn bg color off again
+	if (bg_str[0] != NUL) {
+#if defined(OS2) || defined(MSDOS)
+	    strcpy((char *) s, "\033[40m"); s += 5; /* reset background color to black */
+#else
+	    strcpy((char *) s, "\033[49m"); s += 5; /* reset background color to default */
+#endif
+	}
+#endif
+
 	*s++ = '\n';
 	*s = NUL;
 
@@ -808,12 +1059,11 @@ BLOCK_text()
 	fputs("\033[0;39;49m", gpoutfile); /* reset colors to default */
 #endif
     }
-#ifdef DEBUG_BLOCK_OPTI
-    printf("full cells : %u (%3.1f\%)\n", nfullcells, 100 * ((float) nfullcells) / BLOCK_xchars / BLOCK_ychars);
-    printf("optimisable: %u (%3.1f\%)\n", noptimisable, 100 * ((float) noptimisable) / nfullcells);
-    printf("optimised  : %u (%3.1f\%)\n", noptimised, 100 * ((float) noptimised) / noptimisable);
 #endif
-#endif
+
+    // Move cursor up to start over.
+    if (BLOCK_animate)
+	fprintf(gpoutfile, "\033[%iA", BLOCK_ychars);
 
     free(line);
     (void) fflush(gpoutfile);	/* finish the graphics */
@@ -828,7 +1078,6 @@ TERM_PUBLIC void
 BLOCK_graphics()
 {
     b_boxfill(FS_EMPTY, 0, 0, term->xmax, term->ymax);
-
     DUMB_graphics();
 
     /* kludge: fix keybox size */
@@ -855,36 +1104,123 @@ BLOCK_put_text(unsigned int x, unsigned int y, const char *str)
 TERM_PUBLIC void
 BLOCK_point(unsigned int x, unsigned int y, int point)
 {
-    int xd = x / BLOCK_modeinfo[BLOCK_mode].cellx;
-    int yd = y / BLOCK_modeinfo[BLOCK_mode].celly;
-    const uint32_t pointtypes[] = {
-	    '+', 'x' /* cross */, '*',
-	    0x25a1, 0x25a0, /* empty/full square */
-	    0x25cb, 0x25cf, /* empty/full circle */
-	    0x25b3, 0x25b2, /* empty/full upward triangle */
-	    0x25bd, 0x25bc, /* empty/full downward triangle */
-	    0x25c7, 0x25c6, /* empty/full diamond */
-	    0x2b20, 0x2b1f, /* empty/full pentagon */
-	};
-
-    if (!BLOCK_charpoints) {
-	do_point(x, y, point);
-	return;
-    }
-
     if ((signed) x < 0 || (signed) y < 0)
 	return;
 
+    // Draw the smallest bitmap point symbols possible.
+    //
+    // These symbols are still too large and maybe only useful in combination
+    // with error bars.
+    //
+    if (BLOCK_pointtype == BLOCK_POINT_GP) {
+	if (point < 0) { // dot
+	    b_putpixel(x, y);
+	} else {
+	    const int point_pat[] = {
+		0x0ba, /* + */
+		0x155, /* X */
+		0x0aa, /* diamond */
+		0x1ef, /* square */
+		0x0af, /* triangle */
+		0x1ea  /* downward triangle */
+	    };
+	    const int npat = sizeof(point_pat) / sizeof(int);
+	    int pat = point_pat[point % npat];
+	    int dx, dy;
+	    for (dy = -1; dy <= 1; dy ++) {
+		for (dx = -1; dx <= 1; dx ++) {
+		    if (pat & 1) b_putpixel(x + dx, y + dy);
+		    pat >>= 1;
+		}
+	    }
+	}
+	return;
+    }
+
+    // Draw point symbols using Unicode characters.
+    //
+    // The original idea was to use the corresponding character representations
+    // listed below. The drawback is that they are not well-aligned with the
+    // bitmap graph, as the cell-box resolution is smaller.
+    // Instead, we now use super- or subscript numerals 1-9 as point symbols.
+    // This results in double the resolution in vertical direction, but still
+    // only matches the bitmap resolution in "half" mode. Note that we still
+    // cannot overlay two characters in the same cell-box.
+    //
     if (point >= 0) {
+	// character position
+	int xd = x / BLOCK_modeinfo[BLOCK_mode].cellx;
+	int yd = y / BLOCK_modeinfo[BLOCK_mode].celly;
+
 	DUMB_PIXEL(xd, yd) = 0;
-	ucs4toutf8(pointtypes[point % 15], (unsigned char *) &DUMB_PIXEL(xd, yd));
+	if (BLOCK_pointtype == BLOCK_POINT_CHAR) {
+	    // correct character point symbols
+	    const uint32_t pointtypes[] = {
+		    '+', 'x' /* cross */, '*',
+#if defined(OS2) || defined(MSDOS)
+		    0x25a0, 0x25b2, 0x25bc
+#else
+		    0x25a1, 0x25a0, /* empty/full square */
+		    0x25cb, 0x25cf, /* empty/full circle */
+		    0x25b3, 0x25b2, /* empty/full upward triangle */
+		    0x25bd, 0x25bc, /* empty/full downward triangle */
+		    0x25c7, 0x25c6, /* empty/full diamond */
+		    0x2b20, 0x2b1f, /* empty/full pentagon */
+#endif
+		};
+	    const int npointtypes = sizeof(pointtypes) / sizeof(uint32_t);
+
+	    ucs4toutf8(pointtypes[point % npointtypes], (unsigned char *) &DUMB_PIXEL(xd, yd));
+	} else {
+	    // super-/subscript numerals
+	    // Some superscripts numerals are defined in latin-1, so we use a mapping table.
+	    // Subscripts numerals have continuous code-points.
+	    const uint32_t upoints[9] = {
+		0x00B9, 0x00B2, 0x00B3, 0x2074, 0x2075,
+		0x2076, 0x2077, 0x2078, 0x2079
+	    };
+
+	    unsigned ypos = (y % BLOCK_modeinfo[BLOCK_mode].celly);
+	    if (((BLOCK_mode == BLOCK_MODE_SEXT || BLOCK_mode == BLOCK_MODE_SEXT_PUA) && ypos == 1) ||
+	        (BLOCK_mode == BLOCK_MODE_DOT)) {
+		// special case: vertical center
+		ucs4toutf8(('1' + (point % 9)), (unsigned char *) &DUMB_PIXEL(xd, yd));
+	    } else {
+		// y-position in upper half of the character box?
+		bool upper = (ypos >= (BLOCK_modeinfo[BLOCK_mode].celly / 2));
+		ucs4toutf8(upper ? upoints[point % 9] : (0x2081 + (point % 9)), (unsigned char *) &DUMB_PIXEL(xd, yd));
+	    }
+	}
 #ifndef NO_DUMB_COLOR_SUPPORT
 	memcpy(&dumb_colors[dumb_xmax * yd + xd], &dumb_color, sizeof(t_colorspec));
 #endif
     } else {
-	b_move(x, y);
-	b_vector(x + 1, y);
+	// Draw dots on the bitmap
+	b_putpixel(x, y);
     }
+}
+
+
+TERM_PUBLIC void
+BLOCK_arrow(unsigned int sx, unsigned int sy,
+	    unsigned int ex, unsigned int ey,
+	    int head)
+{
+    // Enforce minimally sized arrows, but take three head variants into account:
+    if (curr_arrow_headlength <= 0 || curr_arrow_headangle <= 80) {
+	curr_arrow_headangle = 45;
+	curr_arrow_headlength = 2;
+    } else if (curr_arrow_headangle <= 100) {
+	curr_arrow_headangle = 90;
+	curr_arrow_headlength = (sx == ex) || (sy == ey) ? 1 : 2;
+    } else {
+	curr_arrow_headangle = 135;
+	curr_arrow_headlength = 2;
+    }
+    curr_arrow_headbackangle = 90;
+    curr_arrow_headfilled = AS_NOFILL;
+
+    do_arrow(sx, sy, ex, ey, head);
 }
 
 
@@ -990,7 +1326,7 @@ BLOCK_set_color(t_colorspec *color)
 #ifdef TERM_TABLE
 
 TERM_TABLE_START(block_driver)
-    "block", "Pseudo-graphics using Unicode blocks or Braille characters",
+    "block", "Pseudo-graphics using Unicode block or Braille characters",
     BLOCK_XMAX, BLOCK_YMAX,
     BLOCK_VCHAR, BLOCK_HCHAR,
     BLOCK_VTIC, BLOCK_HTIC,
@@ -998,15 +1334,15 @@ TERM_TABLE_START(block_driver)
     BLOCK_text, null_scale, BLOCK_graphics,
     b_move, b_vector, BLOCK_linetype,
     BLOCK_put_text, null_text_angle, null_justify_text,
-    BLOCK_point, do_arrow, DUMB_set_font, 0,
+    BLOCK_point, BLOCK_arrow, DUMB_set_font, 0,
 #ifndef NO_DUMB_ENHANCED_SUPPORT
     TERM_MONOCHROME | TERM_ENHANCED_TEXT,
 #else
     TERM_MONOCHROME,
 #endif
-    0, 0, b_boxfill, b_linewidth,
+    0, 0, b_boxfill, NULL,
 #ifdef USE_MOUSE
-    NULL, NULL, NULL, NULL, NULL,
+    term_waitforinput, NULL, NULL, NULL, NULL,
 #endif
     NULL, NULL, BLOCK_set_color,
     b_filled_polygon,
@@ -1040,12 +1376,13 @@ START_HELP(block)
 " The `block` terminal generates pseudo-graphic output using Unicode block or",
 " Braille characters to increase the resolution.  It is an alternative for",
 " terminal graphics.  It requires a UTF-8 capable terminal or viewer.  Drawing",
-" uses the old internal bitmap code.  Text is printed on top of the graphics",
+" uses the internal bitmap code.  Text is printed on top of the graphics",
 " using the `dumb` terminal's routines.",
 "",
 " Syntax:",
 "         set term block",
-"                 {dot | half | quadrants | sextants | braille}",
+"                 {dot | half | quadrants | sextants | octants | braille |",
+"                   sextpua | octpua}",
 "                 {{no}enhanced}",
 "                 {size <x>, <y>}",
 #ifndef NO_DUMB_COLOR_SUPPORT
@@ -1053,7 +1390,8 @@ START_HELP(block)
 "                 {{no}optimize}",
 #endif
 "                 {[no]attributes}",
-"                 {charpoints | gppoints}",
+"                 {numpoints | charpoints | gppoints}",
+"                 {[no]animate}",
 "",
 " `size` sets the terminal size in character cells.",
 "",
@@ -1061,12 +1399,18 @@ START_HELP(block)
 " set used for the creation of pseudo-graphics.  `dot` uses simple dots,",
 " while `half` uses half-block characters.  `quadrants` uses block characters",
 " which yield double resolution in both directions.  `sextants` uses 2x3 block",
-" characters, and `braille` uses Braille characters which give a 2x4 pseudo-",
-" resolution.",
+" characters, and `braille` uses Braille characters which give a 2x4",
+" pseudo-resolution.  `octants` uses the proposed 2x4 block characters.",
+" `sextpua` and `octpua` use the sextants or octants, respectively, in the",
+" CreativeKorp private-use-area (PUA) which might be only available with their",
+" `FairfaxHD` and `KreativeSquare` fonts.",
 "",
-" Note that the 2x3 block characters have only been included in Unicode 13.",
-" Hence, font support is still limited.  Similarly for Braille.  Usable fonts",
-" include e.g. `unscii`, `IBM 3270`, `GNU Unifont`, and `DejaVu Sans`.",
+" Note that the 2x3 block characters ('sextants') have only been included in",
+" Unicode 13.  Hence, font support is still limited.  Similarly for Braille.",
+" Usable fonts include e.g. `unscii`, `IBM 3270`, `GNU Unifont`, `DejaVu Sans`,",
+" and, `FairfaxHD`.  2x4 block characters ('octants') have only been accepted",
+" for inclusion in a future Unicode standard in 2022 and are available in the",
+" `FairfaxHD` font.",
 #ifndef NO_DUMB_COLOR_SUPPORT
 "",
 " The `ansi`, `ansi256`, and `ansirgb` options will include escape sequences",
@@ -1082,13 +1426,25 @@ START_HELP(block)
 " same color.  This is dealt with by averaging the color of all pixels in a",
 " charcell.  With `optimize`, the terminal tries to improve by setting both,",
 " the background and foreground colors.  This trick works perfectly for the",
-" `half` mode, but is increasingly difficult for `quadrants` or `sextants`.",
-" For `braille` this cannot be used.",
+" `half` mode, but is increasingly difficult for `quadrants`, `sextants`,",
+" or `octants`. For `braille` this cannot be used.",
 #endif
 "",
-" `gppoints` aims to draw point symbols using graphics commands. Due to the",
-" low resolution of the terminal this is mostly viable for `braille` mode.",
+" `gppoints` draws point symbols using graphics commands. Due to the low",
+" resolution of the terminal, this is mostly viable for `braille` or",
+" `octant` mode, and probably most useful for error bars.",
 " `charpoints` uses Unicode symbol characters instead.  Note that these",
-" are also always drawn on top of the graphics."
+" are also always drawn on top of the graphics.",
+" `numpoints` uses super- and subscript numerals to double the vertical",
+" resolution. For `sextants`, points in the character cell's center position",
+" have to be drawn using ordinary numerals, though. Note that the bitmap",
+" resolution is still different and lines and symbols in general do not align",
+" exactly when using `charpoints` or `numpoints`.",
+"",
+" The `animate` option resets the cursor position to the top left of the plot",
+" after every plot so that successive plots overwrite the same area on the",
+" screen rather than having earlier plots scroll off the top. This may be",
+" desirable in order to create an in-place animation.",
+""
 END_HELP(block)
 #endif

@@ -171,8 +171,11 @@ print_table(struct curve_points *current_plot, int plot_num)
 	case VECTOR:
 	    len = strappend(&line, &size, len, " delta_x delta_y");
 	    break;
-	case LINES:
 	case POINTSTYLE:
+	    if (current_plot->plot_filter == FILTER_ZSORT)
+		len = strappend(&line, &size, len, " z");
+	    break;
+	case LINES:
 	case LINESPOINTS:
 	case DOTS:
 	case IMPULSES:
@@ -196,7 +199,7 @@ print_table(struct curve_points *current_plot, int plot_num)
 	    break;
 	}
 
-	if (current_plot->plot_smooth == SMOOTH_BINS)
+	if (current_plot->plot_filter == FILTER_BINS)
 	    len = strappend(&line, &size, len, "  N");
 
 	if (current_plot->varcolor)
@@ -297,8 +300,13 @@ print_table(struct curve_points *current_plot, int plot_num)
 			OUTPUT_NUMBER((point->xhigh - point->x), current_plot->x_axis);
 			OUTPUT_NUMBER((point->yhigh - point->y), current_plot->y_axis);
 			break;
-		    case LINES:
 		    case POINTSTYLE:
+			if (current_plot->plot_filter == FILTER_ZSORT) {
+			    snprintf(buffer, BUFFERSIZE, "%g ", point->z);
+			    len = strappend(&line, &size, len, buffer);
+			}
+			break;
+		    case LINES:
 		    case LINESPOINTS:
 		    case DOTS:
 		    case IMPULSES:
@@ -311,7 +319,8 @@ print_table(struct curve_points *current_plot, int plot_num)
 			break;
 		} /* switch(plot type) */
 
-		if (current_plot->plot_smooth == SMOOTH_BINS) {
+		/* FIXME: which is in the right place - BINS? or ZSORT? */
+		if (current_plot->plot_filter == FILTER_BINS) {
 		    snprintf(buffer, BUFFERSIZE, " %4d", (int)point->z);
 		    len = strappend(&line, &size, len, buffer);
 		}
@@ -332,7 +341,8 @@ print_table(struct curve_points *current_plot, int plot_num)
 		type = current_plot->points[i].type;
 
 		snprintf(buffer, BUFFERSIZE, " %c",
-			type == INRANGE ? 'i' : type == OUTRANGE ? 'o' : 'u');
+			type == INRANGE ? 'i' : type == OUTRANGE ? 'o' : 
+			type == EXCLUDEDRANGE ? 'e' : 'u');
 		strappend(&line, &size, len, buffer);
 
 		/* cp_implode() inserts dummy undefined point between curves */
@@ -573,10 +583,8 @@ blanks_needed(curve_points *this_plot)
 	case SMOOTH_NONE:
 	case SMOOTH_BEZIER:
 	case SMOOTH_KDENSITY:
-	case SMOOTH_CONVEX_HULL:
 	    break;
 	/* These smooth styles also use the UNDEFINED point convention */
-	case SMOOTH_SMOOTH_HULL:
 	case SMOOTH_PATH:
 	    return TRUE;
 	default:

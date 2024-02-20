@@ -55,6 +55,7 @@ void save_term(FILE *fp);
 void save_all(FILE *fp);
 void save_axis_label_or_title(FILE *fp, char *name, char *suffix,
 			struct text_label *label, TBOOLEAN savejust);
+void save_pm3d_lighting(FILE *, char *);
 void save_position(FILE *, struct position *, int, TBOOLEAN);
 void save_prange(FILE *, struct axis *);
 void save_link(FILE *, struct axis *);
@@ -77,5 +78,7 @@ void save_num_or_time_input(FILE *, double x, struct axis *);
 void save_axis_format(FILE *fp, AXIS_INDEX axis);
 void save_bars(FILE *);
 void save_array_content(FILE *, struct value *);
+void save_label_style( FILE *fp, struct text_label *this_label );
+void save_contourfill(FILE *fp);
 
 #endif /* GNUPLOT_SAVE_H */

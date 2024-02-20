@@ -122,8 +122,10 @@ void WinExit(void);
 static void WinCloseHelp(void);
 int CALLBACK ShutDown(void);
 #ifdef WGP_CONSOLE
+static char * ConsoleGetS(char * str, unsigned int size, TBOOLEAN echo);
 static int ConsolePutS(const char *str);
 static int ConsolePutCh(int ch);
+static size_t read_stdin_pipe(void *ptr, size_t len);
 #endif
 
 
@@ -795,7 +797,13 @@ MyFGetC(FILE *file)
 {
     if (isterm(file))
 	return GETCH();
+#ifndef WGP_CONSOLE
     return fgetc(file);
+#else
+    if (file != stdin)
+	return fgetc(file);
+    return ConsoleGetch();
+#endif
 }
 
 char *
@@ -810,33 +818,19 @@ MyGetS(char *str)
 char *
 MyFGetS(char *str, unsigned int size, FILE *file)
 {
-    if (isterm(file)) {
 #ifndef WGP_CONSOLE
+    if (isterm(file)) {
 	char * p = TextGetS(&textwin, str, size);
 	if (p != NULL)
 	    return str;
 	return NULL;
-#else
-	unsigned int i;
-	int c;
-
-	c = ConsoleGetch();
-	if (c == EOF)
-	    return NULL;
-
-	for (i = 1; i < size - 1; i++) {
-	    c = ConsoleGetch();
-	    if (c == EOF)
-		break;
-	    str[i] = c;
-	    if (c == '\n')
-		break;
-	}
-	str[i] = NUL;
-	return str;
-#endif
     }
     return fgets(str,size,file);
+#else
+    if (file != stdin)
+	return fgets(str, size, file);
+    return ConsoleGetS(str, size, isterm(file));
+#endif
 }
 
 int
@@ -965,7 +959,13 @@ MyFRead(void *ptr, size_t size, size_t n, FILE *file)
 	TEXTMESSAGE;
 	return n;
     }
+#ifndef WGP_CONSOLE
     return fread(ptr, size, n, file);
+#else
+    if (file != stdin)
+	return fread(ptr, size, n, file);
+    return read_stdin_pipe(ptr, size * n) / size;
+#endif
 }
 
 
@@ -1098,19 +1098,27 @@ fake_pclose(FILE *stream)
 HANDLE input_thread = NULL;
 HANDLE input_event = NULL;
 HANDLE input_cont = NULL;
-int nextchar = EOF;
+#define READBUFSIZE 1024
+static char readbuf[2][READBUFSIZE];
+static int rbuf_page = 0;
+static char *rbuf = NULL;
+static size_t rbuf_len = 0;
+static size_t rbuf_idx = 0;
+static int pipe_eof = 0;
 
 DWORD WINAPI
 stdin_pipe_reader(LPVOID param)
 {
     do {
-	unsigned char c;
-	size_t n = fread(&c, 1, 1, stdin);
+	size_t n = read(_fileno(stdin), readbuf[rbuf_page], READBUFSIZE);
+	if (n < 0) /* This should not happen. */
+	    n = 0;
 	WaitForSingleObject(input_cont, INFINITE);
-	if (n == 1)
-	    nextchar = c;
-	else if (feof(stdin))
-	    nextchar = EOF;
+	rbuf = readbuf[rbuf_page];
+	rbuf_page ^= 1;
+	rbuf_len = n;
+	rbuf_idx = 0;
+	pipe_eof = (n == 0);
 	SetEvent(input_event);
 	Sleep(0);
     } while (TRUE);
@@ -1122,7 +1130,7 @@ HANDLE
 init_pipe_input(void)
 {
     if (input_event == NULL)
-	input_event = CreateEvent(NULL, FALSE, FALSE, NULL);
+	input_event = CreateEvent(NULL, TRUE, FALSE, NULL);
     if (input_cont == NULL)
 	input_cont = CreateEvent(NULL, FALSE, TRUE, NULL);
     if (input_thread == NULL)
@@ -1134,8 +1142,14 @@ init_pipe_input(void)
 int
 next_pipe_input(void)
 {
-    int c = nextchar;
-    SetEvent(input_cont);
+    char c;
+    if (pipe_eof)
+	return EOF;
+    c = rbuf[rbuf_idx++];
+    if (rbuf_idx == rbuf_len) {
+	ResetEvent(input_event);
+	SetEvent(input_cont);
+    }
     return c;
 }
 
@@ -1147,11 +1161,10 @@ ConsoleGetch(void)
     HANDLE h;
     DWORD waitResult;
 
-    if (!_isatty(fd)) {
+    if (!_isatty(fd))
 	h = init_pipe_input();
-    } else {
+    else
 	h = (HANDLE)_get_osfhandle(fd);
-    }
 
     do {
 	waitResult = MsgWaitForMultipleObjects(1, &h, FALSE, INFINITE, QS_ALLINPUT);
@@ -1172,6 +1185,32 @@ ConsoleGetch(void)
     } while (1);
 
     return '\r';
+}
+
+
+size_t
+read_stdin_pipe(void *buf, size_t len)
+{
+    size_t cnt = 0;
+
+    while (len > cnt) {
+	size_t copy_len;
+
+	WaitForSingleObject(input_event, INFINITE);
+	if (pipe_eof)
+	    break;
+	copy_len = len - cnt;
+	if (copy_len > rbuf_len - rbuf_idx)
+	    copy_len = rbuf_len - rbuf_idx;
+	memcpy((char *)buf + cnt, rbuf + rbuf_idx, copy_len);
+	rbuf_idx += copy_len;
+	cnt += copy_len;
+	if (rbuf_idx == rbuf_len) {
+	    ResetEvent(input_event);
+	    SetEvent(input_cont);
+	}
+    }
+    return cnt;
 }
 
 #endif /* WGP_CONSOLE */
@@ -1241,16 +1280,63 @@ ConsoleReadCh(void)
 
 #ifdef WGP_CONSOLE
 
+static char *
+ConsoleGetS(char * str, unsigned int size, TBOOLEAN echo)
+{
+    char * next = str;
+
+    while (--size > 0) {
+	switch (*next = ConsoleGetch()) {
+	case EOF:
+	    *next = 0;
+	    if (next == str)
+		return NULL;
+	    return str;
+	case '\r':
+	    if (!echo)
+		*next = ConsoleGetch();
+	    else
+		*next = '\n';
+	    /* intentionally fall through */
+	case '\n':
+	    if (echo)
+		ConsolePutCh(*next);
+	    *(next + 1) = 0;
+	    return str;
+	case 0x08:
+	case 0x7f:
+	    if (echo)
+		ConsolePutCh(*next);
+	    if (next > str)
+		--next;
+	    break;
+	default:
+	    if (echo)
+		ConsolePutCh(*next);
+	    ++next;
+	}
+    }
+    *next = 0;
+    return str;
+}
+
+
 static int
 ConsolePutS(const char *str)
 {
     LPWSTR wstr = UnicodeText(str, encoding);
-    // Using standard (wide) file IO screws up UTF-8
-    // output, so use console IO instead. No idea why
-    // it does so, though.
     // Word-wrapping on Windows 10 (now) works anyway.
-    HANDLE h = GetStdHandle(STD_OUTPUT_HANDLE);
-    WriteConsoleW(h, wstr, wcslen(wstr), NULL, NULL);
+    if (_isatty(_fileno(stdout))) {
+	// Using standard (wide) file IO screws up UTF-8
+	// output, so use console IO instead. No idea why
+	// it does so, though.
+	HANDLE h = GetStdHandle(STD_OUTPUT_HANDLE);
+	WriteConsoleW(h, wstr, wcslen(wstr), NULL, NULL);
+    } else {
+	// Use standard file IO instead of Console API
+	// to allow redirection of stdout/stderr.
+	fputws(wstr, stdout);
+    }
     free(wstr);
     return 0;
 }
@@ -1261,13 +1347,16 @@ ConsolePutCh(int ch)
 {
     WCHAR w[4];
     int count;
-    HANDLE h;
 
     MultiByteAccumulate(ch, w, &count);
     if (count > 0) {
 	w[count] = 0;
-	h = GetStdHandle(STD_OUTPUT_HANDLE);
-	WriteConsoleW(h, w, count, NULL, NULL);
+	if (_isatty(_fileno(stdout))) {
+	    HANDLE h = GetStdHandle(STD_OUTPUT_HANDLE);
+	    WriteConsoleW(h, w, count, NULL, NULL);
+	} else {
+	    fputws(w, stdout);
+	}
     }
     return ch;
 }

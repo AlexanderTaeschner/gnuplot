@@ -247,6 +247,10 @@ FILE * win_popen(const char *filename, const char *mode);
 # endif
 #endif
 
+/* ISO C allows for NULL to be implementation defined */
+/* POSIX says put the definition in stddef.h */
+#include <stddef.h>
+
 /* LFS support */
 #if !defined(HAVE_FSEEKO) || !defined(HAVE_OFF_T)
 # if defined(_MSC_VER)
@@ -403,6 +407,29 @@ typedef unsigned char _Bool;
 # ifndef USE_READLINE
 #  define USE_READLINE
 # endif
+#endif
+
+/* The qsort implementation in glibc is stable;
+ * i.e. elements that test as equal are guaranteed to retain their origin order.
+ * However the qsort provided by BSD and macOS is not stable.
+ * Those systems may provide mergesort as a stable alternative.
+ * Other non-glibc platforms including mingw and Cygwin do not provide a stable sort.
+ * We will try to pick an appropriate sort if possible and otherwise add code
+ * so that pm3d depthsorting is stable.
+ * If ./configure --with-stable-sort
+ *	1) Use mergesort if the system provides it, otherwise qsort
+ *	2) If neither mergesort nor glibc's qsort is available
+ *	   add a sequence field to pm3d quadrangles that serves as a secondary sort key
+ */
+#if defined(HAVE_MERGESORT)
+#  define gp_qsort(base, n, size, compare) mergesort(base, n, size, compare)
+#else
+#  define gp_qsort(base, n, size, compare) qsort(base, n, size, compare)
+#  endif
+#if defined(WITH_STABLE_SORT)
+#  if !defined(__GLIBC__) && !defined(HAVE_MERGESORT)
+#    define WITH_2ND_SORTKEY
+#  endif
 #endif
 
 #endif /* !SYSCFG_H */

@@ -41,6 +41,7 @@
 #include "external.h"	/* for f_calle */
 #include "internal.h"
 #include "libcerf.h"
+#include "misc.h"	/* for called_from() */
 #include "specfun.h"
 #include "standard.h"
 #include "util.h"
@@ -73,6 +74,13 @@ struct udvt_entry **udv_user_head;
 TBOOLEAN undefined;
 
 enum int64_overflow overflow_handling = INT64_OVERFLOW_TO_FLOAT;
+
+/* Normally an error such as an undefined variable encountered
+ * during expression evaluation causes an exit via int_error().
+ * In some contexts such a hard failure is undesireable.
+ * Setting this to TRUE causes such evaluations to return NaN instead.
+ */
+TBOOLEAN eval_fail_soft = FALSE;
 
 /* The stack this operates on */
 static struct value stack[STACK_DEPTH];
@@ -128,6 +136,7 @@ const struct ft_entry ft[] =
     {"[]",  f_index},			/* for array variables only */
     {"||",  f_cardinality},		/* for array variables only */
     {"assign", f_assign},		/* assignment operator '=' */
+    {"eval", f_eval},			/* function block */
     {"jump",  f_jump},
     {"jumpz",  f_jumpz},
     {"jumpnz",  f_jumpnz},
@@ -173,6 +182,7 @@ const struct ft_entry ft[] =
     {"abs",  f_abs},
     {"sgn",  f_sgn},
     {"sqrt",  f_sqrt},
+    {"cbrt",  f_cbrt},
     {"exp",  f_exp},
     {"log10",  f_log10},
     {"log",  f_log},
@@ -257,11 +267,13 @@ const struct ft_entry ft[] =
     {"weekdate_iso", f_weekdate_iso},
     {"weekdate_cdc", f_weekdate_cdc},
 
+    {"join",  f_join},		/* create string from array */
     {"sprintf",  f_sprintf},	/* for string variables only */
     {"gprintf",  f_gprintf},	/* for string variables only */
     {"strlen",  f_strlen},	/* for string variables only */
     {"strstrt",  f_strstrt},	/* for string variables only */
     {"substr",  f_range},	/* for string variables only */
+    {"split", f_split},		/* for string variables only */
     {"trim",  f_trim},		/* for string variables only */
     {"word",  f_word},		/* for string variables only */
     {"words", f_words},		/* implemented as word(s,-1) */
@@ -320,7 +332,7 @@ real(struct value *val)
 	return ((double) val->v.int_val);
     case CMPLX:
 	return (val->v.cmplx_val.real);
-    case STRING:              /* is this ever used? */
+    case STRING:
 	return (atof(val->v.string_val));
     case NOTDEFINED:
 	return not_a_number();
@@ -446,24 +458,56 @@ Gstring(struct value *a, char *s)
     return (a);
 }
 
-/* Common interface for freeing data structures attached to a struct value.
- * Each of the type-specific routines will ignore values of other types.
- * FIXME: It may be better to call gpfree_array only for TEMP_ARRAYs,
- * otherwise an array passed in error as a function parameter may be wiped out.
+/* Call this immediately after making a copy of an existing t_value.
+ * It insures that the lifetime of a copied string value is independent
+ * of the lifetime of the original.
+ */
+void
+clone_string_value(t_value *value)
+{
+    if (value->type == STRING)
+	value->v.string_val = strdup(value->v.string_val);
+}
+
+/* The rationale for introducing this routine was that multiple call sites
+ * wanted to write a new value to a variable that might already have one.
+ * free_value() was intended to consider all possible previous value types
+ * and free attached memory for types that had any.
+ *
+ * Caveat:  When freeing values popped from the evaluation stack,
+ * datablocks and permanent arrays must not be freed because these are
+ * calls by reference to a continuing global variable.
+ * So the caller must clear the type field before calling free_value.
  */
 void
 free_value(struct value *a)
 {
-    gpfree_string(a);
-    gpfree_datablock(a);
-    gpfree_array(a);
+    switch (a->type) {
+	case INTGR:
+	case CMPLX:
+			break;
+	case STRING:
+			gpfree_string(a);
+			break;
+	case ARRAY:
+			gpfree_array(a);
+			break;
+	case DATABLOCK:
+			gpfree_datablock(a);
+			break;
+	case FUNCTIONBLOCK:
+			gpfree_functionblock(a);
+			break;
+	case VOXELGRID: /* Should not happen! */
+	default:	/* INVALID_VALUE INVALID_NAME */
+			break;
+    }
     a->type = NOTDEFINED;
 }
 
-/* It is always safe to call gpfree_string with a->type is INTGR or CMPLX.
- * However it would be fatal to call it with a->type = STRING if a->string_val
- * was not obtained by a previous call to gp_alloc(), or has already been freed.
- * Thus 'a->type' is set to NOTDEFINED afterwards to make subsequent calls safe.
+/* It would be fatal to call gpfree_string with a->type = STRING if
+ * a->string_val has already been freed.
+ * Setting 'a->type' to NOTDEFINED makes subsequent calls safe.
  */
 void
 gpfree_string(struct value *a)
@@ -561,35 +605,49 @@ pop(struct value *x)
 /*
  * Allow autoconversion of string variables to floats if they
  * are dereferenced in a numeric context.
+ * Jun 2022: Stricter error checking for non-numeric string.
  */
 struct value *
 pop_or_convert_from_string(struct value *v)
 {
-    (void) pop(v);
+    pop(v);
 
     /* FIXME: Test for INVALID_VALUE? Other corner cases? */
     if (v->type == INVALID_NAME)
 	int_error(NO_CARET, "invalid dummy variable name");
 
     if (v->type == STRING) {
-	char *eov;
+	char *string = v->v.string_val;
+	char *eov = string;
+	char trailing = *eov;
 
-	if (*(v->v.string_val)
-	&&  strspn(v->v.string_val,"0123456789 ") == strlen(v->v.string_val)) {
-	    long long li = atoll(v->v.string_val);
-	    gpfree_string(v);
+	/* If the string contains no decimal point, try to interpret it as an integer.
+	 * We treat a string starting with "0x" as a hexadecimal; everything else
+	 * as decimal.  So int("010") promotes to 10, not 8.
+	 */
+	if (strcspn(string, ".") == strlen(string)) {
+	    long long li;
+	    if (string[0] == '0' && string[1] == 'x')
+		li = strtoll( string, &eov, 16 );
+	    else
+		li = strtoll( string, &eov, 10 );
+	    trailing = *eov;
 	    Ginteger(v, li);
-	} else {
-	    double d = strtod(v->v.string_val,&eov);
-	    if (v->v.string_val == eov) {
-		gpfree_string(v);
-		int_error(NO_CARET,"Non-numeric string found where a numeric expression was expected");
-		/* Note: This also catches syntax errors like "set term ''*0 " */
-	    }
-	    gpfree_string(v);
-	    Gcomplex(v, d, 0.);
-	    FPRINTF((stderr,"converted string to CMPLX value %g\n",real(v)));
 	}
+	/* Successful interpretation as an integer leaves (eov != string).
+	 * Otherwise try again as a floating point, including oddball cases like
+	 * "NaN" or "-Inf" that contain no decimal point.
+	 */
+	if (eov == string) {
+	    double d = strtod(string, &eov);
+	    trailing = *eov;
+	    Gcomplex(v, d, 0.);
+	}
+	free(string);	/* NB: invalidates dereference of eov */
+	if (eov == string)
+	    int_error(NO_CARET,"Non-numeric string found where a numeric expression was expected");
+	if (trailing && !isspace(trailing))
+	    int_warn(NO_CARET,"Trailing characters after numeric expression");
     }
     return(v);
 }
@@ -726,7 +784,13 @@ evaluate_at(struct at_type *at_ptr, struct value *val_ptr)
     val_ptr->type = NOTDEFINED;
 
     errno = 0;
-    reset_stack();
+
+    /* Normally the stack is cleared prior to each and every expression
+     * evaluation.   However doing so during execution of a function block
+     * can make the stack invalid when the function block exits.
+     */
+    if (!evaluate_inside_functionblock)
+	reset_stack();
 
     if (!evaluate_inside_using || !df_nofpe_trap) {
 	if (SETJMP(fpe_env, 1))
@@ -741,10 +805,14 @@ evaluate_at(struct at_type *at_ptr, struct value *val_ptr)
 
     if (errno == EDOM || errno == ERANGE)
 	undefined = TRUE;
-    else if (!undefined) {
-	(void) pop(val_ptr);
+
+    /* Pop value even if it is undefined.
+     * That seems preferable to leaving garbage on the stack.
+     */
+    if (s_p >= 0)
+	pop(val_ptr);
+    if (!evaluate_inside_functionblock)
 	check_stack();
-    }
 }
 
 void
@@ -780,19 +848,27 @@ real_free_at(struct at_type *at_ptr)
     free(at_ptr);
 }
 
-/* EAM July 2003 - Return pointer to udv with this name; if the key does not
+/* Return pointer to udv with this name; if the key does not
  * match any existing udv names, create a new one and return a pointer to it.
+ * Local variables are not created here; they use add_udv_local().
  */
 struct udvt_entry *
 add_udv_by_name(char *key)
 {
     struct udvt_entry **udv_ptr = &first_udv;
+    int current_locality = lf_head ? lf_head->locality : 0;
 
     /* check if it's already in the table... */
 
     while (*udv_ptr) {
-	if (!strcmp(key, (*udv_ptr)->udv_name))
-	    return (*udv_ptr);
+	if (!strcmp(key, (*udv_ptr)->udv_name)) {
+	    /* This is a global variable; we must not have seen a relevant local definition */
+	    if ((*udv_ptr)->locality == 0)
+		return (*udv_ptr);
+	    /* This is a local variable referenced from a bracketed clause that follows it */
+	    if ((*udv_ptr)->locality >= current_locality)
+		return (*udv_ptr);
+	}
 	udv_ptr = &((*udv_ptr)->next_udv);
     }
 
@@ -801,6 +877,7 @@ add_udv_by_name(char *key)
     (*udv_ptr)->next_udv = NULL;
     (*udv_ptr)->udv_name = gp_strdup(key);
     (*udv_ptr)->udv_value.type = NOTDEFINED;
+    (*udv_ptr)->locality = 0;
     return (*udv_ptr);
 }
 
@@ -834,6 +911,10 @@ del_udv_by_name(char *key, TBOOLEAN wildcard)
 
  	/* exact match */
 	else if (!wildcard && !strcmp(key, udv_ptr->udv_name)) {
+	    if (called_from(udv_ptr->udv_name)) {
+		FPRINTF((stderr, "cannot self-delete %s", udv_ptr->udv_name));
+		break;
+	    }
 	    gpfree_vgrid(udv_ptr);
 	    free_value(&(udv_ptr->udv_value));
 	    udv_ptr->udv_value.type = NOTDEFINED;
@@ -842,6 +923,10 @@ del_udv_by_name(char *key, TBOOLEAN wildcard)
 
 	/* wildcard match: prefix matches */
 	else if ( wildcard && !strncmp(key, udv_ptr->udv_name, strlen(key)) ) {
+	    if (called_from(udv_ptr->udv_name)) {
+		FPRINTF((stderr, "cannot self-delete %s", udv_ptr->udv_name));
+		break;
+	    }
 	    gpfree_vgrid(udv_ptr);
 	    free_value(&(udv_ptr->udv_value));
 	    udv_ptr->udv_value.type = NOTDEFINED;
@@ -851,6 +936,20 @@ del_udv_by_name(char *key, TBOOLEAN wildcard)
 	udv_ptr = udv_ptr->next_udv;
     }
 }
+
+#ifdef USE_WATCHPOINTS
+struct udft_entry *
+get_udf_by_token(int t_num)
+{
+    struct udft_entry **udf_ptr = &first_udf;
+    while (*udf_ptr) {
+	if (equals(t_num, (*udf_ptr)->udf_name))
+	    return *udf_ptr;
+	udf_ptr = &((*udf_ptr)->next_udf);
+    }
+    return NULL;
+}
+#endif
 
 /* Clear (delete) all user defined functions */
 void
@@ -954,10 +1053,10 @@ fill_gpval_complex(char *var, double areal, double aimag)
 static void
 update_plot_bounds(void)
 {
-    fill_gpval_integer("GPVAL_TERM_XMIN", axis_array[FIRST_X_AXIS].term_lower / term->tscale);
-    fill_gpval_integer("GPVAL_TERM_XMAX", axis_array[FIRST_X_AXIS].term_upper / term->tscale);
-    fill_gpval_integer("GPVAL_TERM_YMIN", axis_array[FIRST_Y_AXIS].term_lower / term->tscale);
-    fill_gpval_integer("GPVAL_TERM_YMAX", axis_array[FIRST_Y_AXIS].term_upper / term->tscale);
+    fill_gpval_float("GPVAL_TERM_XMIN", (double)axis_array[FIRST_X_AXIS].term_lower / term->tscale);
+    fill_gpval_float("GPVAL_TERM_XMAX", (double)axis_array[FIRST_X_AXIS].term_upper / term->tscale);
+    fill_gpval_float("GPVAL_TERM_YMIN", (double)axis_array[FIRST_Y_AXIS].term_lower / term->tscale);
+    fill_gpval_float("GPVAL_TERM_YMAX", (double)axis_array[FIRST_Y_AXIS].term_upper / term->tscale);
     fill_gpval_integer("GPVAL_TERM_XSIZE", canvas.xright+1);
     fill_gpval_integer("GPVAL_TERM_YSIZE", canvas.ytop+1);
     fill_gpval_integer("GPVAL_TERM_SCALE", term->tscale);
@@ -1172,8 +1271,7 @@ gp_word(char *string, int i)
     return a.v.string_val;
 }
 
-/* New (version 5.5)
- * The evaluation stack can now return an ARRAY value, but in order to do so
+/* The evaluation stack can now return an ARRAY value, but in order to do so
  * without memory leaks or corruption it must make sure that the allocated
  * content is distinct from the original content.
  * I.e. {array A = ["foo"]; B = A; A = 0;} must leave a valid copy of "foo" in B[1].
@@ -1198,10 +1296,8 @@ make_array_permanent(struct value *array)
     size = array->v.value_array[0].v.int_val;
     copy = gp_alloc( (size+1) * sizeof(struct value), "array copy");
     memcpy( copy, array->v.value_array, (size+1) * sizeof(struct value) );
-    for (i=0; i<= size; i++) {
-	if (copy[i].type == STRING)
-	    copy[i].v.string_val = strdup(copy[i].v.string_val);
-    }
+    for (i=0; i<= size; i++)
+	clone_string_value(&(copy[i]));
     copy[0].type = NOTDEFINED;
     array->v.value_array = copy;
 }
@@ -1230,8 +1326,7 @@ array_slice( struct value *full, int beg, int end)
 
     for (i = beg, j = 1; i <= end; i++,j++) {
 	slice[j] = array[i];
-	if (slice[j].type == STRING)
-	    slice[j].v.string_val = strdup(slice[j].v.string_val);
+	clone_string_value(&(slice[j]));
     }
 
     return slice;

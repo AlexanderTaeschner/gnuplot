@@ -86,7 +86,7 @@
 #include "driver.h"
 
 #ifdef TERM_PROTO
-#include "variable.h"	/* For loadpath_handler used in PS_dump_prologue_file */
+#include "loadpath.h"	/* For loadpath_handler used in PS_dump_prologue_file */
 #endif
 
 #ifdef TERM_REGISTER
@@ -105,7 +105,7 @@ TERM_PUBLIC void PS_dashtype(int type, t_dashtype *custom_dash_type);
 TERM_PUBLIC void PS_move(unsigned int x, unsigned int y);
 TERM_PUBLIC void PS_vector(unsigned int x, unsigned int y);
 TERM_PUBLIC void PS_put_text(unsigned int x, unsigned int y, const char *str);
-TERM_PUBLIC int PS_text_angle(int ang);
+TERM_PUBLIC int PS_text_angle(float ang);
 TERM_PUBLIC int PS_justify_text(enum JUSTIFY mode);
 TERM_PUBLIC void PS_point(unsigned int x, unsigned int y, int number);
 TERM_PUBLIC int PS_set_font(const char * font);
@@ -132,6 +132,7 @@ TERM_PUBLIC char *PS_escape_string(char *origstr, char *escapelist);
 
 TERM_PUBLIC void PS_path(int p);
 static TBOOLEAN PS_newpath = FALSE;
+static TBOOLEAN PS_inpath = FALSE;
 static TBOOLEAN ENHps_opened_string = FALSE;  /* try to cut out empty ()'s */
 
 TERM_PUBLIC void PS_layer(t_termlayer syncpoint);
@@ -283,7 +284,7 @@ static int  ENHPS_initialized;
 
 static int ps_page = 0;		/* page count */
 static int ps_path_count = 0; 	/* count of lines in path */
-static int ps_ang = 0;			/* text angle */
+static float ps_ang = 0;	/* text angle */
 static enum JUSTIFY ps_justify = LEFT;	/* text is flush left */
 
 static void delete_ps_fontfile(struct ps_fontfile_def *, struct ps_fontfile_def *);
@@ -547,6 +548,7 @@ PS_escape_string(char *origstr, char *escapelist)
 static int PS_pen_x, PS_pen_y;
 static int PS_taken;
 static int PS_linetype_last;
+static int PS_dashtype_current;
 static double PS_linewidth_last;
 static double PS_linewidth_current;
 static TBOOLEAN PS_relative_ok;
@@ -892,7 +894,6 @@ PS_options()
 	    break;
 	case PS_SOLIDE:
 	case PS_DASHED:
-	    /* Version 5 always allows dashes */
 	    ps_params->solid = FALSE;
 	    c_token++;
 	    break;
@@ -1018,7 +1019,7 @@ PS_options()
 			new_ps_fontfile->fontfile_fullname = NULL;
 		    } else
 #endif
-		    {	/* New search order (version 5.3) */
+		    {	/* New search order (version 5.4) */
 
 			/* (1) try absolute path or current directory */
 			/* (2) fontpath_fullname will also check loadpath directories */
@@ -1949,6 +1950,7 @@ doclip\n\
 	fprintf(gppsfile, "(%s) findfont %d scalefont setfont\n",
 		ps_params->font, (t->v_char));
     ps_path_count = 0;
+    PS_inpath = FALSE;
     PS_relative_ok = FALSE;
     PS_pen_x = PS_pen_y = -4000;
     PS_taken = 0;
@@ -2064,6 +2066,7 @@ PS_dashtype(int type, t_dashtype *custom_dash_type)
 		    PS_linetype(type);
 		break;
     }
+    PS_dashtype_current = type;
 }
 
 TERM_PUBLIC void
@@ -2183,7 +2186,10 @@ PS_vector(unsigned int x, unsigned int y)
     if (!PS_relative_ok)
 	PS_move(PS_pen_x, PS_pen_y);
 
-    if (strlen(rel) < strlen(abso)) {
+    if (PS_dashtype_current == DASHTYPE_NODRAW) {
+	PS_move(x,y);
+	ps_path_count = 1;
+    } else if (strlen(rel) < strlen(abso)) {
 	fputs(rel, gppsfile);
 	PS_taken++;		/* only used for debug info */
 	ps_path_count += 1;
@@ -2191,7 +2197,10 @@ PS_vector(unsigned int x, unsigned int y)
 	fputs(abso, gppsfile);
 	ps_path_count = 1;  /* If we set it to zero, it may never get flushed */
     }
-    /* Ghostscript has a "pile-up of rounding errors" bug: a sequence of many
+
+#define MAX_REL_PATHLEN 250
+    /* -2003-
+     * Ghostscript has a "pile-up of rounding errors" bug: a sequence of many
      * rmove's or rlineto's does not yield the same line as move's or lineto's.
      * Therefore, we periodically force an update of the absolute position.
      * There was a case when 400 rlineto's were too much, so let's set the limit
@@ -2200,10 +2209,14 @@ PS_vector(unsigned int x, unsigned int y)
      * lineto with no intervening 'stroke' is ridiculously slow to render.
      * So we stroke the partial line, update the position in absolute terms,
      * then continue.  This whole section can go away if ghostscript/gv is fixed.
+     * -2023-
+     * This is now causing more problems than justified by accommodating
+     * old versions of ghostscript/gv.  In particular if the "stroke" is added
+     * inside a path it produces an unwanted line back to the path start.
      */
-#define MAX_REL_PATHLEN 250
     if (ps_path_count >= MAX_REL_PATHLEN) {
-	fprintf(gppsfile, "stroke %d %d M\n", x, y);
+	if (!PS_inpath)
+	    fprintf(gppsfile, "stroke %d %d M\n", x, y);
 	ps_path_count = 1;
     }
 
@@ -2225,7 +2238,7 @@ PS_put_text(unsigned int x, unsigned int y, const char *str)
 	return;
 
     if (PS_in_textbox > 0) {
-	int save_ang = ps_ang;
+	float save_ang = ps_ang;
 	PS_in_textbox = -1;
 	/* Write once with no rotation and no actual "show" command */
 	ps_ang = 0;
@@ -2241,7 +2254,7 @@ PS_put_text(unsigned int x, unsigned int y, const char *str)
 	PS_move(x,y);
 
     if (ps_ang != 0)
-	fprintf(gppsfile,"currentpoint gsave translate %d rotate 0 0 M\n", ps_ang);
+	fprintf(gppsfile,"currentpoint gsave translate %g rotate 0 0 M\n", ps_ang);
     else if (PS_in_textbox > 0)
 	fprintf(gppsfile,"gsave currentpoint translate\n");
 
@@ -2369,7 +2382,7 @@ PS_put_text(unsigned int x, unsigned int y, const char *str)
 
 
 TERM_PUBLIC int
-PS_text_angle(int ang)
+PS_text_angle(float ang)
 {
     ps_ang = ang;
     return TRUE;
@@ -2769,7 +2782,7 @@ ENHPS_put_text(unsigned int x, unsigned int y, const char *str)
     PS_FLUSH_PATH;
 
     if (PS_in_textbox > 0) {
-	int save_ang = ps_ang;
+	float save_ang = ps_ang;
 	PS_in_textbox = -1;
 	/* Write once with no rotation and no actual "show" command */
 	ps_ang = 0;
@@ -2799,7 +2812,7 @@ ENHPS_put_text(unsigned int x, unsigned int y, const char *str)
 	PS_move(x,y);
 
     if (ps_ang != 0)
-	fprintf(gppsfile,"currentpoint gsave translate %d rotate 0 0 moveto\n", ps_ang);
+	fprintf(gppsfile,"currentpoint gsave translate %g rotate 0 0 moveto\n", ps_ang);
     else if (PS_in_textbox > 0)
 	fprintf(gppsfile,"gsave currentpoint translate\n");
 
@@ -3095,7 +3108,12 @@ PS_make_header(t_sm_palette *palette)
 {
     /* write header for smooth colors */
     fputs("gsave % colour palette begin\n", gppsfile);
-    fprintf(gppsfile, "/maxcolors %i def\n", sm_palette.use_maxcolors);
+    if ( CHECK_SMPAL_IS_DISCRETE_GRADIENT ) {
+        fprintf(gppsfile, "/maxcolors %i def\n", 0);
+    }
+    else {
+        fprintf(gppsfile, "/maxcolors %i def\n", sm_palette.use_maxcolors);
+    }
     make_color_model_code();
 
     switch(sm_palette.colorMode) {
@@ -3119,6 +3137,7 @@ PS_make_header(t_sm_palette *palette)
 	break;
     }
     case SMPAL_COLOR_MODE_GRADIENT:
+    case SMPAL_COLOR_MODE_VIRIDIS:
 	fputs("/InterpolatedColor true def\n", gppsfile);
 	make_interpolation_code();
 	write_gradient_definition(palette->gradient, palette->gradient_num);
@@ -3441,7 +3460,7 @@ write_png_image_to_buffer(unsigned M, unsigned N, coordval *image, t_imagecolor 
 {
     gdImagePtr png_img;
     int m, n, pixel;
-    if (color_mode == IC_RGB) {
+    if (color_mode == IC_RGB || color_mode == IC_RGBA) {
 	png_img = gdImageCreateTrueColor(M, N);
     } else {
 	/* we would need a gray scale image, but libgd does not support
@@ -3453,7 +3472,7 @@ write_png_image_to_buffer(unsigned M, unsigned N, coordval *image, t_imagecolor 
 	int_error(NO_CARET, "GNUPLOT (post.trm): failed to create libgd image structure");
     }
 
-    if (color_mode == IC_RGB) {
+    if (color_mode == IC_RGB || color_mode == IC_RGBA) {
         rgb_color rgb1;
         rgb255_color rgb255;
 	for (n = 0; n < N; n++) {
@@ -3464,6 +3483,9 @@ write_png_image_to_buffer(unsigned M, unsigned N, coordval *image, t_imagecolor 
 		rgb255_from_rgb1(rgb1, &rgb255);
 		pixel = gdImageColorResolve(png_img, (int)rgb255.r, (int)rgb255.g, (int)rgb255.b);
 		gdImageSetPixel(png_img, m, n, pixel);
+		if (color_mode == IC_RGBA) {
+		    image++;	/* ignore alpha channel */
+		}
 	    }
 	}
     } else {
@@ -3548,7 +3570,7 @@ write_png_image_to_buffer(unsigned M, unsigned N, coordval *image, t_imagecolor 
     int m, n;
 
 
-    if (color_mode == IC_RGB) {
+    if (color_mode == IC_RGB || color_mode == IC_RGBA) {
 	format = CAIRO_FORMAT_RGB24;
     } else {
 	format = CAIRO_FORMAT_A8;
@@ -3556,7 +3578,7 @@ write_png_image_to_buffer(unsigned M, unsigned N, coordval *image, t_imagecolor 
     stride = cairo_format_stride_for_width(format, M);
     image255 = (unsigned char *) gp_alloc(N * stride, "Postscript image bytes");
 
-    if (color_mode == IC_RGB) {
+    if (color_mode == IC_RGB || color_mode == IC_RGBA) {
 	/* Adapted from gp_cairo_helpers.c (use unsigned int to respect endianess of the platform). */
 	rgb_color rgb1;
         rgb255_color rgb255;
@@ -3569,6 +3591,9 @@ write_png_image_to_buffer(unsigned M, unsigned N, coordval *image, t_imagecolor 
 		rgb1.b = *image++;
 		rgb255_from_rgb1(rgb1, &rgb255);
 		*image255_ptr++ = (0xFF<<24) + (rgb255.r<<16) + (rgb255.g<<8) + rgb255.b;
+		if (color_mode == IC_RGBA) {
+		    image++;	/* ignore alpha channel */
+		}
 	    }
 	}
     } else {
@@ -3715,14 +3740,22 @@ PS_encode_image(unsigned int M, unsigned int N, coordval *image, t_imagecolor co
     unsigned char tuple5[5];
     int max_encoded_bytes;
     char *encoded_image, *encoded_image_ptr;
+    unsigned ncomponents;
     unsigned long total_bits;
+    int current_channel;
 
 #define ASCII_PER_LINE 78
 
     /* 18.1.2009 RGB images ("plot ... with rgbimage") are drawn always in color,
      * i.e. for both "set term post color" and "set term post mono".
      */
-    total_bits = bits_per_component*M*N*((color_mode == IC_RGB /* && ps_params->color */) ? 3 : 1);
+    if (color_mode == IC_RGB)
+	ncomponents = 3;
+    else if (color_mode == IC_RGBA)	/* alpha channel will be ignored */
+	ncomponents = 3;
+    else
+	ncomponents = 1;
+    total_bits = bits_per_component * ncomponents * M * N;
 
     /* At the end of each image line, data is aligned to the nearest 8 bits,
      * which means potentially adding 7 bits per line.
@@ -3751,24 +3784,30 @@ PS_encode_image(unsigned int M, unsigned int N, coordval *image, t_imagecolor co
     i_line = ASCII_PER_LINE;
     i_element = 0;
     coord_remaining = M*N;
-    if (color_mode == IC_RGB /* && ps_params->color */) {
+    if (color_mode == IC_RGB) {
+	end_of_line *= 3;
+	coord_remaining *= 3;
+    }
+    if (color_mode == IC_RGBA) {
 	end_of_line *= 3;
 	coord_remaining *= 3;
     }
     bits_remaining = 32;
     bits_start = 0;
     tuple4 = 0;
+    current_channel = 0;
 
     while (coord_remaining) {
-	unsigned short us_tmp;
-	if (0 /* color_mode == IC_RGB && !ps_params->color */) {
-	    coordval c_tmp;
-	    c_tmp = *coord_ptr++;
-	    c_tmp += *coord_ptr++;
-	    c_tmp += *coord_ptr++;
-	    us_tmp = (unsigned short) (c_tmp*(max_colors-1)/3.0 + 0.5);
-	} else
-	    us_tmp = (unsigned short) ((*coord_ptr++) * max_colors);
+	unsigned short us_tmp = (*coord_ptr++) * max_colors;
+
+	/* Ignore alpha channel */
+	if (color_mode == IC_RGBA) {
+	    current_channel++;
+	    if (current_channel == 4) {
+		current_channel = 0;
+		continue;
+	    }
+	}
 
 	if (us_tmp > (max_colors-1)) us_tmp = max_colors-1;
 
@@ -3897,15 +3936,18 @@ print_five_operand_image(unsigned int M, unsigned int N, gpiPoint *corner, t_ima
     fprintf(gppsfile, "%s[ %d 0 0 %d 0 0 ]\n", space, M, N);
     if (ps_params->level1) {
 	fprintf(gppsfile, "/imagebuf %d string def\n",
-		(M*N*bits_per_component*((color_mode == IC_RGB /* && ps_params->color */) ? 3 : 1) + 7)/8);
+		(M*N*bits_per_component*((color_mode == IC_RGB || color_mode == IC_RGBA) ? 3 : 1) + 7)/8);
 	fputs("{currentfile imagebuf readhexstring pop}\n", gppsfile);
     } else if (ps_params->level3) {
 	fprintf(gppsfile, "  currentfile /ASCII85Decode filter << /Predictor 15 /BitsPerComponent %d /Colors %d /Columns %d  >> /FlateDecode filter\n",
-		bits_per_component, (color_mode == IC_RGB) ? 3 : 1, M);
+		bits_per_component, (color_mode == IC_RGB || color_mode == IC_RGBA) ? 3 : 1, M);
     } else {
 	fprintf(gppsfile, "  currentfile /ASCII85Decode filter\n");
     }
-    if (color_mode == IC_RGB /* && ps_params->color */) {
+    if (color_mode == IC_RGB) {
+	fprintf(gppsfile, "%sfalse 3\n"
+			  "%scolorimage\n", space, space);
+    } else if (color_mode == IC_RGBA) {
 	fprintf(gppsfile, "%sfalse 3\n"
 			  "%scolorimage\n", space, space);
     } else
@@ -3958,14 +4000,10 @@ PS_image (unsigned int M, unsigned int N, coordval *image, gpiPoint *corner, t_i
     /* Color and gray scale images do not need a palette and can use
      * the 5 operand form of the image routine.
      */
-#if 0
-    /* 18.1.2009 It was decided to use the custom palette (i.e. colours) also
-       for the monochrome postscript output.
-    */
-    if ((color_mode == IC_RGB) || (sm_palette.colorMode == SMPAL_COLOR_MODE_GRAY) || !ps_params->color)
-#else
-    if ((color_mode == IC_RGB) || (sm_palette.colorMode == SMPAL_COLOR_MODE_RGB && !ps_params->color) || (sm_palette.colorMode == SMPAL_COLOR_MODE_GRAY))
-#endif
+    if ((color_mode == IC_RGB)
+    ||  (color_mode == IC_RGBA)
+    ||  (sm_palette.colorMode == SMPAL_COLOR_MODE_RGB && !ps_params->color)
+    ||  (sm_palette.colorMode == SMPAL_COLOR_MODE_GRAY))
 	five_operand_image = TRUE;
     else
 	five_operand_image = FALSE;
@@ -3989,7 +4027,8 @@ PS_image (unsigned int M, unsigned int N, coordval *image, gpiPoint *corner, t_i
 #endif
 	encoded_image = PS_encode_image(M, N, image, color_mode,
 					bits_per_component, max_colors, cscale,
-					(ps_params->level1 ? PS_ASCII_HEX : PS_ASCII85), &num_encoded_bytes);
+					(ps_params->level1 ? PS_ASCII_HEX : PS_ASCII85),
+					&num_encoded_bytes);
 
 
     fputs("%%%%BeginImage\n", gppsfile);
@@ -4064,7 +4103,7 @@ PS_image (unsigned int M, unsigned int N, coordval *image, gpiPoint *corner, t_i
 	} else if (ps_params->level3) {
 	    fprintf(gppsfile, "  /DataSource currentfile /ASCII85Decode filter ");
 	    fprintf(gppsfile, "<< /Predictor 15 /BitsPerComponent %d /Colors %d /Columns %d >> /FlateDecode filter\n",
-		    bits_per_component, (color_mode == IC_RGB) ? 3 : 1, M);
+		    bits_per_component, (color_mode == IC_RGB || color_mode == IC_RGBA) ? 3 : 1, M);
 	} else {
 	    fputs("  /DataSource currentfile /ASCII85Decode filter\n", gppsfile);
 	}
@@ -4194,7 +4233,7 @@ PS_open_prologue_file(char *name)
 
     if (!prologue_fd) {
 	fprintf(stderr,"Can't find PostScript prologue file %s\n", name);
-	loadpath_handler(ACTION_SHOW,NULL);
+	dump_loadpath();
 	fprintf(stderr,"Please copy %s to one of the above directories\n",name);
 	fprintf(stderr,"or set the environmental variable GNUPLOT_PS_DIR\n");
 	fprintf(stderr,"or set the loadpath appropriately\n");
@@ -4314,11 +4353,13 @@ PS_path(int p)
 	case 0:	/* Start new path */
 		PS_FLUSH_PATH;
 		PS_newpath = TRUE;
+		PS_inpath = TRUE;
 		break;
 
 	case 1: /* Close path */
 		fprintf(gppsfile, "Z ");
 		PS_FLUSH_PATH;
+		PS_inpath = FALSE;
 		break;
     }
 
@@ -4514,10 +4555,6 @@ START_HELP(00psglobal)
 " of the plot is correctly adjusted to contain the resized image.",\
 " Screen coordinates always run from 0.0 to 1.0 along the full length of the",\
 " plot edges as specified by the `size` option.",\
-" NB: `this is a change from the previously recommended method of using the",\
-" set size command prior to setting the terminal type`.  The old method left",\
-" the BoundingBox unchanged and screen coordinates did not correspond to the",\
-" actual limits of the plot.",\
 "",
 ""
 END_HELP(00psglobal)
@@ -4535,7 +4572,6 @@ START_HELP(epslatex)
 " Syntax:",
 "       set terminal epslatex   {default}",
 "       set terminal epslatex   {standalone | input}",
-"                               {oldstyle | newstyle}",
 PS_COMMON_OPTS1
 "                               {header <header> | noheader}",
 PS_COMMON_OPTS2
@@ -4543,18 +4579,6 @@ PS_COMMON_OPTS2
 " The epslatex terminal prints a plot as `terminal postscript eps`",
 " but transfers the texts to LaTeX instead of including in the PostScript",
 " code. Thus, many options are the same as in the `postscript terminal`.",
-"",
-" The appearance of the epslatex terminal changed between versions 4.0 and 4.2",
-" to reach better consistency with the postscript terminal:",
-" The plot size has been changed from 5 x 3 inches to 5 x 3.5 inches;",
-" the character width is now estimated to be 60% of the font size",
-" while the old epslatex terminal used 50%;  now, the larger number of",
-" postscript linetypes and symbols are used.  To reach an appearance that is",
-" nearly identical to the old one specify the option `oldstyle`. (In fact",
-" some small differences remain: the symbol sizes are slightly different, the",
-" tics are half as large as in the old terminal which can be changed using",
-" `set tics scale`, and the arrows have all features as in the postscript",
-" terminal.)",
 "",
 PS_COMMON_PROLOG_INFO
 PS_COMMON_DOC1
@@ -4716,7 +4740,6 @@ START_HELP(pslatex)
 "       set terminal [pslatex | pstex] {default}",
 "       set terminal [pslatex | pstex]",
 "                               {rotate | norotate}",
-"                               {oldstyle | newstyle}",
 "                               {auxfile | noauxfile}",
 PS_COMMON_OPTS1
 "                               {<font_size>}",
@@ -4736,13 +4759,6 @@ PS_COMMON_DOC1
 " is appended.  The `.ps` is included into the `.tex` file by a",
 " \\special{psfile=...} command.  Remember to close the `output file` before",
 " next plot unless in `multiplot` mode.",
-"",
-" Gnuplot versions prior to version 4.2 generated plots of the size",
-" 5 x 3 inches using the ps(la)tex terminal while the current version generates",
-" 5 x 3.5 inches to be consistent with the postscript eps terminal.  In",
-" addition, the character width is now estimated to be 60% of the font size",
-" while the old epslatex terminal used 50%. To reach the old format specify",
-" the option `oldstyle`.",
 "",
 " The pslatex driver offers a special way of controlling text positioning: ",
 " (a) If any text string begins with '{', you also need to include a '}' at the",
@@ -4831,19 +4847,8 @@ PS_COMMON_DOC1
 " is deleted from the list of embedded files.  `nofontfiles` cleans the list",
 " of embedded fonts.",
 "",
-" Examples:",
-"       set terminal postscript default       # old postscript",
-"       set terminal postscript enhanced      # old enhpost",
-"       set terminal postscript landscape 22  # old psbig",
-"       set terminal postscript eps 14        # old epsf1",
-"       set terminal postscript eps 22        # old epsf2",
-"       set size 0.7,1.4; set term post portrait color \"Times-Roman\" 14",
-"       set term post \"VAGRoundedBT_Regular\" 14 fontfile \"bvrr8a.pfa\"",
-"",
-" Linewidths and pointsizes may be changed with `set style line`.",
-"",
 " The `postscript` driver supports about 70 distinct pointtypes, selectable",
-" through the `pointtype` option on `plot` and `set style line`.",
+" through the `pointtype` option on `plot` and `set linetype`.",
 "",
 " Several possibly useful files about `gnuplot`'s PostScript are included",
 " in the /docs/psdoc subdirectory of the `gnuplot` distribution and at the",
@@ -4910,19 +4915,21 @@ PS_COMMON_DOC1
 " option can be used multiple times in order to include more than one font",
 " file.",
 "",
-" The search order used to find font files is",
+" The search order for find font files is",
 " (1) absolute pathname or current working directory",
 " (2) any of the directories specified by `set loadpath`",
 " (3) the directory specified by `set fontpath`",
 " (4) the directory given in environmental variable GNUPLOT_FONTPATH.",
-" NB: This is a CHANGE from earlier versions of gnuplot.",
 "",
-" For using the encapsulated font file you have to specify the font name",
-" (which normally is not the same as the file name). When embedding a",
+" To use the encapsulated font file you have to specify the font name,",
+" which normally is not the same as the file name. When embedding a",
 " font file by using the `fontfile` option in interactive mode, the ",
-" font name is printed on the screen. E.g.",
-"    Font file 'p052004l.pfb' contains the font 'URWPalladioL-Bold'. Location:",
-"    /usr/lib/X11/fonts/URW/p052004l.pfb",
+" font name is printed on the screen.",
+"",
+" Example:",
+"    set term post \"VAGRoundedBT_Regular\" 14 fontfile \"bvrr8a.pfa\"",
+"      Font file 'bvrr8a.pfa' contains the font 'VAGRoundedBT_Regular'.",
+"      Location: /usr/share/fonts/Type1/bvrr8a.pfa",
 "",
 " When using pfa or pfb fonts, you can also find it out by looking into the",
 " font file. There is a line similar to \"/FontName /URWPalladioL-Bold def\".",

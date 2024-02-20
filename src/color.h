@@ -70,7 +70,8 @@ typedef enum {
     SMPAL_COLOR_MODE_FUNCTIONS = 'f', /* user defined transforms */
     SMPAL_COLOR_MODE_GRADIENT = 'd',  /* interpolated table:
 				       * explicitly defined or read from file */
-    SMPAL_COLOR_MODE_CUBEHELIX = 'c'
+    SMPAL_COLOR_MODE_CUBEHELIX = 'c',
+    SMPAL_COLOR_MODE_VIRIDIS = 'v'
 } palette_color_mode;
 
 /*
@@ -82,6 +83,8 @@ typedef enum {
     SMPAL_GRADIENT_TYPE_DISCRETE = 2, /* (full) discrete palette */
     SMPAL_GRADIENT_TYPE_MIXED    = 3, /* partially discrete palette */
 } palette_gradient_type;
+
+#define CHECK_SMPAL_IS_DISCRETE_GRADIENT (sm_palette.colorMode == SMPAL_COLOR_MODE_GRADIENT && sm_palette.gradient_type == SMPAL_GRADIENT_TYPE_DISCRETE)
 
 /* Contains a colour in RGB scheme.
    Values of  r, g and b  are all in range [0;1] */
@@ -262,6 +265,7 @@ void f_palette(union argument *);
  * miscellaneous color conversions
  */
 unsigned int rgb_from_colorspec(struct t_colorspec *tc);
+unsigned int rgb_from_gray( double gray );
 
 /*
  * Support for colormaps (named palettes)

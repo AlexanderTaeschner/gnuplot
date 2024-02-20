@@ -33,15 +33,6 @@
 /*
  * Changes:
  *
- * Feb 5, 1992  Jack Veenstra   (veenstra@cs.rochester.edu) Added support to
- * filter data values read from a file through a user-defined function before
- * plotting. The keyword "thru" was added to the "plot" command. Example
- * syntax: f(x) = x / 100 plot "test.data" thru f(x) This example divides all
- * the y values by 100 before plotting. The filter function processes the
- * data before any log-scaling occurs. This capability should be generalized
- * to filter x values as well and a similar feature should be added to the
- * "splot" command.
- *
  * 19 September 1992  Lawrence Crowl  (crowl@cs.orst.edu)
  * Added user-specified bases for log scaling.
  *
@@ -76,7 +67,10 @@
 #include "datafile.h"
 #include "getcolor.h"
 #include "gp_hist.h"
+#include "gplocale.h"
+#include "loadpath.h"
 #include "misc.h"
+#include "multiplot.h"
 #include "parse.h"
 #include "plot.h"
 #include "plot2d.h"
@@ -89,7 +83,7 @@
 #include "tables.h"
 #include "term_api.h"
 #include "util.h"
-#include "variable.h"
+#include "voxelgrid.h"
 #include "external.h"
 
 #ifdef USE_MOUSE
@@ -154,6 +148,8 @@ static int find_clause(int *, int *);
 static void if_else_command(ifstate if_state);
 static void old_if_command(struct at_type *expr);
 static int report_error(int ierr);
+static void load_or_call_command( TBOOLEAN call );
+       void do_shell(void);
 
 static int expand_1level_macros(void);
 
@@ -170,21 +166,29 @@ int inline_num;			/* input line number */
  */
 struct udft_entry *dummy_func;
 
-/* dummy_func will point to this during function plotting */
-struct udft_entry plot_func;
-
 /* support for replot command */
 char *replot_line = NULL;
 int plot_token = 0;		/* start of 'plot' command */
 
+/* support for multiplot playback */
+TBOOLEAN last_plot_was_multiplot = FALSE;
+
 /* flag to disable `replot` when some data are sent through stdin;
- * used by mouse/hotkey capable terminals */
+ * used by mouse/hotkey capable terminals
+ */
 TBOOLEAN replot_disabled = FALSE;
+
+/* flag to show we are inside a plot/splot/replot/refresh/stats
+ * command and therefore should not allow starting another one
+ * e.g. from a function block
+ */
+TBOOLEAN inside_plot_command = FALSE;
 
 /* output file for the print command */
 FILE *print_out = NULL;
 struct udvt_entry *print_out_var = NULL;
 char *print_out_name = NULL;
+char *print_sep = NULL;
 
 /* input data, parsing variables */
 int num_tokens, c_token;
@@ -381,6 +385,8 @@ os2_ipc_waitforinput(int mode)
 int
 com_line()
 {
+    int return_value = 0;
+
     if (multiplot) {
 	/* calls int_error() if it is not happy */
 	term_check_multiplot_okay(interactive);
@@ -420,11 +426,13 @@ com_line()
      * (DFK 11/89)
      */
     screen_ok = interactive;
+    return_value = do_line();
 
-    if (do_line())
-	return (1);
-    else
-	return (0);
+    /* If this line is part of a multiplot, save it for later replay */
+    if (multiplot && !multiplot_playback)
+	append_multiplot_line(gp_input_line);
+
+    return return_value;
 }
 
 
@@ -448,9 +456,12 @@ do_line()
     }
 
     /* Leading '!' indicates a shell command that bypasses normal gnuplot
-     * tokenization and parsing.  This doesn't work inside a bracketed clause.
+     * tokenization and parsing.
+     * This doesn't work inside a bracketed clause or in a function block.
      */
     if (is_system(*gp_input_line)) {
+	if (evaluate_inside_functionblock)
+	    int_error(NO_CARET, "bare shell commands not accepted in a function block");
 	do_system(gp_input_line + 1);
 	return (0);
     }
@@ -476,7 +487,6 @@ do_line()
 	if (lf_head && lf_head->depth > 0) {
 	    /* This catches the case that we are inside a "load foo" operation
 	     * and therefore requesting interactive input is not an option.
-	     * FIXME: or is it?
 	     */
 	    int_error(NO_CARET, "Syntax error: missing block terminator }");
 	}
@@ -598,6 +608,12 @@ do_string_replot(const char *s)
 {
     do_string(s);
 
+    /* EXPERIMENTAL */
+    if (last_plot_was_multiplot && !multiplot && !replot_disabled) {
+	replay_multiplot();
+	return;
+    }
+
     if (volatile_data && (E_REFRESH_NOT_OK != refresh_ok)) {
 	if (display_ipc_commands())
 	    fprintf(stderr, "refresh\n");
@@ -687,7 +703,13 @@ define()
 	if (result.type == ARRAY)
 	    make_array_permanent(&result);
 
-	/* Prevents memory leak if the variable name is re-used */
+	/* If the variable name was previously in use then depending on its
+	 * old type it may have attached memory that needs to be freed.
+	 * Note: supposedly the old variable type cannot be datablock because
+	 *       the syntax  $name = foo  is not accepted so we would not be here.
+	 *       However, weird cases like FOO = value($datablock) violate this rule
+	 *       and leave FOO as a datablock whose name does not start with $.
+	 */
 	udv = add_udv(start_token);
 	free_value(&udv->udv_value);
 	udv->udv_value = result;
@@ -851,8 +873,9 @@ lower_command(void)
  * Arrays are declared using the syntax
  *    array A[size] { = [ element, element, ... ] }
  *    array A = [ .., .. ]
+ *    array A = <expression>     (only valid if <expression> returns an array)
  * where size is an integer and space is reserved for elements A[1] through A[size]
- * The size itself is stored in A[0].v.int_val.A
+ * The size itself is stored in A[0].v.int_val.
  * The list of initial values is optional.
  * Any element that is not initialized is set to NOTDEFINED.
  *
@@ -862,81 +885,56 @@ lower_command(void)
 void
 array_command()
 {
+local_array_command( 0 );
+}
+
+void
+local_array_command( int depth )
+{
     int nsize = 0;	/* Size of array when we leave */
-    int est_size = 0;	/* Estimated size */
-    TBOOLEAN empty_array = FALSE;
     struct udvt_entry *array;
-    struct value *A;
-    int i;
 
     /* Create or recycle a udv containing an array with the requested name */
     if (!isletter(++c_token))
 	int_error(c_token, "illegal variable name");
-    array = add_udv(c_token++);
+    if (depth > 0)
+	array = add_udv_local(c_token++, NULL, depth);
+    else
+	array = add_udv(c_token++);
+
+    if (equals(c_token, "=") && !equals(c_token+1, "[")) {
+	/* array A = <expression> */
+	struct value a;
+	int save_token = ++c_token;
+	const_express(&a);
+	if (a.type != ARRAY) {
+	    free_value(&a);
+	    int_error(save_token, "not an array expression");
+	}
+	make_array_permanent(&a);
+	array->udv_value = a;
+	return;
+    }
 
     if (equals(c_token, "[")) {
 	c_token++;
 	nsize = int_expression();
 	if (!equals(c_token++,"]"))
-	    int_error(c_token-1, "expecting array[size>0]");
-    } else if (equals(c_token, "=") && equals(c_token+1, "[")) {
-	if (equals(c_token+2,"]"))
-	    empty_array = TRUE;
-	/* Estimate size of array by counting commas in the initializer */
-	for ( i = c_token+2; i < num_tokens; i++) {
-	    if (equals(i,",") || equals(i,"]"))
-		est_size++;
-	    if (equals(i,"]"))
-		break;
-	}
-	nsize = est_size;
+	    int_error(c_token-1, "expecting array[<size>]");
     }
-    if (nsize > 0)
-	init_array(array, nsize);
-    else
-	int_error(c_token-1, "expecting array[size>0]");
+
+    init_array(array, nsize);
 
     /* Element zero can also hold an indicator that this is a colormap */
-    A = array->udv_value.v.value_array;
     if (equals(c_token, "colormap")) {
 	c_token++;
-	if (nsize >= 2)	/* Need at least 2 entries to calculate range */
-	    A[0].type = COLORMAP_ARRAY;
+	array->udv_value.v.value_array[0].type = COLORMAP_ARRAY;
     }
 
     /* Initializer syntax:   array A[10] = [x,y,z,,"foo",] */
     if (equals(c_token, "=") && equals(c_token+1, "[")) {
-	int initializers = 0;
-	c_token += 2;
-	for (i = 1; i <= nsize; i++) {
-	    if (equals(c_token, "]"))
-		break;
-	    if (equals(c_token, ",")) {
-		initializers++;
-		c_token++;
-		continue;
-	    }
-	    const_express(&A[i]);
-	    if (A[i].type == ARRAY) {
-		if (A[i].v.value_array[0].type == TEMP_ARRAY)
-		    gpfree_array(&(A[i]));
-		A[i].type = NOTDEFINED;
-		int_error(c_token, "Cannot nest arrays");
-	    }
-	    initializers++;
-	    if (equals(c_token, "]"))
-		break;
-	    if (equals(c_token, ","))
-		c_token++;
-	    else
-		int_error(c_token, "expecting Array[size] = [x,y,...]");
-	}
 	c_token++;
-	/* If the size is determined by the number of initializers */
-	if (empty_array)
-	    A[0].v.int_val = 0;
-	else if (A[0].v.int_val == 0)
-	    A[0].v.int_val = initializers;
+	parse_array_constant(&(array->udv_value));
     }
 
     return;
@@ -1106,24 +1104,6 @@ iteration_early_exit()
  * Command parser functions
  */
 
-/* process the 'call' command */
-void
-call_command()
-{
-    char *save_file = NULL;
-
-    c_token++;
-    save_file = try_to_get_string();
-
-    if (!save_file)
-	int_error(c_token, "expecting filename");
-    gp_expand_tilde(&save_file);
-
-    /* Argument list follows filename */
-    load_file(loadpath_fopen(save_file, "r"), save_file, 2);
-}
-
-
 /* process the 'cd' command */
 void
 changedir_command()
@@ -1171,6 +1151,12 @@ eval_command()
 {
     char *command;
     c_token++;
+#ifdef USE_FUNCTIONBLOCKS
+    if (equals(c_token, "$") && isletter(c_token+1) && equals(c_token+2,"(")) {
+	(void)int_expression();	/* throw away any actual return value */
+	return;
+    }
+#endif
     command = try_to_get_string();
     if (!command)
 	int_error(c_token, "Expected command string");
@@ -1503,13 +1489,16 @@ do_command()
     } while (next_iteration(do_iterator));
     iteration_depth--;
 
+    /* FIXME:
+     * If any of the above exited via int_error() then this cleanup
+     * never happens and we leak memory for both clause and for the
+     * iterator itself.  But do_iterator cannot be static or global
+     * because do_command() can recurse.
+     */
     free(clause);
     end_clause();
     c_token = end_token;
 
-    /* FIXME:  If any of the above exited via int_error() then this	*/
-    /* cleanup never happens and we leak memory.  But do_iterator can	*/
-    /* not be static or global because do_command() can recurse.	*/
     do_iterator = cleanup_iteration(do_iterator);
     requested_break = FALSE;
     requested_continue = FALSE;
@@ -1634,7 +1623,7 @@ link_command()
 	    return;
 	else
 	    secondary_axis->linked_to_primary = NULL;
-	/* FIXME: could return here except for the need to free link_udf->at */
+	/* can't return yet because we need to free link_udf->at */
 	linked = FALSE;
     } else {
 	linked = TRUE;
@@ -1692,17 +1681,30 @@ link_command()
 	rrange_to_xy();
 }
 
-/* process the 'load' command */
 void
 load_command()
 {
+    load_or_call_command( FALSE );
+}
 
+void
+call_command()
+{
+    load_or_call_command( TRUE );
+}
+
+/* The load and call commands are identical except that
+ * call may be followed by a bunch of command line arguments
+ */
+static void
+load_or_call_command( TBOOLEAN call )
+{
     c_token++;
     if (equals(c_token, "$") && isletter(c_token+1) && !equals(c_token+2,"[")) {
 	/* "load" a datablock rather than a file */
 	/* datablock_name will eventually be freed by lf_pop() */
 	char *datablock_name = gp_strdup(parse_datablock_name());
-	load_file(NULL, datablock_name, 6);
+	load_file(NULL, datablock_name, call ? 7 : 6);
     } else {
 	/* These need to be local so that recursion works. */
 	/* They will eventually be freed by lf_pop(). */
@@ -1711,8 +1713,11 @@ load_command()
 	if (!save_file)
 	    int_error(c_token, "expecting filename");
 	gp_expand_tilde(&save_file);
-	fp = strcmp(save_file, "-") ? loadpath_fopen(save_file, "r") : stdout;
-	load_file(fp, save_file, 1);
+	if (!call && !strcmp(save_file, "-"))
+	    fp = stdout;
+	else
+	    fp = loadpath_fopen(save_file, "r");
+	load_file(fp, save_file, call ? 2 : 1);
     }
 }
 
@@ -1786,6 +1791,46 @@ clause_reset_after_error()
     iteration_depth = 0;
 }
 
+/* "local" is a modifier for introduction of a variable.
+ * The scope of the local variable is determined by the depth of the lf_push
+ * operation preceding its occurance.  This is indicated by storing
+ * lf_head->depth as the locality of the new variable.
+ * When a variable is retrieved by name, a name match with locality matching
+ * the current depth is chosen in preference to a global variable (locality 0).
+ * The local variable will be delete by the corresponding lf_pop.
+ */
+void
+local_command()
+{
+    int array_token = 0;
+    struct udvt_entry *udv = NULL;
+
+    c_token++;
+    if (equals(c_token,"array"))
+	array_token = c_token++;
+
+    /* Has no effect if encountered at the top level */
+    if (lf_head && lf_head->depth > 0) {
+	/* Define a new variable with this name
+	 * and locality equal to the current depth
+	 */
+	udv = add_udv_local(c_token, NULL, lf_head->depth);
+
+	/* flag that at least some local variables will go out of scope on lf_pop */
+	lf_head->local_variables = TRUE;
+    }
+
+    /* Create new local variable with this name */
+    if (array_token) {
+	c_token = array_token;
+	local_array_command(lf_head->depth);
+	if (udv && udv->udv_value.type == ARRAY)
+	    udv->udv_value.v.value_array[0].type = LOCAL_ARRAY;
+    } else {
+	define();
+    }
+}
+
 /* helper routine to multiplex mouse event handling with a timed pause command */
 void
 timed_pause(double sleep_time)
@@ -1817,15 +1862,15 @@ pause_command()
 
     c_token++;
 
+   /*	Ignore pause commands in certain contexts to avoid bad behavior */
+   filter_multiplot_playback();
+
 #ifdef USE_MOUSE
     paused_for_mouse = 0;
     if (equals(c_token, "mouse")) {
 	sleep_time = -1;
 	c_token++;
 
-/*	EAM FIXME - This is not the correct test; what we really want */
-/*	to know is whether or not the terminal supports mouse feedback */
-/*	if (term_initialised) { */
 	if (mouse_setting.on && term) {
 	    struct udvt_entry *current;
 	    int end_condition = 0;
@@ -1865,8 +1910,10 @@ pause_command()
 	    Ginteger(&current->udv_value,-1);
 	    current = add_udv_by_name("MOUSE_BUTTON");
 	    Ginteger(&current->udv_value,-1);
-	} else
+	} else {
 	    int_warn(NO_CARET, "Mousing not active");
+	    while (!END_OF_COMMAND) c_token++;
+	}
     } else
 #endif
 	sleep_time = real_expression();
@@ -1904,12 +1951,17 @@ pause_command()
 		/* Use of fprintf() triggers a bug in MinGW + SJIS encoding */
 		fputs(buf, stderr); fputc('\n', stderr);
 	    }
-	    /* cannot use EAT_INPUT_WITH here */
-	    do {
-		junk = getch();
-		if (ctrlc_flag)
-		    bail_to_command_line();
-	    } while (junk != EOF && junk != '\n' && junk != '\r');
+	    /* Note: cannot use EAT_INPUT_WITH here
+	     * FIXME: probably term->waitforinput is always correct, not just for qt
+	     */
+	    if (!strcmp(term->name,"qt"))
+		term->waitforinput(0);
+	    else
+		do {
+		    junk = getch();
+		    if (ctrlc_flag)
+			bail_to_command_line();
+		} while (junk != EOF && junk != '\n' && junk != '\r');
 	} else /* paused_for_mouse */
 # endif /* !WGP_CONSOLE */
 	{
@@ -1964,8 +2016,9 @@ pause_command()
 #else /* !(_WIN32 || OS2) */
 # ifdef USE_MOUSE
 	if (term && term->waitforinput) {
-	    /* It does _not_ work to do EAT_INPUT_WITH(term->waitforinput()) */
-	    term->waitforinput(0);
+	    int terminating_char = term->waitforinput(0);
+	    if (isalnum(terminating_char))
+		ungetc(terminating_char, stdin);
 	} else
 # endif /* USE_MOUSE */
 # ifdef MSDOS
@@ -2022,10 +2075,14 @@ plot_command()
     add_udv_by_name("MOUSE_ALT")->udv_value.type = NOTDEFINED;
     add_udv_by_name("MOUSE_CTRL")->udv_value.type = NOTDEFINED;
 #endif
+    if (evaluate_inside_functionblock && inside_plot_command)
+	int_error(NO_CARET, "plot command not available in this context");
+    inside_plot_command = TRUE;
     plotrequest();
     /* Clear "hidden" flag for any plots that may have been toggled off */
     if (term->modify_plots)
 	term->modify_plots(MODPLOTS_SET_VISIBLE, -1);
+    inside_plot_command = FALSE;
     SET_CURSOR_ARROW;
 }
 
@@ -2079,22 +2136,24 @@ print_set_output(char *name, TBOOLEAN datablock, TBOOLEAN append_p)
 	}
     } else {
 	/* Make sure we will not overwrite the current input. */
-	LFS *frame = lf_head;
-	for (frame = lf_head; frame; frame = frame->prev) {
-	    if (frame->name && !strcmp(name, frame->name)) {
-		free(name);
-		int_error(NO_CARET, "Attempt to set print output to overwrite input %s",
-			frame->name);
-	    }
+	if (called_from(name)) {
+	    free(name);
+	    int_error(NO_CARET, "print output must not overwrite input");
 	}
 
+	/* We already know the name begins with $,
+	 * so the udv is either a new empty variable (no need to clear)
+	 * an existing datablock (append or clear according to flag)
+	 * or (probably by mistake) a voxel grid (clear before use).
+	 */
 	print_out_var = add_udv_by_name(name);
-	if (!append_p)
+	if (!append_p) {
 	    gpfree_datablock(&print_out_var->udv_value);
-	/* If this is not an existing datablock to be appended */
-	/* then make it a new empty datablock */
+	    gpfree_functionblock(&print_out_var->udv_value);
+	}
 	if (print_out_var->udv_value.type != DATABLOCK) {
 	    free_value(&print_out_var->udv_value);
+	    gpfree_vgrid(print_out_var);
 	    print_out_var->udv_value.type = DATABLOCK;
 	    print_out_var->udv_value.v.data_array = NULL;
 	}
@@ -2120,9 +2179,12 @@ void
 printerr_command()
 {
     FILE *save_print_out = print_out;
+    struct udvt_entry *save_print_out_var = print_out_var;
 
     print_out = stderr;
+    print_out_var = NULL;
     print_command();
+    print_out_var = save_print_out_var;
     print_out = save_print_out;
 }
 
@@ -2131,8 +2193,12 @@ void
 print_command()
 {
     struct value a;
-    /* space printed between two expressions only */
+    int save_token;
+
+    /* field separator is not needed for the first entry */
     TBOOLEAN need_space = FALSE;
+    char *field_sep = print_sep ? print_sep : " ";
+
     char *dataline = NULL;
     size_t size = 256;
     size_t len = 0;
@@ -2146,13 +2212,34 @@ print_command()
     screen_ok = FALSE;
     do {
 	++c_token;
-	if (equals(c_token, "$") && isletter(c_token+1) && !equals(c_token+2,"[")) {
+	if (equals(c_token, "$") && isletter(c_token+1)
+	&&  !equals(c_token+2,"[") && !equals(c_token+2,"(")) {
+	    char **line;
 	    char *datablock_name = parse_datablock_name();
-	    char **line = get_datablock(datablock_name);
+	    struct udvt_entry *block = get_udv_by_name(datablock_name);
+
+	    if (!block)
+		int_error(c_token, "no block named %s", datablock_name);
+#ifdef USE_FUNCTIONBLOCKS
+	    if (block->udv_value.type == FUNCTIONBLOCK
+	    &&  (print_out_var == NULL)) {
+		line = block->udv_value.v.functionblock.parnames;
+		fprintf(print_out, "function %s( ", datablock_name);
+		while (line && *line) {
+		    fprintf(print_out, "%s ", *line);
+		    line++;
+		}
+		fprintf(print_out, ")\n");
+		line = block->udv_value.v.functionblock.data_array;
+	    } else
+#endif	/* USE_FUNCTIONBLOCKS */
+		line = block->udv_value.v.data_array;
 
 	    /* Printing a datablock into itself would cause infinite recursion */
 	    if (print_out_var && !strcmp(datablock_name, print_out_name))
 		continue;
+	    if (need_space && !print_out_var)
+		fprintf(print_out, "\n");
 
 	    while (line && *line) {
 		if (print_out_var != NULL)
@@ -2161,41 +2248,83 @@ print_command()
 		    fprintf(print_out, "%s\n", *line);
 		line++;
 	    }
+	    need_space = FALSE;
 	    continue;
 	}
+
+	/* Prepare for possible iteration */
+	save_token = c_token;
+	print_iterator = check_for_iteration();
+	if (empty_iteration(print_iterator)) {
+	    const_express(&a);
+	    print_iterator = cleanup_iteration(print_iterator);
+	    continue;
+	}
+	if (forever_iteration(print_iterator)) {
+	    print_iterator = cleanup_iteration(print_iterator);
+	    int_error(save_token, "unbounded iteration not accepted here");
+	}
+	save_token = c_token;
+	ITERATE:
+
+	/* All entries other than the first one on a line */
+	if (need_space) {
+	    if (dataline != NULL)
+		len = strappend(&dataline, &size, len, field_sep);
+	    else
+		fputs(field_sep, print_out);
+	}
+	need_space = TRUE;
+
 	const_express(&a);
 	if (a.type == STRING) {
 	    if (dataline != NULL)
 		len = strappend(&dataline, &size, len, a.v.string_val);
 	    else
 		fputs(a.v.string_val, print_out);
-	    need_space = FALSE;
+	    gpfree_string(&a);
 	} else if (a.type == ARRAY) {
-	    save_array_content(print_out, a.v.value_array);
-	    if (a.v.value_array[0].type == TEMP_ARRAY)
-		gpfree_array(&a);
-	    continue;
-	} else {
-	    if (need_space) {
-		if (dataline != NULL)
-		    len = strappend(&dataline, &size, len, " ");
-		else
-		    putc(' ', print_out);
+	    struct value *array = a.v.value_array;
+	    if (dataline != NULL) {
+		int i;
+		int arraysize = array[0].v.int_val;
+		len = strappend(&dataline, &size, len, "[");
+		for (i = 1; i <= arraysize; i++) {
+		    if (array[i].type != NOTDEFINED)
+			len = strappend(&dataline, &size, len, value_to_str(&array[i], TRUE));
+		    if (i < arraysize)
+			len = strappend(&dataline, &size, len, ",");
+		}
+		len = strappend(&dataline, &size, len, "]");
+	    } else {
+		save_array_content(print_out, array);
 	    }
+	    if (array[0].type == TEMP_ARRAY)
+		gpfree_array(&a);
+	    a.type = NOTDEFINED;
+	} else {
 	    if (dataline != NULL)
 		len = strappend(&dataline, &size, len, value_to_str(&a, FALSE));
 	    else
 		disp_value(print_out, &a, FALSE);
-	    need_space = TRUE;
 	}
-	free_value(&a);
+	/* Any other value types besides STRING and ARRAY that need memory freed? */
+
+	if (next_iteration(print_iterator)) {
+	    c_token = save_token;
+	    goto ITERATE;
+	} else {
+	    print_iterator = cleanup_iteration(print_iterator);
+	}
 
     } while (!END_OF_COMMAND && equals(c_token, ","));
 
-    if (dataline != NULL) {
+    if (dataline) {
+	if (print_out_var == NULL)
+	    int_error(NO_CARET, "print destination was clobbered");
 	append_multiline_to_datablock(&print_out_var->udv_value, dataline);
     } else {
-	(void) putc('\n', print_out);
+	putc('\n', print_out);
 	fflush(print_out);
     }
 }
@@ -2233,6 +2362,9 @@ void
 refresh_request()
 {
     AXIS_INDEX axis;
+    if (evaluate_inside_functionblock && inside_plot_command)
+	int_error(NO_CARET, "refresh command not available in this context");
+    inside_plot_command = TRUE;
 
     if (   ((first_plot == NULL) && (refresh_ok == E_REFRESH_OK_2D))
 	|| ((first_3dplot == NULL) && (refresh_ok == E_REFRESH_OK_3D))
@@ -2270,7 +2402,7 @@ refresh_request()
 	if (this_axis->linked_to_secondary)
 	    clone_linked_axes(this_axis, this_axis->linked_to_secondary);
 	else if (this_axis->linked_to_primary) {
-	    if (this_axis->linked_to_primary->autoscale != AUTOSCALE_BOTH)
+	    if ((this_axis->linked_to_primary->autoscale & AUTOSCALE_BOTH) != AUTOSCALE_BOTH)
 	    clone_linked_axes(this_axis, this_axis->linked_to_primary);
 	}
     }
@@ -2286,6 +2418,7 @@ refresh_request()
     } else
 	int_error(NO_CARET, "Internal error - refresh of unknown plot type");
 
+    inside_plot_command = FALSE;
 }
 
 /* process the 'replot' command */
@@ -2317,7 +2450,13 @@ replot_command()
     SET_CURSOR_WAIT;
     if (term->flags & TERM_INIT_ON_REPLOT)
 	term->init();
-    replotrequest();
+
+    /* EXPERIMENTAL */
+    if (last_plot_was_multiplot && !multiplot)
+	replay_multiplot();
+    else
+	replotrequest();
+
     SET_CURSOR_ARROW;
 }
 
@@ -2326,13 +2465,41 @@ replot_command()
 void
 reread_command()
 {
+#ifdef BACKWARD_COMPATIBILITY
     FILE *fp = lf_top();
-
+    if (evaluate_inside_functionblock)
+	int_error(NO_CARET, "reread command not possible in a function block");
     if (fp != (FILE *) NULL)
 	rewind(fp);
     c_token++;
+#else
+    int_error(c_token, "deprecated command");
+#endif
 }
 
+#ifdef USE_FUNCTIONBLOCKS
+/* 'return <expression>' clears or sets a return value and then acts
+ * like 'exit' to return to the caller immediately.  The only way that
+ * anything sees the return value is if the 'return' statement is
+ * executed inside a function block.
+ */
+void
+return_command()
+{
+    c_token++;
+    gpfree_string(&eval_return_value);
+    if (!END_OF_COMMAND) {
+	const_express(&eval_return_value);
+	if (eval_return_value.type == ARRAY) {
+	    make_array_permanent(&eval_return_value);
+	    eval_return_value.v.value_array[0].type = TEMP_ARRAY;
+	}
+    }
+    command_exit_requested = 1;
+}
+#else	/* USE_FUNCTIONBLOCKS */
+void return_command() {}
+#endif	/* USE_FUNCTIONBLOCKS */
 
 /* process the 'save' command */
 void
@@ -2436,11 +2603,16 @@ screendump_command()
 
 
 /* set_command() is in set.c */
-
-/* 'shell' command is processed by do_shell(), see below */
-
 /* show_command() is in show.c */
 
+/* 'shell' command is processed by do_shell(), see below */
+void
+shell_command()
+{
+    if (evaluate_inside_functionblock)
+	int_error(NO_CARET, "bare shell commands not accepted in a function block");
+    do_shell();
+}
 
 /* process the 'splot' command */
 void
@@ -2459,10 +2631,14 @@ splot_command()
     add_udv_by_name("MOUSE_Y2")->udv_value.type = NOTDEFINED;
     add_udv_by_name("MOUSE_BUTTON")->udv_value.type = NOTDEFINED;
 #endif
+    if (evaluate_inside_functionblock && inside_plot_command)
+	int_error(NO_CARET, "splot command not available in this context");
+    inside_plot_command = TRUE;
     plot3drequest();
     /* Clear "hidden" flag for any plots that may have been toggled off */
     if (term->modify_plots)
 	term->modify_plots(MODPLOTS_SET_VISIBLE, -1);
+    inside_plot_command = FALSE;
     SET_CURSOR_ARROW;
 }
 
@@ -2471,7 +2647,11 @@ void
 stats_command()
 {
 #ifdef USE_STATS
+    if (evaluate_inside_functionblock && inside_plot_command)
+	int_error(NO_CARET, "stats command not available in this context");
+    inside_plot_command = TRUE;
     statsrequest();
+    inside_plot_command = FALSE;
 #else
     int_error(NO_CARET,"This copy of gnuplot was not configured with support for the stats command");
 #endif
@@ -2546,8 +2726,7 @@ $PALETTE u 1:2 t 'red' w l lt 1 lc rgb 'red',\
 
     /* Store R/G/B/Int curves in a datablock */
     datablock = add_udv_by_name("$PALETTE");
-    if (datablock->udv_value.type != NOTDEFINED)
-	gpfree_datablock(&datablock->udv_value);
+    free_value(&datablock->udv_value);
     datablock->udv_value.type = DATABLOCK;
     datablock->udv_value.v.data_array = NULL;
 
@@ -3617,10 +3796,13 @@ expand_1level_macros()
     for (c=temp_string; len && c && *c; c++, len--) {
 	switch (*c) {
 	case '@':	/* The only tricky bit */
-		if (!in_squote && !in_dquote && !in_comment && isalpha((unsigned char)c[1])) {
+		if (!in_squote && !in_dquote && !in_comment
+			&& (isalpha((unsigned char)c[1]) || ALLOWED_8BITVAR(c[1]))) {
 		    /* Isolate the udv key as a null-terminated substring */
 		    m = ++c;
-		    while (isalnum((unsigned char )*c) || (*c=='_')) c++;
+		    while (isalnum((unsigned char )*c) || (*c=='_')
+			|| ALLOWED_8BITVAR(*c))
+			c++;
 		    temp_char = *c; *c = '\0';
 		    /* Look up the key and restore the original following char */
 		    udv = get_udv_by_name(m);

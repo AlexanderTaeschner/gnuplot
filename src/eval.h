@@ -54,6 +54,7 @@ enum operators {
     DOLLARS,
     CONCATENATE, EQS, NES, RANGE, INDEX, CARDINALITY,
     ASSIGN,
+    EVAL,
     /* only jump operators go between jump and sf_start, for is_jump() */
     JUMP, JUMPZ, JUMPNZ, JTERN, SF_START,
 
@@ -63,7 +64,8 @@ enum operators {
 #endif
 
     /* functions specific to using spec */
-    COLUMN, STRINGCOLUMN, STRCOL, COLUMNHEAD
+    COLUMN, STRINGCOLUMN, STRCOL, COLUMNHEAD, COLUMNHEADER,
+    VALID, TIMECOLUMN
 };
 #define is_jump(operator) \
     ((operator) >=(int)JUMP && (operator) <(int)SF_START)
@@ -89,6 +91,8 @@ typedef struct udvt_entry {
     struct udvt_entry *next_udv; /* pointer to next value in linked list */
     char *udv_name;		/* name of this value entry */
     t_value udv_value;		/* value it has */
+    int locality;		/* LFS depth at which this variable was declared */
+				/* locality=0 (the usual case) for a global variable */
 } udvt_entry;
 
 /* p-code argument */
@@ -139,6 +143,8 @@ extern TBOOLEAN undefined;
 
 extern enum int64_overflow overflow_handling;
 
+extern TBOOLEAN eval_fail_soft;	/* failed evaluation returns NaN rather than calling int_error() */
+
 /* Prototypes of functions exported by eval.c */
 
 double gp_exp(double x);
@@ -152,6 +158,7 @@ struct value * Gcomplex(struct value *, double, double);
 struct value * Ginteger(struct value *, intgr_t);
 struct value * Gstring(struct value *, char *);
 struct value * pop_or_convert_from_string(struct value *);
+void clone_string_value(t_value *value);
 void free_value(struct value *a);
 void gpfree_string(struct value *a);
 void gpfree_array(struct value *a);
@@ -179,6 +186,7 @@ void real_free_at(struct at_type *at_ptr);
 void free_action_entry(struct at_entry *a);
 struct udvt_entry * add_udv_by_name(char *key);
 struct udvt_entry * get_udv_by_name(char *key);
+struct udft_entry * get_udf_by_token(int token);
 void del_udv_by_name( char *key, TBOOLEAN isWildcard );
 void clear_udf_list(void);
 

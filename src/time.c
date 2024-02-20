@@ -39,10 +39,10 @@
 
 
 #include "gp_time.h"
+#include "gplocale.h"
 #include "eval.h"
 
 #include "util.h"
-#include "variable.h"
 
 const struct gen_table timelevels_tbl[] =
 {
@@ -53,7 +53,7 @@ const struct gen_table timelevels_tbl[] =
     { "week$s",   TIMELEVEL_WEEKS },
     { "mon$ths",  TIMELEVEL_MONTHS },
     { "year$s",   TIMELEVEL_YEARS },
-    { NULL, -1 }
+    { NULL,       TIMELEVEL_DEFAULT }
 };
 
 static char *read_int(char *s, int nr, int *d);
@@ -102,8 +102,6 @@ gdysize(int yr)
  *		(tD tH tM tS).  The relative time in seconds is returned
  *		in reltime.
  * DT_BAD	time format could not be interpreted
- *
- * parameters and return values revised for gnuplot version 5.3
  */
 
 td_type

@@ -106,10 +106,14 @@ void do_event(struct gp_event_t *ge);
 TBOOLEAN exec_event(char type, int mx, int my, int par1, int par2, int winid); /* wrapper for do_event() */
 int plot_mode(int mode);
 void event_reset(struct gp_event_t *ge);
+void zoom_reset_after_error(void);
 
 /* bind prototype(s) */
 
 void bind_process(char* lhs, char* rhs, TBOOLEAN allwindows);
 void bind_remove_all(void);
+
+/* mechanism for the core code to query the last-known mouse coordinates */
+extern void get_last_mouse_xy( double *x, double *y );
 
 #endif /* !_HAVE_MOUSE_H */

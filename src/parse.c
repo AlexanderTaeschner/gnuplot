@@ -36,7 +36,6 @@
 #include "command.h"
 #include "datablock.h"
 #include "eval.h"
-#include "help.h"
 #include "util.h"
 
 /* Protection mechanism for trying to parse a string followed by a + or - sign.
@@ -64,6 +63,7 @@ udvt_entry *df_array = NULL;
 /* Iteration structures used for bookkeeping */
 t_iterator * plot_iterator = NULL;
 t_iterator * set_iterator = NULL;
+t_iterator * print_iterator = NULL;
 
 /* Internal prototypes: */
 
@@ -97,6 +97,7 @@ static void parse_unary_expression(void);
 static void parse_sum_expression(void);
 static int  parse_assignment_expression(void);
 static int  parse_array_assignment_expression(void);
+static void parse_function_block(void);
 
 static void set_up_columnheader_parsing(struct at_entry *previous );
 
@@ -207,9 +208,16 @@ string_or_express(struct at_type **atptr)
     if (END_OF_COMMAND)
 	int_error(c_token, "expression expected");
 
-    /* parsing for datablocks */
-    if (equals(c_token,"$"))
-	return parse_datablock_name();
+    /* distinguish data blocks from function blocks */
+    if (equals(c_token,"$")) {
+	int save_token = c_token;
+	char *name = parse_datablock_name();
+	udvt_entry *udv = get_udv_by_name(name);
+	if (udv && (udv->udv_value.type == FUNCTIONBLOCK))
+	    c_token = save_token;
+	else
+	    return name;
+    }
 
     /* special keywords */
     if (equals(c_token,"keyentry"))
@@ -266,9 +274,14 @@ string_or_express(struct at_type **atptr)
 	}
     }
 
-    /* prepare return */
-    if (atptr)
-	*atptr  = at;
+    /* The function for a function plot will be stored in the plot header. */
+    if (atptr && !str) {
+	size_t len = sizeof(struct at_type)
+		   + (at->a_count - MAX_AT_LEN) * sizeof(struct at_entry);
+	*atptr = (struct at_type *) realloc(at, len);
+	at = NULL;
+    }
+
     return str;
 }
 
@@ -320,7 +333,7 @@ create_call_column_at(char *string)
 
     at->a_count = 2;
     at->actions[0].index = PUSHC;
-    at->actions[0].arg.j_arg = 3;	/* FIXME - magic number! */
+    at->actions[0].arg.j_arg = 0;
     at->actions[0].arg.v_arg.type = STRING;
     at->actions[0].arg.v_arg.v.string_val = string;
     at->actions[1].index = COLUMN;
@@ -338,7 +351,7 @@ create_call_columnhead()
 
     at->a_count = 2;
     at->actions[0].index = PUSHC;
-    at->actions[0].arg.j_arg = 3;	/* FIXME - magic number! */
+    at->actions[0].arg.j_arg = 0;
     at->actions[0].arg.v_arg.type = INTGR;
     at->actions[0].arg.v_arg.v.int_val = -1;
     at->actions[1].index = COLUMNHEAD;
@@ -358,6 +371,29 @@ extend_at()
     at_size += MAX_AT_LEN;
     FPRINTF((stderr, "Extending at size to %d\n", at_size));
 }
+
+#ifdef USE_FUNCTIONBLOCKS
+/* The f_eval operation supporting function blocks restarts command parsing
+ * inside an existing evaluation stack.
+ * In order to not corrupt that existing stack, we must save its action table,
+ * hide it from the parser,  and allow f_eval to restore it afterwards.
+ */
+void
+cache_at( struct at_type **shadow_at, int *shadow_at_size )
+{
+    *shadow_at = at;
+    *shadow_at_size = at_size;
+    at = NULL;
+}
+void
+uncache_at( struct at_type *shadow_at, int shadow_at_size )
+{
+    free_at(at);
+    at = shadow_at;
+    at_size = shadow_at_size;
+}
+#endif	/* USE_FUNCTIONBLOCKS */
+
 
 /* Add function number <sf_index> to the current action table */
 static union argument *
@@ -462,7 +498,7 @@ static void
 accept_multiplicative_expression()
 {
     parse_unary_expression();			/* - things */
-    parse_multiplicative_expression();			/* * / % */
+    parse_multiplicative_expression();		/* * / % */
 }
 
 static int
@@ -470,10 +506,22 @@ parse_assignment_expression()
 {
     /* Check for assignment operator Var = <expr> */
     if (isletter(c_token) && equals(c_token + 1, "=")) {
-
-	/* push the variable name */
-	union argument *foo = add_action(PUSHC);
+	union argument *foo;
 	char *varname = NULL;
+
+	/* We're going to push the name of the variable receiving a new value,
+	 * but if it's a dummy variable in a function definition that can't work.
+	 */
+	if (dummy_func) {
+	    int i;
+	    for (i = 0; i < MAX_NUM_VAR; i++) {
+		if (equals(c_token, c_dummy_var[i]))
+		    int_error(c_token, "Cannot assign to a dummy variable");
+	    }
+	}
+
+	/* Push the name of the variable */
+	foo = add_action(PUSHC);
 	m_capture(&varname,c_token,c_token);
 	foo->v_arg.type = STRING;
 	foo->v_arg.v.string_val = varname;
@@ -483,12 +531,13 @@ parse_assignment_expression()
 	parse_expression();
 
 	/* push the actual assignment operation */
-	(void) add_action(ASSIGN);
+	foo = add_action(ASSIGN);
+	foo->v_arg.type = 0;	/* could be anything but ARRAY */
 	return 1;
     }
 
     /* Check for assignment to an array element Array[<expr>] = <expr> */
-    if (isletter(c_token) && (type_udv(c_token) == ARRAY)) {
+    if (isletter(c_token) && equals(c_token+1,"[")) {
 	if (parse_array_assignment_expression())
 	    return 1;
     }
@@ -498,7 +547,7 @@ parse_assignment_expression()
 
 /*
  * If an array assignment is the first thing on a command line it is handled by
- * the separate routine array_assignment().
+ * the separate routine is_array_assignment().
  * Here we catch assignments that are embedded in an expression.
  * Examples:
  *	print A[2] = foo
@@ -512,6 +561,7 @@ parse_array_assignment_expression()
 	char *varname = NULL;
 	union argument *foo;
 	int save_action, save_token;
+	TBOOLEAN standard_at;
 	int i;
 
 	/* Quick checks for the most common false positives */
@@ -539,17 +589,40 @@ parse_array_assignment_expression()
 	c_token += 2;
 	parse_expression();
 
-	/* push the array name */
-	foo = add_action(PUSHC);
-	foo->v_arg.type = STRING;
-	foo->v_arg.v.string_val = varname;
-
-	/* If this wasn't really an array element assignment, back out.
-	 * NB: foo is on the action list, so varname will be freed in this loop.
+	/* Now it gets tricky.  If the name we just saw is a dummy parameter
+	 * rather than a true variable name we can't use the standard action table
+	 * 	PUSH index; PUSH "name"; PUSH <value>; ASSIGN
+	 * we must either treat this as an error or invent a new sequence
+	 *	PUSH index; PUSHDn; PUSH <value>; ASSIGN
+	 * with corresponding code in f_assign() that recognizes it must replace
+	 * the entry via a pointer to it in the array stored in dummy_var[].
 	 */
+	standard_at = TRUE;
+	if (dummy_func) {
+	    for (i = 0; i < MAX_NUM_VAR; i++) {
+		if (equals(save_token, c_dummy_var[i])) {
+		    foo = add_action(PUSHC);
+		    foo->v_arg.type = INTGR;
+		    foo->v_arg.v.int_val = i;
+		    add_action(PUSHD)->udf_arg = dummy_func;
+		    standard_at = FALSE;
+		    break;
+		}
+	    }
+	}
+
+	if (standard_at) {
+	    /* push the array name */
+	    foo = add_action(PUSHC);
+	    foo->v_arg.type = STRING;
+	    foo->v_arg.v.string_val = varname;
+	} else {
+	    free(varname);
+	}
+
+	/* If this wasn't really an array element assignment, back out. */
 	if (!equals(c_token, "]") || !equals(c_token+1, "=")) {
-	    int i;
-	    for (i=save_action+1; i<at->a_count; i++) {
+	    for (i = save_action; i < at->a_count; i++) {
 		struct at_entry *a = &(at->actions[i]);
 		free_action_entry(a);
 	    }
@@ -563,7 +636,15 @@ parse_array_assignment_expression()
 	parse_expression();
 
 	/* push the actual assignment operation */
-	(void) add_action(ASSIGN);
+	foo = add_action(ASSIGN);
+
+	/* This is a flag to indicate to f_assign that the assignment is
+	 * to an element of an array, rather than to a named array variable.
+	 * The ASSIGN action->v_arg is not itself an array so make sure
+	 * no one will ever try to dereference it.
+	 */
+	foo->v_arg.type = ARRAY;
+	foo->v_arg.v.value_array = NULL;
 	return 1;
     }
 
@@ -592,9 +673,10 @@ parse_primary_expression()
 	if (!equals(c_token, ")"))
 	    int_error(c_token, "')' expected");
 	c_token++;
+    } else if (equals(c_token, "$") && equals(c_token+2, "(")) {
+	parse_function_block();
     } else if (equals(c_token, "$")) {
 	struct value a;
-
 	c_token++;
 	if (!isanumber(c_token)) {
 	    if (equals(c_token+1, "[")) {
@@ -678,6 +760,10 @@ parse_primary_expression()
 		if (!strcmp(ft[whichfunc].f_name,"column")) {
 		    set_up_columnheader_parsing( &(at->actions[at->a_count-1]) );
 		}
+
+		/* split( "string" {, "sep"} ) has an optional 2nd parameter */
+		if (!strcmp(ft[whichfunc].f_name,"split"))
+		    add_action(PUSHC)->v_arg = num_params;
 
 		(void) add_action(whichfunc);
 
@@ -1212,6 +1298,106 @@ parse_sum_expression()
     add_action(SUM)->udf_arg = udf;
 }
 
+/* Fill in array elements read from the command line
+ *    [ element1, element2, ... ]
+ */
+void
+parse_array_constant( t_value *array )
+{
+    t_value *element;
+    int current_size;
+    int max_size;
+    int i = 1;
+
+    if (array->type != ARRAY || !equals(c_token, "["))
+	return; /* should never happen */
+
+    current_size = array->v.value_array[0].v.int_val;
+    max_size = current_size;
+    c_token++;
+
+    while (!END_OF_COMMAND) {
+	if (i > max_size) {
+	    max_size = (max_size < 10) ? 10 : 2*max_size;
+	    array->v.value_array = gp_realloc( array->v.value_array,
+		(max_size+1) * sizeof(t_value), "load_array");
+	}
+	element = &(array->v.value_array[i++]);
+	if (equals(c_token,",") || equals(c_token,"]")) {
+	    element->type = NOTDEFINED;
+	} else {
+	    const_express(element);
+	    if (element->type == ARRAY) {
+		if (element->v.value_array[0].type == TEMP_ARRAY)
+		    gpfree_array(element);
+		element->type = NOTDEFINED;
+		int_warn(c_token, "Cannot nest arrays");
+	    }
+	}
+	if (equals(c_token, "]"))
+	    break;
+	if (!equals(c_token, ","))
+	    int_error(c_token, "array syntax error");
+	else
+	    c_token++;
+    }
+    if (current_size == 0)
+	current_size = i-1;
+    array->v.value_array[0].v.int_val = current_size;
+
+    /* trim off excess (not strictly necessary) */
+    if (max_size > current_size) {
+	array->v.value_array = gp_realloc( array->v.value_array,
+	    (current_size+1) * sizeof(t_value), "trim array");
+    }
+
+    if (!equals(c_token++,"]"))
+	int_error(c_token, "array syntax error");
+}
+
+
+/* create action table entries to execute a function block */
+#ifdef USE_FUNCTIONBLOCKS
+static void
+parse_function_block()
+{
+    /* $functionblock( arg1, ... )
+     * evaluation stack -> EVAL with pointer to function block udvt_entry
+     *                     num_params (including the block pointer)
+     *                     function params
+     */
+    struct udvt_entry *functionblock;
+    struct value num_params = {.type = INTGR};
+    int nparams;
+
+    functionblock = get_udv_by_name(parse_datablock_name());
+    if (!functionblock || functionblock->udv_value.type != FUNCTIONBLOCK)
+	int_error(c_token-1, "Not a function block");
+    c_token++;	/* skip '(' */
+    nparams = 0;
+    if (!equals(c_token,")")) {
+	parse_expression();
+	nparams++;
+	while (equals(c_token, ",")) {
+	    c_token++;
+	    parse_expression();
+	    nparams++;
+	}
+    }
+    if (!equals(c_token, ")"))
+	int_error(c_token, "')' expected");
+    num_params.v.int_val = nparams;
+    c_token++;
+    add_action(PUSHC)->v_arg = num_params;
+    add_action(EVAL)->udv_arg = functionblock;
+}
+#else	/* USE_FUNCTIONBLOCKS */
+static void parse_function_block()
+{
+    int_error(c_token, "This copy of gnuplot does not support function block evaluation");
+}
+
+#endif	/* USE_FUNCTIONBLOCKS */
 
 /* find or add value and return pointer */
 struct udvt_entry *
@@ -1223,6 +1409,37 @@ add_udv(int t_num)
 	int_warn(t_num, "truncating variable name that is too long");
     return add_udv_by_name(varname);
 }
+
+/* Local variable declaration *always* creates a new udf.
+ * Put it at the head of the list on the assumption that it will
+ * be used soon and often.  This also means that a local variable
+ * with name FOO will always be encountered before a global
+ * (or less-nested local) variable with the same name.
+ * We are passed either a token (get name from command line) or
+ * a string (name is already known), but not both.
+ */
+struct udvt_entry *
+add_udv_local(int t_num, char *name, int locality)
+{
+    struct udvt_entry *udv_ptr;
+    char varname[MAX_ID_LEN+1];
+
+    if (!name) {
+	copy_str(varname, t_num, MAX_ID_LEN);
+	if (token[t_num].length > MAX_ID_LEN-1)
+	    int_warn(t_num, "truncating variable name that is too long");
+	name = varname;
+    }
+
+    udv_ptr = (struct udvt_entry *) gp_alloc(sizeof(struct udvt_entry), "local");
+    udv_ptr->next_udv = first_udv->next_udv;
+    first_udv->next_udv = udv_ptr;
+    udv_ptr->udv_name = gp_strdup(name);
+    udv_ptr->udv_value.type = NOTDEFINED;
+    udv_ptr->locality = locality;
+    return udv_ptr;
+}
+
 
 
 /* find or add function at index <t_num>, and return pointer */
@@ -1307,7 +1524,9 @@ is_function(int t_num)
 t_iterator *
 check_for_iteration()
 {
-    char *errormsg = "Expecting iterator \tfor [<var> = <start> : <end> {: <incr>}]\n\t\t\tor\tfor [<var> in \"string of words\"]";
+    char *errormsg = "Expected   for [<var> = <start> : <end> {: <incr>}]\n"
+		        "\t\tor  for [<var> in Array]\n"
+		        "\t\tor  for [<var> in \"string of words\"]";
     int nesting_depth = 0;
     t_iterator *iter = NULL;
     t_iterator *prev = NULL;
@@ -1320,11 +1539,12 @@ check_for_iteration()
 	struct udvt_entry *iteration_udv = NULL;
 	t_value original_udv_value;
 	char *iteration_string = NULL;
-	int iteration_start;
-	int iteration_end;
-	int iteration_increment = 1;
-	int iteration_current;
-	int iteration = 0;
+	t_value iteration_array = { .type = NOTDEFINED };
+	intgr_t iteration_start;
+	intgr_t iteration_end;
+	intgr_t iteration_increment = 1;
+	intgr_t iteration_current;
+	intgr_t iteration = 0;
 	struct at_type *iteration_start_at = NULL;
 	struct at_type *iteration_end_at = NULL;
 
@@ -1372,7 +1592,9 @@ check_for_iteration()
 	    }
 	    if (equals(c_token,":")) {
 	    	c_token++;
-	    	iteration_increment = int_expression();
+		/* Allow empty expression to act as the default would */
+		if (!equals(c_token,"]"))
+		    iteration_increment = int_expression();
 		if (iteration_increment == 0)
 		    int_error(c_token-1, errormsg);
 	    }
@@ -1380,25 +1602,35 @@ check_for_iteration()
 	    	int_error(c_token-1, errormsg);
 	    free_value(&(iteration_udv->udv_value));
 	    Ginteger(&(iteration_udv->udv_value), iteration_start);
-	}
-	else if (equals(c_token++, "in")) {
-	    /* Assume this is a string-valued expression. */
-	    /* It might be worth treating a string constant as a special case */
+
+	} else if (equals(c_token++, "in")) {
 	    struct value v;
 	    iteration_start_at = perm_at();
 	    evaluate_at(iteration_start_at, &v);
-	    if (v.type != STRING)
-	    	int_error(c_token-1, errormsg);
 	    if (!equals(c_token++, "]"))
-	    	int_error(c_token-1, errormsg);
-	    iteration_string = v.v.string_val;
-	    iteration_start = 1;
-	    iteration_end = gp_words(iteration_string);
-	    free_value(&(iteration_udv->udv_value));
-	    Gstring(&(iteration_udv->udv_value), gp_word(iteration_string, 1));
-	}
-	else /* Neither [i=B:E] or [s in "foo"] */
+		int_error(c_token-1, errormsg);
+	    if (v.type == STRING) {
+		iteration_string = v.v.string_val;
+		iteration_start = 1;
+		iteration_end = gp_words(iteration_string);
+		free_value(&(iteration_udv->udv_value));
+		Gstring(&(iteration_udv->udv_value), gp_word(iteration_string, 1));
+	    } else if (v.type == ARRAY) {
+		make_array_permanent(&v);
+		iteration_array = v;
+		iteration_start = 1;
+		iteration_end = v.v.value_array[0].v.int_val;
+		free_value(&(iteration_udv->udv_value));
+		iteration_udv->udv_value = v.v.value_array[1];
+		clone_string_value(&(iteration_udv->udv_value));
+	    } else {
+		int_error(c_token-1, errormsg);
+	    }
+
+	} else {
+	    /* Neither [i=beg:end:inc] nor [s in FOO] */
 	    int_error(c_token-1, errormsg);
+	}
 
 	iteration_current = iteration_start;
 
@@ -1406,11 +1638,13 @@ check_for_iteration()
 	this_iter->original_udv_value = original_udv_value;
 	this_iter->iteration_udv = iteration_udv; 
 	this_iter->iteration_string = iteration_string;
+	this_iter->iteration_array = iteration_array;
 	this_iter->iteration_start = iteration_start;
 	this_iter->iteration_end = iteration_end;
 	this_iter->iteration_increment = iteration_increment;
 	this_iter->iteration_current = iteration_current;
 	this_iter->iteration = iteration;
+	this_iter->iteration_NODATA = FALSE;
 	this_iter->start_at = iteration_start_at;
 	this_iter->end_at = iteration_end_at;
 	this_iter->next = NULL;
@@ -1450,14 +1684,31 @@ reevaluate_iteration_limits(t_iterator *iter)
     if (iter->start_at) {
 	struct value v;
 	evaluate_at(iter->start_at, &v);
+
+	if (iter->iteration_array.type == ARRAY) {
+	    gpfree_array(&(iter->iteration_array));
+	    if (v.type != ARRAY)
+		int_warn(NO_CARET, "iteration array was clobbered");
+	}
+
 	if (iter->iteration_string) {
-	    /* unnecessary if iteration string is a constant */
 	    free(iter->iteration_string);
+	    iter->iteration_string = NULL;
 	    if (v.type != STRING)
-		int_error(NO_CARET, "corrupt iteration string");
+		int_warn(NO_CARET, "iteration string was clobbered");
+	}
+
+	if (v.type == STRING) {
 	    iter->iteration_string = v.v.string_val;
 	    iter->iteration_start = 1;
 	    iter->iteration_end = gp_words(iter->iteration_string);
+	} else if (v.type == ARRAY) {
+	    make_array_permanent(&v);
+	    iter->iteration_array = v;
+	    iter->iteration_start = 1;
+	    iter->iteration_end = v.v.value_array[0].v.int_val;
+	    iter->iteration_udv->udv_value = v.v.value_array[1];
+	    clone_string_value(&(iter->iteration_udv->udv_value));
 	} else {
 	    iter->iteration_start = real(&v);
 	}
@@ -1482,16 +1733,47 @@ reset_iteration(t_iterator *iter)
     reevaluate_iteration_limits(iter);
     iter->iteration = -1;
     iter->iteration_current = iter->iteration_start;
+    iter->iteration_NODATA = FALSE;
+    gpfree_string(&(iter->iteration_udv->udv_value));
     if (iter->iteration_string) {
-	gpfree_string(&(iter->iteration_udv->udv_value));
 	Gstring(&(iter->iteration_udv->udv_value), 
 		gp_word(iter->iteration_string, iter->iteration_current));
+    } else if (iter->iteration_array.type == ARRAY) {
+	iter->iteration_udv->udv_value =
+	    iter->iteration_array.v.value_array[iter->iteration_current];
+	clone_string_value(&(iter->iteration_udv->udv_value));
     } else {
 	/* This traps fatal user error of reassigning iteration variable to a string */
-	gpfree_string(&(iter->iteration_udv->udv_value));
 	Ginteger(&(iter->iteration_udv->udv_value), iter->iteration_current);	
     }
     reset_iteration(iter->next);
+}
+
+/*
+ * Called to terminate an iteration of the form [i=n:*] when
+ * the resulting plot is determined to contain no valid data (NODATA).
+ */
+void
+flag_iteration_nodata(t_iterator *iter)
+{
+    if (!iter)
+	return;
+    if (iter->iteration_end == INT_MAX)
+	iter->iteration_NODATA = TRUE;
+    flag_iteration_nodata(iter->next);
+}
+
+void
+warn_if_too_many_unbounded_iterations(t_iterator *iter)
+{
+    int nfound = 0;
+    while (iter) {
+	if (iter->iteration_end == INT_MAX)
+	    nfound++;
+	iter = iter->next;
+    }
+    if (nfound > 1)
+	int_warn(NO_CARET, "multiple nested iterations of the form [start:*]");
 }
 
 /*
@@ -1505,6 +1787,19 @@ next_iteration(t_iterator *iter)
     /* Once it goes out of range it will stay that way until reset */
     if (!iter || no_iteration(iter))
 	return FALSE;
+
+    /* This is a top-level unbounded iteration [n:*] for which a
+     * lower-level (nested) iteration yielded no data. Stop here.
+     */
+    if (forever_iteration(iter->next) < 0 && iter->iteration_NODATA) {
+	FPRINTF((stderr,"multiple nested unbounded iterations"));
+	return FALSE;
+    }
+
+    /* This is a nested unbounded iteration [n:*] that yielded no data */
+    if (forever_iteration(iter->next) < 0 && iter->next->iteration_NODATA)
+	FPRINTF((stderr, "\t skip terminated NODATA iteration\n"));
+    else
 
     /* Give sub-iterations a chance to advance */
     if (next_iteration(iter->next)) {
@@ -1523,13 +1818,18 @@ next_iteration(t_iterator *iter)
 	iter->iteration++;
 	iter->iteration_current += iter->iteration_increment;
     }
+    gpfree_string(&(iter->iteration_udv->udv_value));
     if (iter->iteration_string) {
-	gpfree_string(&(iter->iteration_udv->udv_value));
 	Gstring(&(iter->iteration_udv->udv_value), 
 		gp_word(iter->iteration_string, iter->iteration_current));
+    } else if (iter->iteration_array.type == ARRAY) {
+	if (iter->iteration_current <= iter->iteration_end) {
+	    iter->iteration_udv->udv_value =
+		iter->iteration_array.v.value_array[iter->iteration_current];
+	    clone_string_value(&(iter->iteration_udv->udv_value));
+	}
     } else {
 	/* This traps fatal user error of reassigning iteration variable to a string */
-	gpfree_string(&(iter->iteration_udv->udv_value));
 	Ginteger(&(iter->iteration_udv->udv_value), iter->iteration_current);	
     }
    
@@ -1589,6 +1889,7 @@ cleanup_iteration(t_iterator *iter)
 	t_iterator *next = iter->next;
 	gpfree_string(&(iter->iteration_udv->udv_value));
 	iter->iteration_udv->udv_value = iter->original_udv_value;
+	gpfree_array(&(iter->iteration_array));
 	free(iter->iteration_string);
 	free_at(iter->start_at);
 	free_at(iter->end_at);
@@ -1598,13 +1899,21 @@ cleanup_iteration(t_iterator *iter)
     return NULL;
 }
 
-TBOOLEAN
+/*
+ * returns  0 if well-bounded [i=a:b]
+ * returns  1 if unbounded    [i=a:*]
+ * returns -1 if unbounded and we already hit a stop condition (NODATA)
+ */
+int
 forever_iteration(t_iterator *iter)
 {
     if (!iter)
-	return FALSE;
-    else
-	return (iter->iteration_end == INT_MAX);
+	return 0;
+    if (iter->iteration_end == INT_MAX && iter->iteration_NODATA)
+	return -1;
+    if (iter->iteration_end == INT_MAX)
+	return 1;
+    return forever_iteration(iter->next);
 }
 
 /* The column() function requires special handling because
@@ -1637,4 +1946,84 @@ set_up_columnheader_parsing( struct at_entry *previous )
     }
 
     /* NOTE: There is no way to handle ... using (column(<general expression>)) */
+}
+
+
+/* Split a string into an array of substrings.
+ *    sep = " "
+ *          remove all whitespace and return the separated words
+ *    sep = anything else
+ *          split on the character sequence in sep (UTF8 OK)
+ *
+ * Returns NULL if sep or string was empty or NULL
+ * otherwise returns an array of string values suitable to be
+ * kept as field v.value_array of an ARRAY type value.
+ *
+ * Example  split( "one ;two; three", ";" ) returns array
+ *          ["one ", "two", " three"]
+ * Note that whitespace is preserved in this case.
+ */
+struct value *
+split(const char *string, const char *sep)
+{
+    int i;
+    const char *istart, *iend;
+    struct value *array = NULL;
+    int thisword = 0;	/* Number of words split out so far */
+    int size = 0;	/* Current size of allocated array */
+
+    if (*sep == '\0' || *string == '\0')
+	return NULL;
+
+    while (*string) {
+
+	/* Expand array allocation to hold more words */
+	if (++thisword > size) {
+	    size = size + strlen(string)/8 + 1;
+	    array = gp_realloc(array, (size+1) * sizeof(t_value), "split");
+	    array[0].v.int_val = thisword;
+	    for (i = thisword; i <= size; i++)
+		array[i].type = NOTDEFINED;
+	}
+
+	/* Split on whitespace */
+	if (!strcmp(sep," ")) {
+	    while (isspace(*string))
+		string++;
+	    if (*string == '\0') {
+		/* Nothing here but whitespace; we're done */
+		thisword--;
+		break;
+	    }
+	    istart = string;
+	    while (*string && !isspace(*string))
+		string++;
+	    iend = string;
+	    array[thisword].v.string_val = strndup(istart, (iend-istart));
+	    array[thisword].type = STRING;
+	}
+
+	/* Split on specific character sequence (keep whitespace) */
+	else {
+	    istart = string;
+	    iend = strstr( string, sep );
+	    if (iend) {
+		array[thisword].v.string_val = strndup(istart, (iend-istart));
+		array[thisword].type = STRING;
+		string = iend + strlen(sep);
+	    } else {
+		array[thisword].v.string_val = strdup(istart);
+		array[thisword].type = STRING;
+		break;
+	    }
+	}
+
+    }
+
+    /* Trim off any extra allocated space */
+    array = gp_realloc(array, (thisword+1) * sizeof(t_value), "split");
+    array[0].v.int_val = thisword;
+    array[0].type = TEMP_ARRAY;
+
+    return array;
 }

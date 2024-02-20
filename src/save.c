@@ -36,18 +36,20 @@
 #include "contour.h"
 #include "datafile.h"
 #include "eval.h"
+#include "filters.h"
 #include "fit.h"
 #include "gp_time.h"
+#include "gplocale.h"
 #include "graphics.h"
 #include "hidden3d.h"
 #include "jitter.h"
+#include "loadpath.h"
 #include "misc.h"
 #include "plot2d.h"
 #include "plot3d.h"
 #include "setshow.h"
 #include "term_api.h"
 #include "util.h"
-#include "variable.h"
 #include "pm3d.h"
 #include "getcolor.h"
 
@@ -59,6 +61,8 @@ static void save_mtics(FILE *, struct axis *);
 static void save_zeroaxis(FILE *,AXIS_INDEX);
 static void save_set_all(FILE *);
 static void save_justification(int just, FILE *fp);
+static void save_pointstyle(FILE *fp, lp_style_type *lp);
+static void save_contours(FILE *fp);
 
 const char *coord_msg[] = {"first ", "second ", "graph ", "screen ", "character ", "polar "};
 /*
@@ -159,6 +163,7 @@ save_variables__sub(FILE *fp)
 		    fprintf(fp,"array %s[%d] = ", udv->udv_name,
 			(int)(udv->udv_value.v.value_array[0].v.int_val));
 		    save_array_content(fp, udv->udv_value.v.value_array);
+		    fprintf(fp,"\n");
 		}
 	    } else if (strncmp(udv->udv_name,"GPVAL_",6)
 		 && strncmp(udv->udv_name,"GPFUN_",6)
@@ -189,6 +194,7 @@ save_colormaps(FILE *fp)
 		    fprintf(fp,"array %s[%d] colormap = ", udv->udv_name,
 			(int)(udv->udv_value.v.value_array[0].v.int_val));
 		    save_array_content(fp, udv->udv_value.v.value_array);
+		    fprintf(fp,"\n");
 		    get_colormap_range(udv, &cm_min, &cm_max);
 		    if (cm_min != cm_max)
 			fprintf(fp,"set colormap %s range [%g:%g]\n",
@@ -213,7 +219,7 @@ save_array_content(FILE *fp, struct value *array)
 	if (i < size)
 	    fprintf(fp, ",");
     }
-    fprintf(fp, "]\n");
+    fprintf(fp, "]");
 }
 
 /* HBB 19990823: new function 'save term'. This will be mainly useful
@@ -255,12 +261,12 @@ save_axis_label_or_title(FILE *fp, char *name, char *suffix,
     fprintf(fp, " font \"%s\"", label->font ? conv_text(label->font) : "");
     save_textcolor(fp, &(label->textcolor));
     if (savejust && (label->pos != CENTRE)) save_justification(label->pos,fp);
-    if (label->tag == ROTATE_IN_3D_LABEL_TAG)
+    if (label->tag == LABEL_TAG_ROTATE_IN_3D)
 	fprintf(fp, " rotate parallel");
     else if (label->rotate == TEXT_VERTICAL)
 	fprintf(fp, " rotate");
     else if (label->rotate)
-	fprintf(fp, " rotate by %d", label->rotate);
+	fprintf(fp, " rotate by %g", label->rotate);
     else
 	fprintf(fp, " norotate");
 
@@ -383,23 +389,16 @@ save_set_all(FILE *fp)
     }
 
     if (dgrid3d) {
-      if (dgrid3d_mode == DGRID3D_QNORM) {
-	fprintf(fp, "set dgrid3d %d,%d, %d\n",
-	  	dgrid3d_row_fineness,
-	  	dgrid3d_col_fineness,
-	  	dgrid3d_norm_value);
-      } else if (dgrid3d_mode == DGRID3D_SPLINES) {
-	fprintf(fp, "set dgrid3d %d,%d splines\n",
-	  	dgrid3d_row_fineness, dgrid3d_col_fineness );
-      } else {
-	fprintf(fp, "set dgrid3d %d,%d %s%s %f,%f\n",
-	  	dgrid3d_row_fineness,
-	  	dgrid3d_col_fineness,
-		reverse_table_lookup(dgrid3d_mode_tbl, dgrid3d_mode),
-		dgrid3d_kdensity ? " kdensity2d" : "",
-	  	dgrid3d_x_scale,
-	  	dgrid3d_y_scale );
-      }
+	fprintf(fp, "set dgrid3d %d,%d %s ",
+		dgrid3d_row_fineness, dgrid3d_col_fineness,
+		clean_reverse_table_lookup(dgrid3d_mode_tbl, dgrid3d_mode));
+	if (dgrid3d_mode == DGRID3D_QNORM)
+	    fprintf(fp, "%d\n", dgrid3d_norm_value);
+	else if (dgrid3d_mode == DGRID3D_SPLINES)
+	    fprintf(fp, "\n");
+	else
+	    fprintf(fp, "%s %g, %g\n", dgrid3d_kdensity ? " kdensity" : "",
+		dgrid3d_x_scale, dgrid3d_y_scale );
     }
 
     /* Dummy variable names */
@@ -430,8 +429,8 @@ save_set_all(FILE *fp)
     if (! some_grid_selected())
 	fputs("unset grid\n", fp);
     else {
-	if (polar_grid_angle) 	/* set angle already output */
-	    fprintf(fp, "set grid polar %f\n", polar_grid_angle / ang2rad);
+	if (theta_grid_angle) 	/* set angle already output */
+	    fprintf(fp, "set grid polar %f\n", theta_grid_angle / ang2rad);
 	else
 	    fputs("set grid nopolar\n", fp);
 
@@ -482,32 +481,7 @@ save_set_all(FILE *fp)
 		this_label->tag,
 		conv_text(this_label->text));
 	save_position(fp, &this_label->place, 3, FALSE);
-	if (this_label->hypertext)
-	    fprintf(fp, " hypertext");
-
-	save_justification(this_label->pos, fp);
-	if (this_label->rotate)
-	    fprintf(fp, " rotate by %d", this_label->rotate);
-	else
-	    fprintf(fp, " norotate");
-	if (this_label->font != NULL)
-	    fprintf(fp, " font \"%s\"", this_label->font);
-	fprintf(fp, " %s", (this_label->layer==0) ? "back" : "front");
-	if (this_label->noenhanced)
-	    fprintf(fp, " noenhanced");
-	save_textcolor(fp, &(this_label->textcolor));
-	if ((this_label->lp_properties.flags & LP_SHOW_POINTS) == 0)
-	    fprintf(fp, " nopoint");
-	else {
-	    fprintf(fp, " point");
-	    save_linetype(fp, &(this_label->lp_properties), TRUE);
-	}
-	save_position(fp, &this_label->offset, 3, TRUE);
-	if (this_label->boxed) {
-	    fprintf(fp," boxed ");
-	    if (this_label->boxed > 0)
-		fprintf(fp,"bs %d ",this_label->boxed);
-	}
+	save_label_style(fp, this_label);
 	fputc('\n', fp);
     }
     fputs("unset arrow\n", fp);
@@ -598,12 +572,31 @@ save_set_all(FILE *fp)
 set pointsize %g\n\
 set pointintervalbox %g\n\
 set encoding %s\n\
-%sset polar\n\
 %sset parametric\n",
 	    pointsize, pointintervalbox,
 	    encoding_names[encoding],
-	    (polar) ? "" : "un",
 	    (parametric) ? "" : "un");
+
+    if (polar) {
+	fprintf(fp, "set polar\n");
+#ifdef USE_POLAR_GRID
+	fprintf(fp, "set polar grid %d, %d %s ",
+		polar_grid.theta_segments, polar_grid.r_segments,
+		reverse_table_lookup(dgrid3d_mode_tbl, polar_grid.mode));
+	if (polar_grid.mode == DGRID3D_QNORM)
+	    fprintf(fp, "%d  ", polar_grid.norm_q);
+	else
+	    fprintf(fp, "%s scale %g  ",
+		polar_grid.kdensity ? "kdensity" : "", polar_grid.scale);
+	fprintf(fp, "theta [%g:%g]  ", THETA_AXIS.min, THETA_AXIS.max);
+	if (polar_grid.rmax < VERYLARGE)
+	    fprintf(fp, "r [%g:%g]\n", polar_grid.rmin, polar_grid.rmax);
+	else
+	    fprintf(fp, "r [%g:*]\n", polar_grid.rmin);
+#endif
+    } else {
+	fprintf(fp, "unset polar\n");
+    }
 
     if (spiderplot) {
 	fprintf(fp, "set spiderplot\n");
@@ -641,35 +634,13 @@ set encoding %s\n\
 
     fprintf(fp, "\n\
 set samples %d, %d\n\
-set isosamples %d, %d\n\
-%sset surface %s",
+set isosamples %d, %d",
 	    samples_1, samples_2,
-	    iso_samples_1, iso_samples_2,
-	    (draw_surface) ? "" : "un",
-	    (implicit_surface) ? "" : "explicit");
+	    iso_samples_1, iso_samples_2);
 
-    fprintf(fp, "\n\
-%sset contour", (draw_contour) ? "" : "un");
-    switch (draw_contour) {
-    case CONTOUR_NONE:
-	fputc('\n', fp);
-	break;
-    case CONTOUR_BASE:
-	fputs(" base\n", fp);
-	break;
-    case CONTOUR_SRF:
-	fputs(" surface\n", fp);
-	break;
-    case CONTOUR_BOTH:
-	fputs(" both\n", fp);
-	break;
-    }
-
-    /* Contour label options */
-    fprintf(fp, "set cntrlabel %s format '%s' font '%s' start %d interval %d\n",
-	clabel_onecolor ? "onecolor" : "", contour_format,
-	clabel_font ? clabel_font : "",
-	clabel_start, clabel_interval);
+    fprintf(fp, "\nset surface %s\n%sset surface\n",
+	    (implicit_surface) ? "implicit" : "explicit",
+	    (draw_surface) ? "" : "un");
 
     fputs("set mapping ", fp);
     switch (mapping3d) {
@@ -700,45 +671,8 @@ set isosamples %d, %d\n\
     fprintf(fp, "set datafile %scolumnheaders\n", df_columnheaders ? "" : "no");
 
     save_hidden3doptions(fp);
-    fprintf(fp, "set cntrparam order %d\n", contour_order);
-    fputs("set cntrparam ", fp);
-    switch (contour_kind) {
-    case CONTOUR_KIND_LINEAR:
-	fputs("linear\n", fp);
-	break;
-    case CONTOUR_KIND_CUBIC_SPL:
-	fputs("cubicspline\n", fp);
-	break;
-    case CONTOUR_KIND_BSPLINE:
-	fputs("bspline\n", fp);
-	break;
-    }
-    fprintf(fp, "set cntrparam levels %d\nset cntrparam levels ", contour_levels);
-    switch (contour_levels_kind) {
-    case LEVELS_AUTO:
-	fprintf(fp, "auto");
-	break;
-    case LEVELS_INCREMENTAL:
-	fprintf(fp, "incremental %g,%g",
-		contour_levels_list[0], contour_levels_list[1]);
-	break;
-    case LEVELS_DISCRETE:
-	{
-	    int i;
-	    fprintf(fp, "discrete %g", contour_levels_list[0]);
-	    for (i = 1; i < contour_levels; i++)
-		fprintf(fp, ",%g ", contour_levels_list[i]);
-	}
-    }
-    fprintf(fp, "\nset cntrparam firstlinetype %d", contour_firstlinetype);
-    fprintf(fp, " %ssorted\n", contour_sortlevels ? "" : "un");
-    fprintf(fp, "\
-set cntrparam points %d\n\
-set size ratio %g %g,%g\n\
-set origin %g,%g\n",
-	    contour_pts,
-	    aspect_ratio, xsize, ysize,
-	    xoffset, yoffset);
+
+    save_contours(fp);
 
     fprintf(fp, "set style data ");
     save_data_func_style(fp,"data",data_style);
@@ -756,12 +690,9 @@ set origin %g,%g\n",
     else
 	fprintf(fp, "set xyplane relative %g\n", xyplane.z);
 
-    {
-    int i;
     fprintf(fp, "set tics scale ");
-    for (i=0; i<MAX_TICLEVEL; i++)
+    for (int i=0; i<MAX_TICLEVEL; i++)
 	fprintf(fp, " %g%c", ticscale[i], i<MAX_TICLEVEL-1 ? ',' : '\n');
-    }
 
     save_mtics(fp, &axis_array[FIRST_X_AXIS]);
     save_mtics(fp, &axis_array[FIRST_Y_AXIS]);
@@ -909,8 +840,7 @@ set origin %g,%g\n",
     if (pm3d_shade.strength <= 0)
 	fputs("set pm3d nolighting\n",fp);
     else
-	fprintf(fp, "set pm3d lighting primary %g specular %g spec2 %g\n",
-		pm3d_shade.strength, pm3d_shade.spec, pm3d_shade.spec2);
+	save_pm3d_lighting(fp,"");
 
     /*
      *  Save palette information
@@ -923,8 +853,9 @@ set origin %g,%g\n",
     fprintf( fp, "gamma %g ", sm_palette.gamma );
     if (sm_palette.colorMode == SMPAL_COLOR_MODE_GRAY) {
       fputs( "gray\n", fp );
-    }
-    else {
+    } else if (sm_palette.colorMode == SMPAL_COLOR_MODE_VIRIDIS) {
+      fputs( "viridis\n", fp );
+    } else {
       fputs( "color model ", fp );
       switch( sm_palette.cmodel ) {
 	default:
@@ -983,7 +914,6 @@ set origin %g,%g\n",
 	fputs("noborder", fp);
     else
 	fprintf(fp, "border %d", color_box.border_lt_tag);
-    fprintf(fp, " cbtics %d", color_box.cbtics_lt_tag);
     if (color_box.where == SMCOLOR_BOX_NO) fputs("\nunset colorbox\n", fp);
 	else fputs("\n", fp);
 
@@ -998,6 +928,10 @@ set origin %g,%g\n",
 		(boxplot_opts.labels == BOXPLOT_FACTOR_LABELS_X2) ? "x2" :
 		(boxplot_opts.labels == BOXPLOT_FACTOR_LABELS_AUTO) ? "auto" :"off",
 		boxplot_opts.sort_factors ? "" : "un");
+
+#ifdef WITH_CHI_SHAPES
+    fprintf(fp, "set chi_shapes fraction %.2f\n", chi_shape_default_fraction);
+#endif
 
     fputs("set loadpath ", fp);
     {
@@ -1068,6 +1002,39 @@ set origin %g,%g\n",
     fputc('\n', fp);
 }
 
+void
+save_label_style( FILE *fp, struct text_label *this_label )
+{
+    if (this_label->hypertext)
+	fprintf(fp, " hypertext");
+    save_justification(this_label->pos, fp);
+    if (this_label->boxed) {
+	fprintf(fp," boxed ");
+	if (this_label->boxed > 0)
+	    fprintf(fp,"bs %d ",this_label->boxed);
+    }
+    if (this_label->rotate)
+	fprintf(fp, " rotate by %g", this_label->rotate);
+    else
+	fprintf(fp, " norotate");
+    if (this_label->font != NULL)
+	fprintf(fp, " font \"%s\"", this_label->font);
+    fprintf(fp, " %s", (this_label->layer==0) ? "back" : "front");
+    if (this_label->noenhanced)
+	fprintf(fp, " noenhanced");
+    save_textcolor(fp, &(this_label->textcolor));
+    if ((this_label->lp_properties.flags & LP_SHOW_POINTS) == 0)
+	fprintf(fp, " nopoint");
+    else {
+	fprintf(fp, " point");
+	save_pointstyle(fp, &(this_label->lp_properties));
+	if (this_label->lp_properties.pm3d_color.type > TC_LT) {
+	    fprintf(fp, " lc");
+	    save_pm3dcolor(fp, &(this_label->lp_properties.pm3d_color));
+	}
+	save_position(fp, &this_label->offset, 3, TRUE);
+    }
+}
 
 static void
 save_tics(FILE *fp, struct axis *this_axis)
@@ -1085,7 +1052,7 @@ save_tics(FILE *fp, struct axis *this_axis)
 	    (this_axis->ticmode & TICS_MIRROR) ? "" : "no",
 	    this_axis->tic_rotate ? "rotate" : "norotate");
     if (this_axis->tic_rotate)
-	fprintf(fp,"by %d ",this_axis->tic_rotate);
+	fprintf(fp,"by %g ",this_axis->tic_rotate);
     save_position(fp, &this_axis->ticdef.offset, 3, TRUE);
     if (this_axis->manual_justify)
 	save_justification(this_axis->tic_pos, fp);
@@ -1118,7 +1085,10 @@ save_tics(FILE *fp, struct axis *this_axis)
 			     this_axis);
 	    putc(',', fp);
 	}
-	fprintf(fp, "%g", this_axis->ticdef.def.series.incr);
+	fprintf(fp, "%g %s", this_axis->ticdef.def.series.incr,
+		(this_axis->tictype == DT_TIMEDATE)
+		    ? clean_reverse_table_lookup(timelevels_tbl, this_axis->tic_units)
+		    : "");
 	if (this_axis->ticdef.def.series.end != VERYLARGE) {
 	    putc(',', fp);
 	    save_num_or_time_input(fp,
@@ -1259,7 +1229,9 @@ save_key(FILE *fp)
 	}
 	fprintf(fp, "\n");
     }
-    fprintf(fp, "set key maxcolumns %d maxrows %d\n",key->maxcols,key->maxrows);
+    fprintf(fp, "set key maxcolumns %d maxrows %d",key->maxcols,key->maxrows);
+    save_position(fp, &key->offset, 2, TRUE);
+    fprintf(fp, "\n");
     if (key->front) {
 	fprintf(fp, "set key opaque");
 	if (key->fillcolor.lt != LT_BACKGROUND) {
@@ -1373,6 +1345,17 @@ save_style_textbox(FILE *fp)
 	fprintf(fp, " linewidth %4.1f", textbox->linewidth);
 	fputs("\n",fp);
     }
+}
+
+void
+save_pm3d_lighting(FILE *fp, char *tab)
+{
+    fprintf(fp, "%sset pm3d lighting primary %g specular %g spec2 %g\n",
+		tab, pm3d_shade.strength, pm3d_shade.spec, pm3d_shade.spec2);
+    if (pm3d_shade.spec2 > 0)
+	fprintf(fp, "%sset pm3d spotlight rgb 0x%lx rot_x %.0f rot_z %.0f Phong %.1f\n",
+		tab, pm3d_shade.spec2_rgb, pm3d_shade.spec2_rot_x,
+		pm3d_shade.spec2_rot_z, pm3d_shade.spec2_Phong);
 }
 
 void
@@ -1599,7 +1582,7 @@ save_pm3dcolor(FILE *fp, const struct t_colorspec *tc)
 		      const char *color = reverse_table_lookup(pm3d_color_names_tbl, tc->lt);
 		      if (tc->value < 0)
 		  	fprintf(fp," rgb variable ");
-		      else if (color)
+		      else if (*color)
 	    		fprintf(fp," rgb \"%s\" ", color);
 		      else
 	    		fprintf(fp," rgb \"#%6.6x\" ", tc->lt);
@@ -1652,6 +1635,27 @@ save_dashtype(FILE *fp, int d_type, const t_dashtype *dt)
 }
 
 void
+save_pointstyle(FILE *fp, lp_style_type *lp)
+{
+    if (lp->p_type == PT_CHARACTER)
+	fprintf(fp, " pointtype \"%s\"", lp->p_char);
+    else if (lp->p_type == PT_VARIABLE)
+	fprintf(fp, " pointtype variable");
+    else
+	fprintf(fp, " pointtype %d", lp->p_type + 1);
+    if (lp->p_size == PTSZ_VARIABLE)
+	fprintf(fp, " pointsize variable");
+    else if (lp->p_size == PTSZ_DEFAULT)
+	fprintf(fp, " pointsize default");
+    else
+	fprintf(fp, " pointsize %.3f", lp->p_size);
+    if (lp->p_interval != 0)
+	fprintf(fp, " pointinterval %d", lp->p_interval);
+    if (lp->p_number != 0)
+	fprintf(fp, " pointnumber %d", lp->p_number);
+}
+
+void
 save_linetype(FILE *fp, lp_style_type *lp, TBOOLEAN show_point)
 {
     if (lp->l_type == LT_NODRAW)
@@ -1678,25 +1682,8 @@ save_linetype(FILE *fp, lp_style_type *lp, TBOOLEAN show_point)
 
     save_dashtype(fp, lp->d_type, &lp->custom_dash_pattern);
 
-    if (show_point) {
-	if (lp->p_type == PT_CHARACTER)
-	    fprintf(fp, " pointtype \"%s\"", lp->p_char);
-	else if (lp->p_type == PT_VARIABLE)
-	    fprintf(fp, " pointtype variable");
-	else
-	    fprintf(fp, " pointtype %d", lp->p_type + 1);
-	if (lp->p_size == PTSZ_VARIABLE)
-	    fprintf(fp, " pointsize variable");
-	else if (lp->p_size == PTSZ_DEFAULT)
-	    fprintf(fp, " pointsize default");
-	else
-	    fprintf(fp, " pointsize %.3f", lp->p_size);
-	if (lp->p_interval != 0)
-	    fprintf(fp, " pointinterval %d", lp->p_interval);
-	if (lp->p_number != 0)
-	    fprintf(fp, " pointnumber %d", lp->p_number);
-    }
-
+    if (show_point)
+	save_pointstyle(fp, lp);
 }
 
 
@@ -1914,3 +1901,89 @@ save_walls(FILE *fp)
     }
 }
 
+/*
+ * contour settings of all sorts
+ */
+void
+save_contours(FILE *fp)
+{
+    /* contour settings */
+    fprintf(fp, "\n%sset contour", (draw_contour) ? "" : "un");
+    switch (draw_contour) {
+    case CONTOUR_NONE:
+	fputc('\n', fp);
+	break;
+    case CONTOUR_BASE:
+	fputs(" base\n", fp);
+	break;
+    case CONTOUR_SRF:
+	fputs(" surface\n", fp);
+	break;
+    case CONTOUR_BOTH:
+	fputs(" both\n", fp);
+	break;
+    }
+
+    /* Contour label options */
+    fprintf(fp, "set cntrlabel %s format '%s' font '%s' start %d interval %d\n",
+	clabel_onecolor ? "onecolor" : "", contour_params.format,
+	clabel_font ? clabel_font : "",
+	clabel_start, clabel_interval);
+    fprintf(fp, "set cntrparam order %d\n", contour_params.order);
+    fputs("set cntrparam ", fp);
+    switch (contour_params.kind) {
+    case CONTOUR_KIND_LINEAR:
+	fputs("linear\n", fp);
+	break;
+    case CONTOUR_KIND_CUBIC_SPL:
+	fputs("cubicspline\n", fp);
+	break;
+    case CONTOUR_KIND_BSPLINE:
+	fputs("bspline\n", fp);
+	break;
+    }
+    fprintf(fp, "set cntrparam levels %d\nset cntrparam levels ", contour_params.levels);
+    switch (contour_params.levels_kind) {
+    case LEVELS_AUTO:
+	fprintf(fp, "auto");
+	break;
+    case LEVELS_INCREMENTAL:
+	fprintf(fp, "incremental %g,%g",
+		contour_levels_list[0], contour_levels_list[1]);
+	break;
+    case LEVELS_DISCRETE:
+	{
+	    int i;
+	    fprintf(fp, "discrete %g", contour_levels_list[0]);
+	    for (i = 1; i < contour_params.levels; i++)
+		fprintf(fp, ",%g ", contour_levels_list[i]);
+	}
+    }
+    fprintf(fp, "\nset cntrparam firstlinetype %d", contour_params.firstlinetype);
+    fprintf(fp, " %ssorted\n", contour_params.sortlevels ? "" : "un");
+    fprintf(fp, "\
+set cntrparam points %d\n\
+set size ratio %g %g,%g\n\
+set origin %g,%g\n",
+	    contour_params.npoints,
+	    aspect_ratio, xsize, ysize,
+	    xoffset, yoffset);
+
+    save_contourfill(fp);
+}
+
+void
+save_contourfill(FILE *fp)
+{
+    fprintf(fp, "set contourfill ");
+    if (contourfill.mode == CFILL_AUTO)
+	fprintf(fp, "auto %d\n", contourfill.nslices);
+    else if (contourfill.mode == CFILL_ZTICS)
+	fprintf(fp, "ztics\n");
+    else if (contourfill.mode == CFILL_CBTICS)
+	fprintf(fp, "cbtics\n");
+    if (contourfill.firstlinetype > 0)
+	fprintf(fp, "set contourfill firstlinetype %d\n", contourfill.firstlinetype);
+    else
+	fprintf(fp, "set contourfill palette\n");
+}

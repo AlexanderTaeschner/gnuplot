@@ -35,11 +35,15 @@
 #include "axis.h"
 #include "command.h"
 #include "contour.h"
+#include "datablock.h"
 #include "datafile.h"
+#include "filters.h"
 #include "fit.h"
 #include "gp_hist.h"
+#include "gplocale.h"
 #include "hidden3d.h"
 #include "jitter.h"
+#include "loadpath.h"
 #include "misc.h"
 #include "multiplot.h"
 #include "parse.h"
@@ -50,12 +54,12 @@
 #include "tabulate.h"
 #include "term_api.h"
 #include "util.h"
-#include "variable.h"
 #include "pm3d.h"
 #ifdef USE_MOUSE
 #include "mouse.h"
 #endif
 #include "voxelgrid.h"
+#include "watch.h"
 
 static void unset_angles(void);
 static void unset_arrow(void);
@@ -73,6 +77,7 @@ static void unset_clip(void);
 static void unset_cntrparam(void);
 static void unset_cntrlabel(void);
 static void unset_contour(void);
+static void unset_contourfill(void);
 static void unset_dashtype(void);
 static void unset_dgrid3d(void);
 static void unset_dummy(void);
@@ -124,8 +129,8 @@ static void unset_palette(void);
 static void reset_colorbox(void);
 static void unset_colorbox(void);
 static void unset_pointsize(void);
-static void unset_pointintervalbox(void);
-static void unset_polar(void);
+static void unset_pointintervalbox(int scale);
+static void unset_polar(TBOOLEAN grid);
 static void unset_print(void);
 static void unset_psdir(void);
 static void unset_samples(void);
@@ -139,6 +144,7 @@ static void unset_tics(struct axis *);
 static void unset_ticslevel(void);
 static void unset_timefmt(void);
 static void unset_timestamp(void);
+static void unset_theta(void);
 static void unset_view(void);
 static void unset_zero(void);
 static void unset_timedata(AXIS_INDEX);
@@ -220,6 +226,9 @@ unset_command()
     case S_CONTOUR:
 	unset_contour();
 	break;
+    case S_CONTOURFILL:
+	unset_contourfill();
+	break;
     case S_CORNERPOLES:
 	cornerpoles = FALSE;
 	break;
@@ -255,7 +264,7 @@ unset_command()
 	unset_hidden3d();
 	break;
     case S_HISTORY:
-	break; /* FIXME: reset to default values? */
+	break;
     case S_HISTORYSIZE:	/* Deprecated */
 	unset_historysize();
 	break;
@@ -355,14 +364,7 @@ unset_command()
 	    c_token++;
 	    break;
 	}
-	df_fortran_constants = FALSE;
-	unset_missing();
-	free(df_separators);
-	df_separators = NULL;
-	free(df_commentschars);
-	df_commentschars = gp_strdup(DEFAULT_COMMENTS_CHARS);
-	df_unset_datafile_binary();
-	df_columnheaders = FALSE;
+	reset_datafile();
 	break;
     case S_MICRO:
 	unset_micro();
@@ -404,13 +406,19 @@ unset_command()
 	unset_colorbox();
 	break;
     case S_POINTINTERVALBOX:
-	unset_pointintervalbox();
+	unset_pointintervalbox( 0 );
 	break;
     case S_POINTSIZE:
 	unset_pointsize();
 	break;
     case S_POLAR:
-	unset_polar();
+#ifdef USE_POLAR_GRID
+	if (equals(c_token,"grid")) {
+	    c_token++;
+	    unset_polar(TRUE);
+	} else
+#endif
+	unset_polar(FALSE);
 	break;
     case S_PRINT:
 	unset_print();
@@ -424,6 +432,9 @@ unset_command()
     case S_WALL:
 	for (i=0; i<5; i++)
 	    unset_wall(i);
+	break;
+    case S_WARNINGS:
+	suppress_warnings = TRUE;
 	break;
     case S_RTICS:
 	unset_tics(&axis_array[POLAR_AXIS]);
@@ -482,6 +493,9 @@ unset_command()
     case S_TITLE:
 	unset_axislabel_or_title(&title);
 	break;
+    case S_THETA:
+	unset_theta();
+	break;
     case S_VIEW:
 	unset_view();
 	break;
@@ -510,7 +524,7 @@ unset_command()
 	break;
     case S_YDTICS:
     case S_YMTICS:
-	unset_month_day_tics(FIRST_X_AXIS);
+	unset_month_day_tics(FIRST_Y_AXIS);
 	break;
     case S_MX2TICS:
 	unset_minitics(&axis_array[SECOND_X_AXIS]);
@@ -520,7 +534,7 @@ unset_command()
 	break;
     case S_X2DTICS:
     case S_X2MTICS:
-	unset_month_day_tics(FIRST_X_AXIS);
+	unset_month_day_tics(SECOND_X_AXIS);
 	break;
     case S_MY2TICS:
 	unset_minitics(&axis_array[SECOND_Y_AXIS]);
@@ -540,7 +554,7 @@ unset_command()
 	break;
     case S_ZDTICS:
     case S_ZMTICS:
-	unset_month_day_tics(FIRST_X_AXIS);
+	unset_month_day_tics(FIRST_Z_AXIS);
 	break;
     case S_MCBTICS:
 	unset_minitics(&axis_array[COLOR_AXIS]);
@@ -550,7 +564,7 @@ unset_command()
 	break;
     case S_CBDTICS:
     case S_CBMTICS:
-	unset_month_day_tics(FIRST_X_AXIS);
+	unset_month_day_tics(COLOR_AXIS);
 	break;
     case S_MRTICS:
 	unset_minitics(&axis_array[POLAR_AXIS]);
@@ -650,6 +664,13 @@ unset_command()
 	break;
     case S_INVALID:
     default:
+#ifdef WITH_CHI_SHAPES
+	if (almost_equals(c_token, "chi$_shapes")) {
+	    c_token++;
+	    reset_hulls(TRUE);
+	    break;
+	}
+#endif
 	int_error(c_token, "Unrecognized option.  See 'help unset'.");
 	break;
     }
@@ -828,6 +849,21 @@ reset_bars()
     bar_lp.flags = 0;
 }
 
+/* reset to default datafile properties */
+void
+reset_datafile()
+{
+    df_init();
+    df_fortran_constants = FALSE;
+    unset_missing();
+    free(df_separators);
+    df_separators = NULL;
+    free(df_commentschars);
+    df_commentschars = gp_strdup(DEFAULT_COMMENTS_CHARS);
+    df_unset_datafile_binary();
+    df_columnheaders = FALSE;
+}
+
 /* process 'unset border' command */
 static void
 unset_border()
@@ -903,13 +939,13 @@ unset_clip()
 static void
 unset_cntrparam()
 {
-    contour_pts = DEFAULT_NUM_APPROX_PTS;
-    contour_kind = CONTOUR_KIND_LINEAR;
-    contour_order = DEFAULT_CONTOUR_ORDER;
-    contour_levels = DEFAULT_CONTOUR_LEVELS;
-    contour_levels_kind = LEVELS_AUTO;
-    contour_firstlinetype = 0;
-    contour_sortlevels = FALSE;
+    contour_params.npoints = DEFAULT_NUM_APPROX_PTS;
+    contour_params.kind = CONTOUR_KIND_LINEAR;
+    contour_params.order = DEFAULT_CONTOUR_ORDER;
+    contour_params.levels = DEFAULT_CONTOUR_LEVELS;
+    contour_params.levels_kind = LEVELS_AUTO;
+    contour_params.firstlinetype = 0;
+    contour_params.sortlevels = FALSE;
 }
 
 /* process 'unset cntrlabel' command */
@@ -919,11 +955,19 @@ unset_cntrlabel()
     clabel_onecolor = FALSE;
     clabel_start = 5;
     clabel_interval = 20;
-    strcpy(contour_format, "%8.3g");
+    strcpy(contour_params.format, "%8.3g");
     free(clabel_font);
     clabel_font = NULL;
 }
 
+static void
+unset_contourfill()
+{
+    contourfill.mode = CFILL_AUTO;
+    contourfill.nslices = 5;
+    contourfill.tic_level = 0;
+    contourfill.firstlinetype = -1;
+}
 
 /* process 'unset contour' command */
 static void
@@ -1028,17 +1072,12 @@ unset_fit()
 static void
 unset_grid()
 {
-    /* FIXME HBB 20000506: there is no command to explicitly reset the
-     * linetypes for major and minor gridlines. This function should
-     * do that, maybe... */
-    AXIS_INDEX i = 0;
-
     /* grid_selection = GRID_OFF; */
-    for (; i < NUMBER_OF_MAIN_VISIBLE_AXES; i++) {
+    for (AXIS_INDEX i = 0; i < NUMBER_OF_MAIN_VISIBLE_AXES; i++) {
 	axis_array[i].gridmajor = FALSE;
 	axis_array[i].gridminor = FALSE;
     }
-    polar_grid_angle = 0;
+    theta_grid_angle = 0;
     grid_vertical_lines = FALSE;
     grid_spiderweb = FALSE;
 }
@@ -1106,7 +1145,38 @@ unset_isotropic()
 void
 reset_key()
 {
-    legend_key temp_key = DEFAULT_KEY_PROPS;
+    legend_key temp_key = {
+	.visible = TRUE,
+	.region = GPKEY_AUTO_INTERIOR_LRTBC,
+	.margin = GPKEY_RMARGIN,
+	.user_pos = DEFAULT_KEY_POSITION,
+	.user_width = DEFAULT_KEY_WIDTH,
+	.user_cols = 0,
+	.vpos = JUST_TOP,
+	.hpos = RIGHT,
+	.fixed = TRUE,
+	.just = GPKEY_RIGHT,
+	.stack_dir = GPKEY_VERTICAL,
+	.swidth = 4.0,
+	.vert_factor = 1.0,
+	.width_fix = 0.0,
+	.height_fix = 0.0,
+	.auto_titles = FILENAME_KEYTITLES,
+	.front = FALSE,
+	.reverse = FALSE,
+	.invert = FALSE,
+	.enhanced = TRUE,
+	.box = DEFAULT_KEYBOX_LP,
+	.font = NULL,
+	.textcolor = {TC_LT, LT_BLACK, 0.0},
+	.fillcolor = BACKGROUND_COLORSPEC,
+	.bounds = {0,0,0,0},
+	.maxcols = 0,
+	.maxrows = 0,
+	.title = EMPTY_LABELSTRUCT,
+	.offset = {character, character, character, 0, 0, 0}
+    };
+
     free(keyT.font);
     free(keyT.title.text);
     free(keyT.title.font);
@@ -1242,6 +1312,36 @@ delete_object(struct object *prev, struct object *this)
 	if (this->object_type == OBJ_POLYGON)
 	    free(this->o.polygon.vertex);
 	free (this);
+    }
+}
+
+/*
+ * delete dashtype from linked list started by first_custom_dashtype.
+ */
+void
+delete_dashtype(struct custom_dashtype_def *prev, struct custom_dashtype_def *this)
+{
+    if (this != NULL) {		/* there really is something to delete */
+	if (this == first_custom_dashtype)
+	    first_custom_dashtype = this->next;
+	else
+	    prev->next = this->next;
+	free(this);
+    }
+}
+
+/*
+ * delete linestyle from linked list started by *head.
+ */
+void
+delete_linestyle(struct linestyle_def **head, struct linestyle_def *prev, struct linestyle_def *this)
+{
+    if (this != NULL) {		/* there really is something to delete */
+	if (this == *head)
+	    *head = this->next;
+	else
+	    prev->next = this->next;
+	free(this);
     }
 }
 
@@ -1532,12 +1632,22 @@ unset_pm3d()
     if (func_style == PM3DSURFACE) func_style = LINES;
 }
 
-
-/* process 'unset pointintervalbox' command */
-static void
-unset_pointintervalbox()
+/* reset the spotlight controlled by 'set pm3d spot' */
+void
+reset_spotlight()
 {
-    pointintervalbox = 1.0;
+    pm3d_shade.spec2_Phong = 4.0;
+    pm3d_shade.spec2_rgb = 0xff0044;
+    pm3d_shade.spec2_rot_x = 50;
+    pm3d_shade.spec2_rot_z = 90;
+}
+
+
+/* unset to 0; reset to 1 */
+static void
+unset_pointintervalbox(int scale)
+{
+    pointintervalbox = scale;
 }
 
 /* process 'unset pointsize' command */
@@ -1550,7 +1660,7 @@ unset_pointsize()
 
 /* process 'unset polar' command */
 static void
-unset_polar()
+unset_polar( TBOOLEAN grid )
 {
     if (polar) {
 	polar = FALSE;
@@ -1566,8 +1676,6 @@ unset_polar()
 	}
     }
     raxis = FALSE;
-    theta_origin = 0.0;
-    theta_direction = 1.0;
 
     /* Clear and reinitialize THETA axis structure */
     unset_tics(&THETA_AXIS);
@@ -1582,6 +1690,12 @@ unset_polar()
     THETA_AXIS.miniticscale = 0.5;
     THETA_AXIS.tic_in = TRUE;
     THETA_AXIS.tic_rotate = 0;
+
+#ifdef USE_POLAR_GRID
+    if (grid) {
+	polar_grid = default_polar_grid;
+    }
+#endif
 }
 
 
@@ -1628,6 +1742,7 @@ unset_style()
 	unset_histogram();
 	unset_boxplot();
 	unset_textbox_style();
+	unset_watchpoint_style();
 	c_token++;
 	return;
     }
@@ -1676,6 +1791,10 @@ unset_style()
 	break;
     case SHOW_STYLE_TEXTBOX:
 	unset_textbox_style();
+	c_token++;
+	break;
+    case SHOW_STYLE_WATCHPOINT:
+	unset_watchpoint_style();
 	c_token++;
 	break;
     case SHOW_STYLE_BOXPLOT:
@@ -1744,7 +1863,6 @@ unset_terminal()
 
     term_reset();
 
-    /* FIXME: change is correct but reported result is truncated */
     if (original_terminal && original_terminal->udv_value.type != NOTDEFINED) {
 	char *termname = gp_strdup(original_terminal->udv_value.v.string_val);
 	if (strchr(termname, ' '))
@@ -1784,6 +1902,12 @@ unset_timestamp()
     timelabel_bottom = TRUE;
 }
 
+static void
+unset_theta()
+{
+    theta_origin = 0.0;
+    theta_direction = 1.0;
+}
 
 /* process 'unset view' command */
 static void
@@ -1914,6 +2038,14 @@ reset_command()
 
     c_token++;
 
+    /*	Ignore or refuse reset commands in certain contexts to avoid bad behavior */
+    if (evaluate_inside_functionblock)
+	int_error(NO_CARET, "cannot 'reset' during function block evaluation");
+    filter_multiplot_playback();
+
+    /* This is the expression evaluation stack */
+    reset_stack();
+
     /* Reset session state as well as internal graphics state */
     if (equals(c_token, "session")) {
 	clear_udf_list();
@@ -1993,9 +2125,10 @@ reset_command()
 
     /* 'polar', 'parametric' and 'dummy' are interdependent, so be
      * sure to keep the order intact */
-    unset_polar();
+    unset_polar(TRUE);
     unset_parametric();
     unset_dummy();
+    unset_theta();
 
     unset_spiderplot();
     unset_style_spiderplot();
@@ -2080,7 +2213,7 @@ reset_command()
     unset_grid();
     grid_lp = default_grid_lp;
     mgrid_lp = default_grid_lp;
-    polar_grid_angle = 0;
+    theta_grid_angle = 0;
     grid_layer = LAYER_BEHIND;
     grid_tics_in_front = FALSE;
     for (i=0; i<5; i++)
@@ -2105,6 +2238,7 @@ reset_command()
     unset_contour();
     unset_cntrparam();
     unset_cntrlabel();
+    unset_contourfill();
     unset_zero();
     unset_dgrid3d();
     unset_ticslevel();
@@ -2113,15 +2247,23 @@ reset_command()
     unset_margin(&rmargin);
     unset_margin(&tmargin);
     unset_pointsize();
-    unset_pointintervalbox();
+    unset_pointintervalbox(1);
     pm3d_reset();
+    reset_spotlight();
     reset_colorbox();
     reset_palette();
     df_unset_datafile_binary();
     unset_fillstyle();
     unset_histogram();
     unset_textbox_style();
+    unset_watchpoint_style();
+
+#ifdef BACKWARD_COMPATIBILITY
     prefer_line_styles = FALSE;
+#endif
+
+    reset_hulls(1);
+    reset_watches();
 
 #ifdef USE_MOUSE
     mouse_setting = default_mouse_setting;
@@ -2131,12 +2273,8 @@ reset_command()
     if (multiplot)
 	multiplot_reset();
 
-    unset_missing();
-    free(df_separators);
-    df_separators = NULL;
-    free(df_commentschars);
-    df_commentschars = gp_strdup(DEFAULT_COMMENTS_CHARS);
-    df_init();
+    /* reset everything to do with "set datafile" */
+    reset_datafile();
 
     { /* Preserve some settings for `reset`, but not for `unset fit` */
 	verbosity_level save_verbosity = fit_verbosity;

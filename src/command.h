@@ -57,10 +57,18 @@ extern int plot_token;
 #define END_OF_COMMAND (c_token >= num_tokens || equals(c_token,";"))
 
 extern char *replot_line;
+extern TBOOLEAN last_plot_was_multiplot;
 
 /* flag to disable `replot` when some data are sent through stdin;
- * used by mouse/hotkey capable terminals */
+ * used by mouse/hotkey capable terminals
+ */
 extern TBOOLEAN replot_disabled;
+
+/* flag to show we are inside a plot/splot/replot/refresh/stats
+ * command and therefore should not allow starting another one
+ * e.g. from a function block
+ */
+extern TBOOLEAN inside_plot_command;
 
 #ifdef USE_MOUSE
 extern int paused_for_mouse;	/* Flag the end condition we are paused until */
@@ -77,14 +85,12 @@ extern int paused_for_mouse;	/* Flag the end condition we are paused until */
 extern FILE *print_out;
 extern struct udvt_entry * print_out_var;
 extern char *print_out_name;
+extern char *print_sep;
 
 /* Points to structure holding dummy parameter values
  * to be used during function evaluation
  */
 extern struct udft_entry *dummy_func;
-
-/* dummy_func will point to this during function plotting */
-extern struct udft_entry plot_func;
 
 #ifndef STDOUT
 # define STDOUT 1
@@ -139,6 +145,7 @@ void restore_prompt(void);
 #define bind_command()
 #endif
 void array_command(void);
+void local_array_command(int locality);
 void break_command(void);
 void call_command(void);
 void changedir_command(void);
@@ -158,6 +165,7 @@ void load_command(void);
 void begin_clause(void);
 void clause_reset_after_error(void);
 void end_clause(void);
+void local_command(void);
 void null_command(void);
 void pause_command(void);
 void plot_command(void);
@@ -168,6 +176,7 @@ void refresh_request(void);
 void refresh_command(void);
 void replot_command(void);
 void reread_command(void);
+void return_command(void);
 void save_command(void);
 void screendump_command(void);
 void splot_command(void);
@@ -176,7 +185,7 @@ void system_command(void);
 void test_command(void);
 void toggle_command(void);
 void update_command(void);
-void do_shell(void);
+void shell_command(void);
 void undefine_command(void);
 void while_command(void);
 

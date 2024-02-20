@@ -115,6 +115,16 @@ scanner(char **expressionp, size_t *expressionlenp)
 	}
 	if (isspace((unsigned char) expression[current]))
 	    continue;		/* skip the whitespace */
+
+#if (0)
+	/* utf8 nonbreaking space */
+	if ((expression[current] & 0xff) == 0xc2
+	&&  (expression[current+1] & 0xff) == 0xa0) {
+	    current++;
+	    continue;
+	}
+#endif
+
 	token[t_num].start_index = current;
 	token[t_num].length = 1;
 	token[t_num].is_token = TRUE;	/* to start with... */

@@ -197,6 +197,12 @@ extern "C" {
 #  include <gtk/gtk.h>
 # endif
 
+/* wxWidgets 3.0 -> 2.8 compatibility */
+#if (wxMAJOR_VERSION < 3)
+#define wxBRUSHSTYLE_SOLID wxSOLID
+#define wxPENSTYLE_SOLID wxSOLID
+#endif
+
 # ifdef _WIN32
 #  include <cairo-win32.h>
 # endif
@@ -647,6 +653,12 @@ static void wxt_sigint_check();
 static void wxt_sigint_init();
 static void wxt_sigint_restore();
 static int wxt_sigint_counter = 0;
+
+/* exception handling if int_error() is called inside event processing */
+#if defined(HAVE_GTK)
+   #include <setjmp.h>
+   extern JMP_BUF *wxt_env;
+#endif
 
 /* cleanup at exit, and handle 'persist' setting */
 void wxt_atexit();

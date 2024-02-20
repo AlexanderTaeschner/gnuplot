@@ -94,7 +94,7 @@
       </PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>HAVE_CONFIG_H;USE_MOUSE;WXWIDGETS;HAVE_CAIROPDF;HAVE_CAIROEPS;HAVE_LIBGD;HAVE_GD_H;HAVE_GD_GIF;GIF_ANIMATION;HAVE_GD_PNG;HAVE_GD_JPEG;HAVE_GD_TTF;HAVE_LIBPNG;WXUSINGDLL;GNUPLOT_PS_DIR="share\\PostScript";USE_FAKEPIPES;WIN32;_DEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>HAVE_CONFIG_H;USE_MOUSE;USE_WATCHPOINTS;USE_POLAR_GRID;WXWIDGETS;HAVE_CAIROPDF;HAVE_CAIROEPS;HAVE_LIBGD;HAVE_GD_H;HAVE_GD_GIF;GIF_ANIMATION;HAVE_GD_PNG;HAVE_GD_JPEG;HAVE_GD_TTF;HAVE_LIBPNG;WXUSINGDLL;GNUPLOT_PS_DIR="share\\PostScript";USE_FAKEPIPES;WIN32;_DEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>$(SolutionDir)..\..\..\src;$(SolutionDir)..\..\..\term;$(SolutionDir);$(_ZVcpkgInstalledDir)$(VcpkgTriplet)\include\cairo;$(_ZVcpkgInstalledDir)$(VcpkgTriplet)\include\glib-2.0;$(_ZVcpkgInstalledDir)$(VcpkgTriplet)\lib\glib-2.0\include;$(_ZVcpkgInstalledDir)$(VcpkgTriplet)\include\pango-1.0;$(_ZVcpkgInstalledDir)$(VcpkgTriplet)\include\harfbuzz;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
     </ClCompile>
@@ -112,7 +112,7 @@
       </PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>HAVE_CONFIG_H;USE_MOUSE;WXWIDGETS;HAVE_CAIROPDF;HAVE_CAIROEPS;HAVE_LIBGD;HAVE_GD_H;HAVE_GD_GIF;GIF_ANIMATION;HAVE_GD_PNG;HAVE_GD_JPEG;HAVE_GD_TTF;HAVE_LIBPNG;WXUSINGDLL;GNUPLOT_PS_DIR="share\\PostScript";USE_FAKEPIPES;_DEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>HAVE_CONFIG_H;USE_MOUSE;USE_WATCHPOINTS;USE_POLAR_GRID;WXWIDGETS;HAVE_CAIROPDF;HAVE_CAIROEPS;HAVE_LIBGD;HAVE_GD_H;HAVE_GD_GIF;GIF_ANIMATION;HAVE_GD_PNG;HAVE_GD_JPEG;HAVE_GD_TTF;HAVE_LIBPNG;WXUSINGDLL;GNUPLOT_PS_DIR="share\\PostScript";USE_FAKEPIPES;_DEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>$(SolutionDir)..\..\..\src;$(SolutionDir)..\..\..\term;$(SolutionDir);$(_ZVcpkgInstalledDir)$(VcpkgTriplet)\include\cairo;$(_ZVcpkgInstalledDir)$(VcpkgTriplet)\include\glib-2.0;$(_ZVcpkgInstalledDir)$(VcpkgTriplet)\lib\glib-2.0\include;$(_ZVcpkgInstalledDir)$(VcpkgTriplet)\include\pango-1.0;$(_ZVcpkgInstalledDir)$(VcpkgTriplet)\include\harfbuzz;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
     </ClCompile>
@@ -132,7 +132,7 @@
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <PreprocessorDefinitions>HAVE_CONFIG_H;USE_MOUSE;WXWIDGETS;HAVE_CAIROPDF;HAVE_CAIROEPS;HAVE_LIBGD;HAVE_GD_H;HAVE_GD_GIF;GIF_ANIMATION;HAVE_GD_PNG;HAVE_GD_JPEG;HAVE_GD_TTF;HAVE_LIBPNG;WXUSINGDLL;GNUPLOT_PS_DIR="share\\PostScript";USE_FAKEPIPES;WIN32;NDEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>HAVE_CONFIG_H;USE_MOUSE;USE_WATCHPOINTS;USE_POLAR_GRID;WXWIDGETS;HAVE_CAIROPDF;HAVE_CAIROEPS;HAVE_LIBGD;HAVE_GD_H;HAVE_GD_GIF;GIF_ANIMATION;HAVE_GD_PNG;HAVE_GD_JPEG;HAVE_GD_TTF;HAVE_LIBPNG;WXUSINGDLL;GNUPLOT_PS_DIR="share\\PostScript";USE_FAKEPIPES;WIN32;NDEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>$(SolutionDir)..\..\..\src;$(SolutionDir)..\..\..\term;$(SolutionDir);$(_ZVcpkgInstalledDir)$(VcpkgTriplet)\include\cairo;$(_ZVcpkgInstalledDir)$(VcpkgTriplet)\include\glib-2.0;$(_ZVcpkgInstalledDir)$(VcpkgTriplet)\lib\glib-2.0\include;$(_ZVcpkgInstalledDir)$(VcpkgTriplet)\include\pango-1.0;$(_ZVcpkgInstalledDir)$(VcpkgTriplet)\include\harfbuzz;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
     </ClCompile>
@@ -156,7 +156,7 @@
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <PreprocessorDefinitions>HAVE_CONFIG_H;USE_MOUSE;WXWIDGETS;HAVE_CAIROPDF;HAVE_CAIROEPS;HAVE_LIBGD;HAVE_GD_H;HAVE_GD_GIF;GIF_ANIMATION;HAVE_GD_PNG;HAVE_GD_JPEG;HAVE_GD_TTF;HAVE_LIBPNG;WXUSINGDLL;GNUPLOT_PS_DIR="share\\PostScript";USE_FAKEPIPES;NDEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>HAVE_CONFIG_H;USE_MOUSE;USE_WATCHPOINTS;USE_POLAR_GRID;WXWIDGETS;HAVE_CAIROPDF;HAVE_CAIROEPS;HAVE_LIBGD;HAVE_GD_H;HAVE_GD_GIF;GIF_ANIMATION;HAVE_GD_PNG;HAVE_GD_JPEG;HAVE_GD_TTF;HAVE_LIBPNG;WXUSINGDLL;GNUPLOT_PS_DIR="share\\PostScript";USE_FAKEPIPES;NDEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>$(SolutionDir)..\..\..\src;$(SolutionDir)..\..\..\term;$(SolutionDir);$(_ZVcpkgInstalledDir)$(VcpkgTriplet)\include\cairo;$(_ZVcpkgInstalledDir)$(VcpkgTriplet)\include\glib-2.0;$(_ZVcpkgInstalledDir)$(VcpkgTriplet)\lib\glib-2.0\include;$(_ZVcpkgInstalledDir)$(VcpkgTriplet)\include\pango-1.0;$(_ZVcpkgInstalledDir)$(VcpkgTriplet)\include\harfbuzz;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
     </ClCompile>
@@ -187,10 +187,12 @@
     <ClCompile Include="..\..\..\..\src\encoding.c" />
     <ClCompile Include="..\..\..\..\src\eval.c" />
     <ClCompile Include="..\..\..\..\src\external.c" />
+    <ClCompile Include="..\..\..\..\src\filters.c" />
     <ClCompile Include="..\..\..\..\src\fit.c" />
     <ClCompile Include="..\..\..\..\src\gadgets.c" />
     <ClCompile Include="..\..\..\..\src\getcolor.c" />
     <ClCompile Include="..\..\..\..\src\gpexecute.c" />
+    <ClCompile Include="..\..\..\..\src\gplocale.c" />
     <ClCompile Include="..\..\..\..\src\graph3d.c" />
     <ClCompile Include="..\..\..\..\src\graphics.c" />
     <ClCompile Include="..\..\..\..\src\help.c" />
@@ -200,6 +202,7 @@
     <ClCompile Include="..\..\..\..\src\interpol.c" />
     <ClCompile Include="..\..\..\..\src\jitter.c" />
     <ClCompile Include="..\..\..\..\src\libcerf.c" />
+    <ClCompile Include="..\..\..\..\src\loadpath.c" />
     <ClCompile Include="..\..\..\..\src\matrix.c" />
     <ClCompile Include="..\..\..\..\src\misc.c" />
     <ClCompile Include="..\..\..\..\src\mouse.c" />
@@ -225,10 +228,10 @@
     <ClCompile Include="..\..\..\..\src\unset.c" />
     <ClCompile Include="..\..\..\..\src\util.c" />
     <ClCompile Include="..\..\..\..\src\util3d.c" />
-    <ClCompile Include="..\..\..\..\src\variable.c" />
     <ClCompile Include="..\..\..\..\src\version.c" />
     <ClCompile Include="..\..\..\..\src\voxelgrid.c" />
     <ClCompile Include="..\..\..\..\src\vplot.c" />
+    <ClCompile Include="..\..\..\..\src\watch.c" />
     <ClCompile Include="..\..\..\..\src\win\screenbuf.c" />
     <ClCompile Include="..\..\..\..\src\win\wd2d.cpp" />
     <ClCompile Include="..\..\..\..\src\win\wgdiplus.cpp" />

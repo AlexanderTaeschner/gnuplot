@@ -1,204 +1,226 @@
-# win/README-Windows.txt �̖�
-gnuplot �o�[�W���� 5.0 �p�b�`���x�� 0 -- Windows �p�o�C�i���z�t
+# win/README-Windows.txt の訳
+gnuplot バージョン 5.5-git -- Windows 用バイナリ配付
 =======================================================================
 
-gnuplot �́A�R�}���h���͕����̑Θb�@�\�̃O���t���[�e�B���e�B�ŁALinux,
-OSX, Windows, VMS, ���̑������̃v���b�g�z�[����œ��삵�܂��B���̃\�t�g
-�E�F�A�ɂ͒��쌠������܂����A�t���[�ɔz�z����Ă��܂� (���Ȃ킿�A����
-�ɑΉ����x�����K�v�͂���܂���)�B���́A�Ȋw�҂�w�������w�֐���f�[�^��
-�ǂ����o�����邽�߂̃O���t�v���O�����ł����B
+これは gnuplot の git 開発版ブランチのテスト用ビルドであり、リリース
+版ではありません。
 
-gnuplot �́A�Ȑ� (2 ����)�A����ыȖ� (3 ����) �̃O���t�̗����������ł�
-�܂��B�Ȗʂ́A�w�肵���֐��ɍ����A3 �������W��ԏ��Y���Ԗڂ̌`���ŕ`
-�悵����A�܂� x-y ���ʏ�̓������Ƃ��ĕ`�悵����ł��܂��B
-2 �����`��ł́A�ܐ��O���t�A�_�O���t�A�_�O���t�A�������A�q�X�g�O�����A3
-�����f�[�^�̓������ˉe�ȂǁA�����̕`��X�^�C�����T�|�[�g���Ă��܂��B�O
-���t�ɂ́A�C�ӂ̃��x������A���̃��x���A�^�C�g���A�����A�O���t�̖}��
-�Ȃǂ̃��x���Â����s���܂��B
+gnuplot は、コマンド入力方式の対話機能のグラフユーティリティで、Linux,
+OSX, Windows, VMS, その他多くのプラットホーム上で動作します。このソフト
+ウェアには著作権がありますが、フリーに配布されています (すなわち、それ
+に対価を支払う必要はありません)。元は、科学者や学生が数学関数やデータな
+どを視覚化するためのグラフプログラムでした。
+
+gnuplot は、曲線 (2 次元)、および曲面 (3 次元) のグラフの両方を処理でき
+ます。曲面は、指定した関数に合う、3 次元座標空間上を漂う網目の形式で描
+画したり、また x-y 平面上の等高線として描画したりできます。
+2 次元描画では、折線グラフ、点グラフ、棒グラフ、等高線、ヒストグラム、3
+次元データの等高線射影など、多くの描画スタイルをサポートしています。グ
+ラフには、任意のラベルや矢印、軸のラベル、タイトル、日時、グラフの凡例
+などのラベルづけも行えます。
 
 
-�͂��߂�
+はじめに
 --------
 
-gnuplot �̐V�K���[�U�́Agnuplot �N����� `help` �ƃ^�C�v���邱�Ƃŕ\��
-������ʓI�Ȑ���������ǂނ��Ƃ���n�߁A������ `plot` �R�}���h�Ɋւ�
-����� (`help plot` �Ɠ��͂��Ă�������) ��ǂ�ł��������Bgnuplot �̃}
-�j���A�� (�I�����C���w���v�ɍ����`���ŏ�����Ă��܂�) �́APDF �t�@�C��
-�Ƃ��Ă��u����Ă��܂� (��: gnuplot �ɂ͓��{��� PDF �}�j���A���͕t��
-���Ă��܂���B���{��� PDF �}�j���A���́A���{��}�j���A���T�C�g
-  http://takeno.iee.niit.ac.jp/~foo/gp-jman/
-���Q�Ƃ��Ă�������)�B
+gnuplot の新規ユーザは、gnuplot 起動後に `help` とタイプすることで表示
+される一般的な説明書きを読むことから始め、そして `plot` コマンドに関す
+る説明 (`help plot` と入力してください) を読んでください。gnuplot のマ
+ニュアル (オンラインヘルプに合う形式で書かれています) は、PDF ファイル
+としても置かれています (訳注: gnuplot には日本語の PDF マニュアルは付属
+していません。日本語の PDF マニュアルは、日本語マニュアルサイト
+  http://takeno.iee.niit.ac.jp/‾foo/gp-jman/
+を参照してください)。
 
-'demo' �f�B���N�g���ɂ́A��������̃e�X�g�p�A�T���v���p�̃X�N���v�g���u
-���Ă���܂��B`test` �� `load "all.dem"` �����s���邩�A�܂��̓C���^�[�l
-�b�g��̈ȉ��̃f�����Q�Ƃ��Ă��������B
+'demo' ディレクトリには、たくさんのテスト用、サンプル用のスクリプトが置
+いてあります。`test` や `load "all.dem"` を実行するか、またはインターネ
+ット上の以下のデモを参照してください。
   http://www.gnuplot.info/screenshots/index.html#demos
 
 
-���C�Z���X
+ライセンス
 ----------
 
-�g�p���� (���쌠) �����ɂ��ẮACopyright �t�@�C�����Q�Ƃ��Ă��������B
+使用許諾 (著作権) 条件については、Copyright ファイルを参照してください。
 
-gnuplot �Ɋ܂܂�� "GNU" �́AFree Software Foundation �Ƃ͊֌W�u�Ȃ��v�A
-���܂��܈�v�����ɂ����܂��� (����ɂ͒����b������܂��B�ڍׂ� gnuplot
-FAQ ���Q��)�B����āAgnuplot �� GPL (GNU Public License) copyleft �ŃJ
-�o�[����Ă͂��炸�A���O�̒��쌠�����������Ă��āA����͂��ׂẴ\�[�X
-�R�[�h�ɂ��y��ł��܂��B�������A�֘A����h���C�o�ƃT�|�[�g���[�e�B���e
-�B�ɂ́A��d���C�Z���X�ɂȂ��Ă�����̂�����܂��B
+gnuplot に含まれる "GNU" は、Free Software Foundation とは関係「なく」、
+たまたま一致したにすぎません (これには長い話があります。詳細は gnuplot
+FAQ を参照)。よって、gnuplot は GPL (GNU Public License) copyleft で
+カバーされてはおらず、自前の著作権文書を持っていて、それはすべてのソース
+コードにも及んでいます。しかし、関連するドライバとサポートユーティリティ
+には、二重ライセンスになっているものもあります。
 
 
-gnuplot �o�C�i���z�z��
+gnuplot バイナリ配布物
 ----------------------
 
-* wgnuplot.exe:  GUI �ł̃f�t�H���g�� gnuplot ���s�t�@�C���B�o�[�W����
-  5 ���݂ł̓p�C�v�@�\���G�~�����[�g���܂��B
+* wgnuplot.exe:  GUI 版のデフォルトの gnuplot 実行ファイル。バージョン
+  5 現在ではパイプ機能をエミュレートします。
 
-* wgnuplot_pipes.exe:  �p�C�v�@�\�����S�Ɏ��������� (�R���\�[���E�B���h
-  �E���ǉ�����Ă��܂���)�B
+* wgnuplot_pipes.exe:  パイプ機能を完全に実装した版 (コンソールウィンド
+  ウが追加されてしまいますが)。
 
-* gnuplot.exe:  �e�L�X�g (�R���\�[��) ���[�h�ł� gnuplot ���s�t�@�C����
-  ���̃v���b�g�z�[���̂��̂Ƌ��ʂȊ��S�ȃp�C�v�@�\�������܂��B
-  wgnuplot.exe �Ɣ�r����ƁA���̃v���O�����͕W�����͂���̃R�}���h����
-  ���t���A�o�̓��b�Z�[�W��W���o�͂ɂ��o���܂��B����� pgnuplot.exe ��
-  ������̂ŁA�Ⴆ�� Octave (www.octave.org) �̂悤�ɁAgnuplot ���O��
-  �t�G���W���Ƃ��Ďg�p����悤�ȑ��̃A�v���P�[�V�����ł͂�������g�p��
-  �邱�Ƃ𐄏����܂��B
+* gnuplot.exe:  テキスト (コンソール) モード版の gnuplot 実行ファイルで
+  他のプラットホームのものと共通な完全なパイプ機能を持ちます。
+  wgnuplot.exe と比較すると、このプログラムは標準入力からのコマンドも
+  受け付け、出力メッセージを標準出力にも出せます。これは pgnuplot.exe に
+  代わるもので、例えば Octave (www.octave.org) のように、gnuplot をグラ
+  フエンジンとして使用するような他のアプリケーションではこちらを使用す
+  ることを推奨します。
 
-* pgnuplot.exe:  ���̕⏕�v���O�����́A���͂�o�C�i���p�b�P�[�W�ɂ͊܂�
-  ��Ă��܂���B����� gnuplot.exe ���g�p���Ă��������B
+* pgnuplot.exe:  この補助プログラムは、もはやバイナリパッケージには含ま
+  れていません。代わりに gnuplot.exe を使用してください。
 
-* �����^�C�����C�u�����t�@�C��
-  gnuplot ���K�v�Ƃ��郉���^�C�����C�u�����t�@�C�� (freetype6.dll ��)
-  �����̃p�b�P�[�W�Ɋ܂܂�Ă��܂��B�e�����^�C�����C�u�����̃��C�Z���X
-  �t�@�C���� 'license' �f�B���N�g�����ɒu����Ă��܂��B
+* ランタイムライブラリファイル
+  gnuplot が必要とするランタイムライブラリファイル (freetype6.dll 等)
+  もこのパッケージに含まれています。各ランタイムライブラリのライセンス
+  ファイルは 'license' ディレクトリ内に置かれています。
+
+対話型出力形式
+--------------
+
+Windows 用の gnuplot は、3 種類の対話型出力形式 windows, wxt, qt を提供
+しています。後の 2 つは、他のプラットフォームでも利用可能です。これらは
+いずれも、アンチエイリアス、ヒンティングをともなうオーバーサンプリング
+を利用した高品質出力を生成し、gnuplot の最近の機能すべてをサポートして
+いますが、外部ファイルやクリップボードに出力できる形式や、印刷のサポート、
+persist モードの挙動については違いがあります。wxt は、pngcairo や 
+pdfcairo 出力形式と同じ描画ルーチンを使用しているので、グラフを非対話
+型に保存することも可能です。windows 出力形式のグラフウィンドウは、
+wgnuplot のテキストウィンドウにドッキングさせることも可能です。
+
+デフォルトでは、Windows 用の gnuplot は wxt 出力形式を使用しますが、こ
+れは、GNUTERM 環境変数を設定することで変更できます。下の「環境変数」の
+節を参照してください。または、あなたの gnuplot.ini に
+    set term windows / wxt / qt
+という行を追加するという方法もあります。`help startup` を参照してください。
 
 
-�C���X�g�[��
+インストール
 ------------
 
-gnuplot �̓C���X�g�[�����̌`���ɂȂ��Ă��āA����͊�{�I�ɂ́A���Ȃ�
-���I������I�v�V�����ɉ����āA�ȉ��̂悤�ɓ��삵�܂�:
+gnuplot はインストーラつきの形式になっていて、これは基本的には、あなた
+が選択するオプションに応じて、以下のように動作します:
 
-* �Ⴆ�� C:\Program Files\gnuplot ���̂��Ȃ����I�������f�B���N�g������
-  ���̃p�b�P�[�W (�܂��͂��̈ꕔ��) ��W�J���܂��B
+* 例えば C:¥Program Files¥gnuplot 等のあなたが選択したディレクトリ内に
+  このパッケージ (またはその一部分) を展開します。
 
-* �f�X�N�g�b�v��Ɓu�N�C�b�N�N���v�̏ꏊ (Windows XP, Vista �̏ꍇ) ��
-  wgnuplot �̃V���[�g�J�b�g�A�C�R�����쐬���܂��B����ɁA�X�^�[�g�A�b�v
-  ���j���[���ɂ��̃v���O������w���v�A�t�������Agnuplot �̃C���^�[�l�b
-  �g�T�C�g�A�f���X�N���v�g�ւ̃����N��ǉ����܂��B
-  (��: �u�N�C�b�N�N���v�́u�X�^�[�g�v���E�N���b�N���āu�v���p�e�B�v�A
-  �u�^�X�N�o�[�v�Ɛi��Łu�N�C�b�N�N����\������v�Ƀ`�F�b�N���邱�Ƃ�
-  �\������܂��B)
+* デスクトップ上に wgnuplot のショートカットアイコンを作成します。さらに、
+  スタートアップメニュー内にこのプログラムやヘルプ、付属文書、gnuplot の
+  インターネットサイト、デモスクリプトへのリンクを追加します。
 
-* *.gp �� *.gpl, *.plt �̊g���q�̃t�@�C���� wgnuplot ���J���悤�֘A�t��
-  �����܂��BWindows 7 �� Vista �Ŋ֘A�t����ύX����ɂ́A[�R���g���[��
-  �p�l��]�A[�v���O����]�A[����̃v���O����]�A[�֘A�t����ݒ肷��]�A�Ɛi
-  ��ł��������B�����Ĉꗗ�̒�����t�@�C���̌`����I�����A[�v���O������
-  �ύX] ���N���b�N���Ă��������B
+* *.gp や *.gpl, *.plt の拡張子のファイルを wgnuplot が開くよう関連付け
+  させます。
 
-* gnuplot ���s�t�@�C���ւ̃p�X�� PATH ���ϐ��ɒǉ����܂��B����ɂ��
-  �R�}���h���C���� `gnuplot' �� `wgnuplot' �Ɠ��͂���� gnuplot ���N��
-  �ł���悤�ɂȂ�܂��B
+* gnuplot 実行ファイルへのパスを PATH 環境変数に追加します。これにより
+  コマンドラインで `gnuplot' や `wgnuplot' と入力すれば gnuplot を起動
+  できるようになります。
 
-* Windows �̃G�N�X�v���[���[�� "�t�@�C�������w�肵�Ď��s" �̃_�C�A���O
-  �E�B���h�E�̃V���[�g�J�b�g�� gnuplot ��ǉ����܂��B����ŁA�P�� 
-  Windows �L�[�������� `wgnuplot' ��I�����Ď��s���邱�Ƃ� wgnuplot ��
-  �N���ł���悤�ɂȂ�܂��B
+* Windows のエクスプローラーの "ファイル名を指定して実行" のダイアログ
+  ウィンドウのショートカットに gnuplot を追加します。これで、単に 
+  Windows キーを押して `wgnuplot' を選択して実行することで wgnuplot を
+  起動できるようになります。
 
-* �f�t�H���g�̏o�͌`�� (terminal) �� wxt/windows ����I������ƁA�C���X
-  �g�[���͂���ɉ����� GNUTERM ���ϐ����X�V���܂��B���ϐ��̕ύX���@
-  �ɂ��Ă͉��̃Z�N�V�������Q�Ƃ��Ă��������B�������A��ł��Ȃ���
-  gnuplot.ini �t�@�C����
+* デフォルトの出力形式 (terminal) を wxt/windows/qt から選択すると、インス
+  トーラはそれに応じて GNUTERM 環境変数を更新します。ただし、後であなたの
+  gnuplot.ini ファイルに
     set term windows
-  ��
+  か
     set term wxt
-  ��ǉ����邱�Ƃ��\�ł��B`help startup` ���Q�Ƃ��Ă��������B
+  を追加することも可能です。`help startup` を参照してください。
 
-* �f���X�N���v�g���C���X�g�[�������ꍇ�́A�������܂ރf�B���N�g����
-  GNUPLOT_LIB �����p�X�Ɋ܂܂�܂��B�ȉ��Q�ƁB
+* デモスクリプトをインストールした場合は、それらを含むディレクトリが
+  GNUPLOT_LIB 検索パスに含まれます。以下参照。
 
-�J�X�^�}�C�Y:
-gnuplot �̓��[�U�̃A�v���P�[�V�����f�[�^�f�B���N�g�� %APPDATA% ������
-��΁A�N�����ɂ����ɂ��� gnuplot.ini ���܂����s���܂��Bwgnuplot ��
-windows �o�͌`���́A�A�v���P�[�V�����f�[�^�f�B���N�g������ wgnuplot.ini
-����ݒ��ǂݍ��݁A���̃t�@�C���ɐݒ��ۑ����܂��B`help wgnuplot.ini`
-���Q�Ƃ��Ă��������B
+カスタマイズ:
+gnuplot はユーザのアプリケーションデータディレクトリ %APPDATA% が見つか
+れば、起動時にそこにある gnuplot.ini をまず実行します。wgnuplot と
+windows 出力形式は、アプリケーションデータディレクトリ内の wgnuplot.ini
+から設定を読み込み、このファイルに設定を保存します。`help wgnuplot.ini`
+を参照してください。
 
 
-�t�H���g
+フォント
 --------
 
-�O���t�B�J���e�L�X�g�E�B���h�E (wgnuplot.exe):
-  �Θb�E�B���h�E�̃t�H���g�́A�E�B���h�E�㕔�́u�I�v�V�����v�̃A�C�R��
-  ���A�܂��̓E�B���h�E�ŏ㕔���E�N���b�N���ďo�郁�j���[���� "Choose 
-  Font..." ��I�����ĕύX�ł��܂��B�Â� "Terminal" (gnuplot 4.4 �ł̃f
-  �t�H���g) �̂悤�ȃt�H���g�ł͂Ȃ��A"Consolas" �̂悤�ȐV���� 
-  Truetype �t�H���g���g�p���邱�Ƃ������������܂� (��: ���{����g�p��
-  ��ꍇ�́A�uMS �S�V�b�N�v��uMS �����v�Ȃǂ̓��{��̃t�H���g���w�肷
-  ��Ƃ����ł��傤)�B���̕ύX��ێ����邽�߂ɁA�������j���[�ɂ��� 
-  "Update wgnuplot.ini" �����s���Ă��������B
+グラフィカルテキストウィンドウ (wgnuplot.exe):
+  対話ウィンドウのフォントは、ウィンドウ上部の「オプション」のアイコン
+  か、またはウィンドウ最上部を右クリックして出るメニューから "Choose 
+  Font..." を選択して変更できます。古い "Terminal" (gnuplot 4.4 でのデ
+  フォルト) のようなフォントではなく、"Consolas" のような新しい 
+  Truetype フォントを使用することを強く推奨します (訳注: 日本語を使用す
+  る場合は、「MS ゴシック」や「MS 明朝」などの日本語のフォントを指定す
+  るといいでしょう)。この変更を保持するために、同じメニューにある 
+  "Update wgnuplot.ini" を実行してください。
 
-�R���\�[���E�B���h�E (gnuplot.exe):
-  �g���������������\������Ȃ���΁A"Consolas" �� "Lucida Console" �Ȃ�
-  �̔񃉃X�^���C�Y�`���̃R���\�[���t�H���g�ɕύX����K�v������܂��B��
-  ��̓R���\�[���E�B���h�E�́u�v���p�e�B�v�ōs���܂��B
+コンソールウィンドウ (gnuplot.exe):
+  拡張文字が正しく表示されなければ、"Consolas" や "Lucida Console" など
+  の非ラスタライズ形式のコンソールフォントに変更する必要があります。こ
+  れはコンソールウィンドウの「プロパティ」で行えます。
 
 
-�n��Ή�
+エンコーディング
+----------------
+
+Windows 上、gnuplot のバージョン 5.2 以降では、gnuplot がサポートする
+すべてのエンコーディング (UTF-8 を含む。以下参照: `help encoding`) を使って
+コマンドライン入力を行うことができます。デフォルトでは、gnuplot は、
+サポートしていれば、そのシステムの ANSI コードページに一致するエンコー
+ディングを使いますが、あなたの gnuplot.ini ファイル (下で説明) に、
+`set encoding utf8` という行を追加することを推奨します。コマンドライン
+のユニコード入力は BMP (基本多言語面) に制限されていますが、スクリプト
+では (以前のバージョンと同様) すべての文字が使えます。
+
+
+地域対応
 --------
 
-gnuplot version 4.6 �ł́A���j���[�ƃw���v�t�@�C���̒n��Ή����T�|�[�g
-���Ă��āA�f�t�H���g�ł� gnuplot �� wgnuplot-XX.mnu �� wgnuplot-XX.chm
-��ǂݍ������Ƃ��܂��B�����ŁAXX �� 2 �����̌���R�[�h�ł��B���݂̂Ƃ�
-��A�p�� (�f�t�H���g) �Ɠ��{�� (ja) ���T�|�[�g���Ă��܂����A���̒n���
-���t�@�C������W���Ă��܂��B
+gnuplot は、メニューとヘルプファイルの地域対応をサポートしていて、デフ
+ォルトでは gnuplot は wgnuplot-XX.mnu と wgnuplot-XX.chm を読み込もうと
+します。ここで、XX は 2 文字の言語コードです。現在のところ、英語 (デフ
+ォルト) と日本語 (ja) をサポートしていますが、他の地域対応ファイルも募
+集しています。
 
-�����I�ɓ���̌�����g���悤�ɂ���ɂ́Awgnuplot.ini �t�@�C����
+強制的に特定の言語を使うようにするには、wgnuplot.ini ファイルに
   Language=XX
-�����Ă��������B���̃t�@�C���́A���Ȃ��� %APPDATA% �f�B���N�g���ɒu��
-��Ă��܂��B�Ⴆ�Ήp��̃��j���[�œ��{��̃w���v���������A�Ƃ���������
-�����ݒ肪��������΁Awgnuplot.ini �Ɉȉ��̍s��ǉ�����΂ł��܂�:
+を入れてください。このファイルは、あなたの %APPDATA% ディレクトリに置か
+れています。例えば英語のメニューで日本語のヘルプが見たい、といった混在
+した設定がしたければ、wgnuplot.ini に以下の行を追加すればできます:
   HelpFile=wgnuplot-ja.chm
   MenuFile=wgnuplot.mnu
 
-���݂� gnuplot �����猾����̐ݒ��ύX������@�͂Ȃ����Ƃɒ��ӂ��Ă�
-�������B
+現在は gnuplot 内から言語環境の設定を変更する方法はないことに注意してく
+ださい。
 
 
-���ϐ�
+環境変数
 --------
 
-�T�|�[�g������ϐ��̈ꗗ������ɂ́Agnuplot ��� 'help environment'
-�Ƃ��Ă��������B
+サポートする環境変数の一覧を見るには、gnuplot 上で 'help environment'
+としてください。以下に重要な例を示します。
 
-���ϐ���ݒ�/�ύX����ɂ́AWindows NT/2000/XP/Vista �ł� [�R���g���[
-���p�l��]�A[�V�X�e��]�A([�ڍאݒ�])�A[���ϐ�] �ŁAWIndows 7 �ł̓f�X
-�N�g�b�v�̃R���s���[�^�A�C�R�����E�N���b�N���� [�v���p�e�B] ��I�����A
-[�V�X�e��]�A[�V�X�e���̏ڍאݒ�]�A[�ڍאݒ�]�A[���ϐ�] �ōs���܂��B
+* GNUTERM が定義されていると、その値の名前の出力形式 (terminal) を使用
+  します。これは、gnuplot 起動時に認識されたいかなる出力形式よりも優先
+  しますが、初期化ファイル gnuplot.init で上書きでき (`help startup` 参
+  照)、そしてもちろんその後の明示的な出力形式の指定で変更できます。
 
-* GNUTERM ����`����Ă���ƁA���̒l�̖��O�̏o�͌`�� (terminal) ���g�p
-  ���܂��B����́Agnuplot �N�����ɔF�����ꂽ�����Ȃ�o�͌`�������D��
-  ���܂����A�������t�@�C�� gnuplot.init �ŏ㏑���ł� (`help startup` �Q
-  ��)�A�����Ă�����񂻂̌�̖����I�ȏo�͌`���̎w��ŕύX�ł��܂��B
-
-* ���ϐ� GNUPLOT_LIB �́A�f�[�^��R�}���h�X�N���v�g�̒ǉ������f�B���N
-  �g�����`����̂Ɏg���܂��B���̕ϐ��̒l�́A�P��̃f�B���N�g�����ł��A
-  ��؂蕶�� ';' �ŋ�؂�ꂽ�����̃f�B���N�g�����X�g�ł��\���܂���B
-  GNUPLOT_LIB �̓��e�́A`loadpath` �����ϐ��ɒǉ�����܂����A`save` ��
-  `save set` �R�}���h�ŕۑ����܂���B�ڍׂ� 'help loadpath' ���Q�Ƃ���
-  ���������B
+* 環境変数 GNUPLOT_LIB は、データやコマンドスクリプトの追加検索ディレク
+  トリを定義するのに使います。この変数の値は、単一のディレクトリ名でも、
+  区切り文字 ';' で区切られた複数のディレクトリリストでも構いません。
+  GNUPLOT_LIB の内容は、`loadpath` 内部変数に追加されますが、`save` や
+  `save set` コマンドで保存しません。詳細は 'help loadpath' を参照して
+  ください。
 
 
-�m���Ă���o�O
+知られているバグ
 ----------------
 
-�V�����o�O�̏��ɂ��ẮA�o�O�ǐՃV�X�e��
+新しいバグの情報については、バグ追跡システム
 
     http://sourceforge.net/p/gnuplot/bugs/
 
-���Q�Ƃ��Ă��������B
+を参照してください。
 
 --------------------------------------------------------------------------------
 
-The gnuplot team, 2015 2 ��
+The gnuplot team, 2022 1 月

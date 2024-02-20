@@ -43,18 +43,6 @@
 
 /* Type definitions */
 
-typedef enum en_dgrid3d_mode {
-    DGRID3D_DEFAULT,
-    DGRID3D_QNORM,
-    DGRID3D_SPLINES,
-    DGRID3D_GAUSS,
-    DGRID3D_EXP,
-    DGRID3D_CAUCHY,
-    DGRID3D_BOX,
-    DGRID3D_HANN,
-    DGRID3D_OTHER
-} t_dgrid3d_mode;
-
 typedef enum en_contour_placement {
     /* Where to place contour maps if at all. */
     CONTOUR_NONE,
@@ -73,6 +61,21 @@ typedef struct gnuplot_contours {
     int num_pts;
     double z;
 } gnuplot_contours;
+
+typedef enum cfill_mode {
+    CFILL_AUTO,
+    CFILL_ZTICS,
+    CFILL_CBTICS,
+    CFILL_LIST
+} t_cfill_mode;
+
+typedef struct contourfill {
+    t_cfill_mode mode;
+    int nslices;
+    int tic_level;		/* Currently always 0 */
+    int firstlinetype;
+} t_contourfill;
+#define MAX_ZSLICES 100
 
 typedef struct iso_curve {
     struct iso_curve *next;
@@ -100,10 +103,12 @@ typedef struct surface_points {
     struct t_image image_properties;	/* only used if plot_style is IMAGE, RGBIMAGE or RGBA_IMAGE */
     struct udvt_entry *sample_var;	/* used by '+' if plot has private sampling range */
     struct udvt_entry *sample_var2;	/* used by '++' if plot has private sampling range */
+    struct udft_entry plot_function;	/* action table and dummy variables for function plot */
+    enum PLOT_FILTER plot_filter; /* currently only "mask" */
+    enum PLOT_SMOOTH plot_smooth; /* smooth lines in 3D */
 
     /* 2D and 3D plot structure fields overlay only to this point */
 
-    enum PLOT_SMOOTH plot_smooth; /* EXPERIMENTAL: smooth lines in 3D */
     TBOOLEAN opt_out_of_hidden3d; /* set by "nohidden" option to splot command */
     TBOOLEAN opt_out_of_contours; /* set by "nocontours" option to splot command */
     TBOOLEAN opt_out_of_surface;  /* set by "nosurface" option to splot command */
@@ -111,7 +116,7 @@ typedef struct surface_points {
     TBOOLEAN pm3d_color_from_column;
     TBOOLEAN has_grid_topology;
     int hidden3d_top_linetype;	/* before any calls to load_linetype() */
-    int iteration;		/* needed for tracking iteration */
+    void *iteration;		/* needed for tracking iteration */
 
     struct vgrid *vgrid;	/* used only for voxel plots */
     double iso_level;		/* used only for voxel plots */
@@ -121,7 +126,10 @@ typedef struct surface_points {
     int num_iso_read;
     struct gnuplot_contours *contours; /* NULL if not doing contours. */
     struct iso_curve *iso_crvs;	/* the actual data */
-    char pm3d_where[7];		/* explicitly given base, top, surface */
+    char pm3d_where[8];		/* explicitly given base, top, surface */
+
+    struct zslice *zclip;	/* pm3d surface z-clipping array (contour fill) */
+    int zclip_index;		/* index into zclip[] */
 
 } surface_points;
 
@@ -135,11 +143,15 @@ extern double xscale3d, yscale3d, zscale3d;
 extern double xcenter3d, ycenter3d, zcenter3d;
 extern double radius_scaler;
 
+/* "set cntrlabel" parameters */
 extern t_contour_placement draw_contour;
 extern TBOOLEAN	clabel_onecolor;
 extern int clabel_start;
 extern int clabel_interval;
 extern char *clabel_font;
+
+/* "set contourfill" parameters */
+extern t_contourfill contourfill;
 
 extern TBOOLEAN	draw_surface;
 extern TBOOLEAN	implicit_surface;
