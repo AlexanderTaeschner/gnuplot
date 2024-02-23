@@ -1366,8 +1366,9 @@ df_open(const char *cmd_filename, int max_using, struct curve_points *plot)
      *	"binary filetype=png using 4" becomes "using (generated x):(generated y):4"
      *	This mangles any attempt to refer to actual column numbers or file content.
      */
-    if (set_using && df_bin_filetype >= 0)
-	int_warn(NO_CARET, "combining 'using' with 'binary filetype' probably does not do what you want");
+    if (set_using && df_bin_filetype != DF_BIN_FILETYPE_RESET)
+	int_warn(NO_CARET,
+		"combining 'using' with 'binary filetype' probably does not do what you want");
 
     /* Check for auto-generation of key title from column header  */
     if ((&keyT)->auto_titles == COLUMNHEAD_KEYTITLES) {
