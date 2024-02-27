@@ -6,7 +6,7 @@ branches:
 image: Visual Studio 2022
 install:
   - cd C:\Tools\vcpkg
-  - git pull
+  - git checkout 2024.02.14
   - .\bootstrap-vcpkg.bat
 #  - del /S /Q c:\tools\vcpkg\installed
 #  - del /S /Q C:\Users\appveyor\AppData\Local\vcpkg\archives
