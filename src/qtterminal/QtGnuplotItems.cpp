@@ -131,11 +131,12 @@ void QtGnuplotEnhancedFragment::paint(QPainter* painter, const QStyleOptionGraph
 /////////////////////////////
 // QtGnuplotPoint
 
-QtGnuplotPoint::QtGnuplotPoint(int style, double size, QPen pen, QGraphicsItem * parent)
+QtGnuplotPoint::QtGnuplotPoint(int style, double size, QPen pen, QColor background, QGraphicsItem * parent)
 	: QGraphicsItem(parent)
 {
 	m_pen   = pen;
 	m_color = pen.color();
+	m_backgroundFill = background;
 	m_style = style;
 	m_size = 3.*size;
 }
@@ -150,9 +151,22 @@ void QtGnuplotPoint::paint(QPainter* painter, const QStyleOptionGraphicsItem* op
 	Q_UNUSED(option);
 	Q_UNUSED(widget);
 
-	const int style = m_style % 15;
+	int style = m_style % 15;
 
-	if ((style % 2 == 0) && (style > 3)) // Filled points
+	/* Extra point types 1001 - 1006 (background fill) */
+	if (1000 <= m_style && m_style <= 1005) {
+		switch (m_style) {
+			case 1000: style = 4; break;
+			case 1001: style = 6; break;
+			case 1002: style = 8; break;
+			case 1003: style = 10; break;
+			case 1004: style = 12; break;
+			case 1005: style = 14; break;
+		}
+		painter->setPen(m_color);
+		painter->setBrush(m_backgroundFill);
+	}
+	else if ((style % 2 == 0) && (style > 3)) // Filled points
 	{
 		painter->setPen(m_color);
 		painter->setBrush(m_color);
@@ -225,6 +239,12 @@ QtGnuplotPoints::QtGnuplotPoints(QGraphicsItem * parent)
 	: QGraphicsItem(parent)
 {
 	m_currentZ = 0;
+	m_backgroundFill = Qt::white;	// I don't know how to retrieve it from the scene!
+}
+
+void QtGnuplotPoints::setBackgroundFill(const QColor color)
+{
+	m_backgroundFill = color;
 }
 
 QRectF QtGnuplotPoints::boundingRect() const
@@ -288,13 +308,27 @@ void QtGnuplotPoints::paint(QPainter* painter, const QStyleOptionGraphicsItem* o
 	{
 		for (; i < m_points.size() && m_points[i].z == z; i++, z++)
 		{
-			const int style = m_points[i].style % 15;
+			int style = m_points[i].style % 15;
 
-			painter->setPen(m_points[i].pen.color());
-			if ((style % 2 == 0) && (style > 3)) // Filled points
-				painter->setBrush(m_points[i].pen.color());
-			else
+			/* Extra point types 1001 - 1006 (background fill) */
+			if (1000 <= m_points[i].style && m_points[i].style <= 1005) {
+				switch (m_points[i].style) {
+					case 1000: style = 4; break;
+					case 1001: style = 6; break;
+					case 1002: style = 8; break;
+					case 1003: style = 10; break;
+					case 1004: style = 12; break;
+					case 1005: style = 14; break;
+				}
+				painter->setPen(m_points[i].pen);
+				painter->setBrush(m_backgroundFill);
+			}
+			else if ((style % 2 == 0) && (style > 3))
 			{
+				// Filled points
+				painter->setPen(m_points[i].pen.color());
+				painter->setBrush(m_points[i].pen.color());
+			} else {
 				painter->setPen(m_points[i].pen);
 				painter->setBrush(Qt::NoBrush);
 			}
