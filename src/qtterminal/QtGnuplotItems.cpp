@@ -154,7 +154,7 @@ void QtGnuplotPoint::paint(QPainter* painter, const QStyleOptionGraphicsItem* op
 	int style = m_style % 15;
 
 	/* Extra point types 1001 - 1006 (background fill) */
-	if (1000 <= m_style && m_style <= 1005) {
+	if (1000 <= m_style && m_style < 1020) {
 		switch (m_style) {
 			case 1000: style = 4; break;
 			case 1001: style = 6; break;
@@ -162,6 +162,8 @@ void QtGnuplotPoint::paint(QPainter* painter, const QStyleOptionGraphicsItem* op
 			case 1003: style = 10; break;
 			case 1004: style = 12; break;
 			case 1005: style = 14; break;
+			case 1006: style = 15; break;
+			default:   style = -1; break;
 		}
 		painter->setPen(m_color);
 		painter->setBrush(m_backgroundFill);
@@ -229,6 +231,21 @@ void QtGnuplotPoint::drawPoint(QPainter* painter, const QPointF& origin, double 
 						origin + QPointF(-size*0.5878, -size*0.8090),
 						origin + QPointF(-size*0.9511,  size*0.3090)};
 		painter->drawPolygon(p, 5);
+	}
+	else if (style == 15) // star
+	{
+		const double scl = size * 1.2;
+		const QPointF p[10] = { origin + QPointF( scl*0.5878,  scl*0.8090),
+					origin + QPointF( scl*0.0   ,  scl*0.5090),
+					origin + QPointF(-scl*0.5878,  scl*0.8090),
+					origin + QPointF(-scl*0.4755,  scl*0.1545),
+					origin + QPointF(-scl*0.9511, -scl*0.3090),
+					origin + QPointF(-scl*0.2939, -scl*0.4040),
+					origin + QPointF( scl*0.0   , -scl*1.0000),
+					origin + QPointF( scl*0.2939, -scl*0.4040),
+					origin + QPointF( scl*0.9511, -scl*0.3090),
+					origin + QPointF( scl*0.4755,  scl*0.1545) };
+		painter->drawPolygon(p, 10);
 	}
 }
 
@@ -311,7 +328,7 @@ void QtGnuplotPoints::paint(QPainter* painter, const QStyleOptionGraphicsItem* o
 			int style = m_points[i].style % 15;
 
 			/* Extra point types 1001 - 1006 (background fill) */
-			if (1000 <= m_points[i].style && m_points[i].style <= 1005) {
+			if (1000 <= m_points[i].style && m_points[i].style < 1020) {
 				switch (m_points[i].style) {
 					case 1000: style = 4; break;
 					case 1001: style = 6; break;
@@ -319,6 +336,8 @@ void QtGnuplotPoints::paint(QPainter* painter, const QStyleOptionGraphicsItem* o
 					case 1003: style = 10; break;
 					case 1004: style = 12; break;
 					case 1005: style = 14; break;
+					case 1006: style = 15; break;
+					default:   style = -1; break;
 				}
 				painter->setPen(m_points[i].pen);
 				painter->setBrush(m_backgroundFill);

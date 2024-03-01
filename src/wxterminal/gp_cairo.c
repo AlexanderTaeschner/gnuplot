@@ -990,6 +990,7 @@ void gp_cairo_draw_point(plot_struct *plot, int x1, int y1, int style)
 	double weight1 = (double) plot->hinting/100;
 	double weight2 = 1.0 - weight1;
 	double size = plot->pointsize*3*plot->oversampling_scale;
+	double scl;
 
 	/* begin by stroking any open path */
 	gp_cairo_stroke(plot);
@@ -1140,6 +1141,22 @@ void gp_cairo_draw_point(plot_struct *plot, int x1, int y1, int style)
 			cairo_fill_preserve(plot->cr);
 		if (style == 1005)
 			gp_cairo_background_fill(plot);
+		cairo_stroke(plot->cr);
+		break;
+	case 1006:
+		scl = 1.2 * size;
+		cairo_move_to(plot->cr, x + scl*0.5878, y + scl*0.8090);
+		cairo_line_to(plot->cr, x,                   y + scl*0.5090);
+		cairo_line_to(plot->cr, x - scl*0.5878, y + scl*0.8090);
+		cairo_line_to(plot->cr, x - scl*0.4755, y + scl*0.1545);
+		cairo_line_to(plot->cr, x - scl*0.9511, y - scl*0.3090);
+		cairo_line_to(plot->cr, x - scl*0.2939, y - scl*0.4040);
+		cairo_line_to(plot->cr, x,                   y - scl       );
+		cairo_line_to(plot->cr, x + scl*0.2939, y - scl*0.4040);
+		cairo_line_to(plot->cr, x + scl*0.9511, y - scl*0.3090);
+		cairo_line_to(plot->cr, x + scl*0.4755, y + scl*0.1545);
+		cairo_close_path(plot->cr);
+		gp_cairo_background_fill(plot);
 		cairo_stroke(plot->cr);
 		break;
 	default :

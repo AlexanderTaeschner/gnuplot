@@ -12,6 +12,7 @@
 #	1004	background filled upside-down triangle
 #	1005	background filled diamond
 #	1006	background filled pentagon
+#	1007	background filled star
 #
 
 set xrange [-10:-5]
@@ -21,7 +22,7 @@ unset tics
 set key outside font ",16"
 
 set title "Special point styles starting from pointtype 1001"
-plot for [i=1:6] -sin(x/i) with lp lw 2 pi 8 pt (1000+i) ps 2.5 title sprintf("pt %d",1000+i)
+plot for [i=1:7] -sin(x/i) with lp lw 2 pi 8 pt (1000+i) ps 2.5 title sprintf("pt %d",1000+i)
 
 pause -1 "<cr> to continue"
 reset

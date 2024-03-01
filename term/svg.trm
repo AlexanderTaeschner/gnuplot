@@ -1083,6 +1083,15 @@ SVG_write_preamble ()
 	);
 
     fprintf (gpoutfile,
+	    /* Extra point type 1007 */
+	     "\t<path id='gpPt15' stroke-width='%.3f' stroke='currentColor' d='"
+	     "M0.707,0.971 L0.0,0.611 L-0.707,0.971 L-0.571,0.185 L-1.141,-0.371 "
+	     "L-0.353,-0.485 L0.0,-1.2 L0.353,-0.485 L1.141,-0.371 L0.571,0.185 z' />\n"
+	     "\t<use xlink:href='#gpPt15' id='gpPt1007' fill='%s' stroke='currentColor'/>\n"
+	     , stroke_width, SVG_pens[0].color
+	);
+
+    fprintf (gpoutfile,
 	     /* NOTE: Fill patterns must be defined after the stroke color has been
 	      * set to use the correct (current) stroke color. Therefore we can't
 	      * define fill patterns here. */
@@ -1511,7 +1520,7 @@ onmouseout=\"gnuplot_svg.hideHypertext()\"><title> </title>\n",
     } else {			/* draw a point symbol */
 	int pointtype;
 	/* Extra point types 1001-1006 */
-	if (1000 <= number && number <= 1005)
+	if (1000 <= number && number <= 1006)
 		pointtype = number+1;
 	else
 		pointtype = number % 15;
