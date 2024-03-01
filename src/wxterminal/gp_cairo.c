@@ -118,6 +118,9 @@ static int avg_vchar = 150;
 static void gp_cairo_fill(plot_struct *plot, int fillstyle, int fillpar);
 static void gp_cairo_fill_pattern(plot_struct *plot, int fillstyle, int fillpar);
 
+/* background fill for special point types */
+static void gp_cairo_background_fill(plot_struct *plot);
+
 /* Boxed text support */
 static int bounding_box[4];
 static double bounding_xmargin = 1.0;
@@ -1023,7 +1026,12 @@ void gp_cairo_draw_point(plot_struct *plot, int x1, int y1, int style)
 	}
 
 
-	style = style % 15;
+	/* Point styles 1001-1020 are special; other than that we cycle every 15 */
+	if (1000 <= style && style < 1020)
+		;
+	else
+		style = style % 15;
+
 	switch (style) {
 	case 0: /* plus */
 		cairo_move_to(plot->cr, x-size, y);
@@ -1057,6 +1065,7 @@ void gp_cairo_draw_point(plot_struct *plot, int x1, int y1, int style)
 		break;
 	case 3: /* box */
 	case 4: /* filled box */
+	case 1000:
 		cairo_move_to(plot->cr, x-size, y-size);
 		cairo_line_to(plot->cr, x-size,y+size);
 		cairo_line_to(plot->cr, x+size,y+size);
@@ -1064,39 +1073,49 @@ void gp_cairo_draw_point(plot_struct *plot, int x1, int y1, int style)
 		cairo_close_path(plot->cr);
 		if (style == 4)
 			cairo_fill_preserve(plot->cr);
+		if (style == 1000)
+			gp_cairo_background_fill(plot);
 		cairo_stroke(plot->cr);
 		break;
 	case 5: /* circle */
-		cairo_arc (plot->cr, x, y, size, 0, 2*M_PI);
-		cairo_stroke (plot->cr);
-		break;
 	case 6: /* filled circle */
+	case 1001:
 		cairo_arc (plot->cr, x, y, size, 0, 2*M_PI);
-		cairo_fill_preserve(plot->cr);
-		cairo_stroke(plot->cr);
+		if (style == 6)
+			cairo_fill_preserve(plot->cr);
+		if (style == 1001)
+			gp_cairo_background_fill(plot);
+		cairo_stroke (plot->cr);
 		break;
 	case 7: /* triangle */
 	case 8: /* filled triangle */
+	case 1002:
 		cairo_move_to(plot->cr, x-size, y+size-plot->oversampling_scale);
 		cairo_line_to(plot->cr, x,y-size);
 		cairo_line_to(plot->cr, x+size,y+size-plot->oversampling_scale);
 		cairo_close_path(plot->cr);
 		if (style == 8)
 			cairo_fill_preserve(plot->cr);
+		if (style == 1002)
+			gp_cairo_background_fill(plot);
 		cairo_stroke(plot->cr);
 		break;
 	case 9: /* upside down triangle */
 	case 10: /* filled upside down triangle */
+	case 1003:
 		cairo_move_to(plot->cr, x-size, y-size+plot->oversampling_scale);
 		cairo_line_to(plot->cr, x,y+size);
 		cairo_line_to(plot->cr, x+size,y-size+plot->oversampling_scale);
 		cairo_close_path(plot->cr);
 		if (style == 10)
 			cairo_fill_preserve(plot->cr);
+		if (style == 1003)
+			gp_cairo_background_fill(plot);
 		cairo_stroke(plot->cr);
 		break;
 	case 11: /* diamond */
 	case 12: /* filled diamond */
+	case 1004:
 		cairo_move_to(plot->cr, x-size, y);
 		cairo_line_to(plot->cr, x,y+size);
 		cairo_line_to(plot->cr, x+size,y);
@@ -1104,10 +1123,13 @@ void gp_cairo_draw_point(plot_struct *plot, int x1, int y1, int style)
 		cairo_close_path(plot->cr);
 		if (style == 12)
 			cairo_fill_preserve(plot->cr);
+		if (style == 1004)
+			gp_cairo_background_fill(plot);
 		cairo_stroke(plot->cr);
 		break;
 	case 13: /* pentagon */
 	case 14: /* filled pentagon */
+	case 1005:
 		cairo_move_to(plot->cr, x+size*0.5878, y-size*0.8090);
 		cairo_line_to(plot->cr, x-size*0.5878, y-size*0.8090);
 		cairo_line_to(plot->cr, x-size*0.9511, y+size*0.3090);
@@ -1116,6 +1138,8 @@ void gp_cairo_draw_point(plot_struct *plot, int x1, int y1, int style)
 		cairo_close_path(plot->cr);
 		if (style == 14)
 			cairo_fill_preserve(plot->cr);
+		if (style == 1005)
+			gp_cairo_background_fill(plot);
 		cairo_stroke(plot->cr);
 		break;
 	default :
@@ -1124,7 +1148,17 @@ void gp_cairo_draw_point(plot_struct *plot, int x1, int y1, int style)
 	cairo_restore(plot->cr);
 }
 
-
+static void
+gp_cairo_background_fill(plot_struct *plot)
+{
+	/* Fill current path with solid background, then restore color */
+	cairo_set_source_rgb(plot->cr,
+		plot->background.r, plot->background.g, plot->background.b);
+	cairo_fill_preserve(plot->cr);
+	cairo_set_source_rgba(plot->cr,
+		plot->color.r, plot->color.g, plot->color.b,
+		1. - plot->color.alpha);
+}
 
 void gp_cairo_draw_fillbox(plot_struct *plot, int x, int y, int width, int height, int style)
 {
