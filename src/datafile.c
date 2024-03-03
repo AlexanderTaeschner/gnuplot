@@ -2192,11 +2192,12 @@ df_readascii(double v[], int max)
 		    int axis, axcol;
 		    double xpos;
 
-		    /* EAM FIXME - skip columnstacked histograms also */
-		    if (df_current_plot) {
-			if (df_current_plot->plot_style == BOXPLOT)
-				continue;
+		    if (df_current_plot
+		    &&  df_current_plot->plot_style == BOXPLOT) {
+			if (df_datum != 1) /* Only need to create the label once */
+			    continue;
 		    }
+
 		    axcol = axcol_for_ticlabel( use_spec[output].expected_type, &axis );
 		    /* Trap special case of only a single 'using' column */
 		    if (output == 1)
@@ -2205,7 +2206,7 @@ df_readascii(double v[], int max)
 			xpos = v[axcol];
 
 		    if (df_current_plot
-			&& df_current_plot->plot_style == HISTOGRAMS) {
+		    &&  df_current_plot->plot_style == HISTOGRAMS) {
 			if (output > 1) /* Can only happen for HT_ERRORBARS */
 			    xpos = (axcol == 0) ? df_datum : v[axcol-1];
 			xpos += df_current_plot->histogram->start;
