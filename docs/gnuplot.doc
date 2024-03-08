@@ -2537,7 +2537,7 @@ C 4 weekdata_cdc
 ?LambertW
  Lambert W function with complex domain and range.
  LambertW( z, k ) returns the kth branch of the function W defined by
- the equation W(z) * exp(z) = z.
+ the equation W(z) * exp(W(z)) = z.
  The complex value is obtained using Halley's method as described by
  Corless et al [1996], Adv. Comp. Math 5:329.
  The nominal precision is 1.E-13 but convergence can be poor very close to
