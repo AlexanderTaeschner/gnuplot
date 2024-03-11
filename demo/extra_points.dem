@@ -1,0 +1,27 @@
+#
+# Terminals that support polygon-fill can use this to draw
+# points with background fill.
+# Point types in the range 1001 - 1020 are reserved for this purpose.
+# This is obviously terminal-dependent.
+#
+# As of now (may change) this is implemented for the qt, svg, postscript,
+# and cairo terminals (includes wxt sixel kitty webp).
+#	1001	background filled square
+#	1002	background filled circle
+#	1003	background filled triangle
+#	1004	background filled upside-down triangle
+#	1005	background filled diamond
+#	1006	background filled pentagon
+#
+
+set xrange [-10:-5]
+set yrange [.3 : 1.1]
+set border 3 back
+unset tics
+set key outside font ",16"
+
+set title "Special point styles starting from pointtype 1001"
+plot for [i=1:6] -sin(x/i) with lp lw 2 pi 8 pt (1000+i) ps 2.5 title sprintf("pt %d",1000+i)
+
+pause -1 "<cr> to continue"
+reset
