@@ -1909,6 +1909,15 @@ SVG_layer(t_termlayer syncpoint)
 	case TERM_LAYER_RESET_PLOTNO:
 		SVG_plotno = 0;
 		break;
+
+	case TERM_LAYER_BEGIN_PM3D_FLUSH:
+		SVG_GroupOpen();
+		break;
+	case TERM_LAYER_END_PM3D_FLUSH:
+		SVG_PathClose();
+		fprintf(gpoutfile, "\n");
+		SVG_GroupClose();
+		break;
     }
 }
 
