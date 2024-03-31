@@ -134,11 +134,11 @@ extern "C" {
 #endif
 
 /* by default, enable IMAGE_SURFACE */
-#if !defined(GTK_SURFACE)&&!defined(IMAGE_SURFACE)&&!defined(__WXMSW__)
+#if !defined(GTK_SURFACE) && !defined(IMAGE_SURFACE) && !defined(__WXMSW__)
 # define IMAGE_SURFACE
 #endif
 
-/* temporarily undef GTK_SURFACE for two reasons :
+/* undef GTK_SURFACE for two reasons :
  * - because of a CAIRO_OPERATOR_SATURATE bug,
  * - because as for now, it is slower than the pure image surface,
  * (multiple copies between video memory and main memory for operations that are
@@ -146,18 +146,6 @@ extern "C" {
 #ifdef GTK_SURFACE
 # undef GTK_SURFACE
 # define IMAGE_SURFACE
-#endif
-
-/* depending on the platform, and mostly because of the Windows terminal which
- * already has its event loop, we may or may not be multithreaded */
-#ifndef WXT_MONOTHREADED
-#if defined(__WXGTK__)
-# define WXT_MULTITHREADED
-#elif defined(__WXMSW__) || defined(__WXMAC__)
-# define WXT_MONOTHREADED
-#else
-# error "wxt does not know if this platform has to be single- or multi-threaded"
-#endif
 #endif
 
 /* Enable the print dialog on Windows only
@@ -207,12 +195,7 @@ extern "C" {
 #  include <cairo-win32.h>
 # endif
 
-/* to avoid to receive SIGINT in wxWidgets threads,
- * already included unconditionally in plot.c,
- * only needed here when using WXGTK
- * (or at least not needed on Windows) */
-# include <signal.h>
-}
+} /* extern "C" */
 
 /* interaction with wxt.trm(wxt_options) : plot number, enhanced state.
  * Communication with gnuplot (wxt_exec_event)
@@ -225,28 +208,6 @@ extern "C" {
 /* ======================================================================
  * declarations
  * ====================================================================*/
-
-#ifdef WXT_MULTITHREADED
-
-#if defined(WX_NEEDS_XINITTHREADS) && defined(X11)
-#include <X11/Xlib.h>	/* Magic fix for linking against wxgtk3.0 */
-#endif
-
-/* thread class, where the gui loop runs.
- * Not needed with Windows, where the main loop
- * already processes the gui messages */
-class wxtThread : public wxThread
-{
-public:
-	wxtThread() : wxThread(wxTHREAD_JOINABLE) {};
-
-	/* thread execution starts in the following */
-	void *Entry();
-};
-
-/* instance of the thread */
-static wxtThread * thread;
-#endif /* WXT_MULTITHREADED */
 
 DECLARE_LOCAL_EVENT_TYPE(wxExitLoopEvent, -1)
 DEFINE_LOCAL_EVENT_TYPE(wxExitLoopEvent)
@@ -263,11 +224,6 @@ DEFINE_LOCAL_EVENT_TYPE(wxStatusTextEvent)
 class wxtApp : public wxApp
 {
 public:
-#if defined(WXT_MULTITHREADED) && defined(WX_NEEDS_XINITTHREADS) && defined(X11)
-	/* Magic fix needed by wxgtk3.0 */
-        wxtApp() : wxApp() { XInitThreads(); }
-#endif
-
 	/* This one is called just after wxWidgets initialization */
 	bool OnInit();
 	/* cleanup on exit */
@@ -439,6 +395,7 @@ private:
 #if defined(GTK_SURFACE)
 	GdkPixmap *gdkpixmap;
 #elif defined(__WXMSW__)
+	/* ??? */
 #else /* generic 'image' surface */
 	unsigned int *data32;
 	wxBitmap* cairo_bitmap;
@@ -627,11 +584,6 @@ static void wxt_check_for_anchors(unsigned int x, unsigned int y);
 /* process one event, returns true if it ends the pause */
 static bool wxt_process_one_event(struct gp_event_t *);
 
-# ifdef WXT_MULTITHREADED
-/* set of pipe file descriptors for event communication with the core */
-int wxt_event_fd = -1;
-int wxt_sendevent_fd = -1;
-# endif /* WXT_MULTITHREADED */
 #endif /*USE_MOUSE*/
 
 /* helpers to handle the issues of the default Raise() and Lower() methods */
@@ -640,19 +592,6 @@ static void wxt_lower_window(wxt_window_t* window);
 
 /* cleanup  on exit : close all created windows, delete thread if necessary */
 static void wxt_cleanup();
-
-/* helpers for gui mutex handling : they do nothing in WXMSW */
-static void wxt_MutexGuiEnter();
-static void wxt_MutexGuiLeave();
-
-/* interrupt stuff */
-static void (*original_siginthandler) (int);
-static void wxt_sigint_handler(int WXUNUSED(sig));
-static void wxt_sigint_return();
-static void wxt_sigint_check();
-static void wxt_sigint_init();
-static void wxt_sigint_restore();
-static int wxt_sigint_counter = 0;
 
 /* exception handling if int_error() is called inside event processing */
 #if defined(HAVE_GTK)

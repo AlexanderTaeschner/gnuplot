@@ -169,7 +169,7 @@ int    wxt_hypertext_fontweight = 10;
 #define wxt_update_anchors(x,y,size)
 #endif
 
-#if defined(WXT_MONOTHREADED) && !defined(_WIN32)
+#if !defined(_WIN32)
 static int wxt_yield = 0;		/* used in wxt_waitforinput() */
 #endif
 
@@ -238,37 +238,6 @@ BEGIN_EVENT_TABLE( wxtConfigDialog, wxDialog )
 	EVT_COMMAND_RANGE( Config_OK, Config_CANCEL,
 		wxEVT_COMMAND_BUTTON_CLICKED, wxtConfigDialog::OnButton )
 END_EVENT_TABLE()
-
-#ifdef WXT_MULTITHREADED
-/* ----------------------------------------------------------------------------
- *   gui thread
- * ----------------------------------------------------------------------------*/
-
-/* What really happens in the thread
- * Just before it returns, wxEntry will call a whole bunch of wxWidgets-cleanup functions */
-void *wxtThread::Entry()
-{
-	FPRINTF((stderr,"secondary thread entry\n"));
-
-	/* don't answer to SIGINT in this thread - avoids LONGJMP problems */
-	sigset_t set;
-	sigemptyset(&set);
-	sigaddset(&set, SIGINT);
-	pthread_sigmask(SIG_BLOCK, &set, NULL);
-
-	/* gui loop */
-	wxTheApp->OnRun();
-
-	/* Workaround for a deadlock when the main thread will Wait() for this one.
-	 * This issue comes from the fact that our gui main loop is not in the
-	 * main thread as wxWidgets was written for. */
-	wxt_MutexGuiLeave();
-
-	FPRINTF((stderr,"secondary thread finished\n"));
-	return NULL;
-}
-#endif /* WXT_MULTITHREADED */
-
 
 
 /* ----------------------------------------------------------------------------
@@ -436,11 +405,7 @@ void wxtApp::OnCreateWindow( wxCommandEvent& event )
 /* wrapper for AddPendingEvent or ProcessEvent */
 void wxtApp::SendEvent( wxEvent &event)
 {
-#ifdef WXT_MULTITHREADED
-	AddPendingEvent(event);
-#else /* !WXT_MULTITHREADED */
 	ProcessEvent(event);
-#endif /* !WXT_MULTITHREADED */
 }
 
 /* ---------------------------------------------------------------------------
@@ -469,9 +434,6 @@ wxtFrame::wxtFrame( const wxString& title, wxWindowID id )
 
 	/* set up the toolbar */
 	toolbar = CreateToolBar();
-
-	/* With wxMSW, default toolbar size is only 16x15. */
-	// toolbar->SetToolBitmapSize(wxSize(16,16));
 
 	toolbar->AddTool(Toolbar_CopyToClipboard, wxT("Copy"),
 				wxArtProvider::GetBitmap(wxART_PASTE, wxART_TOOLBAR),
@@ -830,9 +792,6 @@ void wxtFrame::OnConfig( wxCommandEvent& WXUNUSED( event ) )
 void wxtFrame::OnHelp( wxCommandEvent& WXUNUSED( event ) )
 {
 	wxMessageBox( wxString(wxT("You are using an interactive terminal based on ")
-#ifdef WXT_MULTITHREADED
-		wxT("multithreaded ")
-#endif
 		wxT("wxWidgets for the interface, Cairo ")
 		wxT("for the drawing facilities, and Pango for the text layouts.\n")
 		wxT("Please note that toolbar icons in the terminal ")
@@ -906,11 +865,7 @@ void wxtFrame::OnSize( wxSizeEvent& event )
 /* wrapper for AddPendingEvent or ProcessEvent */
 void wxtFrame::SendEvent( wxEvent &event)
 {
-#ifdef WXT_MULTITHREADED
-	AddPendingEvent(event);
-#else /* !WXT_MULTITHREADED */
 	ProcessEvent(event);
-#endif /* !WXT_MULTITHREADED */
 }
 
 /* ---------------------------------------------------------------------------
@@ -951,6 +906,7 @@ wxtPanel::wxtPanel( wxWindow *parent, wxWindowID id, const wxSize& size )
 #if defined(GTK_SURFACE)
 	gdkpixmap = NULL;
 #elif defined(__WXMSW__)
+	/* ??? */
 #else /* IMAGE_SURFACE */
 	cairo_bitmap = NULL;
 	data32 = NULL;
@@ -1646,81 +1602,6 @@ static void wxt_check_for_anchors(unsigned int x, unsigned int y)
  * to prevent focus stealing) and is inconsistent with global bindings mechanism ) */
 void wxtPanel::RaiseConsoleWindow()
 {
-#if defined(USE_GTK) && (GTK_MAJOR_VERSION == 2)
-	char *window_env;
-	unsigned long windowid = 0;
-	/* retrieve XID of gnuplot window */
-	window_env = getenv("WINDOWID");
-	if (window_env)
-		sscanf(window_env, "%lu", &windowid);
-
-#ifdef USE_KDE3_DCOP
-/* NOTE: This code uses DCOP, a KDE3 mechanism that no longer exists in KDE4 */
-	char *ptr = getenv("KONSOLE_DCOP_SESSION"); /* Try KDE's Konsole first. */
-	if (ptr) {
-		/* We are in KDE's Konsole, or in a terminal window detached from a Konsole.
-		* In order to active a tab:
-		* 1. get environmental variable KONSOLE_DCOP_SESSION: it includes konsole id and session name
-		* 2. if
-		*	$WINDOWID is defined and it equals
-		*	    `dcop konsole-3152 konsole-mainwindow#1 getWinID`
-		*	(KDE 3.2) or when $WINDOWID is undefined (KDE 3.1), then run commands
-		*    dcop konsole-3152 konsole activateSession session-2; \
-		*    dcop konsole-3152 konsole-mainwindow#1 raise
-		* Note: by $WINDOWID we mean gnuplot's text console WINDOWID.
-		* Missing: focus is not transferred unless $WINDOWID is defined (should be fixed in KDE 3.2).
-		*
-		* Implementation and tests on KDE 3.1.4: Petr Mikulik.
-		*/
-		char *konsole_name = NULL;
-		char *cmd = NULL;
-		/* use 'while' to easily break out (aka catch exception) */
-		while (1) {
-			char *konsole_tab;
-			unsigned long w;
-			FILE *p;
-			ptr = strchr(ptr, '(');
-			/* the string for tab nb 4 looks like 'DCOPRef(konsole-2866, session-4)' */
-			if (!ptr) break;
-			konsole_name = strdup(ptr+1);
-			konsole_tab = strchr(konsole_name, ',');
-			if (!konsole_tab) break;
-			*konsole_tab++ = 0;
-			ptr = strchr(konsole_tab, ')');
-			if (ptr) *ptr = 0;
-			cmd = (char*) malloc(strlen(konsole_name) + strlen(konsole_tab) + 64);
-			sprintf(cmd, "dcop %s konsole-mainwindow#1 getWinID 2>/dev/null", konsole_name);
-			/* is  2>/dev/null  portable among various shells? */
-			p = popen(cmd, "r");
-			if (p) {
-				fscanf(p, "%lu", &w);
-				pclose(p);
-			}
-			if (windowid) { /* $WINDOWID is known */
-			if (w != windowid) break;
-		/* `dcop getWinID`==$WINDOWID thus we are running in a window detached from Konsole */
-			} else {
-				windowid = w;
-				/* $WINDOWID has not been known (KDE 3.1), thus set it up */
-			}
-			sprintf(cmd, "dcop %s konsole activateSession %s", konsole_name, konsole_tab);
-			system(cmd);
-		}
-		if (konsole_name) free(konsole_name);
-		if (cmd) free(cmd);
-	}
-#endif /* USE_KDE3_DCOP */
-
-	/* now test for GNOME multitab console */
-	/* ... if somebody bothers to implement it ... */
-	/* we are not running in any known (implemented) multitab console */
-
-	if (windowid) {
-		gdk_window_raise(gdk_window_foreign_new(windowid));
-		gdk_window_focus(gdk_window_foreign_new(windowid), GDK_CURRENT_TIME);
-	}
-#endif /* USE_GTK */
-
 #ifdef _WIN32
 	WinRaiseConsole();
 #endif
@@ -1948,13 +1829,11 @@ void wxt_init()
 		return;
 	}
 
-	wxt_sigint_init();
-
 	if ( wxt_status == STATUS_UNINITIALIZED ) {
 		FPRINTF((stderr,"First Init\n"));
 
-#if !defined(DEVELOPMENT_VERSION) && wxCHECK_VERSION(2, 9, 0)
-		// disable all assert()s
+#if wxCHECK_VERSION(2, 9, 0)
+		// disable all assert()s for wxWidgets version 2.9 and higher
 		// affects in particular the strcmp(setlocale(LC_ALL, NULL), "C") == 0
 		// assertion in wxLocale::GetInfo
 		wxSetAssertHandler(NULL);
@@ -1980,28 +1859,6 @@ void wxt_init()
 		/* app initialization */
 		wxTheApp->CallOnInit();
 
-
-#ifdef WXT_MULTITHREADED
-		/* Three commands to create the thread and run it.
-		 * We do this at first init only.
-		 * If the user sets another terminal and goes back to wxt,
-		 * the gui thread is already in action. */
-		thread = new wxtThread();
-		thread->Create();
-		thread->Run();
-
-# ifdef USE_MOUSE
-		int filedes[2];
-
-	       if (pipe(filedes) == -1) {
-			fprintf(stderr, "Pipe error, mousing will not work\n");
-		}
-
-		wxt_event_fd = filedes[0];
-		wxt_sendevent_fd = filedes[1];
-# endif /* USE_MOUSE */
-#endif /* WXT_MULTITHREADED */
-
  		FPRINTF((stderr,"First Init2\n"));
 
 		term_interlock = (void *)wxt_init;
@@ -2009,8 +1866,6 @@ void wxt_init()
 		/* register call for "persist" effect and cleanup */
 		gp_atexit(wxt_atexit);
 	}
-
-	wxt_sigint_check();
 
 	/* try to find the requested window in the list of existing ones */
 	wxt_current_window = wxt_findwindowbyid(wxt_window_number);
@@ -2036,21 +1891,11 @@ void wxt_init()
 		wxCommandEvent event(wxCreateWindowEvent);
 		event.SetClientData((void*) &window);
 
-#ifdef WXT_MULTITHREADED
-		window.mutex->Lock();
-#endif /* WXT_MULTITHREADED */
-#if defined(WXT_MONOTHREADED) && !defined(_WIN32)
+#if !defined(_WIN32)
 		wxt_status = STATUS_UNINITIALIZED;
 #endif
 
-		wxt_MutexGuiEnter();
 		dynamic_cast<wxtApp*>(wxTheApp)->SendEvent( event );
-		wxt_MutexGuiLeave();
-#ifdef WXT_MULTITHREADED
-		/* While we are waiting, the other thread is busy mangling  */
-		/* our locale settings. We will have to restore them later. */
-		window.condition->Wait();
-#endif /* WXT_MULTITHREADED */
 
 		/* store the plot structure in the list and keep shortcuts */
 		wxt_window_list.push_back(window);
@@ -2060,8 +1905,6 @@ void wxt_init()
 	/* initialize helper pointers */
 	wxt_current_panel = wxt_current_window->frame->panel;
 	wxt_current_plot = &(wxt_current_panel->plot);
-
-	wxt_sigint_check();
 
 	bool raise_setting;
 	bool persist_setting;
@@ -2143,9 +1986,6 @@ void wxt_init()
 	wxt_status = STATUS_OK;
 	wxt_current_plot->interrupt = FALSE;
 
-	wxt_sigint_check();
-	wxt_sigint_restore();
-
 	FPRINTF((stderr,"Init finished \n"));
 }
 
@@ -2156,10 +1996,6 @@ void wxt_graphics()
 {
 	if (wxt_status != STATUS_OK)
 		return;
-
-	/* The sequence of gnuplot commands is critical as it involves mutexes.
-	 * We replace the original interrupt handler with a custom one. */
-	wxt_sigint_init();
 
 	/* update the window scale factor first, cairo needs it */
 	wxt_current_plot->xscale = 1.0;
@@ -2177,7 +2013,6 @@ void wxt_graphics()
 	/* apply the queued rendering settings */
 	wxt_current_panel->wxt_settings_apply();
 
-	wxt_MutexGuiEnter();
 	/* set the transformation matrix of the context, and other details */
 	/* depends on plot->xscale and plot->yscale */
 	gp_cairo_initialize_context(wxt_current_plot);
@@ -2201,8 +2036,6 @@ void wxt_graphics()
 	term->ymax = (wxt_current_plot->device_ymax - 1) * wxt_current_plot->oversampling_scale;
 	term->tscale = wxt_current_plot->oversampling_scale;
 
-	wxt_MutexGuiLeave();
-
 	/* set font details (h_char, v_char) according to settings */
 	wxt_set_font("");
 
@@ -2214,9 +2047,6 @@ void wxt_graphics()
 
 	/* Clear the count of hypertext anchor points */
 	wxt_n_anchors = 0;
-
-	wxt_sigint_check();
-	wxt_sigint_restore();
 
 	FPRINTF((stderr,"Graphics xmax %d ymax %d v_char %d h_char %d\n",
 		term->xmax, term->ymax, term->v_char, term->h_char));
@@ -2242,27 +2072,17 @@ void wxt_text()
 	 	wxt_axis_state, sizeof(wxt_axis_state) );
 #endif
 
-	wxt_sigint_init();
-
 	/* translates the command list to a bitmap */
-	wxt_MutexGuiEnter();
 	wxt_current_panel->wxt_cairo_refresh();
-	wxt_MutexGuiLeave();
-
-	wxt_sigint_check();
 
 	/* raise the window, depending on the user's choice */
-	wxt_MutexGuiEnter();
 	wxt_raise_window(wxt_current_window, false);
-	wxt_MutexGuiLeave();
 
 #ifdef USE_MOUSE
 	/* Inform gnuplot that we have finished plotting */
 	wxt_exec_event(GE_plotdone, 0, 0, 0, 0, wxt_window_number );
 #endif /*USE_MOUSE*/
 
-	wxt_sigint_check();
-	wxt_sigint_restore();
 }
 
 void wxt_reset()
@@ -2270,7 +2090,7 @@ void wxt_reset()
 	/* sent when gnuplot exits and when the terminal or the output change.*/
 	FPRINTF((stderr,"wxt_reset\n"));
 
-#if defined(WXT_MONOTHREADED) && !defined(_WIN32)
+#if !defined(_WIN32)
 	wxt_yield = 0;
 #endif
 
@@ -2492,9 +2312,6 @@ int wxt_set_font (const char *font)
 		fontname = strdup("");
 	}
 
-	wxt_sigint_init();
-	wxt_MutexGuiEnter();
-
 	if ( strlen(fontname) == 0 ) {
 		if ( !wxt_set_fontname || strlen(wxt_set_fontname) == 0 ) {
 			free(fontname);
@@ -2517,10 +2334,6 @@ int wxt_set_font (const char *font)
 	 */
 	gp_cairo_set_font(wxt_current_plot, fontname, fontsize * wxt_set_fontscale);
 	gp_cairo_set_termvar(wxt_current_plot, &(term->v_char), &(term->h_char));
-
-	wxt_MutexGuiLeave();
-	wxt_sigint_check();
-	wxt_sigint_restore();
 
 	/* Push the equivalent command onto the wxt display list */
 	temp_command.string = new char[strlen(fontname)+1];
@@ -2807,9 +2620,6 @@ void wxt_put_tmptext(int n, const char str[])
 	if (wxt_status == STATUS_UNINITIALIZED)
 		return;
 
-	wxt_sigint_init();
-	wxt_MutexGuiEnter();
-
 	switch ( n ) {
 	case 0:
 		{
@@ -2836,9 +2646,6 @@ void wxt_put_tmptext(int n, const char str[])
 		break;
 	}
 
-	wxt_MutexGuiLeave();
-	wxt_sigint_check();
-	wxt_sigint_restore();
 }
 
 /* c selects the action:
@@ -2854,9 +2661,6 @@ void wxt_set_cursor(int c, int x, int y)
 {
 	if (wxt_status == STATUS_UNINITIALIZED)
 		return;
-
-	wxt_sigint_init();
-	wxt_MutexGuiEnter();
 
 	switch ( c ) {
 	case -4:
@@ -2894,9 +2698,6 @@ void wxt_set_cursor(int c, int x, int y)
 		break;
 	}
 
-	wxt_MutexGuiLeave();
-	wxt_sigint_check();
-	wxt_sigint_restore();
 }
 
 
@@ -2906,9 +2707,6 @@ void wxt_set_ruler(int x, int y)
 {
 	if (wxt_status == STATUS_UNINITIALIZED)
 		return;
-
-	wxt_sigint_init();
-	wxt_MutexGuiEnter();
 
 	if (x<0) {
 		wxt_current_panel->wxt_ruler = false;
@@ -2920,9 +2718,6 @@ void wxt_set_ruler(int x, int y)
 		wxt_current_panel->Draw();
 	}
 
-	wxt_MutexGuiLeave();
-	wxt_sigint_check();
-	wxt_sigint_restore();
 }
 
 /* Write a string to the clipboard */
@@ -2931,18 +2726,11 @@ void wxt_set_clipboard(const char s[])
 	if (wxt_status == STATUS_UNINITIALIZED)
 		return;
 
-	wxt_sigint_init();
-	wxt_MutexGuiEnter();
-
 	if (wxTheClipboard->Open()) {
 		wxTheClipboard->SetData( new wxTextDataObject(wxString(s, wxConvLocal)) );
 		wxTheClipboard->Flush();
 		wxTheClipboard->Close();
 	}
-
-	wxt_MutexGuiLeave();
-	wxt_sigint_check();
-	wxt_sigint_restore();
 }
 #endif /*USE_MOUSE*/
 
@@ -2978,12 +2766,10 @@ void wxt_modify_plots(unsigned int ops, int plotno)
 			wxt_key_boxes[i].hidden = TRUE;
 		}
 	}
-	wxt_MutexGuiEnter();
 	wxt_current_panel->wxt_cairo_refresh();
 	// Empirically, without this Update() the plots are toggled correctly but the
 	// change may not show on the screen until a mouse or other event next arrives
 	wxt_current_panel->Update();
-	wxt_MutexGuiLeave();
 }
 
 /* ===================================================================
@@ -2993,12 +2779,9 @@ void wxt_modify_plots(unsigned int ops, int plotno)
 /* push a command in the current commands list */
 void wxt_command_push(gp_command command)
 {
-	wxt_sigint_init();
 	wxt_current_panel->command_list_mutex.Lock();
 	wxt_current_panel->command_list.push_back(command);
 	wxt_current_panel->command_list_mutex.Unlock();
-	wxt_sigint_check();
-	wxt_sigint_restore();
 }
 
 /* refresh the plot by (re)processing the plot commands list */
@@ -3038,15 +2821,6 @@ void wxtPanel::wxt_cairo_refresh()
 	command_list_mutex.Lock();
 	command_list_t::iterator wxt_iter; /*declare the iterator*/
 	for(wxt_iter = command_list.begin(); wxt_iter != command_list.end(); ++wxt_iter) {
-		if (wxt_status == STATUS_INTERRUPT_ON_NEXT_CHECK) {
-			FPRINTF((stderr,"interrupt detected inside drawing loop\n"));
-#ifdef IMAGE_SURFACE
-			wxt_cairo_create_bitmap();
-#endif /* IMAGE_SURFACE */
-			/* draw the pixmap to the screen */
-			Draw();
-			return;
-		}
 
 		/* Skip the plot commands, but not the key sample commands,
 		 * if the plot was toggled off by a mouse click in the GUI
@@ -3432,17 +3206,10 @@ void wxt_raise_terminal_window(int number)
 	if (wxt_status != STATUS_OK)
 		return;
 
-	wxt_sigint_init();
-
-	wxt_MutexGuiEnter();
 	if ((window = wxt_findwindowbyid(number))) {
 		FPRINTF((stderr,"wxt : raise window %d\n", number));
 		wxt_raise_window(window, true);
 	}
-	wxt_MutexGuiLeave();
-
-	wxt_sigint_check();
-	wxt_sigint_restore();
 }
 
 /* raise the plot the whole group */
@@ -3454,18 +3221,11 @@ void wxt_raise_terminal_group()
 	if (wxt_status != STATUS_OK)
 		return;
 
-	wxt_sigint_init();
-
-	wxt_MutexGuiEnter();
 	for(wxt_iter = wxt_window_list.begin(); wxt_iter != wxt_window_list.end(); wxt_iter++) {
 		FPRINTF((stderr,"wxt : raise window %d\n", wxt_iter->id));
 		/* FIXME Why does wxt_iter not work directly? */
 		wxt_raise_window(&(*wxt_iter), true);
 	}
-	wxt_MutexGuiLeave();
-
-	wxt_sigint_check();
-	wxt_sigint_restore();
 }
 
 /* lower the plot with given number */
@@ -3476,17 +3236,10 @@ void wxt_lower_terminal_window(int number)
 	if (wxt_status != STATUS_OK)
 		return;
 
-	wxt_sigint_init();
-
-	wxt_MutexGuiEnter();
 	if ((window = wxt_findwindowbyid(number))) {
 		FPRINTF((stderr,"wxt : lower window %d\n",number));
 		wxt_lower_window(window);
 	}
-	wxt_MutexGuiLeave();
-
-	wxt_sigint_check();
-	wxt_sigint_restore();
 }
 
 /* lower the plot the whole group */
@@ -3498,17 +3251,10 @@ void wxt_lower_terminal_group()
 	if (wxt_status != STATUS_OK)
 		return;
 
-	wxt_sigint_init();
-
-	wxt_MutexGuiEnter();
 	for(wxt_iter = wxt_window_list.begin(); wxt_iter != wxt_window_list.end(); wxt_iter++) {
 		FPRINTF((stderr,"wxt : lower window %d\n",wxt_iter->id));
 		wxt_lower_window(&(*wxt_iter));
 	}
-	wxt_MutexGuiLeave();
-
-	wxt_sigint_check();
-	wxt_sigint_restore();
 }
 
 /* close the specified window */
@@ -3524,15 +3270,7 @@ void wxt_close_terminal_window(int number)
 
 		wxCloseEvent event(wxEVT_CLOSE_WINDOW, window->id);
 		event.SetCanVeto(true);
-
-		wxt_sigint_init();
-		wxt_MutexGuiEnter();
-
 		window->frame->SendEvent(event);
-
-		wxt_MutexGuiLeave();
-		wxt_sigint_check();
-		wxt_sigint_restore();
 	}
 }
 
@@ -3605,10 +3343,6 @@ void wxt_update_title(int number)
 	if (wxt_status != STATUS_OK)
 		return;
 
-	wxt_sigint_init();
-
-	wxt_MutexGuiEnter();
-
 	if ((window = wxt_findwindowbyid(number))) {
 		FPRINTF((stderr,"wxt : close window %d\n",number));
 		if (strlen(wxt_title)) {
@@ -3621,11 +3355,6 @@ void wxt_update_title(int number)
 
 		window->frame->SetTitle(title);
 	}
-
-	wxt_MutexGuiLeave();
-
-	wxt_sigint_check();
-	wxt_sigint_restore();
 }
 
 /* update the size of the plot area, resizes the whole window consequently */
@@ -3636,19 +3365,10 @@ void wxt_update_size(int number)
 	if (wxt_status != STATUS_OK)
 		return;
 
-	wxt_sigint_init();
-
-	wxt_MutexGuiEnter();
-
 	if ((window = wxt_findwindowbyid(number))) {
 		FPRINTF((stderr,"wxt : update size of window %d\n",number));
 		window->frame->SetClientSize( wxSize(wxt_width, wxt_height) );
 	}
-
-	wxt_MutexGuiLeave();
-
-	wxt_sigint_check();
-	wxt_sigint_restore();
 }
 
 /* update the position of the plot window */
@@ -3659,19 +3379,10 @@ void wxt_update_position(int number)
 	if (wxt_status != STATUS_OK)
 		return;
 
-	wxt_sigint_init();
-
-	wxt_MutexGuiEnter();
-
 	if ((window = wxt_findwindowbyid(number))) {
 		FPRINTF((stderr,"wxt : update position of window %d\n",number));
 		window->frame->SetPosition( wxPoint(wxt_posx, wxt_posy) );
 	}
-
-	wxt_MutexGuiLeave();
-
-	wxt_sigint_check();
-	wxt_sigint_restore();
 }
 
 
@@ -3987,121 +3698,10 @@ bool wxt_exec_event(int type, int mx, int my, int par1, int par2, wxWindowID id)
 	event.par2 = par2;
 	event.winid = id;
 
-#if defined(_WIN32)
 	wxt_process_one_event(&event);
 	return true;
-#elif defined(WXT_MONOTHREADED)
-	if (wxt_process_one_event(&event))
-	    if (debug == 44) ungetc('\n',stdin);
-	return true;
-#else
-	if (!wxt_handling_persist)
-	{
-		if (wxt_sendevent_fd<0) {
-			FPRINTF((stderr,"not sending event, wxt_sendevent_fd error\n"));
-			return false;
-		}
-
-		if (write(wxt_sendevent_fd, (char*) &event, sizeof(event))<0) {
-			wxt_sendevent_fd = -1;
-			fprintf(stderr,"not sending event, write error on wxt_sendevent_fd\n");
-			return false;
-		}
-	}
-	else
-	{
-		wxt_process_one_event(&event);
-	}
-
-	return true;
-#endif /* Windows or single-threaded or default */
 }
 
-#ifdef WXT_MULTITHREADED
-/* Implements waitforinput used in wxt.trm
- * Returns the next input character, meanwhile treats terminal events */
-int wxt_waitforinput(int options)
-{
-	/* wxt_waitforinput *is* launched immediately after the wxWidgets terminal
-	 * is set using 'set term wxt' whereas wxt_init has not been called.
-	 * So we must ensure that the library has been initialized
-	 * before using any wxwidgets functions.
-	 * When we just come back from SIGINT,
-	 * we must process window events, so the check is not
-	 * wxt_status != STATUS_OK */
-	if (wxt_status == STATUS_UNINITIALIZED)
-		return (options == TERM_ONLY_CHECK_MOUSING) ? '\0' : getc(stdin);
-
-	if (wxt_event_fd<0) {
-		if (paused_for_mouse)
-			int_error(NO_CARET, "wxt communication error, wxt_event_fd<0");
-		FPRINTF((stderr,"wxt communication error, wxt_event_fd<0\n"));
-		return (options == TERM_ONLY_CHECK_MOUSING) ? '\0' : getc(stdin);
-	}
-
-	int stdin_fd = fileno(stdin);
-	fd_set read_fds;
-	struct timeval one_msec;
-
-	do {
-		struct timeval *timeout = NULL;
-		FD_ZERO(&read_fds);
-		FD_SET(wxt_event_fd, &read_fds);
-		if (!paused_for_mouse)
-			FD_SET(stdin_fd, &read_fds);
-
-		/* When taking input from the console, we are willing to wait	*/
-		/* here until the next character is typed. But if input is from	*/
-		/* a script we just want to check for hotkeys or mouse input	*/
-		/* and then leave again without waiting for stdin.		*/
-		if (options == TERM_ONLY_CHECK_MOUSING) {
-			timeout = &one_msec;
-			one_msec.tv_sec = 0;
-			one_msec.tv_usec = TERM_EVENT_POLL_TIMEOUT;
-		}
-
-		/* HBB FIXME 2015-05-03: why no test for autoconf HAVE_SELECT here ? */
-		int n_changed_fds = select(wxt_event_fd+1, &read_fds,
-					      NULL /* not watching for write-ready */,
-					      NULL /* not watching for exceptions */,
-					      timeout );
-		if (n_changed_fds < 0 && errno == EINTR) {
-			wrap_readline_signal_handler();
-			continue;
-		}
-
-		if (n_changed_fds < 0) {
-			if (paused_for_mouse)
-				int_error(NO_CARET, "wxt communication error: select() error");
-			FPRINTF((stderr, "wxt communication error: select() error\n"));
-			break;
-		}
-
-		if (FD_ISSET(wxt_event_fd, &read_fds)) {
-			/* terminal event coming */
-			struct gp_event_t wxt_event;
-			int n_bytes_read = read(wxt_event_fd, (void*) &wxt_event, sizeof(wxt_event));
-			if (n_bytes_read < (int)sizeof(wxt_event)) {
-				if (paused_for_mouse)
-					int_error(NO_CARET, "wxt communication error, not enough bytes read");
-				FPRINTF((stderr, "wxt communication error, not enough bytes read\n"));
-				break;
-			}
-			if (wxt_process_one_event(&wxt_event)) {
-				/* exit from paused_for_mouse */
-				return '\0';
-			}
-		} else if (options == TERM_ONLY_CHECK_MOUSING) {
-			return '\0';
-		}
-	} while ( paused_for_mouse || !FD_ISSET(stdin_fd, &read_fds) );
-
-	if (options == TERM_ONLY_CHECK_MOUSING)
-		return '\0';
-
-	return getchar();
-}
-#else /* WXT_MONOTHREADED */
 /* Implements waitforinput used in wxt.trm
  * the terminal events are directly processed when they are received */
 int wxt_waitforinput(int options)
@@ -4129,7 +3729,6 @@ int wxt_waitforinput(int options)
 
 #else /* !_WIN32 */
 	/* Generic hybrid GUI & console message loop */
-	/* (used mainly on MacOSX - still single threaded) */
 	if (wxt_yield)
 		return '\0';
 
@@ -4176,9 +3775,8 @@ int wxt_waitforinput(int options)
 			return getchar();
 	}
 	return getchar();
-#endif
+#endif /* _WIN32 */
 }
-#endif /* WXT_MONOTHREADED || WXT_MULTITHREADED */
 
 #endif /*USE_MOUSE*/
 
@@ -4200,14 +3798,11 @@ TBOOLEAN wxt_window_opened(void)
 {
 	std::vector<wxt_window_t>::iterator wxt_iter; /*declare the iterator*/
 
-	wxt_MutexGuiEnter();
 	for (wxt_iter = wxt_window_list.begin(); wxt_iter != wxt_window_list.end(); wxt_iter++) {
 		if (wxt_iter->frame->IsShown()) {
-			wxt_MutexGuiLeave();
 			return TRUE;
 		}
 	}
-	wxt_MutexGuiLeave();
 	return FALSE;
 }
 
@@ -4225,30 +3820,6 @@ void wxt_atexit()
 
 	if (wxt_status == STATUS_UNINITIALIZED)
 		return;
-
-#ifdef WXT_MULTITHREADED
-	/* send a message to exit the main loop */
-	/* protect the following from interrupt */
-	wxt_sigint_init();
-
-	wxCommandEvent event(wxExitLoopEvent);
-	wxt_MutexGuiEnter();
-	dynamic_cast<wxtApp*>(wxTheApp)->SendEvent( event );
-	wxt_MutexGuiLeave();
-
-	/* handle eventual interrupt, and restore original sigint handler */
-	wxt_sigint_check();
-	wxt_sigint_restore();
-
-	FPRINTF((stderr,"gui thread status %d %d %d\n",
-			thread->IsDetached(),
-			thread->IsAlive(),
-			thread->IsRunning() ));
-
-	/* wait for the gui thread to exit */
-	thread->Wait();
-	delete thread;
-#endif /* WXT_MULTITHREADED */
 
 	/* first look for command_line setting */
 	if (wxt_persist==UNSET && persist_cl)
@@ -4368,9 +3939,6 @@ void wxt_cleanup()
 	/* prevent wxt_reset (for example) from doing anything bad after that */
 	wxt_status = STATUS_UNINITIALIZED;
 
-	/* protect the following from interrupt */
-	wxt_sigint_init();
-
 	/* Close all open terminal windows */
 	for(wxt_iter = wxt_window_list.begin();
 			wxt_iter != wxt_window_list.end(); wxt_iter++)
@@ -4379,110 +3947,6 @@ void wxt_cleanup()
 	wxTheApp->OnExit();
 	wxUninitialize();
 
-	/* handle eventual interrupt, and restore original sigint handler */
-	wxt_sigint_check();
-	wxt_sigint_restore();
-
 	FPRINTF((stderr,"wxt_cleanup: finished\n"));
 }
 
-/* -------------------------------------
- * GUI Mutex helper functions for porting
- * ----------------------------------------*/
-
-void wxt_MutexGuiEnter()
-{
-	FPRINTF2((stderr,"locking gui mutex\n"));
-#ifdef WXT_MULTITHREADED
-	if (!wxt_handling_persist)
-		wxMutexGuiEnter();
-#endif /* WXT_MULTITHREADED */
-}
-
-void wxt_MutexGuiLeave()
-{
-	FPRINTF2((stderr,"unlocking gui mutex\n"));
-#ifdef WXT_MULTITHREADED
-	if (!wxt_handling_persist)
-		wxMutexGuiLeave();
-#endif /* WXT_MULTITHREADED */
-}
-
-/* ---------------------------------------------------
- * SIGINT handling : as the terminal is multithreaded, it needs several mutexes.
- * To avoid inconsistencies and deadlock when the user hits ctrl-c,
- * each critical set of instructions (implying mutexes for example) should be written :
- *	wxt_sigint_init();
- *	< critical instructions >
- *	wxt_sigint_check();
- *	wxt_sigint_restore();
- * Or, if the critical instructions are in a loop, wxt_sigint_check() should be
- * called regularly in the loop.
- * ---------------------------------------------------*/
-
-
-/* our custom SIGINT handler, that just sets a flag */
-void wxt_sigint_handler(int WXUNUSED(sig))
-{
-	FPRINTF((stderr,"\nwxt custom interrupt handler called %s\n",
-		wxt_event_processing ? "from inside event" : "outside event processing"));
-	signal(SIGINT, wxt_sigint_handler);
-
-	/* If this happens, it's bad.  We already flagged that we want	*/
-	/* to quit but nobody acted on it.  This can happen if the 	*/
-	/* connection to the X-server is lost, which can be forced by	*/
-	/* using xkill on the display window.  See bug #991.		*/
-	if (wxt_status == STATUS_INTERRUPT_ON_NEXT_CHECK) {
-		fprintf(stderr,"wxt display server shutting down - no response\n");
-		exit(-1);
-	}
-
-	/* routines must check regularly for wxt_status,
-	 * and abort cleanly on STATUS_INTERRUPT_ON_NEXT_CHECK */
-	wxt_status = STATUS_INTERRUPT_ON_NEXT_CHECK;
-	if (wxt_current_plot)
-		wxt_current_plot->interrupt = TRUE;
-}
-
-/* To be called when the function has finished cleaning after facing STATUS_INTERRUPT_ON_NEXT_CHECK */
-/* Provided for flexibility, but use wxt_sigint_check instead directly */
-void wxt_sigint_return()
-{
-	FPRINTF((stderr,"calling original interrupt handler\n"));
-	wxt_status = STATUS_INTERRUPT;
-	wxt_sigint_counter = 0;
-	/* call the original sigint handler */
-	/* this will not return !! */
-	(*original_siginthandler)(SIGINT);
-}
-
-/* A critical function should call this from a safe zone (no locked mutex, objects destroyed).
- * If the interrupt is asked, this function will not return (longjmp) */
-void wxt_sigint_check()
-{
-	FPRINTF2((stderr,"checking interrupt status\n"));
-	if (wxt_status == STATUS_INTERRUPT_ON_NEXT_CHECK)
-		wxt_sigint_return();
-}
-
-/* initialize our custom SIGINT handler */
-/* this uses a usage counter, so that it can be encapsulated without problem */
-void wxt_sigint_init()
-{
-	/* put our custom sigint handler, store the original one */
-	if (wxt_sigint_counter == 0)
-		original_siginthandler = signal(SIGINT, wxt_sigint_handler);
-	++wxt_sigint_counter;
-	FPRINTF2((stderr,"initialize custom interrupt handler %d\n",wxt_sigint_counter));
-}
-
-/* restore the original SIGINT handler */
-void wxt_sigint_restore()
-{
-	if (wxt_sigint_counter==1)
-		signal(SIGINT, original_siginthandler);
-	--wxt_sigint_counter;
-	FPRINTF2((stderr,"restore custom interrupt handler %d\n",wxt_sigint_counter));
-	if (wxt_sigint_counter<0)
-		fprintf(stderr,"sigint counter < 0 : error !\n");
-}
