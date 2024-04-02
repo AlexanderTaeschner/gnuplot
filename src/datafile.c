@@ -477,14 +477,14 @@ struct gen_ftable df_bin_filetype_table[] = {
 };
 #define RAW_FILETYPE 1
 
-/* Initially set to default and then possibly altered by command line. */
-static int df_bin_filetype;
-/* Default setting. */
-static int df_bin_filetype_default;
-static df_endianess_type df_bin_file_endianess_default;
-/* Setting that is transferred to default upon reset. */
+/* Default settings */
 #define DF_BIN_FILETYPE_RESET -1
 #define DF_BIN_FILE_ENDIANESS_RESET THIS_COMPILER_ENDIAN
+
+static int df_bin_filetype = DF_BIN_FILETYPE_RESET;
+static int df_bin_filetype_default = DF_BIN_FILETYPE_RESET;
+static df_endianess_type df_bin_file_endianess_default;
+
 /* This one is needed by breaders.c */
 df_endianess_type df_bin_file_endianess;
 
@@ -1366,8 +1366,9 @@ df_open(const char *cmd_filename, int max_using, struct curve_points *plot)
      *	"binary filetype=png using 4" becomes "using (generated x):(generated y):4"
      *	This mangles any attempt to refer to actual column numbers or file content.
      */
-    if (set_using && df_bin_filetype > 0)
-	int_warn(NO_CARET, "combining 'using' and 'binary_filetype' probably does not do what you want");
+    if (set_using && df_bin_filetype != DF_BIN_FILETYPE_RESET)
+	int_warn(NO_CARET,
+		"combining 'using' with 'binary filetype' probably does not do what you want");
 
     /* Check for auto-generation of key title from column header  */
     if ((&keyT)->auto_titles == COLUMNHEAD_KEYTITLES) {
@@ -1607,6 +1608,7 @@ df_close()
     }
     mixed_data_fp = FALSE;
     data_fp = NULL;
+    df_pixeldata = NULL;
 }
 
 /*}}} */
@@ -2190,11 +2192,12 @@ df_readascii(double v[], int max)
 		    int axis, axcol;
 		    double xpos;
 
-		    /* EAM FIXME - skip columnstacked histograms also */
-		    if (df_current_plot) {
-			if (df_current_plot->plot_style == BOXPLOT)
-				continue;
+		    if (df_current_plot
+		    &&  df_current_plot->plot_style == BOXPLOT) {
+			if (df_datum != 1) /* Only need to create the label once */
+			    continue;
 		    }
+
 		    axcol = axcol_for_ticlabel( use_spec[output].expected_type, &axis );
 		    /* Trap special case of only a single 'using' column */
 		    if (output == 1)
@@ -2203,7 +2206,7 @@ df_readascii(double v[], int max)
 			xpos = v[axcol];
 
 		    if (df_current_plot
-			&& df_current_plot->plot_style == HISTOGRAMS) {
+		    &&  df_current_plot->plot_style == HISTOGRAMS) {
 			if (output > 1) /* Can only happen for HT_ERRORBARS */
 			    xpos = (axcol == 0) ? df_datum : v[axcol-1];
 			xpos += df_current_plot->histogram->start;
@@ -5243,7 +5246,7 @@ df_readbinary(double v[], int max)
 
 	    /* Read in a "column", i.e., a binary value of various types. */
 	    if (df_pixeldata) {
-		io_val.uc = df_libgd_get_pixel(df_M_count, df_N_count, i);
+		io_val.uc = df_image_get_pixel(df_M_count, df_N_count, i);
 	    } else
 
 	    if (memory_data) {

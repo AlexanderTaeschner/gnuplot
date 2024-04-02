@@ -51,7 +51,7 @@
 class QtGnuplotPoint : public QGraphicsItem
 {
 public:
-	QtGnuplotPoint(int style, double size, QPen pen, QGraphicsItem * parent = 0);
+	QtGnuplotPoint(int style, double size, QPen pen, QColor background, QGraphicsItem * parent = 0);
 
 public:
 	virtual QRectF boundingRect() const;
@@ -63,6 +63,7 @@ public:
 private:
 	QPen m_pen;
 	QColor m_color;
+	QColor m_backgroundFill;
 	int m_style;
 	double m_size;
 };
@@ -173,6 +174,7 @@ public:
 	void addPoint(const QPointF& point, int style, double pointSize, const QPen& pen);
 	void addPolygon(const QPolygonF& polygon, const QPen& pen);
 	void addFilledPolygon(const QPolygonF& polygon, const QBrush& brush);
+	void setBackgroundFill(const QColor color);
 	bool isEmpty() const;
 
 public:
@@ -185,6 +187,7 @@ private:
 	QVector<QtGnuplotPoints_FilledPolygonData> m_filledPolygons;
 	QRectF m_boundingRect;
 	unsigned int m_currentZ;
+	QColor m_backgroundFill;
 };
 
 #endif // QTGNUPLOTITEMS_H

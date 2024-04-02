@@ -2508,6 +2508,23 @@ PS_point(unsigned int x, unsigned int y, int number)
 	"Crs",  "Box",   "DiaF",   "CircleF",
 	"BoxF"
     };
+    /* Point types 1001 - 1020 are special but shared by some other terminals */
+    if (1000 <= number && number < 1020) {
+	switch (number) {
+	    case 1000:	number = 69; break;	/* background fill square */
+	    case 1001:  number = 70; break;	/* background fill circle */
+	    case 1002:  number = 71; break;	/* background fill triangle */
+	    case 1003:	number = 72; break;	/* background fill down triangle */
+	    case 1004:	number = 73; break;	/* background fill diamond */
+	    case 1005:	number = 74; break;	/* background fill pentagon */
+	    case 1010:	number = 63; break;	/* empty fill square */
+	    case 1011:	number = 64; break;	/* empty fill circle */
+	    case 1012:	number = 65; break;	/* empty fill triangle */
+	    case 1013:	number = 66; break;	/* empty fill down triangle */
+	    case 1014:	number = 67; break;	/* empty fill diamond */
+	    case 1015:	number = 68; break;	/* empty fill pentagon */
+	}
+    }
     if ((ps_params->terminal == PSTERM_EPSLATEX) && ps_params->oldstyle) {
 	if (number < 0)
 	    number = -1;		/* negative types are all 'dot' */

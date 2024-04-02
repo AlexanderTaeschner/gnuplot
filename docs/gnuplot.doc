@@ -540,6 +540,9 @@ D epi_data 1
 #b The position of the key box can be manually tweaked by specifying an
 ## offset to be added to whatever position the program would otherwise use.
 ## See `set key offset`.
+#b Numerical point types starting with pointtype 1001 are background-fill
+## polygons. These special symbols are not implemented for all terminals.
+## See `pointtype symbols`.
 #end
 
 3 Brief summary of features introduced in version 5
@@ -2537,7 +2540,7 @@ C 4 weekdata_cdc
 ?LambertW
  Lambert W function with complex domain and range.
  LambertW( z, k ) returns the kth branch of the function W defined by
- the equation W(z) * exp(z) = z.
+ the equation W(z) * exp(W(z)) = z.
  The complex value is obtained using Halley's method as described by
  Corless et al [1996], Adv. Comp. Math 5:329.
  The nominal precision is 1.E-13 but convergence can be poor very close to
@@ -6045,22 +6048,47 @@ Ffigure_polar_grid
 ?pointtype
 Ffigure_points
  The `points` style displays a small symbol at each point. The command `set
- pointsize` may be used to change the default size of all points. The point type
- defaults to that of the linetype. See `linetypes`.  If no `using` spec is found
- in the plot command, input data columns are interpreted implicitly in the order
- `x y pointsize pointtype color` as described below.
+ pointsize` may be used to change the default size of all points.
+ The point type defaults to that of the corresponding linetype. See `linetypes`.
+ Alternatively the plot command can specify a specific point type or size.
+ The most flexible alternative is to specify `pointtype variable` or
+ `pointsize variable` in the plot command and provide provide the corresponding
+ per-datum point properties in additional columns of the `using` specifier.
+ In this case, input data columns are interpreted implicitly in the order
+ `x y pointsize pointtype color` (see `pointtype variable` below).
 
  The first 8 point types are shared by all terminals. Individual terminals may
  provide a much larger number of distinct point types. Use the `test` command
  to show what is provided by the current terminal settings.
+ See also `pointtype symbols` below.
 
- Alternatively any single printable character may be given instead of a
- numerical point type, as in the example below.  You may use any unicode
- character as the pointtype (assumes utf8 support). See `escape sequences`.
+ Any single printable character may be given instead of a numerical point type,
+ as in the example below.  You may use any unicode character as the pointtype
+ (this assumes utf8 support). See `escape sequences`.
  Longer strings may be plotted using plot style `labels` rather than `points`.
+
+ Examples
 
       plot f(x) with points pt "#"
       plot d(x) with points pt "\U+2299"
+      plot f(x) using 1:2:3 with points pointtype 6 pointsize variable
+
+3 pointtype symbols
+?pointtype symbols
+?symbols
+ Symbols used for the first eight numerical point types are consistent across
+ all terminals to the extent possible.  Some terminals provide a larger set of
+ symbols (PostScript provides 75!). In general a terminal providing N symbols
+ will re-use these cyclically. For example the cairo terminals provide 15
+ distinct symbols; after that the symbols repeat in order, so the symbol used
+ for "pointtype 16" is the same as that for "pointtype 1" although it may use
+ a different color.  Use the `test` command to see the symbol types.
+
+D extra_points 1
+ Numerical pointtypes in the range 1001 - 1020 are an exception.
+ These are polygons with background fill intended for use with the plot
+ style `with linespoints`.  Not all terminals provide these extra point types,
+ and only seven polygons are currently implemented.
 
 3 variable point properties
 ?points variable
@@ -6446,6 +6474,7 @@ Ffigure_xyerrorlines
  An additional input column (5th or 7th) may be used to provide variable color.
  This style does not permit variable point properties.
 
+#TeX \newpage
 2 yerrorbars
 ?plotting styles yerrorbars
 ?plotting styles errorbars

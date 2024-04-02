@@ -886,10 +886,10 @@ if test "${enable_wxwidgets_ok}" = yes ; then
   fi
 
   dnl Default to single-threaded
-  AC_ARG_WITH(wx-multithreaded, dnl
-  [--with-wx-multithreaded  use multithreaded wxgtk (known problems, not recommended)],
-  , WX_CXXFLAGS="$WX_CXXFLAGS -DWXT_MONOTHREADED"
-  )
+  dnl  AC_ARG_WITH(wx-multithreaded, dnl
+  dnl  [--with-wx-multithreaded  use multithreaded wxgtk (known problems, not recommended)],
+  dnl  , WX_CXXFLAGS="$WX_CXXFLAGS -DWXT_MONOTHREADED"
+  dnl  )
 
   CPPFLAGS="$CPPFLAGS $CAIROPANGO_CFLAGS"
   CXXFLAGS="$CXXFLAGS $WX_CXXFLAGS"

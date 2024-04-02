@@ -975,6 +975,13 @@ f_palette(union argument *arg)
     if (((CB_AXIS.set_autoscale & AUTOSCALE_BOTH) != 0)
     && (fabs(CB_AXIS.min) >= VERYLARGE || fabs(CB_AXIS.max) >= VERYLARGE))
 	int_error(NO_CARET, "palette(z) requires known cbrange");
+    else {
+	/* Needed if the palette is to be queried before an actual plot */
+	if ((CB_AXIS.set_autoscale & AUTOSCALE_MIN) == 0)
+	    CB_AXIS.min = CB_AXIS.set_min;
+	if ((CB_AXIS.set_autoscale & AUTOSCALE_MAX) == 0)
+	    CB_AXIS.max = CB_AXIS.set_max;
+    }
     rgb = rgb_from_gray(cb2gray(z));
 
     push(Ginteger(&result, rgb));

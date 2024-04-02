@@ -1120,9 +1120,9 @@ statsrequest(void)
 	res_xy = analyze_two_columns( data_x, data_y, res_x, res_y, n );
     }
 
-    /* Store results in user-accessible variables */
-    /* Clear out any previous use of these variables */
-    del_udv_by_name( prefix, TRUE );
+    /*
+     * Store results in user-accessible variables
+     */
 
     file_variables( res_file, prefix );
 
