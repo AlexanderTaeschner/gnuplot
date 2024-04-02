@@ -457,6 +457,10 @@ print "********************** file pointsize.dem *********************"
 load "pointsize.dem"
 reset
 
+print "********************** file extra_points.dem ******************"
+load "extra_points.dem"
+reset
+
 print "********************** file circles.dem *********************"
 load "circles.dem"
 reset
