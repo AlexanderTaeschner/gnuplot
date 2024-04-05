@@ -6134,9 +6134,9 @@ D extra_points 1
  each polygon's border is rendered as a closed curve even if its first and last
  points are not the same.  The border line type is taken from the fill style.
  The input data file may contain multiple polygons separated by single blank
- lines.  Each polygon can be assigned a separate color by providing a third
- using specifier and the keywords `lc variable` (value is interpreted as a
- linetype) or `lc rgb variable` (value is interpreted as a 24-bit RGB color).
+ lines.  Each polygon can be assigned a separate fill color by providing a third
+ using specifier and the keywords `fc variable` (value is interpreted as a
+ linetype) or `fc rgb variable` (value is interpreted as a 24-bit RGB color).
  Only the color value from the first vertex of the polygon is used.
 
  3D plots:
@@ -6154,11 +6154,12 @@ D extra_points 1
  The fill style and color may be specified in the splot command, otherwise the
  global fillstyle from `set style fill` is used.  Due to limitations in the
  pm3d code, a single border line style from `set pm3d border` is applied to all
- 3D polygons.  This restriction may be removed in a later gnuplot version.
+ 3D polygons.  This restriction may be removed in a later gnuplot version,
+ which will impose a distinction between the linecolor and fillcolor properties.
 
- Each polygon may be assigned a separate RGB color by providing a fourth using
- specifier and the keywords `lc variable` (value is interpreted as a linetype)
- or `lc rgb variable` (value is interpreted as a 24-bit RGB color).
+ Each polygon may be assigned a separate fill color by providing a fourth using
+ specifier and the keywords `fc variable` (value is interpreted as a linetype)
+ or `fc rgb variable` (value is interpreted as a 24-bit RGB color).
  Only the color value from the first vertex of the polygon is used.
 
  pm3d sort order and lighting are applied to the faces. It is probably always
