@@ -203,8 +203,9 @@ print "******************** file sharpen.dem ********************"
 load "sharpen.dem"
 reset
 
-print "******************** file binary.dem ********************"
+print "******************** binary data ********************"
 load "binary.dem"
+load "binary_polygon.dem"
 reset
 
 print "******************** hsteps demos ********************"

@@ -1,14 +1,15 @@
 ## Process this file with automake to produce Makefile.in -*-Makefile-*-
 AUTOMAKE_OPTIONS = foreign
 
-CLEANFILES = binary1 binary2 binary3 defaults.ini equipo2.tmp field2xy.tmp \
+CLEANFILES = binary1 binary2 binary3 dodecahedron.bin \
+defaults.ini equipo2.tmp field2xy.tmp \
 soundfit.par temp.set fontfile.ps fontfile_latex.ps epslatex-inc.eps \
 epslatex-inc.pdf epslatex.aux epslatex.dvi epslatex.log epslatex.pdf \
 random.tmp stringvar.tmp fit.log fitmulti.dat \
 epslatex.ps epslatex.tex epslatex-oldstyle.tex epslatex-oldstyle-inc.eps \
 latex_demo.log latex_demo.aux latex_cairo.tex latex_pict2e.tex latex_tikz.tex
 
-BINARY_FILES = binary1 binary2 binary3
+BINARY_FILES = binary1 binary2 binary3 dodecahedron.bin
 
 SUBDIRS = $(PLUGIN_DIR)
 DIST_SUBDIRS = plugin
@@ -19,9 +20,11 @@ GNUPLOT = gnuplot
 
 all: $(BINARY_FILES)
 
-$(BINARY_FILES): ../src/bf_test
+$(BINARY_FILES): ../src/bf_test $(top_srcdir)/demo/dodecahedron.dat
 	@echo Creating binary data files
+	test "$(top_srcdir)" = "$(top_builddir)" || cp $(top_srcdir)/demo/dodecahedron.dat .
 	@../src/bf_test
+	test "$(top_srcdir)" = "$(top_builddir)" || rm -f ./dodecahedron.dat
 
 check-prepare:
 

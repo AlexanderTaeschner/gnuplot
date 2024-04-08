@@ -13,6 +13,7 @@
  */
 #include <ctype.h>
 #include <stdio.h>
+#include <stdint.h>
 #include <math.h>
 
 #ifdef HAVE_CONFIG_H
@@ -104,6 +105,11 @@ main(void)
     char buf[256];
     FILE *fout;
 
+    uint32_t i32;	/* we specifically want to test mixing four-byte and eight-byte values */
+    double v[3];
+    char inbuf[120];
+    FILE *fin;
+
     /*  Create a few standard test interfaces */
 
     for (plot = 0; plot < NUM_PLOTS; plot++) {
@@ -178,6 +184,34 @@ main(void)
     for (im = 0; im < xsize; im++)
 	free(m[im]);
     free(m);
+
+    /* Convert polygon data to binary form.
+     * Blank lines are indicated by placing NaN in v[0].
+     * The binary file can be read as 'binary format="%3float64%int32" blank=NaN'
+     */
+    if (!(fin = fopen("dodecahedron.dat", "r"))) {
+	fprintf(stderr, "Could not open polygon input file\n");
+	return EXIT_FAILURE;
+    }
+    if (!(fout = fopen("dodecahedron.bin", "wb"))) {
+	fprintf(stderr, "Could not open output file\n");
+	return EXIT_FAILURE;
+    }
+
+    i32 = 0;
+    while (fgets( inbuf, sizeof(inbuf), fin )) {
+	if (inbuf[0] == '#')
+	    continue;
+	if (sscanf(inbuf, "%lf%lf%lf", &v[0], &v[1], &v[2]) < 3) {
+	    v[0] = NAN;
+	    i32++;
+	}
+	fwrite( v, sizeof(double), 3, fout );
+	fwrite( &i32, sizeof(i32), 1, fout );
+    }
+
+    fclose(fin);
+    fclose(fout);
 
     return 0;
 }
