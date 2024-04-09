@@ -8,8 +8,6 @@ random.tmp stringvar.tmp fit.log fitmulti.dat \
 epslatex.ps epslatex.tex epslatex-oldstyle.tex epslatex-oldstyle-inc.eps \
 latex_demo.log latex_demo.aux latex_cairo.tex latex_pict2e.tex latex_tikz.tex
 
-DISTCLEANFILES = Makefile.am Makefile.in
-
 BINARY_FILES = binary1 binary2 binary3
 
 SUBDIRS = $(PLUGIN_DIR)
