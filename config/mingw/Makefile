@@ -1051,27 +1051,6 @@ gropdf: $(D)titlepag.ms gnuplot.ms
 	sed "s,titlepag\.ms,$(D)titlepag\.ms," gnuplot.ms | \
 	groff -s -p -t -e -ms -k -K utf-8 -Tpdf > gnuplot.pdf
 
-TUT = $(TOP)/tutorial
-tutorial.pdf: $(TUT)/eg1.plt $(TUT)/eg2.plt $(TUT)/eg3.plt $(TUT)/eg4.plt \
-	$(TUT)/eg5.plt $(TUT)/eg6.plt $(TUT)/eg7.plt $(TUT)/linepoin.plt \
-	$(TUT)/test.plt $(TUT)/test_tikz.plt $(TUT)/tutorial.tex
-	GNUPLOT_LIB=$(TUT) ./$(TARGET) eg1.plt
-	GNUPLOT_LIB=$(TUT) ./$(TARGET) eg2.plt
-	GNUPLOT_LIB=$(TUT) ./$(TARGET) eg3.plt
-	GNUPLOT_LIB=$(TUT) ./$(TARGET) eg4.plt
-	GNUPLOT_LIB=$(TUT) ./$(TARGET) eg5.plt
-	GNUPLOT_LIB=$(TUT) ./$(TARGET) eg6.plt
-	GNUPLOT_LIB=$(TUT) GNUPLOT_PS_DIR=$(T)PostScript ./$(TARGET) eg7.plt
-	GNUPLOT_LIB=$(TUT) ./$(TARGET) linepoin.plt
-	GNUPLOT_LIB=$(TUT) ./$(TARGET) test.plt
-#ifdef LUA
-	GNUPLOT_LIB=$(TUT) GNUPLOT_LUA_DIR=$(T)lua ./$(TARGET) test_tikz.plt
-#endif
-	# run latex twice to get references right
-	TEXINPUTS=.:$(TUT) latex tutorial.tex
-	TEXINPUTS=.:$(TUT) latex tutorial.tex
-	dvipdfm tutorial.dvi
-
 ps_symbols.pdf: $(D)psdoc/ps_symbols.gpi
 	GNUPLOT_LIB=$(D)psdoc GNUPLOT_PS_DIR=$(T)PostScript ./$(TARGET) -d ps_symbols.gpi
 	ps2pdf ps_symbols.ps
@@ -1208,7 +1187,6 @@ endif
 	mkdir -p $(DESTDIR)/docs
 	-cp -p gnuplot.pdf $(DESTDIR)/docs/
 	cp -p FAQ.pdf $(DESTDIR)/docs/FAQ.pdf
-	#-cp -p tutorial.pdf $(DESTDIR)/docs/
 	mkdir -p $(DESTDIR)/docs/psdoc
 	cp -p $(D)psdoc/ps_file.doc $(DESTDIR)/docs/psdoc/ps_file_doc.txt
 	cp -p $(D)psdoc/ps_guide.ps $(DESTDIR)/docs/psdoc/

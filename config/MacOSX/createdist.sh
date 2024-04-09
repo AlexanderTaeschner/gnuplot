@@ -90,14 +90,9 @@ else
 	cd $SRC_DIR/docs
 	make pdf
     )
-    (
-	cd $SRC_DIR/tutorial
-	make pdf
-    )
 
     echo "Copying docs to $DMGROOT/Docs"
     cp $SRC_DIR/docs/gnuplot.pdf $DMG_ROOT/Docs/.
-    cp $SRC_DIR/tutorial/tutorial.pdf $DMG_ROOT/Docs/gnuplot_LateX_tutorial.pdf
     cp $SRC_DIR/{FAQ,README,Copyright} $DMG_ROOT/Docs/.
 fi ## skip build
 
