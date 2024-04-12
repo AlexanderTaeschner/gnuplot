@@ -1199,6 +1199,7 @@ common_error_exit()
     set_iterator = cleanup_iteration(set_iterator);
     plot_iterator = cleanup_iteration(plot_iterator);
     scanning_range_in_progress = FALSE;
+    inside_plot_command = FALSE;
 #ifdef HAVE_LOCALE_H
     setlocale(LC_NUMERIC, "C");
 #endif
