@@ -1319,6 +1319,15 @@ do_key_sample(
 	       &&  (style == FS_EMPTY || (! this_plot->hsteps_options.baseline))
 	       &&  w > 0) {
 	    draw_clip_line(xl + key_sample_left, yl, xl + key_sample_right, yl);
+        } else if ((this_plot->plot_style == MARKS || this_plot->plot_style == LINESMARKS)
+	       &&  (this_plot->marks_options.tag >= 0) 
+	       &&  (this_plot->marks_options.units == MARK_UNITS_PS)
+	       && w > 0) {
+	    do_mark_key(this_plot, 
+		        xl, yl, 
+		        key_sample_left, key_sample_right, 
+		       	key_sample_height,
+		       	key_point_offset);
 	} else if (w > 0) {    /* All other plot types with fill */
 	    if (style != FS_EMPTY)
 		(*t->fillbox)(style,x,y,w,h);

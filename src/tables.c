@@ -232,6 +232,7 @@ const struct gen_table set_tbl[] =
     { "mac$ros", S_MACROS },
     { "map$ping", S_MAPPING },
     { "map$ping3d", S_MAPPING },
+    { "mark", S_MARK },
 
     { "mar$gins", S_MARGIN },
     { "lmar$gin", S_LMARGIN },
@@ -765,6 +766,9 @@ const struct gen_table plotstyle_tbl[] =
     { "table", TABLESTYLE },
     { "zerror$fill", ZERRORFILL },
     { "mask", POLYGONMASK },
+    { "mark$s", MARKS },
+    { "linesm$arks", LINESMARKS },
+    { "lm", LINESMARKS },
     { "contourfill", CONTOURFILL },
     { NULL, PLOT_STYLE_NONE }
 };

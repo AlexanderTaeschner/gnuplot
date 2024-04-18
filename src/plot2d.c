@@ -141,6 +141,7 @@ cp_alloc(int num)
     default_arrow_style(&(cp->arrow_properties));
     cp->fill_properties = default_fillstyle;
     cp->filledcurves_options = filledcurves_opts_data;
+    cp->marks_options = (struct marks_options) DEFAULT_MARKS_OPTS;
 
     return (cp);
 }
@@ -617,6 +618,18 @@ get_data(struct curve_points *current_plot)
 	max_cols = 5;
 	break;
 
+    case MARKS:	/* 2 + possible variable color, or 4 + possible variable color */
+    case LINESMARKS:
+        /* 2 column: x y */
+        /* 3 column: x y scale */
+        /* 4 column: x y xscale yscale */
+        /* 5 column: x y xscale yscale angle */
+	/* Allow 1 extra column because of 'pointtype variable' */
+	/* Allow 1 extra column because of 'lc rgb variable'    */
+	min_cols = 2;
+	max_cols = 7;
+	break;
+
     case PARALLELPLOT:
     case SPIDERPLOT:
 	/* 1 column: y coordinate only */
@@ -855,6 +868,10 @@ get_data(struct curve_points *current_plot)
 	    case BOXPLOT:
 			    /* Only the key sample uses this value */
 			    v[j++] = current_plot->base_linetype + 1;
+			    break;
+	    case MARKS:
+	    case LINESMARKS:
+			    if (j < 3) int_error(NO_CARET,errmsg);
 			    break;
 	    default:
 		break;
@@ -1412,6 +1429,30 @@ get_data(struct curve_points *current_plot)
 	    break;
 	}
 
+	case MARKS:
+	case LINESMARKS:
+	{   /*  x y
+		x y scale
+		x y xscale yscale 
+                x y xscale yscale angle
+	     */
+    	    int var = j; /* column number */
+	    coordval x      = v[0]; /* x */
+	    coordval y      = v[1]; /* y */
+	    coordval xlow;          /* xscalse */
+	    coordval xhigh;         /* yscalse */
+	    coordval ylow;          /* angle */
+            coordval yhigh = -1;
+	    if (current_plot->marks_options.tag == -1)
+		yhigh = v[--var];
+	    xlow   = (var >= 3) ? v[2] : 1.0; 
+	    xhigh  = (var >= 4) ? v[3] : xlow;
+	    ylow   = (var >= 5) ? v[4] : 0.0;
+	    store2d_point(current_plot, i++, x, y,
+			  xlow, xhigh, ylow, yhigh, 0.0);
+	    break;
+	}
+
 	/* These exist for 3D (splot) but not for 2D (plot) */
 	case PM3DSURFACE:
 	case CONTOURFILL:
@@ -1506,7 +1547,9 @@ store2d_point(
 
 	/* Some plot styles use xhigh and yhigh for other quantities, */
 	/* which polar mode transforms would break		      */
-	if (current_plot->plot_style == CIRCLES) {
+	if (current_plot->plot_style == MARKS || current_plot->plot_style == LINESMARKS) 
+           ;
+	else if (current_plot->plot_style == CIRCLES) {
 	    double radius = (xhigh - xlow)/2.0;
 	    xlow = x - radius;
 	    xhigh = x + radius;
@@ -1594,6 +1637,13 @@ store2d_point(
         cp->xhigh = xhigh;
         cp->ylow  = ylow;
         cp->yhigh = yhigh;
+	break;
+    case MARKS: 
+    case LINESMARKS: 
+        cp->xlow  = xlow;
+        cp->xhigh = xhigh;
+        cp->ylow  = ylow;
+        cp->yhigh  = yhigh;
 	break;
     case ELLIPSES:
 	/* We want to pass the parameters to the ellipse drawing routine as they are, 
@@ -2408,6 +2458,7 @@ eval_plots()
 		this_plot->plot_smooth = SMOOTH_NONE;
 		this_plot->plot_filter = FILTER_NONE;
 		this_plot->filledcurves_options = filledcurves_opts_data;
+		this_plot->marks_options = (struct marks_options) DEFAULT_MARKS_OPTS;
 
 		/* Only relevant to "with table" */
 		free_at(table_filter_at);
@@ -2811,6 +2862,69 @@ eval_plots()
 		    }
 		}
 
+		/* pick up the special 'tag' keyword the 'marks' style requires */
+		if (this_plot->plot_style == MARKS 
+		||  this_plot->plot_style == LINESMARKS) {
+		    if (almost_equals(c_token,"mark$type") || equals(c_token, "mt")) {
+			c_token++;
+                        if (almost_equals(c_token, "var$iable")) {
+       			   this_plot->marks_options.tag = -1;
+                           c_token++;                                
+                        } else 
+  			   this_plot->marks_options.tag = int_expression();
+    		        continue;
+		    }
+		    
+		    if (almost_equals(c_token,"unit$s")) {
+			c_token++;
+		        if (equals(c_token,"xy")) {
+		            this_plot->marks_options.units = MARK_UNITS_XY;
+		        } else if (equals(c_token,"xx")) {
+		            this_plot->marks_options.units = MARK_UNITS_XX;
+		        } else if (equals(c_token,"yy")) {
+		            this_plot->marks_options.units = MARK_UNITS_YY;
+		        } else if (equals(c_token,"gxy")) {
+		            this_plot->marks_options.units = MARK_UNITS_GXY;
+		        } else if (equals(c_token,"gxx")) {
+		            this_plot->marks_options.units = MARK_UNITS_GXX;
+		        } else if (equals(c_token,"gyy")) {
+		            this_plot->marks_options.units = MARK_UNITS_GYY;
+		        } else if (equals(c_token,"ps")) {
+		            this_plot->marks_options.units = MARK_UNITS_PS;
+		        } else {
+		            int_error(c_token, "expecting 'xy', 'xx', 'yy', 'gxy', 'gxx', 'gyy', or 'ps'" );
+		        }
+			if (this_plot->plot_type == FUNC 
+			&&  this_plot->marks_options.units != MARK_UNITS_PS) {
+    		            int_error(c_token, "function plot needs 'units ps'" );				
+			}
+		        c_token++;
+			continue;
+		    }
+		    
+	    	    if (almost_equals(c_token, "points$ize") || equals(c_token, "ps")) {
+	    	        c_token++;
+			this_plot->marks_options.size = real_expression();
+			this_plot->marks_options.units = MARK_UNITS_PS;
+	    	        continue;
+	    	    }
+	        }
+
+		if (this_plot->plot_style == LINESMARKS) {
+		
+	    	    if (almost_equals(c_token, "pointi$nterval") || equals(c_token, "pi")) {
+	    	        c_token++;
+			this_plot->marks_options.interval = int_expression();
+	    	        continue;
+	    	    }
+
+	    	    if (almost_equals(c_token, "pointn$umber") || equals(c_token, "pn")) {
+	    	        c_token++;
+			this_plot->marks_options.number = int_expression();
+	    	        continue;
+	    	    }
+		}
+
 		/* pick up the special 'units' keyword the 'ellipses' style allows */
 		if (this_plot->plot_style == ELLIPSES || this_plot->plot_style == SECTORS) {
 		    int stored_token = c_token;
@@ -3073,6 +3187,8 @@ eval_plots()
 		case LABELPOINTS:
 		case CIRCLES:
 		case SECTORS:
+		case MARKS:
+		case LINESMARKS:
 		case YERRORBARS:
 		case YERRORLINES:
 		case SURFACEGRID:

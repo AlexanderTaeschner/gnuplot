@@ -140,6 +140,8 @@ static void do_rectangle(int dimensions, t_object *this_object, fill_style_type 
 static void do_polygon(int dimensions, t_object *this_object, int style, int facing );
 static void close_polygon(struct curve_points *plot, int first, int last);
 
+static void plot_marks(struct curve_points *plot);
+ 
 static double rgbscale(double rawvalue);
 
 static void draw_polar_circle(double place);
@@ -566,6 +568,68 @@ place_objects(struct object *listhead, int layer, int dimensions)
 		if (need_fill_border(fillstyle))
 		    do_polygon(dimensions, this_object, 0, facing);
 
+	    break;
+	}
+
+	case OBJ_MARK:
+	{
+    	    t_mark *e = &this_object->o.mark;
+            struct mark_data *mark, *this, *prev;
+            int vertices;
+            gpiPoint *vertex;
+            gpiPoint *fillarea;
+	    BoundingBox *clip_save = clip_area;
+            
+            if (first_mark == NULL)
+                break;
+            
+            mark = NULL;
+            for (this = first_mark, prev = NULL; 
+                 this != NULL;
+                 prev = this, this = this->next) {
+                /* is this the mark we want? */
+                if (e->type == this->tag) {
+                    mark = this;
+                    vertices = mark->polygon.type;
+                    break;
+                }
+            } 
+            if (! mark) 
+                break;
+            
+	    if (dimensions == 2) {
+		map_position_double(&e->center, &x1, &y1, "object");
+	    } else if (splot_map) {
+		map3d_position_double(&e->center, &x1, &y1, "object");
+	    } else /* General 3D splot */ {
+		if (e->center.scalex == screen)
+		    map_position_double(&e->center, &x1, &y1, "object");
+		else if (e->center.scalex == first_axes || e->center.scalex == polar_axes)
+		    map3d_position_double(&e->center, &x1, &y1, "object");
+		else
+		    break;
+	    }
+
+	    if ((e->center.scalex == screen || e->center.scaley == screen)
+	    ||  (this_object->clip == OBJ_NOCLIP))
+	    	clip_area = &canvas;
+            
+            vertex   = (gpiPoint *) gp_alloc(vertices*sizeof(gpiPoint), "draw mark");
+            fillarea = (gpiPoint *) gp_alloc(2*vertices*sizeof(gpiPoint), "draw mark");     
+
+	    do_mark(mark,
+                    x1, y1, e->xscale, e->yscale, e->angle, 
+                    e->units,
+                    (this_object->clip == OBJ_CLIP),
+                    &(this_object->fillstyle),
+                    &(this_object->lp_properties),
+                    FALSE, NULL, 0.0,
+                    vertices, vertex, fillarea);
+
+            free(vertex);
+            free(fillarea);
+
+	    clip_area = clip_save;
 	    break;
 	}
 
@@ -1039,6 +1103,16 @@ do_plot(struct curve_points *plots, int pcount)
 	    case ELLIPSES:
 		plot_ellipses(this_plot);
 		break;
+
+    	    case MARKS:
+    		plot_marks(this_plot);
+    		break;
+
+    	    case LINESMARKS:
+                term_apply_lp_properties(&(this_plot->lp_properties)); 
+            	plot_lines(this_plot);
+                plot_marks(this_plot);
+    		break;
 
 	    case PARALLELPLOT:
 		plot_parallel(this_plot);
@@ -2928,6 +3002,443 @@ plot_sectors(struct curve_points *plot)
 
     clip_area = clip_save;
 }
+
+/* plot_marks:
+ * Plot the points in MARKS style
+ */
+
+static void
+plot_marks(struct curve_points *plot)
+{
+    int i, k;
+    double mx1, mx2, my1, my2;
+    double cosa, sina, rada;
+    double x, y, xscale, yscale, angle;
+    TBOOLEAN has_varcolor = FALSE;
+    double varcolor;
+    struct mark_data *mark, *this, *prev;
+    struct polygon *polygon;
+    double *color;
+    int vertices;
+    int max_vertices;
+    int tag;
+    double size = plot->marks_options.size;
+    int number = plot->marks_options.number;
+    int interval = plot->marks_options.interval;
+    int offset = 0;
+    gpiPoint *vertex;
+    gpiPoint *fillarea;
+    BoundingBox *clip_save = clip_area;
+    
+    /* Clip witn graph border */
+    clip_area = &plot_bounds;
+    
+    if (plot->marks_options.tag >= 0) { /* Search mark if 'marktype N' is given */
+        tag = plot->marks_options.tag;
+        mark = NULL;
+        if (first_mark != NULL) {	/* skip to last arrow */
+     	     for (this = first_mark, prev = NULL; 
+                  this != NULL;
+     	          prev = this, this = this->next) {
+     	         /* is this the mark we want? */
+     	         if (tag == this->tag) {
+     		     mark = this;
+                     vertices = mark->polygon.type;
+     		     break;
+     	         }
+             }
+        } 
+        if (! mark) 
+     	     int_error(NO_CARET, "can't find mark <%i>", tag);
+        max_vertices = vertices;
+    } else {                            /* Check max_vertices only if 'marktype variable' is given */
+        max_vertices = 0;
+        if (first_mark != NULL) {	/* skip to last arrow */
+     	    for (this = first_mark, prev = NULL; 
+                 this != NULL;
+     	         prev = this, this = this->next) {
+                if (this->polygon.type > max_vertices)
+                    max_vertices = this->polygon.type; 
+            }
+        }
+    }
+    
+    if (size < 0)
+        size = 1.0;
+     
+    if (plot->plot_type == FUNC) 
+	plot->marks_options.units = MARK_UNITS_PS;
+
+    /* The "pointnumber" property limits the total number of points drawn for this curve */
+    if (number) {
+	int pcountin = 0;
+	for (i = 0; i < plot->p_count; i++) {
+	    if (plot->points[i].type == INRANGE) pcountin++;
+	}
+	if (pcountin > number) {
+	    if (number > 1)
+		interval = (double)(pcountin-1)/(double)(number-1);
+	    else
+		interval = pcountin;
+	    /* offset the first point drawn so that successive plots are more distinct */
+	    offset = plot->current_plotno * ceil(interval/6.0);
+	    if (plot->lp_properties.p_number < 0)
+		interval = -interval;
+	}
+    }
+
+    vertex   = (gpiPoint *) gp_alloc(max_vertices*sizeof(gpiPoint), "draw mark");
+    fillarea = (gpiPoint *) gp_alloc(2*max_vertices*sizeof(gpiPoint), "draw mark");    	
+
+    for (i = 0; i < plot->p_count; i++) {
+
+    	/* Only print 1 point per interval */
+    	if ((plot->plot_style == LINESMARKS) && (interval) && ((i-offset) % interval))
+    	    continue;
+
+	x = plot->points[i].x;
+    	y = plot->points[i].y;
+        xscale = plot->points[i].xlow;
+        yscale = plot->points[i].xhigh;		
+	angle  = plot->points[i].ylow;
+
+        if (plot->marks_options.tag < 0) {
+            if (isnan(plot->points[i].yhigh))       /* variable mark tag is stored in yhigh */
+                continue;
+            tag = round(plot->points[i].yhigh);
+            mark = NULL;
+            if (first_mark != NULL) {	/* skip to last arrow */
+                for (this = first_mark, prev = NULL; 
+                     this != NULL;
+                     prev = this, this = this->next) {
+                    if (tag == this->tag) {
+            	        mark = this;
+                        vertices = mark->polygon.type;
+             		break;
+             	    }
+                }
+            } 
+            if (! mark) 
+                continue;
+        }
+
+	/* convert x, y according to units xy|xx|yy */
+	x = map_x_double(x);
+	y = map_y_double(y);
+
+
+	if (plot->marks_options.units == MARK_UNITS_PS) {
+                /*
+	    double width = mark->xmax - mark->xmin;
+	    double height = mark->ymax - mark->ymin;
+	    if (width > height) {
+		xscale = 1.0/width;
+		yscale = 1.0/width;
+	    } else {
+		xscale = 1.0/height;
+		yscale = 1.0/height;	    	
+	    }
+                */
+                xscale = 1.0;
+                yscale = 1.0;
+	}
+
+	xscale = xscale*size;
+	yscale = yscale*size;
+
+        has_varcolor = (plot->varcolor) ? TRUE : FALSE;
+        varcolor     = (has_varcolor) ? plot->varcolor[i] : 0.0;
+
+        do_mark(mark,
+                x, y, xscale, yscale, angle, 
+                plot->marks_options.units,
+                TRUE,
+                &(plot->fill_properties),
+                &(plot->lp_properties), 
+                has_varcolor, plot, varcolor, 
+                max_vertices, vertex, fillarea);
+                 
+    }
+
+    free(fillarea);
+    free(vertex);
+
+    clip_area = clip_save;
+}
+
+/*
+ * Function for drawing key shape for marks and linesmarks styles called only for 'units ps'
+ */
+void
+do_mark_key(struct curve_points *this_plot, 
+              int xl, int yl, 
+              int key_sample_left, int key_sample_right, 
+	      int key_sample_height,
+	      int key_point_offset)
+{
+    struct mark_data *mark, *this, *prev;
+    int tag = this_plot->marks_options.tag;
+    double size = this_plot->marks_options.size;
+    int vertices;
+    gpiPoint *vertex;
+    gpiPoint *fillarea;
+    double xscale;
+    double yscale;
+    double xoffset;
+    double yoffset;
+    
+    if (size < 0) 
+        size = 1.0;
+    
+    /* Draw line for 'linesmarks' style */
+    if ( this_plot->plot_style == LINESMARKS )
+	draw_clip_line(xl + key_sample_left, yl, xl + key_sample_right, yl);
+
+    /* search mark */
+    mark = NULL;
+    if (first_mark != NULL) {	/* skip to last arrow */
+     	for (this = first_mark, prev = NULL; 
+            this != NULL;
+     	    prev = this, this = this->next) {
+     	    /* is this the mark we want? */
+     	    if (tag == this->tag) {
+     	        mark = this;
+     		break;
+     	    }
+        }
+    } 
+     
+    /* mark is found! */
+    if (mark) {
+    	double width = mark->xmax - mark->xmin;
+    	double height = mark->ymax - mark->ymin;
+	int xoffset = 0.0;
+	int yoffset = 0.0;
+
+
+	/* Scaling */
+ 	if (this_plot->marks_options.units == MARK_UNITS_PS) {
+            xscale = 1.0;
+            yscale = 1.0;
+        } else {
+            if (width > height) {
+                xscale = 1.0/width;
+             	yscale = 1.0/width;
+            } else {
+                xscale = 1.0/height;
+                yscale = 1.0/height;	    	
+            }
+        }
+
+	xscale = xscale*size;
+	yscale = yscale*size;
+
+	/* Centering */
+	if (this_plot->plot_style == MARKS) {
+            xoffset = term->h_tic*xscale*(mark->xmax + mark->xmin)/2.0;	
+            yoffset = term->v_tic*yscale*(mark->ymax + mark->ymin)/2.0;
+        }
+	
+	/* Drawing a mark at key sample area */
+        vertices = mark->polygon.type;
+	vertex   = (gpiPoint *) gp_alloc(vertices*sizeof(gpiPoint), "draw mark");
+	fillarea = (gpiPoint *) gp_alloc(2*vertices*sizeof(gpiPoint), "draw mark");    	
+        do_mark(mark,
+            xl + key_point_offset - xoffset, yl - yoffset, xscale, yscale, 0.0, 
+            MARK_UNITS_PS,
+            FALSE, 
+            &(this_plot->fill_properties),
+            &(this_plot->lp_properties), 
+            FALSE, NULL, 0, 
+            vertices, vertex, fillarea);
+	free(vertex);
+	free(fillarea);
+    }
+}
+
+/* 
+   The argument 'plot' can be NULL, in which case the argument 'varcolor' should be FALSE.
+ */
+void
+do_mark (struct mark_data *mark,
+         double x, double y, double xscale, double yscale, double angle, 
+         int units, 
+         TBOOLEAN clip,
+         struct fill_style_type *fill_properties,
+         struct lp_style_type *lp_properties, 
+         TBOOLEAN has_varcolor, struct curve_points *plot, double varcolor,
+         int max_vertices, gpiPoint *vertex, gpiPoint *fillarea)
+{
+    static int style_solid_1 = 0;
+    double aspect = (double)term->v_tic / (double)term->h_tic; 
+    struct polygon *polygon;
+    double *color;
+    double cosa, sina, rada;
+    double dx, dy, mx1, my1, mx2, my2;
+    int draw_style; 
+    double draw_color;
+    int points, in;
+    int k;
+    int style = style_from_fill(fill_properties);
+    TBOOLEAN withborder = FALSE;
+    
+    if ( style_solid_1 == 0 ) {
+       struct fill_style_type fs;
+       fs.fillstyle = FS_SOLID;
+       fs.filldensity = 100;
+       style_solid_1 = style_from_fill(&fs);            
+    }
+
+    if (! mark)
+       return;
+
+    polygon = &(mark->polygon);
+    color = mark->color;
+    mx1 = mark->xmin;
+    mx2 = mark->xmax;
+    my1 = mark->ymin;
+    my2 = mark->ymax;
+
+    /* Check border should be drawn */
+    if (fill_properties->border_color.type != TC_LT
+    ||  fill_properties->border_color.lt != LT_NODRAW)
+	 withborder = TRUE;
+
+    switch (units) {
+    case MARK_UNITS_XY:
+        xscale = map_x_double(xscale) - map_x_double(0.0);
+	yscale = map_y_double(yscale) - map_y_double(0.0);
+	break;
+    case MARK_UNITS_XX:
+	xscale = map_x_double(xscale) - map_x_double(0.0);
+	yscale = map_x_double(yscale) - map_x_double(0.0);
+	break;
+    case MARK_UNITS_YY:
+	xscale = map_y_double(xscale) - map_y_double(0.0);
+	yscale = map_y_double(yscale) - map_y_double(0.0);
+	break;
+    case MARK_UNITS_GXY:
+        xscale = xscale*(plot_bounds.xright - plot_bounds.xleft);
+        yscale = yscale*(plot_bounds.ytop - plot_bounds.ybot);
+	break;
+    case MARK_UNITS_GXX:
+        xscale = xscale*(plot_bounds.xright - plot_bounds.xleft);
+	yscale = yscale*(plot_bounds.xright - plot_bounds.xleft);
+	break;
+    case MARK_UNITS_GYY:
+        xscale = xscale*(plot_bounds.ytop - plot_bounds.ybot);
+	yscale = yscale*(plot_bounds.ytop - plot_bounds.ybot);
+	break;
+    case MARK_UNITS_PS:
+        xscale = term->h_tic * xscale;
+        yscale = term->v_tic * yscale;
+	break;
+    default:
+	break;
+    }
+
+    rada = angle*M_PI/180.0*theta_direction;
+    cosa = cos(rada);
+    sina = sin(rada);
+
+    if (clip) {
+        double xx[5] = { x, 
+                         x + xscale*mx1 * cosa - yscale*my1 * sina,
+                         x + xscale*mx1 * cosa - yscale*my2 * sina,
+                         x + xscale*mx2 * cosa - yscale*my1 * sina,
+                         x + xscale*mx2 * cosa - yscale*my2 * sina };
+        double yy[5] = { y, 
+                         y + xscale*mx1 * sina + yscale*my1 * cosa,
+                         y + xscale*mx1 * sina + yscale*my2 * cosa,
+                         y + xscale*mx2 * sina + yscale*my1 * cosa,
+                         y + xscale*mx2 * sina + yscale*my2 * cosa };
+    
+        TBOOLEAN is_inrange = FALSE;
+        for (k=0; k<5; k++) {
+            if ( inrange(round(xx[k]), clip_area->xleft, clip_area->xright) 
+            &&   inrange(round(yy[k]), clip_area->ybot, clip_area->ytop) ) {
+                is_inrange = TRUE;
+	        break;
+    	    } 
+        }
+        if ( is_inrange == FALSE )
+            return;
+    }
+
+    k = 0;
+    points = 0;
+    while ( k < polygon->type ) {
+
+        for ( ; k<polygon->type; k++) {
+            dx = xscale * polygon->vertex[k].x; 
+            dy = yscale * polygon->vertex[k].y; 
+            if ( isnan(dx) || isnan(dy) ) {
+                k++;
+    		break;
+            }
+            vertex[points].x = round(x + dx * cosa - dy * sina);
+            vertex[points].y = round(y + (dx * sina + dy * cosa) * aspect);
+    	    if (points == 0) {
+    	        draw_style = round(polygon->vertex[k].z);
+                draw_color = color[k];
+            }
+            points++;
+        }
+
+    	if ( points > 1 ) {
+
+            /* Fill inside polygon
+             *
+	     *    If the MARKS_FILL bit in draw_style is on, the polygon is filled 
+             *    according to the draw_color value or the fill style of the plot.
+	     *
+ 	     *    If draw_color is larger than or equal to 0, draw_color is 
+             *    interpreted as RGB value. Otherwise, fill style including variable 
+             *    colors is applied.
+	     * 
+	     *    If the fill style is not set or explicitly set as empty, the fill
+             *     style is forced to 'fs solid 1.0'     
+	     */
+    	    if (draw_style & MARKS_FILL) { 
+                clip_polygon(vertex, fillarea, points, &in);
+    	        if (in > 1 && term->filled_polygon) {
+                    if (draw_color >= 0) 
+                        set_rgbcolor_var(draw_color);
+                    else if (!has_varcolor || !check_for_variable_color(plot, &varcolor))
+                        term_apply_lp_properties(lp_properties);
+                    if (style != FS_EMPTY)
+                        fillarea[0].style = style;
+                    else 
+                        fillarea[0].style = style_solid_1;
+	            term->filled_polygon(in, fillarea);
+    	        }
+    	    } 
+
+            /* Stroke polygon
+             *
+	     *    If the MARKS_STROKE bit in draw_style is on, the polygon 
+	     *    or polylines are stroked according to the draw_color value 
+             *    or the line style or fill style.
+             *
+ 	     *    If draw_color is larger than or equal to 0, draw_color is 
+	     *    interpreted as RGB value. Otherwise, line style including 
+ 	     *    variable colors is applied. But, if the plot has fill border, 
+             *   the style of the border takes precedence.
+	     */
+	    if (draw_style & MARKS_STROKE) {
+                if (draw_color >= 0)
+                    set_rgbcolor_var(draw_color);
+                else if (!has_varcolor || !check_for_variable_color(plot, &varcolor))
+                    term_apply_lp_properties(lp_properties);
+    	        if ( style && withborder )
+    	            need_fill_border(fill_properties);
+    	        draw_clip_polygon(points, vertex);
+	    }
+        }
+        points = 0;
+    }
+}        
+
 
 /* plot_ellipses:
  * Plot the curves in ELLIPSES style

@@ -107,6 +107,7 @@ static void set_locale(void);
 static void set_logscale(void);
 static void set_mapping(void);
 static void set_margin(t_position *);
+static void set_mark(void);
 static void set_minus_sign(void);
 static void set_micro(void);
 static void set_missing(void);
@@ -366,6 +367,8 @@ set_command()
 	case S_MAPPING:
 	    set_mapping();
 	    break;
+    	case S_MARK:
+            set_mark();
 	case S_MARGIN:
 	    /* Jan 2015: CHANGE to order <left>,<right>,<bottom>,<top> */
 	    set_margin(&lmargin);
@@ -3011,6 +3014,327 @@ set_margin(t_position *margin)
 
 }
 
+/*  process 'set mark' command
+ *      'set mark <tag> DATASPEC'
+ *      'set mark <tag> append DATASPEC'
+ */
+static void append_mark(struct mark_data *dest, struct mark_data *src);
+
+static TBOOLEAN
+mark_is_empty (struct mark_data *mark)
+{
+    return (mark->polygon.type == 0);
+}
+
+static struct mark_data *
+mark_allocate (int vertices) 
+{
+   struct mark_data *mark;
+   mark = gp_alloc(sizeof(struct mark_data), "mark_data");
+   mark->next = NULL;
+   mark->tag = -1;
+   mark->polygon.type   = vertices;
+   if (vertices > 0) {
+       mark->polygon.vertex = (t_position *) gp_alloc(vertices*sizeof(t_position), "mark vertex");
+       mark->color = (double *) gp_alloc(vertices*sizeof(double), "mark color");
+   } else {
+       mark->polygon.vertex = NULL;
+       mark->color = NULL;
+   }
+   mark->xmin = VERYLARGE;
+   mark->xmax = -VERYLARGE;
+   mark->ymin = VERYLARGE;
+   mark->ymax = -VERYLARGE;
+   return mark;
+}
+
+/*
+ * updates the range of the enclosure (xmin,xmax,ymin,ymax) of polygons 
+ *             in the mark_data structure based on the current polygon data.
+ */
+static void
+mark_update_limits (struct mark_data *mark) 
+{
+    double mx1 = 10e30;
+    double mx2 = -10e30;
+    double my1 = 10e30;
+    double my2 = -10e30;
+    double mx, my;
+    int i;
+
+    for (i=0; i<mark->polygon.type; i++) {
+        mx = mark->polygon.vertex[i].x; 
+        my = mark->polygon.vertex[i].y; 
+        mx1 = (mx < mx1) ? mx : mx1;
+        mx2 = (mx > mx2) ? mx : mx2;
+        my1 = (my < my1) ? my : my1;
+        my2 = (my > my2) ? my : my2;
+    }
+
+    mark->xmin = mx1;
+    mark->xmax = mx2;
+    mark->ymin = my1;
+    mark->ymax = my2;        
+}
+
+static void
+mark_append(struct mark_data *dst, struct mark_data *src)
+{
+   int vertices;
+   int dst_vertices = dst->polygon.type;
+   int src_vertices = src->polygon.type;
+   t_position *vertex;
+   double *color;
+   
+   vertices = dst_vertices + 1 + src_vertices;
+   vertex = (t_position *) gp_alloc(vertices*sizeof(t_position), "mark polygon vertex");
+   color  = (double *) gp_alloc(vertices*sizeof(double), "mark color");
+
+   memcpy(vertex, dst->polygon.vertex, dst_vertices*sizeof(t_position));
+   vertex[dst_vertices].x = not_a_number();
+   vertex[dst_vertices].y = not_a_number();
+   memcpy(vertex+dst_vertices+1, src->polygon.vertex, src_vertices*sizeof(t_position));
+   free(dst->polygon.vertex);
+
+   memcpy(color, dst->color, (dst_vertices)*sizeof(double));
+   memcpy(color+dst_vertices+1, src->color, (src_vertices)*sizeof(double));
+   free(dst->color);
+
+   dst->polygon.type   = vertices;
+   dst->polygon.vertex = vertex;
+   dst->color          = color;
+
+   if (dst->xmin > src->xmin)
+       dst->xmin = src->xmin;
+   if (dst->xmax < src->xmax)
+       dst->xmax = src->xmax;
+   if (dst->ymin > src->ymin)
+       dst->ymin = src->ymin;
+   if (dst->ymax < src->ymax)
+       dst->ymax = src->ymax;
+}
+
+#define MARK_ACTION_UNDEFINED 0
+#define MARK_ACTION_CREATE    1
+#define MARK_ACTION_APPEND    2
+#define MARK_ACTION_COPY      3
+
+static void
+set_mark ()
+{
+    int tag, tag_src = -1;
+    struct mark_data *mark, *this, *prev;
+    struct polygon *polygon;
+    int vertices, lines;
+    t_position *vertex;
+    double *color;
+    double v[4];
+    int i, j;
+    char *name_str;
+    int saved_token;
+    int append = FALSE;
+    int found = FALSE;
+    int action = MARK_ACTION_UNDEFINED;
+    int dummy_token = 0;
+    int sample_range_token;
+    char orig_dummy_var[MAX_ID_LEN+1];
+
+    c_token++;
+    tag = int_expression();
+    if (tag < 0)
+       int_error(c_token, "tag must be >= 0");
+
+    if (equals(c_token, "append")) {
+       c_token++;
+       append = TRUE;
+    }
+
+    /* Check for a sampling range. */
+    init_sample_range(axis_array + FIRST_X_AXIS, DATA);
+    sample_range_token = parse_range(SAMPLE_AXIS);
+    if (sample_range_token != 0) {
+	axis_array[SAMPLE_AXIS].range_flags |= RANGE_SAMPLED;
+    }
+//    axis_init(&axis_array[FIRST_X_AXIS], FALSE);
+//    parse_range(FIRST_X_AXIS);
+
+    saved_token = c_token;
+    
+    if ( equals(c_token, "\"++\"") ) {
+  	int_error(c_token, "pseudofile \"++\" can not be used for 'set mark'");    	
+    } else if ( (name_str = string_or_express(NULL)) ) {
+        if (append) 
+            action = MARK_ACTION_APPEND;
+        else
+            action = MARK_ACTION_CREATE;                
+    }
+    else {
+        c_token = saved_token;
+        if (append && (tag_src = int_expression()) >= 0) 
+            action = MARK_ACTION_COPY;    
+        else 
+  	    int_error(c_token, "expecting filename or datablock");
+    }
+
+    /* WARNING: do NOT free name_str */
+    if ( action == MARK_ACTION_CREATE || action == MARK_ACTION_APPEND ) {
+        saved_token = c_token;
+
+        /* Same interlock as plot/splot/stats */
+        inside_plot_command = TRUE;
+
+        df_set_plot_mode(MODE_QUERY);	/* Needed only for binary datafiles */
+        df_open(name_str, 4, NULL);
+        vertices = 0;
+        while ((j = df_readline(v, 4)) != DF_EOF) {
+            switch (j) {
+            case 2:
+            case 3:
+            case 4:
+            case DF_FIRST_BLANK:
+            case DF_UNDEFINED:
+            case DF_MISSING:
+                vertices++;
+                break;
+            case DF_SECOND_BLANK:
+            case DF_COLUMN_HEADERS:
+            	continue;
+               	break;
+            default:
+        	df_close();
+        	int_error(c_token, "Bad data on line %d", df_line_number);
+        	break;
+            }
+        }
+        df_close();
+
+        if (vertices==0)
+            int_error( c_token, "No valid coordinates found" );
+    
+        /* Take size from data file */
+        mark = mark_allocate(vertices);
+        mark->tag = tag;
+
+        vertex = mark->polygon.vertex;
+        color  = mark->color;
+
+        c_token = saved_token;
+        df_set_plot_mode(MODE_QUERY);	/* Needed only for binary datafiles */
+        df_open(name_str, 4, NULL);
+
+        lines = 0;
+        while ((j = df_readline(v, 4)) != DF_EOF) {
+            switch (j) {
+            case 2:
+               vertex[lines].x = v[0];
+               vertex[lines].y = v[1];
+               vertex[lines].z = MARKS_STROKE | MARKS_FILL;  
+               color[lines] = -1;           
+               lines++;
+               break;
+            case 3:
+        	vertex[lines].x = v[0];
+         	vertex[lines].y = v[1];
+         	vertex[lines].z = v[2];
+                color[lines] = -1;           
+               	lines++;
+                break;
+            case 4:
+        	vertex[lines].x = v[0];
+         	vertex[lines].y = v[1];
+         	vertex[lines].z = v[2];
+                color[lines]    = v[3];           
+               	lines++;
+                break;
+            case DF_FIRST_BLANK:
+            case DF_UNDEFINED:
+            case DF_MISSING:
+                vertex[lines].x = not_a_number();
+                vertex[lines].y = not_a_number();
+                lines++;
+                break;
+            case DF_SECOND_BLANK:
+            case DF_COLUMN_HEADERS:
+           	continue;
+           	break;
+            default:
+           	df_close();
+           	int_error(c_token, "Bad data on line %d", df_line_number);
+           	break;
+            }
+        }
+        df_close();
+
+        inside_plot_command = FALSE;
+
+        mark_update_limits(mark);
+        
+    } else if (action == MARK_ACTION_COPY) {
+
+        if (! first_mark) 
+            int_error(c_token, "can't find mark %d\n", tag_src);
+         
+        found = FALSE;       
+	for (prev = NULL, this = first_mark; 
+	     this != NULL;
+	     prev = this, this = this->next) {
+	     if (tag_src == this->tag) {
+                found = TRUE;
+                mark = mark_allocate(0);
+                mark->tag = tag;
+                mark_append(mark, this); 
+		break;
+	    }
+        }
+        
+	if (! found) 
+            int_error(c_token, "can't find mark %d\n", tag_src);
+ 
+    } 
+
+    /* add mark to list */
+    
+    if (! first_mark) {
+    	first_mark = mark;            
+    } else {
+        found = FALSE;       
+	for (prev = NULL, this = first_mark; 
+	     this != NULL;
+	     prev = this, this = this->next) {
+	     if (tag == this->tag) {
+                found = TRUE;
+                if (action == MARK_ACTION_APPEND || action == MARK_ACTION_COPY) {
+                    mark_append(this, mark); /* append to existing mark */
+                    if ( tag_src < 0 ) {
+                	free(mark->polygon.vertex);
+                        free(mark->color);
+                	free(mark);                    
+                    }
+                } else {
+        	    mark->next = this->next; /* replace to new mark */
+        	    free(this->polygon.vertex);
+                    free(this->color);
+        	    free(this);
+                    if (prev) 
+        	        prev->next = mark;
+                    else 
+                        first_mark = mark;
+                }
+		break;
+	    }
+        }
+	if (! found) {
+            prev->next = mark;
+	}
+    }
+}
+
+#undef MARK_ACTION_UNDEFINED 
+#undef MARK_ACTION_CREATE
+#undef MARK_ACTION_APPEND
+#undef MARK_ACTION_COPY  
+
+
 /* process 'set micro' command */
 static void
 set_micro()
@@ -4017,7 +4341,8 @@ set_object()
     /* The next token must either be a tag or the object type */
     c_token++;
     if (almost_equals(c_token, "rect$angle") || almost_equals(c_token, "ell$ipse")
-    ||  almost_equals(c_token, "circ$le") || almost_equals(c_token, "poly$gon"))
+    ||  almost_equals(c_token, "circ$le") || almost_equals(c_token, "poly$gon")
+    ||  equals(c_token, "mark"))
 	tag = -1; /* We'll figure out what it really is later */
     else {
 	tag = int_expression();
@@ -4036,6 +4361,9 @@ set_object()
 
     } else if (almost_equals(c_token, "poly$gon")) {
 	set_obj(tag, OBJ_POLYGON);
+
+    } else if (equals(c_token, "mark")) {
+	set_obj(tag, OBJ_MARK);
 
     } else if (tag > 0) {
 	/* Look for existing object with this tag */
@@ -4061,6 +4389,7 @@ new_object(int tag, int object_type, t_object *new)
     t_object def_ellipse = DEFAULT_ELLIPSE_STYLE;
     t_object def_circle = DEFAULT_CIRCLE_STYLE;
     t_object def_polygon = DEFAULT_POLYGON_STYLE;
+    t_object def_mark = DEFAULT_MARK_STYLE;
 
     if (!new)
 	new = gp_alloc(sizeof(struct object), "object");
@@ -4077,6 +4406,8 @@ new_object(int tag, int object_type, t_object *new)
 	*new = def_circle;
     else if (object_type == OBJ_POLYGON)
 	*new = def_polygon;
+    else if (object_type == OBJ_MARK) 
+	*new = def_mark;
     else
 	int_error(NO_CARET,"object initialization failure");
 
@@ -4093,6 +4424,7 @@ set_obj(int tag, int obj_type)
     t_ellipse *this_ellipse = NULL;
     t_circle *this_circle = NULL;
     t_polygon *this_polygon = NULL;
+    t_mark *this_mark = NULL;
     t_object *this_object = NULL;
     t_object *new_obj = NULL;
     t_object *prev_object = NULL;
@@ -4152,6 +4484,7 @@ set_obj(int tag, int obj_type)
 	this_ellipse = &this_object->o.ellipse;
 	this_circle = &this_object->o.circle;
 	this_polygon = &this_object->o.polygon;
+	this_mark = &this_object->o.mark;
 
     }
 
@@ -4330,6 +4663,59 @@ set_obj(int tag, int obj_type)
 			this_polygon->type = 0;
 			int_error(c_token, "Unrecognized polygon syntax");
 		/* End of polygon options */
+
+	case OBJ_MARK:
+	        if (almost_equals(c_token,"markt$ype") || equals(c_token,"mt")) {
+    		    c_token++;
+                    this_mark->type = int_expression();
+		    continue;
+                        
+		} else if (equals(c_token,"at")) {
+		    /* Read in the center position */
+		    c_token++;
+		    get_position(&this_mark->center);
+		    continue;
+
+		} else if (equals(c_token,"scale")) {
+		    /* Read in the width and height */
+		    c_token++;
+                    this_mark->xscale = real_expression();
+                    this_mark->yscale = this_mark->xscale;
+                    if (equals(c_token, ",")) {
+                	++c_token;
+                        this_mark->yscale = real_expression();
+                    }
+		    continue;
+
+		} else if (almost_equals(c_token,"ang$le")) {
+		    c_token++;
+		    this_mark->angle = real_expression();
+		    continue;
+
+		} else if (almost_equals(c_token,"unit$s")) {
+		    c_token++;
+		    if (equals(c_token,"xy")) {
+		        this_mark->units = MARK_UNITS_XY;
+		    } else if (equals(c_token,"xx")) {
+    		        this_mark->units = MARK_UNITS_XX;
+		    } else if (equals(c_token,"yy")) {
+		        this_mark->units = MARK_UNITS_YY;
+		    } else if (equals(c_token,"gxy")) {
+    		        this_mark->units = MARK_UNITS_GXY;
+		    } else if (equals(c_token,"gxx")) {
+		        this_mark->units = MARK_UNITS_GXX;
+		    } else if (equals(c_token,"gyy")) {
+    		        this_mark->units = MARK_UNITS_GYY;
+		    } else if (equals(c_token,"ps")) {
+    		        this_mark->units = MARK_UNITS_PS;
+		    } else {
+		            int_error(c_token, "expecting 'xy', 'xx', 'yy', 'gxy', 'gxx', 'gyy', or 'ps'" );
+		    }
+		    c_token++;
+		    continue;
+
+		}
+                break;
 
 	default:
 		int_error(c_token, "unrecognized object type");

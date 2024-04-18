@@ -122,6 +122,9 @@ struct object *first_object = NULL;
 /* Pointer to array of grid walls */
 struct object grid_wall[5] = {WALL_Y0, WALL_X0, WALL_Y1, WALL_X1, WALL_Z0};
 
+/* Pointer to first mark instance in linked list */
+struct mark_data *first_mark = NULL;
+
 /* 'set title' status */
 text_label title = EMPTY_LABELSTRUCT;
 

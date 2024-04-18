@@ -79,7 +79,8 @@ typedef struct curve_points {
     double smooth_parameter;	/* e.g. optional bandwidth for smooth kdensity */
     double smooth_period;	/* e.g. 2pi for a circular function */
     int boxplot_factors;	/* Only used if plot_style == BOXPLOT */
-    hsteps_opts hsteps_options;
+    hsteps_opts hsteps_options; /* Only used if plot_style == HSTEPS */
+    marks_opts marks_options;   /* Only used if plot_style == MARKS */
     int p_max;			/* how many points are allocated */
     int p_count;		/* count of points in points */
     AXIS_INDEX x_axis;		/* FIRST_X_AXIS or SECOND_X_AXIS */
@@ -129,6 +130,23 @@ void do_ellipse(int dimensions, t_ellipse *e, int style, TBOOLEAN do_own_mapping
 
 void do_sector(double cx, double cy, double rin, double rout, double arc_begin, double arc_end, double ratio, int style, TBOOLEAN complete_circle);
 
+void
+do_mark_key(struct curve_points *this_plot, 
+              int xl, int yl, 
+              int key_sample_left, int key_sample_right, 
+	      int key_sample_height,
+	      int key_point_offset);
+
+void
+do_mark (struct mark_data *mark,
+         double x, double y, double xscale, double yscale, double angle, 
+         int units, 
+         TBOOLEAN clip,
+         struct fill_style_type *fill_properties,
+         struct lp_style_type *lp_properties, 
+         TBOOLEAN has_varcolor, struct curve_points *plot, double varcolor,
+         int max_vertices, gpiPoint *vertex, gpiPoint *fillarea);
+
 void place_pixmaps(int layer, int dimensions);
 
 int filter_boxplot(struct curve_points *);
@@ -139,5 +157,11 @@ void attach_title_to_plot(struct curve_points *this_plot, legend_key *key);
 #define HSTEPS_DIR_BOTHSIDES	0
 #define HSTEPS_DIR_FORWARD	  1
 #define HSTEPS_DIR_BACKWARD	  2
+
+/* Only used in marks style */
+
+#define MARKS_BLANK     0
+#define MARKS_STROKE	1
+#define MARKS_FILL	2
 
 #endif /* GNUPLOT_GRAPHICS_H */

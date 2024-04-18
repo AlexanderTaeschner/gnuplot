@@ -160,6 +160,15 @@ typedef struct polygon {
     t_position *vertex;		/* Array of vertices */
 } t_polygon;
 
+typedef struct mark {
+    int	type;			/* marktype */
+    t_position center;		/* center */
+    double xscale;		/* xscale */
+    double yscale;		/* yscale */
+    double angle;               /* rotation angle */
+    int units;
+} t_mark;
+
 typedef enum en_clip_object {
     OBJ_CLIP,		/* Clip to graph unless coordinate type is screen */
     OBJ_NOCLIP,	/* Clip to canvas, never to graph */
@@ -175,12 +184,41 @@ typedef struct object {
     t_clip_object clip;
     fill_style_type fillstyle;
     lp_style_type lp_properties;
-    union o {t_rectangle rectangle; t_circle circle; t_ellipse ellipse; t_polygon polygon;} o;
+    union o {t_rectangle rectangle; t_circle circle; t_ellipse ellipse; t_polygon polygon; t_mark mark; } o;
 } t_object;
 #define OBJ_RECTANGLE (1)
 #define OBJ_CIRCLE (2)
 #define OBJ_ELLIPSE (3)
 #define OBJ_POLYGON (4)
+#define OBJ_MARK (5)
+
+/* Datastructure for 'set mark' */
+struct mark_data {
+    struct mark_data *next;
+    int tag;
+    double xmin, xmax;
+    double ymin, ymax;
+    t_polygon polygon;
+    double *color;
+};
+
+#define MARK_UNITS_XY  (0)
+#define MARK_UNITS_XX  (1)
+#define MARK_UNITS_YY  (2)
+#define MARK_UNITS_GXY (3)
+#define MARK_UNITS_GXX (4)
+#define MARK_UNITS_GYY (5)
+#define MARK_UNITS_PS  (6)
+
+typedef struct marks_options {
+    int tag;
+    int units;
+    double size;
+    int interval;
+    int number;
+} marks_opts;
+
+#define DEFAULT_MARKS_OPTS { 1, MARK_UNITS_PS, -1, 0, 0 }
 
 /* Datastructure implementing 'set dashtype' */
 struct custom_dashtype_def {
@@ -491,6 +529,8 @@ extern struct pa_style parallel_axis_style;
 extern struct object *first_object;
 extern struct object grid_wall[];
 
+extern struct mark_data *first_mark;
+
 extern text_label title;
 
 extern text_label timelabel;
@@ -637,6 +677,11 @@ extern struct object default_ellipse;
 	{FS_EMPTY, 100, 0, {TC_DEFAULT, -2, 0}},   			\
 	{0, LT_BLACK, 0, DASHTYPE_SOLID, 0, 0, 1.0, 0.0, DEFAULT_P_CHAR, BLACK_COLORSPEC, DEFAULT_DASHPATTERN}, \
 	{.polygon = {0, NULL} } }
+
+#define DEFAULT_MARK_STYLE { NULL, -1, 0, OBJ_MARK, OBJ_CLIP, \
+	{FS_EMPTY, 100, 0, {TC_DEFAULT, -2, 0}},   			\
+	{0, LT_BLACK, 0, DASHTYPE_SOLID, 0, 0, 1.0, 0.0, DEFAULT_P_CHAR, BLACK_COLORSPEC, DEFAULT_DASHPATTERN}, \
+	{.mark = {1, {0,0,0,0.,0.,0.}, 1.0, 1.0, 0.0, MARK_UNITS_PS} } }
 
 #define WALL_Y0_TAG 0
 #define WALL_X0_TAG 1

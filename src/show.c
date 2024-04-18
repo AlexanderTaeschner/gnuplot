@@ -181,6 +181,8 @@ static void show_ticdefp(struct axis *);
 static void show_functions(void);
 static void show_warnings(void);
 
+static void show_mark();
+
 static int var_show_all = 0;
 
 /* following code segments appear over and over again */
@@ -459,6 +461,9 @@ show_command()
     case S_JITTER:
 	show_jitter();
 	break;
+    case S_MARK:
+    	show_mark();
+    	break;
     case S_VIEW:
 	show_view();
 	break;
@@ -3680,3 +3685,74 @@ conv_text(const char *t)
     *s = NUL;
     return r;
 }
+
+static void
+show_mark()
+{
+    FILE *f;
+    char line[80];
+    int tag = -1;
+    struct mark_data *mark, *this, *prev;
+    double x, y, z;
+    int c;
+    TBOOLEAN found;
+    int i;
+
+    f = (print_out) ? print_out : stderr;
+
+    if (!END_OF_COMMAND)
+	tag = int_expression();
+
+    if (! first_mark) 
+        return;
+
+    if (tag < 0) {
+        for (prev = NULL, this = first_mark; 
+            this != NULL;
+            prev = this, this = this->next) {
+            fprintf(stderr, "\tmarktype %i, polygon vertices %i\n", this->tag, this->polygon.type);
+        }
+        return;
+    }
+
+    found = FALSE;       
+    for (prev = NULL, this = first_mark; 
+         this != NULL;
+         prev = this, this = this->next) {
+         if (tag == this->tag) {
+             found = TRUE;
+   	     break;
+    	 }
+    }
+
+    if (!found)
+        return;
+    
+    for (i=0; i<this->polygon.type; i++) {
+        x = this->polygon.vertex[i].x;
+        y = this->polygon.vertex[i].y;
+        z = this->polygon.vertex[i].z;
+        c = this->color[i];
+        if (isnan(x) || isnan(y)) 
+            sprintf(line, "");
+        else if ( c < 0 ) 
+ 	    sprintf(line, "%g\t%g\t%i\t-1", x, y, (int) round(z));
+        else if ( c < 0x1000000 )
+            sprintf(line, "%g\t%g\t%i\t0x%06x", x, y, (int) round(z), c);
+        else 
+            sprintf(line, "%g\t%g\t%i\t0x%08x", x, y, (int) round(z), c);
+
+	if (print_out_var)
+	    append_to_datablock( &print_out_var->udv_value, strdup(line) );
+	else
+	    fprintf(f, "%s\n", line); 
+               
+    }
+
+    if (print_out_var) 
+        append_to_datablock( &print_out_var->udv_value, strdup("\n") );
+    else
+        fprintf(f, "\n"); 
+
+}
+

@@ -1223,6 +1223,7 @@ do_3dplot(
 	    case BOXERROR:
 	    case ARROWS:
 	    case CIRCLES:
+            case MARKS:
 	    case ELLIPSES:
 	    case POINTSTYLE:
 	    case DOTS:
@@ -1233,6 +1234,7 @@ do_3dplot(
 		break;
 
 	    case LINESPOINTS:
+	    case LINESMARKS:
 		if (draw_this_surface) {
 		    if (!hidden3d || this_plot->opt_out_of_hidden3d) {
 			plot3d_lines_pm3d(this_plot);

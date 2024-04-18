@@ -3547,6 +3547,8 @@ df_bin_default_columns default_style_cols[] = {
     {CIRCLES, 2, 1},
     {SECTORS, 4, 2},
     {ELLIPSES, 2, 3},
+    {MARKS, 2, 3},
+    {LINESMARKS, 2, 3},
     {TABLESTYLE, 0, 0}
 };
 
