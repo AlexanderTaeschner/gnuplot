@@ -3399,14 +3399,16 @@ do_mark (struct mark_data *mark,
 	     *    If the fill style is not set or explicitly set as empty, the fill
              *     style is forced to 'fs solid 1.0'     
 	     */
-    	    if (draw_style & MARKS_FILL) { 
+    	    if (draw_style == MARKS_FILL 
+             || draw_style == MARKS_FILL_STROKE 
+             || (draw_style == MARKS_FILLSTYLE && style != FS_EMPTY)) { 
                 clip_polygon(vertex, fillarea, points, &in);
     	        if (in > 1 && term->filled_polygon) {
                     if (draw_color >= 0) 
                         set_rgbcolor_var(draw_color);
                     else if (!has_varcolor || !check_for_variable_color(plot, &varcolor))
                         term_apply_lp_properties(lp_properties);
-                    if (style != FS_EMPTY)
+                    if (draw_style == MARKS_FILLSTYLE || style != FS_EMPTY)
                         fillarea[0].style = style;
                     else 
                         fillarea[0].style = style_solid_1;
@@ -3425,7 +3427,9 @@ do_mark (struct mark_data *mark,
  	     *    variable colors is applied. But, if the plot has fill border, 
              *   the style of the border takes precedence.
 	     */
-	    if (draw_style & MARKS_STROKE) {
+	    if (draw_style == MARKS_STROKE 
+             || draw_style == MARKS_FILL_STROKE
+             || (draw_style == MARKS_FILLSTYLE && (style == FS_EMPTY || withborder))) { 
                 if (draw_color >= 0)
                     set_rgbcolor_var(draw_color);
                 else if (!has_varcolor || !check_for_variable_color(plot, &varcolor))

@@ -3228,7 +3228,7 @@ set_mark ()
             case 2:
                vertex[lines].x = v[0];
                vertex[lines].y = v[1];
-               vertex[lines].z = MARKS_STROKE | MARKS_FILL;  
+               vertex[lines].z = MARKS_FILLSTYLE;
                color[lines] = -1;           
                lines++;
                break;
