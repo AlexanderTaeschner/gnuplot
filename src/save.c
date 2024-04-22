@@ -1860,6 +1860,16 @@ save_object(FILE *fp, int tag)
 	    }
 	}
 
+	else if ((this_object->object_type == OBJ_MARK)
+	    && (tag == 0 || tag == this_object->tag)) {
+	    t_mark *this_mark = &this_object->o.mark;
+	    showed = TRUE;
+	    fprintf(fp, "%sobject %2d mark marktype %d ",
+		(fp==stderr) ? "\t" : "set ", this_object->tag, this_mark->type);
+	    fprintf(fp, "center ");
+	    save_position(fp, &this_mark->center, 3, FALSE);
+	}
+
 	/* Properties common to all objects */
 	if (tag == 0 || tag == this_object->tag) {
 	    fprintf(fp, "\n%sobject %2d ", (fp==stderr) ? "\t" : "set ",this_object->tag);
