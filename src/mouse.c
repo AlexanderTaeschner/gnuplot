@@ -279,6 +279,7 @@ static void UpdateStatuslineWithMouseSetting(mouse_setting_t * ms);
 
 static bind_t * get_binding(struct gp_event_t * ge, TBOOLEAN current);
 static void event_keypress(struct gp_event_t * ge, TBOOLEAN current);
+static void event_reset2(struct gp_event_t *ge);
 static void ChangeView(int x, int z);
 static void ChangeAzimuth(int x);
 static void event_buttonpress(struct gp_event_t * ge);
@@ -2464,6 +2465,12 @@ event_plotdone()
 }
 
 
+/* event_reset is used in two contexts
+ * 1) when a terminal is initially chosen by "set terminal"
+ * 2) when a terminal window is closed by a reset event, hot key,
+ *    window manager action, etc.
+ * The second case need additional processing done by event_reset2()
+ */
 void
 event_reset(struct gp_event_t *ge)
 {
@@ -2478,20 +2485,6 @@ event_reset(struct gp_event_t *ge)
 	}
     }
 
-    /* This hack is necessary on some systems in order to prevent one
-     * character of input from being swallowed when the plot window is
-     * closed. But which systems, exactly, and in what circumstances?
-     * The test against (void *)1 is to catch a call from set_terminal()
-     */
-    if (paused_for_mouse || !interactive) {
-	if (term && term_initialised
-	&&  (ge != (void *)1)
-	&&  (   !strncmp("x11",term->name,3)
-	     || !strncmp("wxt",term->name,3)
-	     || !strncmp("qt",term->name,2)))
-	    ungetc('\n',stdin);
-    }
-
     if (paused_for_mouse) {
 	paused_for_mouse = 0;
 #ifdef _WIN32
@@ -2500,17 +2493,30 @@ event_reset(struct gp_event_t *ge)
 #endif
     }
 
-    /* Dummy up a keystroke event so that we can conveniently check for a
-     * binding to "Close". We only get these for the current window.
-     * The test against (void *)1 is to catch a call from set_terminal()
-     */
-    if (ge != (void *)1) {
-	ge->par1 = GP_Cancel;	/* Dummy keystroke */
-	ge->par2 = 0;		/* Not used; could pass window id here? */
-	event_keypress(ge, TRUE);
-    }
 }
 
+static void
+event_reset2(struct gp_event_t *ge)
+{
+    /* This hack is necessary on some systems in order to prevent one
+     * character of input from being swallowed when the plot window is
+     * closed. But which systems, exactly, and in what circumstances?
+     */
+    if (paused_for_mouse || !interactive) {
+	if (term && term_initialised
+	&&  (   !strncmp("x11",term->name,3)
+	     || !strncmp("wxt",term->name,3)
+	     || !strncmp("qt",term->name,2)))
+	    ungetc('\n',stdin);
+    }
+
+    /* Dummy up a keystroke event so that we can conveniently check for a
+     * binding to "Close". We only get these for the current window.
+     */
+    ge->par1 = GP_Cancel;	/* Dummy keystroke */
+    ge->par2 = 0;		/* Not used; could pass window id here? */
+    event_keypress(ge, TRUE);
+}
 
 void
 do_event(struct gp_event_t *ge)
@@ -2572,6 +2578,7 @@ do_event(struct gp_event_t *ge)
 	break;
     case GE_reset:
 	event_reset(ge);
+	event_reset2(ge);
 	break;
     case GE_fontprops:
 #ifdef X11
