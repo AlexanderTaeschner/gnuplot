@@ -4883,6 +4883,10 @@ set_terminal()
 	return;
     } /* set term push */
 
+#ifdef USE_MOUSE
+    event_reset((void *)1);   /* cancel zoombox etc. */
+#endif
+
     term_reset();
 
     /* `set term pop' */

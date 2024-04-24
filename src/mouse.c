@@ -2481,9 +2481,11 @@ event_reset(struct gp_event_t *ge)
     /* This hack is necessary on some systems in order to prevent one
      * character of input from being swallowed when the plot window is
      * closed. But which systems, exactly, and in what circumstances?
+     * The test against (void *)1 is to catch a call from set_terminal()
      */
     if (paused_for_mouse || !interactive) {
 	if (term && term_initialised
+	&&  (ge != (void *)1)
 	&&  (   !strncmp("x11",term->name,3)
 	     || !strncmp("wxt",term->name,3)
 	     || !strncmp("qt",term->name,2)))
@@ -2498,10 +2500,9 @@ event_reset(struct gp_event_t *ge)
 #endif
     }
 
-    /* Dummy up a keystroke event so that we can conveniently check for a  */
-    /* binding to "Close". We only get these for the current window. */
-    /* FIXME: the test against (void *)1 was to catch a call from set_terminal()
-     *        that no longer exists (Bugs 2292 2703).
+    /* Dummy up a keystroke event so that we can conveniently check for a
+     * binding to "Close". We only get these for the current window.
+     * The test against (void *)1 is to catch a call from set_terminal()
      */
     if (ge != (void *)1) {
 	ge->par1 = GP_Cancel;	/* Dummy keystroke */
