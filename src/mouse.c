@@ -2500,6 +2500,9 @@ event_reset(struct gp_event_t *ge)
 
     /* Dummy up a keystroke event so that we can conveniently check for a  */
     /* binding to "Close". We only get these for the current window. */
+    /* FIXME: the test against (void *)1 was to catch a call from set_terminal()
+     *        that no longer exists (Bugs 2292 2703).
+     */
     if (ge != (void *)1) {
 	ge->par1 = GP_Cancel;	/* Dummy keystroke */
 	ge->par2 = 0;		/* Not used; could pass window id here? */
