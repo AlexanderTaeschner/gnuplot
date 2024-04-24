@@ -3023,16 +3023,17 @@ plot_marks(struct curve_points *plot)
     int max_vertices;
     int tag;
     double size = plot->marks_options.size;
+    int ps_variable = (size < 0);
     int number = plot->marks_options.number;
     int interval = plot->marks_options.interval;
     int offset = 0;
     gpiPoint *vertex;
     gpiPoint *fillarea;
     BoundingBox *clip_save = clip_area;
-    
+
     /* Clip witn graph border */
     clip_area = &plot_bounds;
-    
+
     if (plot->marks_options.tag >= 0) { /* Search mark if 'marktype N' is given */
         tag = plot->marks_options.tag;
         mark = NULL;
@@ -3063,9 +3064,6 @@ plot_marks(struct curve_points *plot)
         }
     }
     
-    if (size < 0)
-        size = 1.0;
-     
     if (plot->plot_type == FUNC) 
 	plot->marks_options.units = MARK_UNITS_PS;
 
@@ -3098,14 +3096,20 @@ plot_marks(struct curve_points *plot)
 
 	x = plot->points[i].x;
     	y = plot->points[i].y;
-        xscale = plot->points[i].xlow;
-        yscale = plot->points[i].xhigh;		
-	angle  = plot->points[i].ylow;
+        if (plot->plot_type == FUNC) {
+            xscale = 1.0;
+            yscale = 1.0;
+	    angle  = 0.0;
+        } else {
+            xscale = plot->points[i].xhigh;
+            yscale = plot->points[i].ylow;
+	    angle  = plot->points[i].yhigh;
+        }
 
         if (plot->marks_options.tag < 0) {
-            if (isnan(plot->points[i].yhigh))       /* variable mark tag is stored in yhigh */
+            if (isnan(plot->points[i].z))       /* variable mark tag is stored in yhigh */
                 continue;
-            tag = round(plot->points[i].yhigh);
+            tag = round(plot->points[i].z);
             mark = NULL;
             if (first_mark != NULL) {	/* skip to last arrow */
                 for (this = first_mark, prev = NULL; 
@@ -3126,25 +3130,13 @@ plot_marks(struct curve_points *plot)
 	x = map_x_double(x);
 	y = map_y_double(y);
 
-
-	if (plot->marks_options.units == MARK_UNITS_PS) {
-                /*
-	    double width = mark->xmax - mark->xmin;
-	    double height = mark->ymax - mark->ymin;
-	    if (width > height) {
-		xscale = 1.0/width;
-		yscale = 1.0/width;
-	    } else {
-		xscale = 1.0/height;
-		yscale = 1.0/height;	    	
-	    }
-                */
-                xscale = 1.0;
-                yscale = 1.0;
-	}
-
-	xscale = xscale*size;
-	yscale = yscale*size;
+        if (ps_variable) {
+            xscale = xscale*plot->points[i].CRD_PTSIZE;
+            yscale = yscale*plot->points[i].CRD_PTSIZE;
+        } else {
+            xscale = xscale*size;
+            yscale = yscale*size;
+        }
 
         has_varcolor = (plot->varcolor) ? TRUE : FALSE;
         varcolor     = (has_varcolor) ? plot->varcolor[i] : 0.0;

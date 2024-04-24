@@ -218,7 +218,7 @@ typedef struct marks_options {
     int number;
 } marks_opts;
 
-#define DEFAULT_MARKS_OPTS { 1, MARK_UNITS_PS, -1, 0, 0 }
+#define DEFAULT_MARKS_OPTS { 1, MARK_UNITS_PS, 1.0, 0, 0 }
 
 /* Datastructure implementing 'set dashtype' */
 struct custom_dashtype_def {

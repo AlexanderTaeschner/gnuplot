@@ -624,10 +624,11 @@ get_data(struct curve_points *current_plot)
         /* 3 column: x y scale */
         /* 4 column: x y xscale yscale */
         /* 5 column: x y xscale yscale angle */
-	/* Allow 1 extra column because of 'pointtype variable' */
+	/* Allow 1 extra column because of 'pointsize variable'    */
+	/* Allow 1 extra column because of 'marktype variable' */
 	/* Allow 1 extra column because of 'lc rgb variable'    */
 	min_cols = 2;
-	max_cols = 7;
+	max_cols = 8;
 	break;
 
     case PARALLELPLOT:
@@ -1439,17 +1440,20 @@ get_data(struct curve_points *current_plot)
     	    int var = j; /* column number */
 	    coordval x      = v[0]; /* x */
 	    coordval y      = v[1]; /* y */
-	    coordval xlow;          /* xscalse */
-	    coordval xhigh;         /* yscalse */
-	    coordval ylow;          /* angle */
-            coordval yhigh = -1;
+	    coordval xlow   = 1;    /* CRD_PTSIZE */
+	    coordval xhigh;         /* xscale */
+	    coordval ylow;          /* yscale */
+            coordval yhigh;         /* angle */
+            coordval tag    = -1;   /* tag */
+	    if (current_plot->marks_options.size < 0)
+                xlow = v[--var];
 	    if (current_plot->marks_options.tag == -1)
-		yhigh = v[--var];
-	    xlow   = (var >= 3) ? v[2] : 1.0; 
-	    xhigh  = (var >= 4) ? v[3] : xlow;
-	    ylow   = (var >= 5) ? v[4] : 0.0;
+		tag = v[--var];
+            xhigh = (var >= 3) ? v[2] : 1.0;
+	    ylow  = (var >= 4) ? v[3] : xhigh;
+	    yhigh = (var >= 5) ? v[4] : 0.0;
 	    store2d_point(current_plot, i++, x, y,
-			  xlow, xhigh, ylow, yhigh, 0.0);
+			  xlow, xhigh, ylow, yhigh, tag);
 	    break;
 	}
 
@@ -1643,7 +1647,7 @@ store2d_point(
         cp->xlow  = xlow;
         cp->xhigh = xhigh;
         cp->ylow  = ylow;
-        cp->yhigh  = yhigh;
+        cp->yhigh = yhigh;
 	break;
     case ELLIPSES:
 	/* We want to pass the parameters to the ellipse drawing routine as they are, 
@@ -2901,12 +2905,18 @@ eval_plots()
 		        c_token++;
 			continue;
 		    }
-		    
 	    	    if (almost_equals(c_token, "points$ize") || equals(c_token, "ps")) {
-	    	        c_token++;
-			this_plot->marks_options.size = real_expression();
-			this_plot->marks_options.units = MARK_UNITS_PS;
-	    	        continue;
+			c_token++;
+                        if (almost_equals(c_token, "var$iable")) {
+                            this_plot->marks_options.size = -1;
+                            c_token++;
+                        } else {
+			    this_plot->marks_options.size = real_expression();
+                            if ( this_plot->marks_options.size < 0 )
+                                int_error(c_token, "pointsize should be a positive number");
+                        }
+                        this_plot->marks_options.units = MARK_UNITS_PS;
+                        continue;
 	    	    }
 	        }
 
