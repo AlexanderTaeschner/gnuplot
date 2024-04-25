@@ -1445,7 +1445,7 @@ get_data(struct curve_points *current_plot)
 	    coordval ylow;          /* yscale */
             coordval yhigh;         /* angle */
             coordval tag    = -1;   /* tag */
-	    if (current_plot->marks_options.size < 0)
+	    if (current_plot->lp_properties.p_size == PTSZ_VARIABLE)
                 xlow = v[--var];
 	    if (current_plot->marks_options.tag == -1)
 		tag = v[--var];
@@ -2905,19 +2905,6 @@ eval_plots()
 		        c_token++;
 			continue;
 		    }
-	    	    if (almost_equals(c_token, "points$ize") || equals(c_token, "ps")) {
-			c_token++;
-                        if (almost_equals(c_token, "var$iable")) {
-                            this_plot->marks_options.size = -1;
-                            c_token++;
-                        } else {
-			    this_plot->marks_options.size = real_expression();
-                            if ( this_plot->marks_options.size < 0 )
-                                int_error(c_token, "pointsize should be a positive number");
-                        }
-                        this_plot->marks_options.units = MARK_UNITS_PS;
-                        continue;
-	    	    }
 	        }
 
 		if (this_plot->plot_style == LINESMARKS) {

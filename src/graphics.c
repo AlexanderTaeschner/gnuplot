@@ -3022,8 +3022,7 @@ plot_marks(struct curve_points *plot)
     int vertices;
     int max_vertices;
     int tag;
-    double size = plot->marks_options.size;
-    int ps_variable = (size < 0);
+    double mark_size;
     int number = plot->marks_options.number;
     int interval = plot->marks_options.interval;
     int offset = 0;
@@ -3130,13 +3129,14 @@ plot_marks(struct curve_points *plot)
 	x = map_x_double(x);
 	y = map_y_double(y);
 
-        if (ps_variable) {
-            xscale = xscale*plot->points[i].CRD_PTSIZE;
-            yscale = yscale*plot->points[i].CRD_PTSIZE;
-        } else {
-            xscale = xscale*size;
-            yscale = yscale*size;
-        }
+	if (plot->lp_properties.p_size == PTSZ_VARIABLE)
+	    mark_size = plot->points[i].CRD_PTSIZE;
+	else if (plot->lp_properties.p_size == PTSZ_DEFAULT)
+	    mark_size = pointsize;	/* global setting */
+	else
+	    mark_size = plot->lp_properties.p_size;
+	xscale = xscale * mark_size;
+	yscale = yscale * mark_size;
 
         has_varcolor = (plot->varcolor) ? TRUE : FALSE;
         varcolor     = (has_varcolor) ? plot->varcolor[i] : 0.0;
@@ -3170,7 +3170,7 @@ do_mark_key(struct curve_points *this_plot,
 {
     struct mark_data *mark, *this, *prev;
     int tag = this_plot->marks_options.tag;
-    double size = this_plot->marks_options.size;
+    double size = 1.0;
     int vertices;
     gpiPoint *vertex;
     gpiPoint *fillarea;
@@ -3178,9 +3178,12 @@ do_mark_key(struct curve_points *this_plot,
     double yscale;
     double xoffset;
     double yoffset;
-    
-    if (size < 0) 
-        size = 1.0;
+
+    /* EAM FIXME: imperfect scaling */
+    if (this_plot->lp_properties.p_size > 0)
+	size = this_plot->lp_properties.p_size;
+    else
+	size = pointsize;
     
     /* Draw line for 'linesmarks' style */
     if ( this_plot->plot_style == LINESMARKS )
