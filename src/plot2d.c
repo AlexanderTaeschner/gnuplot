@@ -2907,21 +2907,6 @@ eval_plots()
 		    }
 	        }
 
-		if (this_plot->plot_style == LINESMARKS) {
-		
-	    	    if (almost_equals(c_token, "pointi$nterval") || equals(c_token, "pi")) {
-	    	        c_token++;
-			this_plot->marks_options.interval = int_expression();
-	    	        continue;
-	    	    }
-
-	    	    if (almost_equals(c_token, "pointn$umber") || equals(c_token, "pn")) {
-	    	        c_token++;
-			this_plot->marks_options.number = int_expression();
-	    	        continue;
-	    	    }
-		}
-
 		/* pick up the special 'units' keyword the 'ellipses' style allows */
 		if (this_plot->plot_style == ELLIPSES || this_plot->plot_style == SECTORS) {
 		    int stored_token = c_token;

@@ -3023,8 +3023,8 @@ plot_marks(struct curve_points *plot)
     int max_vertices;
     int tag;
     double mark_size;
-    int number = plot->marks_options.number;
-    int interval = plot->marks_options.interval;
+    int interval = plot->lp_properties.p_interval;
+    int number = abs(plot->lp_properties.p_number);
     int offset = 0;
     gpiPoint *vertex;
     gpiPoint *fillarea;
@@ -3090,7 +3090,7 @@ plot_marks(struct curve_points *plot)
     for (i = 0; i < plot->p_count; i++) {
 
     	/* Only print 1 point per interval */
-    	if ((plot->plot_style == LINESMARKS) && (interval) && ((i-offset) % interval))
+    	if ((interval) && ((i-offset) % interval))
     	    continue;
 
 	x = plot->points[i].x;
