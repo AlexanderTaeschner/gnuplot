@@ -3156,93 +3156,66 @@ plot_marks(struct curve_points *plot)
 }
 
 /*
- * Function for drawing key shape for marks and linesmarks styles called only for 'units ps'
+ * Function for drawing key shape for marks and linesmarks styles
  */
 void
-do_mark_key(struct curve_points *this_plot, 
-              int xl, int yl, 
-              int key_sample_left, int key_sample_right, 
-	      int key_sample_height,
-	      int key_point_offset)
+do_key_sample_mark(struct curve_points *this_plot, int xl, int yl, int tag)
 {
-    struct mark_data *mark, *this, *prev;
-    int tag = this_plot->marks_options.tag;
+    struct mark_data *mark, *this;
     double size = 1.0;
     int vertices;
     gpiPoint *vertex;
     gpiPoint *fillarea;
     double xscale;
     double yscale;
-    double xoffset;
-    double yoffset;
 
-    /* EAM FIXME: imperfect scaling */
     if (this_plot->lp_properties.p_size > 0)
 	size = this_plot->lp_properties.p_size;
     else
 	size = pointsize;
     
-    /* Draw line for 'linesmarks' style */
-    if ( this_plot->plot_style == LINESMARKS )
-	draw_clip_line(xl + key_sample_left, yl, xl + key_sample_right, yl);
-
-    /* search mark */
     mark = NULL;
-    if (first_mark != NULL) {	/* skip to last arrow */
-     	for (this = first_mark, prev = NULL; 
-            this != NULL;
-     	    prev = this, this = this->next) {
-     	    /* is this the mark we want? */
-     	    if (tag == this->tag) {
-     	        mark = this;
-     		break;
-     	    }
-        }
-    } 
+    for (this = first_mark; this != NULL; this = this->next) {
+	if (tag == this->tag) {
+	    mark = this;
+	    break;
+	}
+    }
      
     /* mark is found! */
     if (mark) {
-    	double width = mark->xmax - mark->xmin;
-    	double height = mark->ymax - mark->ymin;
-	int xoffset = 0.0;
-	int yoffset = 0.0;
-
+	double width = mark->xmax - mark->xmin;
+	double height = mark->ymax - mark->ymin;
 
 	/* Scaling */
- 	if (this_plot->marks_options.units == MARK_UNITS_PS) {
-            xscale = 1.0;
-            yscale = 1.0;
-        } else {
-            if (width > height) {
-                xscale = 1.0/width;
-             	yscale = 1.0/width;
-            } else {
-                xscale = 1.0/height;
-                yscale = 1.0/height;	    	
-            }
-        }
+	if (this_plot->marks_options.units == MARK_UNITS_PS) {
+	    xscale = 1.0;
+	    yscale = 1.0;
+	} else {
+	    if (width > height) {
+		xscale = 1.0/width;
+		yscale = 1.0/width;
+	    } else {
+		xscale = 1.0/height;
+		yscale = 1.0/height;
+	    }
+	}
 
-	xscale = xscale*size;
-	yscale = yscale*size;
+	xscale = xscale * size;
+	yscale = yscale * size;
 
-	/* Centering */
-	if (this_plot->plot_style == MARKS) {
-            xoffset = term->h_tic*xscale*(mark->xmax + mark->xmin)/2.0;	
-            yoffset = term->v_tic*yscale*(mark->ymax + mark->ymin)/2.0;
-        }
-	
 	/* Drawing a mark at key sample area */
-        vertices = mark->polygon.type;
+	vertices = mark->polygon.type;
 	vertex   = (gpiPoint *) gp_alloc(vertices*sizeof(gpiPoint), "draw mark");
-	fillarea = (gpiPoint *) gp_alloc(2*vertices*sizeof(gpiPoint), "draw mark");    	
-        do_mark(mark,
-            xl + key_point_offset - xoffset, yl - yoffset, xscale, yscale, 0.0, 
-            MARK_UNITS_PS,
-            FALSE, 
-            &(this_plot->fill_properties),
-            &(this_plot->lp_properties), 
-            FALSE, NULL, 0, 
-            vertices, vertex, fillarea);
+	fillarea = (gpiPoint *) gp_alloc(2*vertices*sizeof(gpiPoint), "draw mark");
+	do_mark(mark,
+	    xl, yl, xscale, yscale, 0.0,
+	    MARK_UNITS_PS,
+	    FALSE,
+	    &(this_plot->fill_properties),
+	    &(this_plot->lp_properties),
+	    FALSE, NULL, 0,
+	    vertices, vertex, fillarea);
 	free(vertex);
 	free(fillarea);
     }

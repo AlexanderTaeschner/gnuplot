@@ -130,15 +130,10 @@ void do_ellipse(int dimensions, t_ellipse *e, int style, TBOOLEAN do_own_mapping
 
 void do_sector(double cx, double cy, double rin, double rout, double arc_begin, double arc_end, double ratio, int style, TBOOLEAN complete_circle);
 
-void
-do_mark_key(struct curve_points *this_plot, 
-              int xl, int yl, 
-              int key_sample_left, int key_sample_right, 
-	      int key_sample_height,
-	      int key_point_offset);
+void do_key_sample_mark(struct curve_points *this_plot,
+	int xl, int yl, int tag);
 
-void
-do_mark (struct mark_data *mark,
+void do_mark (struct mark_data *mark,
          double x, double y, double xscale, double yscale, double angle, 
          int units, 
          TBOOLEAN clip,
