@@ -1320,7 +1320,7 @@ do_key_sample(
 	       &&  w > 0) {
 	    draw_clip_line(xl + key_sample_left, yl, xl + key_sample_right, yl);
         } else if ((this_plot->plot_style == MARKS || this_plot->plot_style == LINESMARKS)
-	       &&  (this_plot->marks_options.tag >= 0) 
+	       &&  (! this_plot->marks_options.variable)
 	       &&  (this_plot->marks_options.units == MARK_UNITS_PS)
 	       && w > 0) {
 	    do_mark_key(this_plot, 

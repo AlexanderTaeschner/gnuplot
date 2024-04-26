@@ -1447,7 +1447,7 @@ get_data(struct curve_points *current_plot)
             coordval tag    = -1;   /* tag */
 	    if (current_plot->lp_properties.p_size == PTSZ_VARIABLE)
                 xlow = v[--var];
-	    if (current_plot->marks_options.tag == -1)
+	    if (current_plot->marks_options.variable) /* mt variable */
 		tag = v[--var];
             xhigh = (var >= 3) ? v[2] : 1.0;
 	    ylow  = (var >= 4) ? v[3] : xhigh;
@@ -2872,7 +2872,7 @@ eval_plots()
 		    if (almost_equals(c_token,"mark$type") || equals(c_token, "mt")) {
 			c_token++;
                         if (almost_equals(c_token, "var$iable")) {
-       			   this_plot->marks_options.tag = -1;
+                           this_plot->marks_options.variable = TRUE;
                            c_token++;                                
                         } else 
   			   this_plot->marks_options.tag = int_expression();

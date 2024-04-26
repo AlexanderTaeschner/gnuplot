@@ -3033,7 +3033,7 @@ plot_marks(struct curve_points *plot)
     /* Clip witn graph border */
     clip_area = &plot_bounds;
 
-    if (plot->marks_options.tag >= 0) { /* Search mark if 'marktype N' is given */
+    if (! plot->marks_options.variable) { /* Search mark if 'marktype N' is given */
         tag = plot->marks_options.tag;
         mark = NULL;
         if (first_mark != NULL) {	/* skip to last arrow */
@@ -3102,7 +3102,7 @@ plot_marks(struct curve_points *plot)
 	    angle  = plot->points[i].yhigh;
         }
 
-        if (plot->marks_options.tag < 0) {
+        if (plot->marks_options.variable) {
             if (isnan(plot->points[i].z))       /* variable mark tag is stored in yhigh */
                 continue;
             tag = round(plot->points[i].z);
