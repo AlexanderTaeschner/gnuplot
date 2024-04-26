@@ -3063,9 +3063,6 @@ plot_marks(struct curve_points *plot)
         }
     }
     
-    if (plot->plot_type == FUNC) 
-	plot->marks_options.units = MARK_UNITS_PS;
-
     /* The "pointnumber" property limits the total number of points drawn for this curve */
     if (number) {
 	int pcountin = 0;

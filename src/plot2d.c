@@ -2898,10 +2898,6 @@ eval_plots()
 		        } else {
 		            int_error(c_token, "expecting 'xy', 'xx', 'yy', 'gxy', 'gxx', 'gyy', or 'ps'" );
 		        }
-			if (this_plot->plot_type == FUNC 
-			&&  this_plot->marks_options.units != MARK_UNITS_PS) {
-    		            int_error(c_token, "function plot needs 'units ps'" );				
-			}
 		        c_token++;
 			continue;
 		    }
