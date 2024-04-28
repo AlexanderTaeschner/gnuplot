@@ -198,6 +198,7 @@ struct mark_data {
     int tag;
     double xmin, xmax;
     double ymin, ymax;
+    int vertices;
     t_polygon polygon;
     double *color;
 };
@@ -209,6 +210,7 @@ struct mark_data {
 #define MARK_UNITS_GXX (4)
 #define MARK_UNITS_GYY (5)
 #define MARK_UNITS_PS  (6)
+#define MARK_MAX_VERTICES 0xffff
 
 typedef struct marks_options {
     int tag;

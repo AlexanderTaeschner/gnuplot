@@ -588,7 +588,7 @@ place_objects(struct object *listhead, int layer, int dimensions)
             mark = get_mark(first_mark, tag);
             if (! mark) 
                 break;
-            vertices = mark->polygon.type;
+            vertices = mark->vertices;
             
 	    if (dimensions == 2) {
 		map_position_double(&e->center, &x1, &y1, "object");
@@ -3043,24 +3043,6 @@ plot_marks(struct curve_points *plot)
     /* Clip witn graph border */
     clip_area = &plot_bounds;
 
-    if (!plot->marks_options.variable) { /* Search mark if 'marktype N' is given */
-        tag = plot->marks_options.tag;
-        mark = get_mark(first_mark, tag);
-        if (!mark)
-            int_error(NO_CARET, "can't find mark <%i>", tag);
-        max_vertices = mark->polygon.type;
-    } else {                            /* Check max_vertices only if 'marktype variable' is given */
-        max_vertices = 0;
-        if (first_mark != NULL) {	/* skip to last arrow */
-     	    for (this = first_mark, prev = NULL; 
-                 this != NULL;
-     	         prev = this, this = this->next) {
-                if (this->polygon.type > max_vertices)
-                    max_vertices = this->polygon.type; 
-            }
-        }
-    }
-    
     /* The "pointnumber" property limits the total number of points drawn for this curve */
     if (number) {
 	int pcountin = 0;
@@ -3077,6 +3059,16 @@ plot_marks(struct curve_points *plot)
 	    if (plot->lp_properties.p_number < 0)
 		interval = -interval;
 	}
+    }
+
+    if (!plot->marks_options.variable) { /* Search mark if 'marktype N' is given */
+        tag = plot->marks_options.tag;
+        mark = get_mark(first_mark, tag);
+        if (!mark)
+            int_error(NO_CARET, "can't find mark <%i>", tag);
+        max_vertices = mark->vertices;
+    } else {                            /* Check max_vertices only if 'marktype variable' is given */
+        max_vertices = 100;
     }
 
     vertex   = (gpiPoint *) gp_alloc(max_vertices*sizeof(gpiPoint), "draw mark");
@@ -3105,9 +3097,13 @@ plot_marks(struct curve_points *plot)
                 continue;
             tag = round(plot->points[i].z);
             mark = get_mark(first_mark, tag);
-            if (! mark) 
+            if (!mark)
                 continue;
-            vertices = mark->polygon.type;
+            if (mark->vertices > max_vertices) {
+                max_vertices = mark->vertices;
+                vertex   = (gpiPoint *) gp_realloc(vertex, max_vertices*sizeof(gpiPoint), "draw mark");
+                fillarea = (gpiPoint *) gp_realloc(fillarea, 2*max_vertices*sizeof(gpiPoint), "draw mark");
+            }
         }
 
 	/* convert x, y according to units xy|xx|yy */
@@ -3187,7 +3183,7 @@ do_key_sample_mark(struct curve_points *this_plot, int xl, int yl, int tag)
 	yscale = yscale * size;
 
 	/* Drawing a mark at key sample area */
-	vertices = mark->polygon.type;
+	vertices = mark->vertices;
 	vertex   = (gpiPoint *) gp_alloc(vertices*sizeof(gpiPoint), "draw mark");
 	fillarea = (gpiPoint *) gp_alloc(2*vertices*sizeof(gpiPoint), "draw mark");
 	do_mark(mark,
@@ -3314,9 +3310,9 @@ do_mark (struct mark_data *mark,
 
     k = 0;
     points = 0;
-    while ( k < polygon->type ) {
+    while ( k < mark->vertices ) {
 
-        for ( ; k<polygon->type; k++) {
+        for ( ; k < mark->vertices; k++) {
             dx = xscale * polygon->vertex[k].x; 
             dy = yscale * polygon->vertex[k].y; 
             if ( isnan(dx) || isnan(dy) ) {

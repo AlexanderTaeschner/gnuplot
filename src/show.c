@@ -3710,7 +3710,7 @@ show_mark()
         for (prev = NULL, this = first_mark; 
             this != NULL;
             prev = this, this = this->next) {
-            fprintf(stderr, "\tmarktype %i, polygon vertices %i\n", this->tag, this->polygon.type);
+            fprintf(stderr, "\tmarktype %i, polygon vertices %i\n", this->tag, this->vertices);
         }
         return;
     }
@@ -3728,7 +3728,7 @@ show_mark()
     if (!found)
         return;
     
-    for (i=0; i<this->polygon.type; i++) {
+    for (i=0; i<this->vertices; i++) {
         x = this->polygon.vertex[i].x;
         y = this->polygon.vertex[i].y;
         z = this->polygon.vertex[i].z;

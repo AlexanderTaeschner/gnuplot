@@ -3023,17 +3023,19 @@ static void append_mark(struct mark_data *dest, struct mark_data *src);
 static TBOOLEAN
 mark_is_empty (struct mark_data *mark)
 {
-    return (mark->polygon.type == 0);
+    return (mark->vertices == 0);
 }
 
 static struct mark_data *
 mark_allocate (int vertices) 
 {
    struct mark_data *mark;
+   if (vertices > MARK_MAX_VERTICES)
+        int_error(NO_CARET, "too large number of vertices in a mark");
    mark = gp_alloc(sizeof(struct mark_data), "mark_data");
    mark->next = NULL;
    mark->tag = -1;
-   mark->polygon.type   = vertices;
+   mark->vertices   = vertices;
    if (vertices > 0) {
        mark->polygon.vertex = (t_position *) gp_alloc(vertices*sizeof(t_position), "mark vertex");
        mark->color = (double *) gp_alloc(vertices*sizeof(double), "mark color");
@@ -3062,7 +3064,7 @@ mark_update_limits (struct mark_data *mark)
     double mx, my;
     int i;
 
-    for (i=0; i<mark->polygon.type; i++) {
+    for (i=0; i<mark->vertices; i++) {
         mx = mark->polygon.vertex[i].x; 
         my = mark->polygon.vertex[i].y; 
         mx1 = (mx < mx1) ? mx : mx1;
@@ -3081,8 +3083,8 @@ static void
 mark_append(struct mark_data *dst, struct mark_data *src)
 {
    int vertices;
-   int dst_vertices = dst->polygon.type;
-   int src_vertices = src->polygon.type;
+   int dst_vertices = dst->vertices;
+   int src_vertices = src->vertices;
    t_position *vertex;
    double *color;
    
@@ -3100,7 +3102,7 @@ mark_append(struct mark_data *dst, struct mark_data *src)
    memcpy(color+dst_vertices+1, src->color, (src_vertices)*sizeof(double));
    free(dst->color);
 
-   dst->polygon.type   = vertices;
+   dst->vertices   = vertices;
    dst->polygon.vertex = vertex;
    dst->color          = color;
 
