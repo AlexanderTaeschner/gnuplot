@@ -3140,9 +3140,17 @@ set_mark ()
     char orig_dummy_var[MAX_ID_LEN+1];
 
     c_token++;
+    saved_token = c_token;
     tag = int_expression();
     if (tag < 0)
        int_error(c_token, "tag must be >= 0");
+
+    if (equals(c_token, "empty")) {
+        c_token++;
+        mark = mark_allocate(0);
+        mark->tag = tag;
+        goto push_mark_to_list;
+    }
 
     if (equals(c_token, "append")) {
        c_token++;
@@ -3292,7 +3300,7 @@ set_mark ()
  
     } 
 
-    /* add mark to list */
+    push_mark_to_list:
     
     if (! first_mark) {
     	first_mark = mark;            
