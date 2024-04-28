@@ -140,6 +140,7 @@ static void do_rectangle(int dimensions, t_object *this_object, fill_style_type 
 static void do_polygon(int dimensions, t_object *this_object, int style, int facing );
 static void close_polygon(struct curve_points *plot, int first, int last);
 
+struct mark_data *get_mark(struct mark_data *first, int tag);
 static void plot_marks(struct curve_points *plot);
  
 static double rgbscale(double rawvalue);
@@ -575,6 +576,7 @@ place_objects(struct object *listhead, int layer, int dimensions)
 	{
     	    t_mark *e = &this_object->o.mark;
             struct mark_data *mark, *this, *prev;
+            int tag = e->type;
             int vertices;
             gpiPoint *vertex;
             gpiPoint *fillarea;
@@ -583,19 +585,10 @@ place_objects(struct object *listhead, int layer, int dimensions)
             if (first_mark == NULL)
                 break;
             
-            mark = NULL;
-            for (this = first_mark, prev = NULL; 
-                 this != NULL;
-                 prev = this, this = this->next) {
-                /* is this the mark we want? */
-                if (e->type == this->tag) {
-                    mark = this;
-                    vertices = mark->polygon.type;
-                    break;
-                }
-            } 
+            mark = get_mark(first_mark, tag);
             if (! mark) 
                 break;
+            vertices = mark->polygon.type;
             
 	    if (dimensions == 2) {
 		map_position_double(&e->center, &x1, &y1, "object");
@@ -3003,6 +2996,23 @@ plot_sectors(struct curve_points *plot)
     clip_area = clip_save;
 }
 
+struct mark_data *
+get_mark(struct mark_data *first, int tag)
+{
+    struct mark_data *mark, *this, *prev;
+    if ( ! first_mark )
+        return NULL;
+    mark = NULL;
+    for (this=first, prev=NULL; this!=NULL; prev=this, this=this->next) {
+        if (tag == this->tag) {
+            mark = this;
+            break;
+        }
+    }
+    return mark;
+}
+
+
 /* plot_marks:
  * Plot the points in MARKS style
  */
@@ -3033,24 +3043,12 @@ plot_marks(struct curve_points *plot)
     /* Clip witn graph border */
     clip_area = &plot_bounds;
 
-    if (! plot->marks_options.variable) { /* Search mark if 'marktype N' is given */
+    if (!plot->marks_options.variable) { /* Search mark if 'marktype N' is given */
         tag = plot->marks_options.tag;
-        mark = NULL;
-        if (first_mark != NULL) {	/* skip to last arrow */
-     	     for (this = first_mark, prev = NULL; 
-                  this != NULL;
-     	          prev = this, this = this->next) {
-     	         /* is this the mark we want? */
-     	         if (tag == this->tag) {
-     		     mark = this;
-                     vertices = mark->polygon.type;
-     		     break;
-     	         }
-             }
-        } 
-        if (! mark) 
-     	     int_error(NO_CARET, "can't find mark <%i>", tag);
-        max_vertices = vertices;
+        mark = get_mark(first_mark, tag);
+        if (!mark)
+            int_error(NO_CARET, "can't find mark <%i>", tag);
+        max_vertices = mark->polygon.type;
     } else {                            /* Check max_vertices only if 'marktype variable' is given */
         max_vertices = 0;
         if (first_mark != NULL) {	/* skip to last arrow */
@@ -3106,20 +3104,10 @@ plot_marks(struct curve_points *plot)
             if (isnan(plot->points[i].z))       /* variable mark tag is stored in yhigh */
                 continue;
             tag = round(plot->points[i].z);
-            mark = NULL;
-            if (first_mark != NULL) {	/* skip to last arrow */
-                for (this = first_mark, prev = NULL; 
-                     this != NULL;
-                     prev = this, this = this->next) {
-                    if (tag == this->tag) {
-            	        mark = this;
-                        vertices = mark->polygon.type;
-             		break;
-             	    }
-                }
-            } 
+            mark = get_mark(first_mark, tag);
             if (! mark) 
                 continue;
+            vertices = mark->polygon.type;
         }
 
 	/* convert x, y according to units xy|xx|yy */
@@ -3174,13 +3162,7 @@ do_key_sample_mark(struct curve_points *this_plot, int xl, int yl, int tag)
     else
 	size = pointsize;
     
-    mark = NULL;
-    for (this = first_mark; this != NULL; this = this->next) {
-	if (tag == this->tag) {
-	    mark = this;
-	    break;
-	}
-    }
+    mark = get_mark(first_mark, tag);
      
     /* mark is found! */
     if (mark) {
