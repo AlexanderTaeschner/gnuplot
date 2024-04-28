@@ -575,7 +575,7 @@ place_objects(struct object *listhead, int layer, int dimensions)
 	case OBJ_MARK:
 	{
     	    t_mark *e = &this_object->o.mark;
-            struct mark_data *mark, *this, *prev;
+            struct mark_data *mark;
             int tag = e->type;
             int vertices;
             gpiPoint *vertex;
@@ -2997,22 +2997,6 @@ plot_sectors(struct curve_points *plot)
 }
 
 struct mark_data *
-get_mark(struct mark_data *first, int tag)
-{
-    struct mark_data *mark, *this, *prev;
-    if ( !first )
-        return NULL;
-    mark = NULL;
-    for (this=first, prev=NULL; this!=NULL; prev=this, this=this->next) {
-        if (tag == this->tag) {
-            mark = this;
-            break;
-        }
-    }
-    return mark;
-}
-
-struct mark_data *
 push_mark(struct mark_data *first, struct mark_data *mark)
 {
     struct mark_data *this, *prev;
@@ -3022,19 +3006,6 @@ push_mark(struct mark_data *first, struct mark_data *mark)
         ;
     prev->next = mark;
     return mark;
-}
-
-struct mark_data *
-get_previous_mark(struct mark_data *first, struct mark_data *mark)
-{
-    struct mark_data *this, *prev;
-    if ( !first )
-        return NULL;
-    for (this=first, prev=NULL; this!=NULL; prev=this, this=this->next) {
-        if (this == mark) 
-            return prev;
-    }
-    return NULL;
 }
 
 /* plot_marks:
@@ -3169,7 +3140,7 @@ plot_marks(struct curve_points *plot)
 void
 do_key_sample_mark(struct curve_points *this_plot, int xl, int yl, int tag)
 {
-    struct mark_data *mark, *this;
+    struct mark_data *mark;
     double size = 1.0;
     int vertices;
     gpiPoint *vertex;

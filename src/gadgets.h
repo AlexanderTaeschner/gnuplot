@@ -530,8 +530,6 @@ extern struct pa_style parallel_axis_style;
 extern struct object *first_object;
 extern struct object grid_wall[];
 
-extern struct mark_data *first_mark;
-
 extern text_label title;
 
 extern text_label timelabel;
@@ -770,5 +768,8 @@ extern struct iso_curve *mask_2Dpolygon_set;
 extern struct iso_curve *mask_3Dpolygon_set;
 extern void construct_2D_mask_set(struct coordinate *points, int p_count);
 extern TBOOLEAN masked(double x, double y, struct iso_curve *mask_polygon_set);
+
+extern struct mark_data *first_mark;
+struct mark_data *get_mark(struct mark_data *first, int tag);
 
 #endif /* GNUPLOT_GADGETS_H */

@@ -3692,10 +3692,9 @@ show_mark()
     FILE *f;
     char line[80];
     int tag = -1;
-    struct mark_data *mark, *this, *prev;
+    struct mark_data *this;
     double x, y, z;
     int c;
-    TBOOLEAN found;
     int i;
 
     f = (print_out) ? print_out : stderr;
@@ -3707,26 +3706,17 @@ show_mark()
         return;
 
     if (tag < 0) {
-        for (prev = NULL, this = first_mark; 
+        for (this = first_mark; 
             this != NULL;
-            prev = this, this = this->next) {
+            this = this->next) {
             fprintf(stderr, "\tmarktype %i, polygon vertices %i\n", this->tag, this->vertices);
         }
         return;
     }
 
-    found = FALSE;       
-    for (prev = NULL, this = first_mark; 
-         this != NULL;
-         prev = this, this = this->next) {
-         if (tag == this->tag) {
-             found = TRUE;
-   	     break;
-    	 }
-    }
-
-    if (!found)
-        return;
+    this = get_mark(first_mark, tag);
+    if (!this)
+	return;
     
     for (i=0; i<this->vertices; i++) {
         x = this->polygon.vertex[i].x;

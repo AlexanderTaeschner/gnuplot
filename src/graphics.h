@@ -133,6 +133,8 @@ void do_sector(double cx, double cy, double rin, double rout, double arc_begin, 
 void do_key_sample_mark(struct curve_points *this_plot,
 	int xl, int yl, int tag);
 
+struct mark_data *push_mark(struct mark_data *first, struct mark_data *mark);
+
 void do_mark (struct mark_data *mark,
          double x, double y, double xscale, double yscale, double angle, 
          int units, 

@@ -3018,9 +3018,6 @@ set_margin(t_position *margin)
  *      'set mark <tag> DATASPEC'
  *      'set mark <tag> append DATASPEC'
  */
-struct mark_data *get_mark(struct mark_data *first, int tag);
-struct mark_data *get_previous_mark(struct mark_data *first, struct mark_data *mark);
-struct mark_data *push_mark(struct mark_data *first, struct mark_data *mark);
 
 static TBOOLEAN
 mark_is_empty (struct mark_data *mark)
@@ -3149,21 +3146,16 @@ static void
 set_mark ()
 {
     int tag, tag_src = -1;
-    struct mark_data *mark, *this, *prev;
-    struct polygon *polygon;
-    int vertices, lines;
+    struct mark_data *mark, *this;
+    int lines;
     t_position *vertex;
     double *color;
     double v[4];
-    int i, j;
     char *name_str;
     int saved_token;
     int append = FALSE;
-    int found = FALSE;
     int action = MARK_ACTION_UNDEFINED;
-    int dummy_token = 0;
     int sample_range_token;
-    char orig_dummy_var[MAX_ID_LEN+1];
 
     c_token++;
     saved_token = c_token;
@@ -3191,35 +3183,30 @@ set_mark ()
     if (sample_range_token != 0) {
 	axis_array[SAMPLE_AXIS].range_flags |= RANGE_SAMPLED;
     }
-//    axis_init(&axis_array[FIRST_X_AXIS], FALSE);
-//    parse_range(FIRST_X_AXIS);
 
     saved_token = c_token;
     
     if ( equals(c_token, "\"++\"") ) {
   	int_error(c_token, "pseudofile \"++\" can not be used for 'set mark'");    	
     } else if ( (name_str = string_or_express(NULL)) ) {
+	/* WARNING: do NOT free name_str */
         if (append) 
             action = MARK_ACTION_APPEND;
         else
             action = MARK_ACTION_CREATE;                
-    }
-    else {
+    } else {
         c_token = saved_token;
         if (append && (tag_src = int_expression()) >= 0) 
             action = MARK_ACTION_COPY;    
-        else 
-  	    int_error(c_token, "expecting filename or datablock");
     }
 
-    /* WARNING: do NOT free name_str */
     if ( action == MARK_ACTION_CREATE || action == MARK_ACTION_APPEND ) {
+	int j;
         saved_token = c_token;
 
         /* Same interlock as plot/splot/stats */
         inside_plot_command = TRUE;
 
-        c_token = saved_token;
         df_set_plot_mode(MODE_QUERY);	/* Needed only for binary datafiles */
         df_open(name_str, 4, NULL);
 
@@ -3286,18 +3273,18 @@ set_mark ()
         inside_plot_command = FALSE;
         
     } else if (action == MARK_ACTION_COPY) {
-
-        if (!first_mark) 
-            int_error(c_token, "can't find mark %d\n", tag_src);
         this = get_mark(first_mark, tag_src);
-        if (!this) {
+        if (!this)
             int_error(c_token, "can't find mark %d\n", tag_src);                
-        }
 
         mark = mark_allocate(0);
         mark->tag = tag;
         mark_append(mark, this); 
-    } 
+
+    } else { 	/* (action == MARK_ACTION_UNDEFINED) */
+	int_error(saved_token, "unrecognized data source for mark");
+    }
+
 
     push_mark_to_list:
     
@@ -3305,22 +3292,19 @@ set_mark ()
     	first_mark = mark;            
     } else {
         this = get_mark(first_mark, tag);
-        if (!this) {    /* any mark with the specified tag is not found */
+        if (!this) {    /* no existing mark with the specified tag */
             push_mark(first_mark, mark);      
         } else {        /* the mark with the specified tag is found */
             if (action == MARK_ACTION_APPEND || action == MARK_ACTION_COPY) {
                 mark_append(this, mark);
                 mark_free(mark);
             } else {
-                if (this == first_mark) { /* the found mark is the first element of the mark list */
-                    first_mark = mark;
-                } else {                  /* the found mark should have previous mark in the mark list */
-                    prev = get_previous_mark(first_mark, this);
-                    assert(prev);
-	            prev->next = mark;
-                }
-                mark->next = this->next; /* replace to new mark */
-                mark_free(this);
+		/* Replace content of old mark that had this tag */
+		struct mark_data *save_next = this->next;
+		mark_reallocate(this, -1);
+		*this = *mark;
+		this->next = save_next;
+		free(mark);
             }
         }
     }
