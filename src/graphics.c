@@ -3000,7 +3000,7 @@ struct mark_data *
 get_mark(struct mark_data *first, int tag)
 {
     struct mark_data *mark, *this, *prev;
-    if ( ! first_mark )
+    if ( !first )
         return NULL;
     mark = NULL;
     for (this=first, prev=NULL; this!=NULL; prev=this, this=this->next) {
@@ -3012,6 +3012,30 @@ get_mark(struct mark_data *first, int tag)
     return mark;
 }
 
+struct mark_data *
+push_mark(struct mark_data *first, struct mark_data *mark)
+{
+    struct mark_data *this, *prev;
+    if ( !first )
+        first = mark;
+    for (this=first, prev=NULL; this!=NULL; prev=this, this=this->next)
+        ;
+    prev->next = mark;
+    return mark;
+}
+
+struct mark_data *
+get_previous_mark(struct mark_data *first, struct mark_data *mark)
+{
+    struct mark_data *this, *prev;
+    if ( !first )
+        return NULL;
+    for (this=first, prev=NULL; this!=NULL; prev=this, this=this->next) {
+        if (this == mark) 
+            return prev;
+    }
+    return NULL;
+}
 
 /* plot_marks:
  * Plot the points in MARKS style
