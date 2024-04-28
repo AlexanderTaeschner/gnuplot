@@ -1546,6 +1546,17 @@ save_fillstyle(FILE *fp, const struct fill_style_type *fs)
 }
 
 void
+save_packed_fillstyle(FILE *fp, int packed_fillstyle)
+{
+    struct fill_style_type fs;
+    fs.fillstyle = packed_fillstyle & 0xf;
+    fs.filldensity =  packed_fillstyle >> 4;
+    fs.fillpattern =  packed_fillstyle >> 4;
+    fprintf(fp,"fillstyle ");
+    save_fillstyle(fp, &fs);
+}
+
+void
 save_textcolor(FILE *fp, const struct t_colorspec *tc)
 {
     if (tc->type) {
