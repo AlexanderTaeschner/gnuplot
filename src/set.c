@@ -3018,7 +3018,9 @@ set_margin(t_position *margin)
  *      'set mark <tag> DATASPEC'
  *      'set mark <tag> append DATASPEC'
  */
-static void append_mark(struct mark_data *dest, struct mark_data *src);
+struct mark_data *get_mark(struct mark_data *first, int tag);
+struct mark_data *get_previous_mark(struct mark_data *first, struct mark_data *mark);
+struct mark_data *push_mark(struct mark_data *first, struct mark_data *mark);
 
 static TBOOLEAN
 mark_is_empty (struct mark_data *mark)
@@ -3027,18 +3029,19 @@ mark_is_empty (struct mark_data *mark)
 }
 
 static struct mark_data *
-mark_allocate (int vertices) 
+mark_allocate (int size) 
 {
    struct mark_data *mark;
-   if (vertices > MARK_MAX_VERTICES)
+   if (size > MARK_MAX_VERTICES)
         int_error(NO_CARET, "too large number of vertices in a mark");
    mark = gp_alloc(sizeof(struct mark_data), "mark_data");
    mark->next = NULL;
    mark->tag = -1;
-   mark->vertices   = vertices;
-   if (vertices > 0) {
-       mark->polygon.vertex = (t_position *) gp_alloc(vertices*sizeof(t_position), "mark vertex");
-       mark->color = (double *) gp_alloc(vertices*sizeof(double), "mark color");
+   mark->asize = size;
+   mark->vertices = 0;
+   if (size > 0) {
+       mark->polygon.vertex = (t_position *) gp_alloc(size*sizeof(t_position), "mark vertex");
+       mark->color = (double *) gp_alloc(size*sizeof(double), "mark color");
    } else {
        mark->polygon.vertex = NULL;
        mark->color = NULL;
@@ -3049,6 +3052,36 @@ mark_allocate (int vertices)
    mark->ymax = -VERYLARGE;
    return mark;
 }
+
+void
+mark_free (struct mark_data *mark) 
+{
+    if (mark) {
+	free(mark->polygon.vertex);
+        free(mark->color);
+	free(mark);
+    }
+}
+
+static struct mark_data *
+mark_reallocate (struct mark_data *mark, int size) 
+{
+   if (size > 0) {
+       mark->asize = size;
+       mark->polygon.vertex = (t_position *) gp_realloc(mark->polygon.vertex,
+                                                        size*sizeof(t_position), "mark vertex");
+       mark->color = (double *) gp_realloc(mark->color, size*sizeof(double), "mark color");
+   }
+   else {
+        free(mark->polygon.vertex);
+        free(mark->color);
+        mark->asize = 0;
+        mark->polygon.vertex = NULL;
+        mark->color = NULL;
+   }
+   return mark;
+}
+
 
 /*
  * updates the range of the enclosure (xmin,xmax,ymin,ymax) of polygons 
@@ -3085,26 +3118,17 @@ mark_append(struct mark_data *dst, struct mark_data *src)
    int vertices;
    int dst_vertices = dst->vertices;
    int src_vertices = src->vertices;
-   t_position *vertex;
-   double *color;
-   
+
    vertices = dst_vertices + 1 + src_vertices;
-   vertex = (t_position *) gp_alloc(vertices*sizeof(t_position), "mark polygon vertex");
-   color  = (double *) gp_alloc(vertices*sizeof(double), "mark color");
+   dst = mark_reallocate(dst, vertices);
+   dst->vertices = vertices;
 
-   memcpy(vertex, dst->polygon.vertex, dst_vertices*sizeof(t_position));
-   vertex[dst_vertices].x = not_a_number();
-   vertex[dst_vertices].y = not_a_number();
-   memcpy(vertex+dst_vertices+1, src->polygon.vertex, src_vertices*sizeof(t_position));
-   free(dst->polygon.vertex);
+   dst->polygon.vertex[dst_vertices].x = not_a_number();
+   dst->polygon.vertex[dst_vertices].y = not_a_number();
+   dst->color[dst_vertices] = -1;
 
-   memcpy(color, dst->color, (dst_vertices)*sizeof(double));
-   memcpy(color+dst_vertices+1, src->color, (src_vertices)*sizeof(double));
-   free(dst->color);
-
-   dst->vertices   = vertices;
-   dst->polygon.vertex = vertex;
-   dst->color          = color;
+   memcpy(dst->polygon.vertex+dst_vertices+1, src->polygon.vertex, (src_vertices)*sizeof(t_position));
+   memcpy(dst->color+dst_vertices+1, src->color, (src_vertices)*sizeof(double));
 
    if (dst->xmin > src->xmin)
        dst->xmin = src->xmin;
@@ -3144,6 +3168,7 @@ set_mark ()
     c_token++;
     saved_token = c_token;
     tag = int_expression();
+
     if (tag < 0)
        int_error(c_token, "tag must be >= 0");
 
@@ -3151,6 +3176,7 @@ set_mark ()
         c_token++;
         mark = mark_allocate(0);
         mark->tag = tag;
+        action = MARK_ACTION_CREATE;
         goto push_mark_to_list;
     }
 
@@ -3193,47 +3219,23 @@ set_mark ()
         /* Same interlock as plot/splot/stats */
         inside_plot_command = TRUE;
 
-        df_set_plot_mode(MODE_QUERY);	/* Needed only for binary datafiles */
-        df_open(name_str, 4, NULL);
-        vertices = 0;
-        while ((j = df_readline(v, 4)) != DF_EOF) {
-            switch (j) {
-            case 2:
-            case 3:
-            case 4:
-            case DF_FIRST_BLANK:
-            case DF_UNDEFINED:
-            case DF_MISSING:
-                vertices++;
-                break;
-            case DF_SECOND_BLANK:
-            case DF_COLUMN_HEADERS:
-            	continue;
-               	break;
-            default:
-        	df_close();
-        	int_error(c_token, "Bad data on line %d", df_line_number);
-        	break;
-            }
-        }
-        df_close();
-
-        if (vertices==0)
-            int_error( c_token, "No valid coordinates found" );
-    
-        /* Take size from data file */
-        mark = mark_allocate(vertices);
-        mark->tag = tag;
-
-        vertex = mark->polygon.vertex;
-        color  = mark->color;
-
         c_token = saved_token;
         df_set_plot_mode(MODE_QUERY);	/* Needed only for binary datafiles */
         df_open(name_str, 4, NULL);
 
         lines = 0;
+
+        mark = mark_allocate(0xff);
+        mark->tag = tag;
+        vertex = mark->polygon.vertex;
+        color  = mark->color;
+
         while ((j = df_readline(v, 4)) != DF_EOF) {
+            if ( lines > mark->asize-1 ) {
+                mark = mark_reallocate(mark, mark->asize+0xff);
+                vertex = mark->polygon.vertex;
+                color  = mark->color;
+            }
             switch (j) {
             case 2:
                vertex[lines].x = v[0];
@@ -3261,6 +3263,8 @@ set_mark ()
             case DF_MISSING:
                 vertex[lines].x = not_a_number();
                 vertex[lines].y = not_a_number();
+         	vertex[lines].z = not_a_number();
+                color[lines]    = -1;           
                 lines++;
                 break;
             case DF_SECOND_BLANK:
@@ -3275,67 +3279,50 @@ set_mark ()
         }
         df_close();
 
-        inside_plot_command = FALSE;
-
+        mark = mark_reallocate(mark, lines);
+        mark->vertices = lines;
         mark_update_limits(mark);
+
+        inside_plot_command = FALSE;
         
     } else if (action == MARK_ACTION_COPY) {
 
-        if (! first_mark) 
+        if (!first_mark) 
             int_error(c_token, "can't find mark %d\n", tag_src);
-         
-        found = FALSE;       
-	for (prev = NULL, this = first_mark; 
-	     this != NULL;
-	     prev = this, this = this->next) {
-	     if (tag_src == this->tag) {
-                found = TRUE;
-                mark = mark_allocate(0);
-                mark->tag = tag;
-                mark_append(mark, this); 
-		break;
-	    }
+        this = get_mark(first_mark, tag_src);
+        if (!this) {
+            int_error(c_token, "can't find mark %d\n", tag_src);                
         }
-        
-	if (! found) 
-            int_error(c_token, "can't find mark %d\n", tag_src);
- 
+
+        mark = mark_allocate(0);
+        mark->tag = tag;
+        mark_append(mark, this); 
     } 
 
     push_mark_to_list:
     
-    if (! first_mark) {
+    if (!first_mark) {  /* the mark list is empty */
     	first_mark = mark;            
     } else {
-        found = FALSE;       
-	for (prev = NULL, this = first_mark; 
-	     this != NULL;
-	     prev = this, this = this->next) {
-	     if (tag == this->tag) {
-                found = TRUE;
-                if (action == MARK_ACTION_APPEND || action == MARK_ACTION_COPY) {
-                    mark_append(this, mark); /* append to existing mark */
-                    if ( tag_src < 0 ) {
-                	free(mark->polygon.vertex);
-                        free(mark->color);
-                	free(mark);                    
-                    }
-                } else {
-        	    mark->next = this->next; /* replace to new mark */
-        	    free(this->polygon.vertex);
-                    free(this->color);
-        	    free(this);
-                    if (prev) 
-        	        prev->next = mark;
-                    else 
-                        first_mark = mark;
+        this = get_mark(first_mark, tag);
+        if (!this) {    /* any mark with the specified tag is not found */
+            push_mark(first_mark, mark);      
+        } else {        /* the mark with the specified tag is found */
+            if (action == MARK_ACTION_APPEND || action == MARK_ACTION_COPY) {
+                mark_append(this, mark);
+                mark_free(mark);
+            } else {
+                if (this == first_mark) { /* the found mark is the first element of the mark list */
+                    first_mark = mark;
+                } else {                  /* the found mark should have previous mark in the mark list */
+                    prev = get_previous_mark(first_mark, this);
+                    assert(prev);
+	            prev->next = mark;
                 }
-		break;
-	    }
+                mark->next = this->next; /* replace to new mark */
+                mark_free(this);
+            }
         }
-	if (! found) {
-            prev->next = mark;
-	}
     }
 }
 

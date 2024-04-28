@@ -201,6 +201,7 @@ struct mark_data {
     int vertices;
     t_polygon polygon;
     double *color;
+    int asize; /* number of allocated size of polygon.vertex and color array */
 };
 
 #define MARK_UNITS_XY  (0)
