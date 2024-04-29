@@ -4943,7 +4943,7 @@ do_ellipse( int dimensions, t_ellipse *e, int style, TBOOLEAN do_own_mapping )
 		vertex[i].y = cy + yoff;
     }
 
-    if (style) {
+    if ((style & 0xf) == FS_SOLID || (style & 0xf) == FS_TRANSPARENT_SOLID) {
 	/* Fill in the center */
 	gpiPoint fillarea[120];
 	clip_polygon(vertex, fillarea, segments, &in);
