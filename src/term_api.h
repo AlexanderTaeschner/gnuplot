@@ -243,7 +243,8 @@ typedef enum t_textbox_options {
 	TEXTBOX_GREY
 } t_textbox_options;
 
-typedef enum t_fillstyle { FS_EMPTY, FS_SOLID, FS_PATTERN, FS_DEFAULT,
+/* This definition also appears in qtterminal/QtGnuplotScene.cpp */
+typedef enum t_fillstyle { FS_EMPTY=1, FS_SOLID, FS_PATTERN, FS_DEFAULT,
 			   FS_TRANSPARENT_SOLID, FS_TRANSPARENT_PATTERN }
 	     t_fillstyle;
 #define FS_OPAQUE (FS_SOLID + (100<<4))
