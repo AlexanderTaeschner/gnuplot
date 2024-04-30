@@ -3139,12 +3139,11 @@ mark_append(struct mark_data *dst, struct mark_data *src)
 #define MARK_ACTION_UNDEFINED 0
 #define MARK_ACTION_CREATE    1
 #define MARK_ACTION_APPEND    2
-#define MARK_ACTION_COPY      3
 
 static void
 set_mark ()
 {
-    int tag, tag_src = -1;
+    int tag;
     struct mark_data *mark, *this;
     int lines;
     t_position *vertex;
@@ -3155,6 +3154,7 @@ set_mark ()
     int append = FALSE;
     int action = MARK_ACTION_UNDEFINED;
     int sample_range_token;
+    int j;
 
     c_token++;
     saved_token = c_token;
@@ -3193,96 +3193,80 @@ set_mark ()
             action = MARK_ACTION_APPEND;
         else
             action = MARK_ACTION_CREATE;                
-    } else {
-        c_token = saved_token;
-        if (append && (tag_src = int_expression()) >= 0) 
-            action = MARK_ACTION_COPY;    
     }
 
-    if ( action == MARK_ACTION_CREATE || action == MARK_ACTION_APPEND ) {
-	int j;
-        saved_token = c_token;
-
-        /* Same interlock as plot/splot/stats */
-        inside_plot_command = TRUE;
-
-        df_set_plot_mode(MODE_QUERY);	/* Needed only for binary datafiles */
-        df_open(name_str, 4, NULL);
-
-        lines = 0;
-
-        mark = mark_allocate(0xff);
-        mark->tag = tag;
-        vertex = mark->polygon.vertex;
-        color  = mark->color;
-
-        while ((j = df_readline(v, 4)) != DF_EOF) {
-            if ( lines > mark->asize-1 ) {
-                mark = mark_reallocate(mark, mark->asize+0xff);
-                vertex = mark->polygon.vertex;
-                color  = mark->color;
-            }
-            switch (j) {
-            case 2:
-               vertex[lines].x = v[0];
-               vertex[lines].y = v[1];
-               vertex[lines].z = MARKS_FILLSTYLE;
-               color[lines] = -1;           
-               lines++;
-               break;
-            case 3:
-        	vertex[lines].x = v[0];
-         	vertex[lines].y = v[1];
-         	vertex[lines].z = v[2];
-                color[lines] = -1;           
-               	lines++;
-                break;
-            case 4:
-        	vertex[lines].x = v[0];
-         	vertex[lines].y = v[1];
-         	vertex[lines].z = v[2];
-                color[lines]    = v[3];           
-               	lines++;
-                break;
-            case DF_FIRST_BLANK:
-            case DF_UNDEFINED:
-            case DF_MISSING:
-                vertex[lines].x = not_a_number();
-                vertex[lines].y = not_a_number();
-         	vertex[lines].z = not_a_number();
-                color[lines]    = -1;           
-                lines++;
-                break;
-            case DF_SECOND_BLANK:
-            case DF_COLUMN_HEADERS:
-           	continue;
-           	break;
-            default:
-           	df_close();
-           	int_error(c_token, "Bad data on line %d", df_line_number);
-           	break;
-            }
-        }
-        df_close();
-
-        mark = mark_reallocate(mark, lines);
-        mark->vertices = lines;
-        mark_update_limits(mark);
-
-        inside_plot_command = FALSE;
-        
-    } else if (action == MARK_ACTION_COPY) {
-        this = get_mark(first_mark, tag_src);
-        if (!this)
-            int_error(c_token, "can't find mark %d\n", tag_src);                
-
-        mark = mark_allocate(0);
-        mark->tag = tag;
-        mark_append(mark, this); 
-
-    } else { 	/* (action == MARK_ACTION_UNDEFINED) */
+    if (action == MARK_ACTION_UNDEFINED)
 	int_error(saved_token, "unrecognized data source for mark");
+
+    saved_token = c_token;
+
+    /* Same interlock as plot/splot/stats */
+    inside_plot_command = TRUE;
+
+    df_set_plot_mode(MODE_QUERY);	/* Needed only for binary datafiles */
+    df_open(name_str, 4, NULL);
+
+    lines = 0;
+
+    mark = mark_allocate(0xff);
+    mark->tag = tag;
+    vertex = mark->polygon.vertex;
+    color  = mark->color;
+
+    while ((j = df_readline(v, 4)) != DF_EOF) {
+        if ( lines > mark->asize-1 ) {
+            mark = mark_reallocate(mark, mark->asize+0xff);
+            vertex = mark->polygon.vertex;
+            color  = mark->color;
+        }
+        switch (j) {
+        case 2:
+           vertex[lines].x = v[0];
+           vertex[lines].y = v[1];
+           vertex[lines].z = MARKS_FILLSTYLE;
+           color[lines] = -1;           
+           lines++;
+           break;
+        case 3:
+            vertex[lines].x = v[0];
+            vertex[lines].y = v[1];
+            vertex[lines].z = v[2];
+            color[lines] = -1;           
+            lines++;
+            break;
+        case 4:
+            vertex[lines].x = v[0];
+            vertex[lines].y = v[1];
+            vertex[lines].z = v[2];
+            color[lines]    = v[3];           
+            lines++;
+            break;
+        case DF_FIRST_BLANK:
+        case DF_UNDEFINED:
+        case DF_MISSING:
+            vertex[lines].x = not_a_number();
+            vertex[lines].y = not_a_number();
+            vertex[lines].z = not_a_number();
+            color[lines]    = -1;           
+            lines++;
+            break;
+        case DF_SECOND_BLANK:
+        case DF_COLUMN_HEADERS:
+            continue;
+            break;
+        default:
+            df_close();
+            int_error(c_token, "Bad data on line %d", df_line_number);
+            break;
+        }
     }
+    df_close();
+
+    mark = mark_reallocate(mark, lines);
+    mark->vertices = lines;
+    mark_update_limits(mark);
+
+    inside_plot_command = FALSE;
 
 
     push_mark_to_list:
@@ -3294,7 +3278,7 @@ set_mark ()
         if (!this) {    /* no existing mark with the specified tag */
             push_mark(first_mark, mark);      
         } else {        /* the mark with the specified tag is found */
-            if (action == MARK_ACTION_APPEND || action == MARK_ACTION_COPY) {
+            if (action == MARK_ACTION_APPEND) {
                 mark_append(this, mark);
                 free_mark(mark);
             } else {
@@ -3312,7 +3296,6 @@ set_mark ()
 #undef MARK_ACTION_UNDEFINED 
 #undef MARK_ACTION_CREATE
 #undef MARK_ACTION_APPEND
-#undef MARK_ACTION_COPY  
 
 
 /* process 'set micro' command */
