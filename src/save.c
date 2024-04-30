@@ -1870,6 +1870,43 @@ save_object(FILE *fp, int tag)
 	    save_position(fp, &this_mark->center, 3, FALSE);
 	}
 
+	else if ((this_object->object_type == OBJ_MARK)
+	    && (tag == 0 || tag == this_object->tag)) {
+	    t_mark *this_mark = &this_object->o.mark;
+	    showed = TRUE;
+	    fprintf(fp, "%sobject %2d mark ", (fp==stderr) ? "\t" : "set ",this_object->tag);
+	    fprintf(fp, "center ");
+	    save_position(fp, &this_mark->center, 2, FALSE);
+	    fprintf(fp, " scale ");
+	    fprintf(fp, "%g", this_mark->xscale);
+	    fprintf(fp, ", %g", this_mark->yscale);
+	    fprintf(fp, "  angle %g", this_mark->angle);
+	    fputs(" units ", fp);
+	    switch (this_mark->units) {
+		case MARK_UNITS_PS:
+		    fputs("ps", fp);
+		    break;
+		case MARK_UNITS_XY:
+		    fputs("xy", fp);
+		    break;
+		case MARK_UNITS_XX:
+		    fputs("xx", fp);
+		    break;
+		case MARK_UNITS_YY:
+		    fputs("yy", fp);
+		    break;
+		case MARK_UNITS_GXY:
+		    fputs("gxy", fp);
+		    break;
+		case MARK_UNITS_GXX:
+		    fputs("gxx", fp);
+		    break;
+		case MARK_UNITS_GYY:
+		    fputs("gyy", fp);
+		    break;
+	    }
+	}
+
 	/* Properties common to all objects */
 	if (tag == 0 || tag == this_object->tag) {
 	    fprintf(fp, "\n%sobject %2d ", (fp==stderr) ? "\t" : "set ",this_object->tag);
