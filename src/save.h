@@ -81,5 +81,6 @@ void save_bars(FILE *);
 void save_array_content(FILE *, struct value *);
 void save_label_style( FILE *fp, struct text_label *this_label );
 void save_contourfill(FILE *fp);
+void save_marks(FILE *fp);
 
 #endif /* GNUPLOT_SAVE_H */

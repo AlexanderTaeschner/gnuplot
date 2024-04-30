@@ -2520,6 +2520,7 @@ save_command()
 	case SAVE_VARS:
 	case SAVE_FIT:
 	case SAVE_DATABLOCKS:
+	case SAVE_MARKS:
 	    c_token++;
 	    break;
 	default:
@@ -2571,6 +2572,9 @@ save_command()
 	break;
     case SAVE_DATABLOCKS:
 	    save_datablocks(fp);
+	break;
+    case SAVE_MARKS:
+	    save_marks(fp);
 	break;
     default:
 	    save_all(fp);

@@ -163,6 +163,7 @@ const struct gen_table save_tbl[] =
     { "data$blocks", SAVE_DATABLOCKS },
     { "fit", SAVE_FIT },
     { "fun$ctions", SAVE_FUNCS },
+    { "marks", SAVE_MARKS },
     { "set", SAVE_SET },
     { "ter$minal", SAVE_TERMINAL },
     { "var$iables", SAVE_VARS },

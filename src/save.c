@@ -101,6 +101,7 @@ void
 save_all(FILE *fp)
 {
 	show_version(fp);
+        save_marks(fp);
 	save_set_all(fp);
 	save_functions__sub(fp);
 	save_variables__sub(fp);
@@ -2044,4 +2045,34 @@ save_contourfill(FILE *fp)
 	fprintf(fp, "set contourfill firstlinetype %d\n", contourfill.firstlinetype);
     else
 	fprintf(fp, "set contourfill palette\n");
+}
+
+void
+save_marks(FILE *fp)
+{
+    struct mark_data *this, *prev;
+    int i, c, tag;
+    double x, y, z;
+    for (this=first_mark, prev=NULL; this != NULL; prev=this, this=this->next) {
+        tag = this->tag;
+        fprintf(fp, "$MARK_%i <<EOM\n", tag);
+        for (i=0; i<this->vertices; i++) {
+            x = this->polygon.vertex[i].x;
+            y = this->polygon.vertex[i].y;
+            z = this->polygon.vertex[i].z;
+            c = this->color[i];
+            if (isnan(x) || isnan(y))
+                fprintf(fp, "\n");
+            else if ( c < 0 )
+                fprintf(fp, "%g\t%g\t%i\t-1\n", x, y, (int) round(z));
+            else if ( c < 0x1000000 )
+                fprintf(fp, "%g\t%g\t%i\t0x%06x\n", x, y, (int) round(z), c);
+            else
+                fprintf(fp, "%g\t%g\t%i\t0x%08x\n", x, y, (int) round(z), c);
+        }
+        fprintf(fp, "EOM\n");
+        fprintf(fp, "set mark %i $MARK_%i\n", tag, tag);
+        fprintf(fp, "undefine $MARK_%i\n", tag);
+        fprintf(fp, "\n");
+    }
 }
