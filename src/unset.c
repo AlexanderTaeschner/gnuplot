@@ -1448,9 +1448,7 @@ delete_mark(struct mark_data *prev, struct mark_data *this)
 	else			/* this = first_object so change first_object */
 	    first_mark = this->next;
 	/* NOTE:  Must free contents as well */
-        free(this->polygon.vertex);
-        free(this->color);
-	free(this);
+        free_mark(this);
     }
 }
 

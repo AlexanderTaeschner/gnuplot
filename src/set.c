@@ -3051,16 +3051,6 @@ mark_allocate (int size)
    return mark;
 }
 
-void
-mark_free (struct mark_data *mark) 
-{
-    if (mark) {
-	free(mark->polygon.vertex);
-        free(mark->color);
-	free(mark);
-    }
-}
-
 static struct mark_data *
 mark_reallocate (struct mark_data *mark, int size) 
 {
@@ -3080,6 +3070,14 @@ mark_reallocate (struct mark_data *mark, int size)
    return mark;
 }
 
+void
+free_mark (struct mark_data *mark) 
+{
+    if (mark) {
+	mark_reallocate(mark, 0);
+	free(mark);
+    }
+}
 
 /*
  * updates the range of the enclosure (xmin,xmax,ymin,ymax) of polygons 
@@ -3298,7 +3296,7 @@ set_mark ()
         } else {        /* the mark with the specified tag is found */
             if (action == MARK_ACTION_APPEND || action == MARK_ACTION_COPY) {
                 mark_append(this, mark);
-                mark_free(mark);
+                free_mark(mark);
             } else {
 		/* Replace content of old mark that had this tag */
 		struct mark_data *save_next = this->next;
