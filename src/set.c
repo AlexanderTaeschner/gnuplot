@@ -369,6 +369,7 @@ set_command()
 	    break;
     	case S_MARK:
             set_mark();
+	    break;
 	case S_MARGIN:
 	    /* Jan 2015: CHANGE to order <left>,<right>,<bottom>,<top> */
 	    set_margin(&lmargin);
@@ -4651,7 +4652,7 @@ set_obj(int tag, int obj_type)
                     this_mark->type = int_expression();
 		    continue;
                         
-		} else if (equals(c_token,"at")) {
+		} else if (equals(c_token,"at") || almost_equals(c_token, "cen$ter")) {
 		    /* Read in the center position */
 		    c_token++;
 		    get_position(&this_mark->center);

@@ -3021,7 +3021,7 @@ plot_marks(struct curve_points *plot)
     double x, y, xscale, yscale, angle;
     TBOOLEAN has_varcolor = FALSE;
     double varcolor;
-    struct mark_data *mark, *this, *prev;
+    struct mark_data *mark = NULL, *this, *prev;
     struct polygon *polygon;
     double *color;
     int vertices;
@@ -3088,7 +3088,7 @@ plot_marks(struct curve_points *plot)
         }
 
         if (plot->marks_options.variable) {
-            if (isnan(plot->points[i].z))       /* variable mark tag is stored in yhigh */
+            if (isnan(plot->points[i].z))       /* variable mark tag is stored in z */
                 continue;
             tag = round(plot->points[i].z);
             mark = get_mark(first_mark, tag);
@@ -3154,11 +3154,14 @@ do_key_sample_mark(struct curve_points *this_plot, int xl, int yl, int tag)
 	size = pointsize;
     
     mark = get_mark(first_mark, tag);
-     
+
     /* mark is found! */
     if (mark) {
 	double width = mark->xmax - mark->xmin;
 	double height = mark->ymax - mark->ymin;
+        BoundingBox *clip_save = clip_area;
+
+        clip_area = &canvas;
 
 	/* Scaling */
 	if (this_plot->marks_options.units == MARK_UNITS_PS) {
@@ -3191,6 +3194,8 @@ do_key_sample_mark(struct curve_points *this_plot, int xl, int yl, int tag)
 	    vertices, vertex, fillarea);
 	free(vertex);
 	free(fillarea);
+
+        clip_area = clip_save;
     }
 }
 
@@ -3290,7 +3295,6 @@ do_mark (struct mark_data *mark,
                          y + xscale*mx1 * sina + yscale*my2 * cosa,
                          y + xscale*mx2 * sina + yscale*my1 * cosa,
                          y + xscale*mx2 * sina + yscale*my2 * cosa };
-    
         TBOOLEAN is_inrange = FALSE;
         for (k=0; k<5; k++) {
             if ( inrange(round(xx[k]), clip_area->xleft, clip_area->xright) 

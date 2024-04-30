@@ -2866,7 +2866,7 @@ eval_plots()
 		    }
 		}
 
-		/* pick up the special 'tag' keyword the 'marks' style requires */
+		/* options specific to marks */
 		if (this_plot->plot_style == MARKS 
 		||  this_plot->plot_style == LINESMARKS) {
 		    if (almost_equals(c_token,"mark$type") || equals(c_token, "mt")) {
