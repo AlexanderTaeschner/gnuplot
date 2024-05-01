@@ -200,8 +200,9 @@ struct mark_data {
     double ymin, ymax;
     int vertices;
     t_polygon polygon;
-    double *color;
     int asize; /* number of allocated size of polygon.vertex and color array */
+    struct fill_style_type mark_fillstyle;
+    struct t_colorspec mark_fillcolor;
 };
 
 #define MARK_UNITS_XY  (0)
@@ -216,10 +217,10 @@ struct mark_data {
 typedef struct marks_options {
     int tag;
     int units;
-    int variable;
 } marks_opts;
 
-#define DEFAULT_MARKS_OPTS { 1, MARK_UNITS_PS, FALSE }
+#define MARK_TYPE_VARIABLE -1	/* tag value indicating "marktype variable" */
+#define DEFAULT_MARKS_OPTS { 1, MARK_UNITS_PS }
 
 /* Datastructure implementing 'set dashtype' */
 struct custom_dashtype_def {
@@ -677,10 +678,11 @@ extern struct object default_ellipse;
 	{0, LT_BLACK, 0, DASHTYPE_SOLID, 0, 0, 1.0, 0.0, DEFAULT_P_CHAR, BLACK_COLORSPEC, DEFAULT_DASHPATTERN}, \
 	{.polygon = {0, NULL} } }
 
+#define DEFAULT_MARK_FILLSTYLE {FS_DEFAULT, 100, 0, {TC_DEFAULT, -2, 0}}
 #define DEFAULT_MARK_STYLE { NULL, -1, 0, OBJ_MARK, OBJ_CLIP, \
-	{FS_EMPTY, 100, 0, {TC_DEFAULT, -2, 0}},   			\
+	DEFAULT_MARK_FILLSTYLE, \
 	{0, LT_BLACK, 0, DASHTYPE_SOLID, 0, 0, 1.0, 0.0, DEFAULT_P_CHAR, BLACK_COLORSPEC, DEFAULT_DASHPATTERN}, \
-	{.mark = {1, {0,0,0,0.,0.,0.}, 1.0, 1.0, 0.0, MARK_UNITS_PS} } }
+	{.mark = {-1, {0,0,0,0.,0.,0.}, 1.0, 1.0, 0.0, MARK_UNITS_PS} } }
 
 #define WALL_Y0_TAG 0
 #define WALL_X0_TAG 1

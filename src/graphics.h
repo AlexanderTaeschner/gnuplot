@@ -141,7 +141,7 @@ void do_mark (struct mark_data *mark,
          TBOOLEAN clip,
          struct fill_style_type *fill_properties,
          struct lp_style_type *lp_properties, 
-         TBOOLEAN has_varcolor, struct curve_points *plot, double varcolor,
+         struct curve_points *plot, double varcolor,
          int max_vertices, gpiPoint *vertex, gpiPoint *fillarea);
 
 void place_pixmaps(int layer, int dimensions);

@@ -3024,6 +3024,9 @@ static struct mark_data *
 mark_allocate (int size)
 {
    struct mark_data *mark;
+   struct fill_style_type mark_fillstyle = DEFAULT_MARK_FILLSTYLE;
+   t_colorspec mark_fillcolor = DEFAULT_COLORSPEC;
+
    if (size > MARK_MAX_VERTICES)
         int_error(NO_CARET, "too large number of vertices in a mark");
    mark = gp_alloc(sizeof(struct mark_data), "mark_data");
@@ -3033,15 +3036,15 @@ mark_allocate (int size)
    mark->vertices = 0;
    if (size > 0) {
        mark->polygon.vertex = (t_position *) gp_alloc(size*sizeof(t_position), "mark vertex");
-       mark->color = (double *) gp_alloc(size*sizeof(double), "mark color");
    } else {
        mark->polygon.vertex = NULL;
-       mark->color = NULL;
    }
    mark->xmin = VERYLARGE;
    mark->xmax = -VERYLARGE;
    mark->ymin = VERYLARGE;
    mark->ymax = -VERYLARGE;
+   mark->mark_fillstyle = mark_fillstyle;
+   mark->mark_fillcolor = mark_fillcolor;
    return mark;
 }
 
@@ -3052,14 +3055,11 @@ mark_reallocate (struct mark_data *mark, int size)
        mark->asize = size;
        mark->polygon.vertex = (t_position *) gp_realloc(mark->polygon.vertex,
                                                         size*sizeof(t_position), "mark vertex");
-       mark->color = (double *) gp_realloc(mark->color, size*sizeof(double), "mark color");
    }
    else {
         free(mark->polygon.vertex);
-        free(mark->color);
         mark->asize = 0;
         mark->polygon.vertex = NULL;
-        mark->color = NULL;
    }
    return mark;
 }
@@ -3115,10 +3115,8 @@ mark_append(struct mark_data *dst, struct mark_data *src)
 
    dst->polygon.vertex[dst_vertices].x = not_a_number();
    dst->polygon.vertex[dst_vertices].y = not_a_number();
-   dst->color[dst_vertices] = -1;
 
    memcpy(dst->polygon.vertex+dst_vertices+1, src->polygon.vertex, (src_vertices)*sizeof(t_position));
-   memcpy(dst->color+dst_vertices+1, src->color, (src_vertices)*sizeof(double));
 
    if (dst->xmin > src->xmin)
        dst->xmin = src->xmin;
@@ -3141,7 +3139,6 @@ set_mark ()
     struct mark_data *mark, *this;
     int lines;
     t_position *vertex;
-    double *color;
     double v[4];
     char *name_str;
     int saved_token;
@@ -3200,48 +3197,48 @@ set_mark ()
     df_set_plot_mode(MODE_QUERY);	/* Needed only for binary datafiles */
     df_open(name_str, 4, NULL);
 
-    lines = 0;
-
     mark = mark_allocate(0xff);
     mark->tag = tag;
     vertex = mark->polygon.vertex;
-    color  = mark->color;
 
+    /* Read optional fillstyle and fill color from the command line.
+     * Must come after df_open().
+     * Style and color can be given in either order, so give it two chances.
+     */
+    if (!END_OF_COMMAND) {
+	parse_fillstyle(&mark->mark_fillstyle);
+	if ((equals(c_token,"fc") || almost_equals(c_token,"fillc$olor")))
+	    parse_colorspec(&mark->mark_fillcolor, TC_Z);
+	parse_fillstyle(&mark->mark_fillstyle);
+    }
+
+    lines = 0;
     while ((j = df_readline(v, 4)) != DF_EOF) {
         if ( lines > mark->asize-1 ) {
             mark = mark_reallocate(mark, mark->asize+0xff);
             vertex = mark->polygon.vertex;
-            color  = mark->color;
         }
-        switch (j) {
-        case 2:
-           vertex[lines].x = v[0];
-           vertex[lines].y = v[1];
-           vertex[lines].z = MARKS_FILLSTYLE;
-           color[lines] = -1;           
-           lines++;
-           break;
-        case 3:
-            vertex[lines].x = v[0];
-            vertex[lines].y = v[1];
-            vertex[lines].z = v[2];
-            color[lines] = -1;           
-            lines++;
-            break;
-        case 4:
-            vertex[lines].x = v[0];
-            vertex[lines].y = v[1];
-            vertex[lines].z = v[2];
-            color[lines]    = v[3];           
-            lines++;
-            break;
-        case DF_FIRST_BLANK:
+	if (j > 3)	/* Ignore any excess using specs */
+	    j = 3;
+	switch (j) {
+	case 2:
+	    vertex[lines].x = v[0];
+	    vertex[lines].y = v[1];
+	    vertex[lines].z = MARKS_FILLSTYLE;
+	    lines++;
+	    break;
+	case 3:
+	    vertex[lines].x = v[0];
+	    vertex[lines].y = v[1];
+	    vertex[lines].z = v[2];	/* mode */
+	    lines++;
+	    break;
+	case DF_FIRST_BLANK:
         case DF_UNDEFINED:
         case DF_MISSING:
             vertex[lines].x = not_a_number();
             vertex[lines].y = not_a_number();
             vertex[lines].z = not_a_number();
-            color[lines]    = -1;           
             lines++;
             break;
         case DF_SECOND_BLANK:
@@ -4633,7 +4630,7 @@ set_obj(int tag, int obj_type)
 		    get_position(&this_mark->center);
 		    continue;
 
-		} else if (equals(c_token,"scale")) {
+		} else if (equals(c_token,"scale") || equals(c_token,"ps")) {
 		    /* Read in the width and height */
 		    c_token++;
 		    this_mark->xscale = real_expression();

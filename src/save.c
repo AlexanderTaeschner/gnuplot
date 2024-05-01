@@ -2051,7 +2051,7 @@ void
 save_marks(FILE *fp)
 {
     struct mark_data *this;
-    int i, c, tag;
+    int i, tag;
     double x, y, z;
     for (this=first_mark; this != NULL; this=this->next) {
         tag = this->tag;
@@ -2060,18 +2060,15 @@ save_marks(FILE *fp)
             x = this->polygon.vertex[i].x;
             y = this->polygon.vertex[i].y;
             z = this->polygon.vertex[i].z;
-            c = this->color[i];
             if (isnan(x) || isnan(y))
-                fprintf(fp, "\n");
-            else if ( c < 0 )
-                fprintf(fp, "%g\t%g\t%i\t-1\n", x, y, (int) round(z));
-            else if ( c < 0x1000000 )
-                fprintf(fp, "%g\t%g\t%i\t0x%06x\n", x, y, (int) round(z), c);
+		fprintf(fp, "\n");
             else
-                fprintf(fp, "%g\t%g\t%i\t0x%08x\n", x, y, (int) round(z), c);
+		fprintf(fp, "%g\t%g\t%i\n", x, y, (int) round(z));
         }
         fprintf(fp, "EOM\n");
-        fprintf(fp, "set mark %i $MARK_%i\n", tag, tag);
+        fprintf(fp, "set mark %i $MARK_%i ", tag, tag);
+	fprintf(fp, "fillstyle ");
+	save_fillstyle(fp, &this->mark_fillstyle);
         fprintf(fp, "undefine $MARK_%i\n", tag);
         fprintf(fp, "\n");
     }

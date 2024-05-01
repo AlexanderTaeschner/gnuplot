@@ -3687,29 +3687,32 @@ conv_text(const char *t)
 }
 
 static void
+show_one_mark(struct mark_data *mark)
+{
+    fprintf(stderr, "\tmarktype %i, polygon vertices %i ", mark->tag, mark->vertices);
+    if (mark->mark_fillcolor.type != TC_DEFAULT) {
+	fprintf(stderr, "fillcolor ");
+	save_pm3dcolor(stderr, &mark->mark_fillcolor);
+    }
+    fprintf(stderr, "fillstyle");
+    save_fillstyle(stderr, &mark->mark_fillstyle);
+}
+
+static void
 show_mark()
 {
-    FILE *f;
-    char line[80];
     int tag = -1;
     struct mark_data *this;
-    double x, y, z;
-    int c;
+    double x, y;
     int i;
-
-    f = (print_out) ? print_out : stderr;
 
     if (!END_OF_COMMAND)
 	tag = int_expression();
 
-    if (! first_mark) 
-        return;
-
     if (tag < 0) {
-        for (this = first_mark; 
-            this != NULL;
-            this = this->next) {
-            fprintf(stderr, "\tmarktype %i, polygon vertices %i\n", this->tag, this->vertices);
+        for (this = first_mark; this != NULL; this = this->next) {
+	    show_one_mark(this);
+	    fprintf(stderr,"\n");
         }
         return;
     }
@@ -3717,32 +3720,20 @@ show_mark()
     this = get_mark(first_mark, tag);
     if (!this)
 	return;
+
+    show_one_mark(this);
     
     for (i=0; i<this->vertices; i++) {
+	int mode;
         x = this->polygon.vertex[i].x;
         y = this->polygon.vertex[i].y;
-        z = this->polygon.vertex[i].z;
-        c = this->color[i];
+        mode = this->polygon.vertex[i].z;
         if (isnan(x) || isnan(y)) 
-	    *line = '\0';
-        else if ( c < 0 ) 
- 	    sprintf(line, "%g\t%g\t%i\t-1", x, y, (int) round(z));
-        else if ( c < 0x1000000 )
-            sprintf(line, "%g\t%g\t%i\t0x%06x", x, y, (int) round(z), c);
-        else 
-            sprintf(line, "%g\t%g\t%i\t0x%08x", x, y, (int) round(z), c);
-
-	if (print_out_var)
-	    append_to_datablock( &print_out_var->udv_value, strdup(line) );
-	else
-	    fprintf(f, "%s\n", line); 
-               
+	    fprintf(stderr,"\n");
+        else
+	    fprintf(stderr, "%g\t%g\t%i\n", x, y, mode);
     }
 
-    if (print_out_var) 
-        append_to_datablock( &print_out_var->udv_value, strdup("\n") );
-    else
-        fprintf(f, "\n"); 
-
+    fprintf(stderr, "\n"); 
 }
 

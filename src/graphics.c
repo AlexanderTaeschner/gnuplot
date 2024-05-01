@@ -575,20 +575,20 @@ place_objects(struct object *listhead, int layer, int dimensions)
 	case OBJ_MARK:
 	{
 	    t_mark *e = &this_object->o.mark;
-            struct mark_data *mark;
-            int tag = e->type;
-            int vertices;
-            gpiPoint *vertex;
-            gpiPoint *fillarea;
+	    struct mark_data *mark;
+	    int tag = e->type;
+	    int vertices;
+	    gpiPoint *vertex;
+	    gpiPoint *fillarea;
 	    BoundingBox *clip_save = clip_area;
 
-            if (first_mark == NULL)
-                break;
+	    if (first_mark == NULL)
+		break;
 
-            mark = get_mark(first_mark, tag);
-            if (!mark)
-                break;
-            vertices = mark->vertices;
+	    mark = get_mark(first_mark, tag);
+	    if (!mark)
+		break;
+	    vertices = mark->vertices;
 
 	    if (dimensions == 2) {
 		map_position_double(&e->center, &x1, &y1, "object");
@@ -607,20 +607,20 @@ place_objects(struct object *listhead, int layer, int dimensions)
 	    ||  (this_object->clip == OBJ_NOCLIP))
 		clip_area = &canvas;
 
-            vertex   = (gpiPoint *) gp_alloc(vertices*sizeof(gpiPoint), "draw mark");
-            fillarea = (gpiPoint *) gp_alloc(2*vertices*sizeof(gpiPoint), "draw mark");
+	    vertex   = (gpiPoint *) gp_alloc(vertices*sizeof(gpiPoint), "draw mark");
+	    fillarea = (gpiPoint *) gp_alloc(2*vertices*sizeof(gpiPoint), "draw mark");
 
 	    do_mark(mark,
-                    x1, y1, e->xscale, e->yscale, e->angle,
-                    e->units,
-                    (this_object->clip == OBJ_CLIP),
-                    &(this_object->fillstyle),
-                    &(this_object->lp_properties),
-                    FALSE, NULL, 0.0,
-                    vertices, vertex, fillarea);
+		    x1, y1, e->xscale, e->yscale, e->angle,
+		    e->units,
+		    (this_object->clip == OBJ_CLIP),
+		    &(this_object->fillstyle),
+		    &(this_object->lp_properties),
+		    NULL, 0.0,
+		    vertices, vertex, fillarea);
 
-            free(vertex);
-            free(fillarea);
+	    free(vertex);
+	    free(fillarea);
 
 	    clip_area = clip_save;
 	    break;
@@ -3001,9 +3001,9 @@ push_mark(struct mark_data *first, struct mark_data *mark)
 {
     struct mark_data *this, *prev;
     if ( !first )
-        first = mark;
+	first = mark;
     for (this=first, prev=NULL; this!=NULL; prev=this, this=this->next)
-        ;
+	;
     prev->next = mark;
     return mark;
 }
@@ -3051,14 +3051,14 @@ plot_marks(struct curve_points *plot)
 	}
     }
 
-    if (!plot->marks_options.variable) { /* Search mark if 'marktype N' is given */
-	tag = plot->marks_options.tag;
+    tag = plot->marks_options.tag;
+    if (tag == MARK_TYPE_VARIABLE) {
+	max_vertices = 100;	/* FIXME: what happens if this is exceded? */
+    } else {
 	mark = get_mark(first_mark, tag);
 	if (!mark)
 	    int_error(NO_CARET, "can't find mark <%i>", tag);
 	max_vertices = mark->vertices;
-    } else {                            /* Check max_vertices only if 'marktype variable' is given */
-	max_vertices = 100;
     }
 
     vertex   = (gpiPoint *) gp_alloc(max_vertices*sizeof(gpiPoint), "draw mark");
@@ -3082,11 +3082,10 @@ plot_marks(struct curve_points *plot)
 	    angle  = plot->points[i].yhigh;
 	}
 
-	if (plot->marks_options.variable) {
+	if (tag == MARK_TYPE_VARIABLE) {
 	    if (isnan(plot->points[i].z))       /* variable mark tag is stored in z */
 		continue;
-	    tag = round(plot->points[i].z);
-	    mark = get_mark(first_mark, tag);
+	    mark = get_mark(first_mark, round(plot->points[i].z));
 	    if (!mark)
 		continue;
 	    if (mark->vertices > max_vertices) {
@@ -3113,13 +3112,13 @@ plot_marks(struct curve_points *plot)
 	varcolor     = (has_varcolor) ? plot->varcolor[i] : 0.0;
 
 	do_mark(mark,
-		x, y, xscale, yscale, angle,
-		plot->marks_options.units,
-		TRUE,
-		&(plot->fill_properties),
-		&(plot->lp_properties),
-		has_varcolor, plot, varcolor,
-		max_vertices, vertex, fillarea);
+	        x, y, xscale, yscale, angle,
+	        plot->marks_options.units,
+	        TRUE,
+	        &(plot->fill_properties),
+	        &(plot->lp_properties),
+	        plot, varcolor,
+	        max_vertices, vertex, fillarea);
 
     }
 
@@ -3185,7 +3184,7 @@ do_key_sample_mark(struct curve_points *this_plot, int xl, int yl, int tag)
 	    FALSE,
 	    &(this_plot->fill_properties),
 	    &(this_plot->lp_properties),
-	    FALSE, NULL, 0,
+	    NULL, 0,
 	    vertices, vertex, fillarea);
 	free(vertex);
 	free(fillarea);
@@ -3195,52 +3194,80 @@ do_key_sample_mark(struct curve_points *this_plot, int xl, int yl, int tag)
 }
 
 /*
-   The argument 'plot' can be NULL, in which case the argument 'varcolor' should be FALSE.
+   The argument 'plot' can be NULL if the mark is drawn as part of an object
  */
 void
 do_mark (struct mark_data *mark,
-	 double x, double y, double xscale, double yscale, double angle, 
+	 double x, double y, double xscale, double yscale, double angle,
 	 int units,
 	 TBOOLEAN clip,
-	 struct fill_style_type *fill_properties,
-	 struct lp_style_type *lp_properties,
-	 TBOOLEAN has_varcolor, struct curve_points *plot, double varcolor,
+	 struct fill_style_type *parent_fill_properties,
+	 struct lp_style_type *parent_lp_properties,
+	 struct curve_points *plot, double varcolor,
 	 int max_vertices, gpiPoint *vertex, gpiPoint *fillarea)
 {
-    static int style_solid_1 = 0;
     double aspect = (double)term->v_tic / (double)term->h_tic;
     struct polygon *polygon;
-    double *color;
+    struct fill_style_type *my_fillstyle;
+    unsigned int my_fillrgb;
+    unsigned int my_strokergb;
     double cosa, sina, rada;
     double dx, dy, mx1, my1, mx2, my2;
     int draw_style;
-    double draw_color;
     int points, in;
     int k;
-    int style = style_from_fill(fill_properties);
     TBOOLEAN withborder = FALSE;
+    TBOOLEAN has_varcolor = FALSE;
 
-    if ( style_solid_1 == 0 ) {
-       struct fill_style_type fs;
-       fs.fillstyle = FS_SOLID;
-       fs.filldensity = 100;
-       style_solid_1 = style_from_fill(&fs);            
-    }
-
-    if (! mark)
+    if (!mark)
        return;
 
     polygon = &(mark->polygon);
-    color = mark->color;
     mx1 = mark->xmin;
     mx2 = mark->xmax;
     my1 = mark->ymin;
     my2 = mark->ymax;
 
+    /* Fill style is taken from the mark structure if specified by "set mark",
+     * otherwise it is inherited from the parent object or plot.
+     */
+    if (mark->mark_fillstyle.fillstyle != FS_DEFAULT)
+	my_fillstyle = &mark->mark_fillstyle;
+    else
+	my_fillstyle = parent_fill_properties;
+
+    /* Fill color is taken from the mark structure if specified by "set mark",
+     * otherwise it is inherited from the parent object or plot.
+     */
+    if (mark->mark_fillcolor.type != TC_DEFAULT) {
+	my_fillrgb = rgb_from_colorspec(&mark->mark_fillcolor);
+    } else if (!plot) {
+	/* parent must be an object */
+	my_fillrgb = rgb_from_colorspec(&parent_lp_properties->pm3d_color);
+    } else if (check_for_variable_color(plot, &varcolor)) {
+	/* this check applies the color immediately, but we may need to re-apply it later */
+	has_varcolor = TRUE;
+	my_fillrgb = 0;	/* should not be used! */
+    } else {
+	/* parent must be a plot without varcolor */
+	my_fillrgb = rgb_from_colorspec(&plot->lp_properties.pm3d_color);
+    }
+
+    /* Stroke color is taken from the mark border color if specified by "set mark",
+     * otherwise it is inherited from the parent object or plot.
+     */
+    if (mark->mark_fillstyle.border_color.type != TC_DEFAULT)
+	my_strokergb = rgb_from_colorspec(&mark->mark_fillstyle.border_color);
+    else if (parent_fill_properties->border_color.type == TC_DEFAULT)
+	my_strokergb = rgb_from_colorspec(&parent_lp_properties->pm3d_color);
+    else
+	my_strokergb = rgb_from_colorspec(&parent_fill_properties->border_color);
+
     /* Check border should be drawn */
-    if (fill_properties->border_color.type != TC_LT
-    ||  fill_properties->border_color.lt != LT_NODRAW)
-	 withborder = TRUE;
+    if (my_fillstyle->border_color.type == TC_LT && my_fillstyle->border_color.lt == LT_NODRAW)
+	withborder = FALSE;
+    else
+	withborder = TRUE;
 
     switch (units) {
     case MARK_UNITS_XY:
@@ -3280,23 +3307,23 @@ do_mark (struct mark_data *mark,
     sina = sin(rada);
 
     if (clip) {
-	double xx[5] = { x, 
+	double xx[5] = { x,
 		         x + xscale*mx1 * cosa - yscale*my1 * sina,
 		         x + xscale*mx1 * cosa - yscale*my2 * sina,
 		         x + xscale*mx2 * cosa - yscale*my1 * sina,
 		         x + xscale*mx2 * cosa - yscale*my2 * sina };
-	double yy[5] = { y, 
+	double yy[5] = { y,
 		         y + xscale*mx1 * sina + yscale*my1 * cosa,
 		         y + xscale*mx1 * sina + yscale*my2 * cosa,
 		         y + xscale*mx2 * sina + yscale*my1 * cosa,
 		         y + xscale*mx2 * sina + yscale*my2 * cosa };
 	TBOOLEAN is_inrange = FALSE;
 	for (k=0; k<5; k++) {
-	    if ( inrange(round(xx[k]), clip_area->xleft, clip_area->xright) 
+	    if ( inrange(round(xx[k]), clip_area->xleft, clip_area->xright)
 	    &&   inrange(round(yy[k]), clip_area->ybot, clip_area->ytop) ) {
 		is_inrange = TRUE;
 		break;
-	    } 
+	    }
 	}
 	if ( is_inrange == FALSE )
 	    return;
@@ -3307,78 +3334,63 @@ do_mark (struct mark_data *mark,
     while ( k < mark->vertices ) {
 
 	for ( ; k < mark->vertices; k++) {
-	    dx = xscale * polygon->vertex[k].x; 
-	    dy = yscale * polygon->vertex[k].y; 
+	    dx = xscale * polygon->vertex[k].x;
+	    dy = yscale * polygon->vertex[k].y;
 	    if ( isnan(dx) || isnan(dy) ) {
-		k++;
+	        k++;
 		break;
 	    }
 	    vertex[points].x = round(x + dx * cosa - dy * sina);
 	    vertex[points].y = round(y + (dx * sina + dy * cosa) * aspect);
 	    if (points == 0) {
+		/* stroke/fill properties for this set of vertices */
 	        draw_style = round(polygon->vertex[k].z);
-		draw_color = color[k];
 	    }
 	    points++;
 	}
 
 	if ( points > 1 ) {
 
-	    /* Fill inside polygon
+	    /* Fill polygon
 	     *
-	     *    If the MARKS_FILL bit in draw_style is on, the polygon is filled 
-	     *    according to the draw_color value or the fill style of the plot.
-	     *
-	     *    If draw_color is larger than or equal to 0, draw_color is 
-	     *    interpreted as RGB value. Otherwise, fill style including variable 
-	     *    colors is applied.
-	     * 
-	     *    If the fill style is not set or explicitly set as empty, the fill
-	     *     style is forced to 'fs solid 1.0'     
+	     * if any of these conditions holds for the current set of vertices
+	     * - the mode is MARKS_FILL
+	     * - the mode is MARKS_FILL_STROKE
+	     * - the mode is MARK_FILLSTYLE and the fillstyle has a border
 	     */
-	    if (draw_style == MARKS_FILL 
-	     || draw_style == MARKS_FILL_STROKE 
-	     || (draw_style == MARKS_FILLSTYLE && style != FS_EMPTY)) { 
-		clip_polygon(vertex, fillarea, points, &in);
+	    if ((draw_style == MARKS_FILL)
+	    ||  (draw_style == MARKS_FILL_STROKE)
+	    ||  ((draw_style == MARKS_FILLSTYLE) && (my_fillstyle->fillstyle != FS_EMPTY))) {
+	        clip_polygon(vertex, fillarea, points, &in);
 	        if (in > 1 && term->filled_polygon) {
-		    if (draw_color >= 0) 
-		        set_rgbcolor_var(draw_color);
-		    else if (!has_varcolor || !check_for_variable_color(plot, &varcolor))
-		        term_apply_lp_properties(lp_properties);
-		    if (draw_style == MARKS_FILLSTYLE || style != FS_EMPTY)
-		        fillarea[0].style = style;
-		    else 
-		        fillarea[0].style = style_solid_1;
-		    term->filled_polygon(in, fillarea);
+		    if (has_varcolor && check_for_variable_color(plot, &varcolor))
+			; /* check_for_variable_color applies the color */
+		    else
+			set_rgbcolor_const(my_fillrgb);
+		    fillarea[0].style = style_from_fill(my_fillstyle);
+	            term->filled_polygon(in, fillarea);
 	        }
-	    } 
+	    }
 
 	    /* Stroke polygon
 	     *
-	     *    If the MARKS_STROKE bit in draw_style is on, the polygon 
-	     *    or polylines are stroked according to the draw_color value 
-	     *    or the line style or fill style.
-	     *
-	     *    If draw_color is larger than or equal to 0, draw_color is 
-	     *    interpreted as RGB value. Otherwise, line style including 
-	     *    variable colors is applied. But, if the plot has fill border, 
-	     *   the style of the border takes precedence.
+	     * if any of these conditions holds for the current set of vertices
+	     * - the mode is MARKS_STROKE
+	     * - the mode is MARKS_FILL_STROKE
+	     * - the mode is MARK_FILLSTYLE and the fillstyle is not set to
+	     *   "noborder"
 	     */
-	    if (draw_style == MARKS_STROKE 
-	     || draw_style == MARKS_FILL_STROKE
-	     || (draw_style == MARKS_FILLSTYLE && (style == FS_EMPTY || withborder))) { 
-		if (draw_color >= 0)
-		    set_rgbcolor_var(draw_color);
-		else if (!has_varcolor || !check_for_variable_color(plot, &varcolor))
-		    term_apply_lp_properties(lp_properties);
-	        if ( style && withborder )
-	            need_fill_border(fill_properties);
-	        draw_clip_polygon(points, vertex);
+	    if ((draw_style == MARKS_STROKE)
+	    ||  (draw_style == MARKS_FILL_STROKE)
+	    ||  ((draw_style == MARKS_FILLSTYLE) && withborder)) {
+		if (!has_varcolor || !check_for_variable_color(plot, &varcolor))
+		    set_rgbcolor_const(my_strokergb);
+		draw_clip_polygon(points, vertex);
 	    }
 	}
 	points = 0;
     }
-}        
+}
 
 
 /* plot_ellipses:

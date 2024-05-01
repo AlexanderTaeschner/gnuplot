@@ -1434,7 +1434,7 @@ get_data(struct curve_points *current_plot)
 	case LINESMARKS:
 	{   /*  x y
 	     *	x y scale
-	     *	x y xscale yscale 
+	     *	x y xscale yscale
              *  x y xscale yscale angle
 	     */
 	    int var = j; /* column number */
@@ -1444,10 +1444,10 @@ get_data(struct curve_points *current_plot)
 	    coordval xhigh;         /* xscale */
 	    coordval ylow;          /* yscale */
             coordval yhigh;         /* angle */
-            coordval tag    = -1;   /* tag */
+            coordval tag    = current_plot->marks_options.tag;
 	    if (current_plot->lp_properties.p_size == PTSZ_VARIABLE)
                 xlow = v[--var];
-	    if (current_plot->marks_options.variable) /* mt variable */
+	    if (tag == MARK_TYPE_VARIABLE) /* mt variable */
 		tag = v[--var];
             xhigh = (var >= 3) ? v[2] : 1.0;
 	    ylow  = (var >= 4) ? v[3] : xhigh;
@@ -1551,7 +1551,7 @@ store2d_point(
 
 	/* Some plot styles use xhigh and yhigh for other quantities, */
 	/* which polar mode transforms would break		      */
-	if (current_plot->plot_style == MARKS || current_plot->plot_style == LINESMARKS) 
+	if (current_plot->plot_style == MARKS || current_plot->plot_style == LINESMARKS)
            ;
 	else if (current_plot->plot_style == CIRCLES) {
 	    double radius = (xhigh - xlow)/2.0;
@@ -2872,8 +2872,8 @@ eval_plots()
 		    if (almost_equals(c_token,"mark$type") || equals(c_token, "mt")) {
 			c_token++;
 			if (almost_equals(c_token, "var$iable")) {
-			   this_plot->marks_options.variable = TRUE;
-			   c_token++;
+			    this_plot->marks_options.tag = MARK_TYPE_VARIABLE;
+			    c_token++;
 			} else
 			   this_plot->marks_options.tag = int_expression();
 			continue;
@@ -3911,7 +3911,7 @@ eval_plots()
 				    this_plot->points[i].type, y_axis,
 				    TRUE, NOOP);
 			    }
-			    
+
 			    /* Fill in additional fields needed to draw a circle */
 			    if (this_plot->plot_style == CIRCLES) {
 				this_plot->points[i].z = DEFAULT_RADIUS;
