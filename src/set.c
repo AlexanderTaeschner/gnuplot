@@ -367,8 +367,8 @@ set_command()
 	case S_MAPPING:
 	    set_mapping();
 	    break;
-    	case S_MARK:
-            set_mark();
+	case S_MARK:
+	    set_mark();
 	    break;
 	case S_MARGIN:
 	    /* Jan 2015: CHANGE to order <left>,<right>,<bottom>,<top> */
@@ -3020,14 +3020,8 @@ set_margin(t_position *margin)
  *      'set mark <tag> append DATASPEC'
  */
 
-static TBOOLEAN
-mark_is_empty (struct mark_data *mark)
-{
-    return (mark->vertices == 0);
-}
-
 static struct mark_data *
-mark_allocate (int size) 
+mark_allocate (int size)
 {
    struct mark_data *mark;
    if (size > MARK_MAX_VERTICES)
@@ -3071,7 +3065,7 @@ mark_reallocate (struct mark_data *mark, int size)
 }
 
 void
-free_mark (struct mark_data *mark) 
+free_mark (struct mark_data *mark)
 {
     if (mark) {
 	mark_reallocate(mark, 0);
@@ -3080,11 +3074,11 @@ free_mark (struct mark_data *mark)
 }
 
 /*
- * updates the range of the enclosure (xmin,xmax,ymin,ymax) of polygons 
+ * updates the range of the enclosure (xmin,xmax,ymin,ymax) of polygons
  *             in the mark_data structure based on the current polygon data.
  */
 static void
-mark_update_limits (struct mark_data *mark) 
+mark_update_limits (struct mark_data *mark)
 {
     double mx1 = 10e30;
     double mx2 = -10e30;
@@ -3094,8 +3088,8 @@ mark_update_limits (struct mark_data *mark)
     int i;
 
     for (i=0; i<mark->vertices; i++) {
-        mx = mark->polygon.vertex[i].x; 
-        my = mark->polygon.vertex[i].y; 
+        mx = mark->polygon.vertex[i].x;
+        my = mark->polygon.vertex[i].y;
         mx1 = (mx < mx1) ? mx : mx1;
         mx2 = (mx > mx2) ? mx : mx2;
         my1 = (my < my1) ? my : my1;
@@ -3184,12 +3178,12 @@ set_mark ()
     }
 
     saved_token = c_token;
-    
+
     if ( equals(c_token, "\"++\"") ) {
-  	int_error(c_token, "pseudofile \"++\" can not be used for 'set mark'");    	
+	int_error(c_token, "pseudofile \"++\" can not be used for 'set mark'");
     } else if ( (name_str = string_or_express(NULL)) ) {
 	/* WARNING: do NOT free name_str */
-        if (append) 
+        if (append)
             action = MARK_ACTION_APPEND;
         else
             action = MARK_ACTION_CREATE;                
@@ -3270,13 +3264,13 @@ set_mark ()
 
 
     push_mark_to_list:
-    
+
     if (!first_mark) {  /* the mark list is empty */
-    	first_mark = mark;            
+	first_mark = mark;
     } else {
         this = get_mark(first_mark, tag);
         if (!this) {    /* no existing mark with the specified tag */
-            push_mark(first_mark, mark);      
+            push_mark(first_mark, mark);
         } else {        /* the mark with the specified tag is found */
             if (action == MARK_ACTION_APPEND) {
                 mark_append(this, mark);
@@ -3293,7 +3287,7 @@ set_mark ()
     }
 }
 
-#undef MARK_ACTION_UNDEFINED 
+#undef MARK_ACTION_UNDEFINED
 #undef MARK_ACTION_CREATE
 #undef MARK_ACTION_APPEND
 
@@ -4628,11 +4622,11 @@ set_obj(int tag, int obj_type)
 		/* End of polygon options */
 
 	case OBJ_MARK:
-	        if (almost_equals(c_token,"markt$ype") || equals(c_token,"mt")) {
-    		    c_token++;
-                    this_mark->type = int_expression();
+		if (almost_equals(c_token,"markt$ype") || equals(c_token,"mt")) {
+		    c_token++;
+		    this_mark->type = int_expression();
 		    continue;
-                        
+
 		} else if (equals(c_token,"at") || almost_equals(c_token, "cen$ter")) {
 		    /* Read in the center position */
 		    c_token++;
@@ -4642,12 +4636,12 @@ set_obj(int tag, int obj_type)
 		} else if (equals(c_token,"scale")) {
 		    /* Read in the width and height */
 		    c_token++;
-                    this_mark->xscale = real_expression();
-                    this_mark->yscale = this_mark->xscale;
-                    if (equals(c_token, ",")) {
-                	++c_token;
-                        this_mark->yscale = real_expression();
-                    }
+		    this_mark->xscale = real_expression();
+		    this_mark->yscale = this_mark->xscale;
+		    if (equals(c_token, ",")) {
+			c_token++;
+		        this_mark->yscale = real_expression();
+		    }
 		    continue;
 
 		} else if (almost_equals(c_token,"ang$le")) {
@@ -4660,17 +4654,17 @@ set_obj(int tag, int obj_type)
 		    if (equals(c_token,"xy")) {
 		        this_mark->units = MARK_UNITS_XY;
 		    } else if (equals(c_token,"xx")) {
-    		        this_mark->units = MARK_UNITS_XX;
+		        this_mark->units = MARK_UNITS_XX;
 		    } else if (equals(c_token,"yy")) {
 		        this_mark->units = MARK_UNITS_YY;
 		    } else if (equals(c_token,"gxy")) {
-    		        this_mark->units = MARK_UNITS_GXY;
+		        this_mark->units = MARK_UNITS_GXY;
 		    } else if (equals(c_token,"gxx")) {
 		        this_mark->units = MARK_UNITS_GXX;
 		    } else if (equals(c_token,"gyy")) {
-    		        this_mark->units = MARK_UNITS_GYY;
+		        this_mark->units = MARK_UNITS_GYY;
 		    } else if (equals(c_token,"ps")) {
-    		        this_mark->units = MARK_UNITS_PS;
+		        this_mark->units = MARK_UNITS_PS;
 		    } else {
 		            int_error(c_token, "expecting 'xy', 'xx', 'yy', 'gxy', 'gxx', 'gyy', or 'ps'" );
 		    }
@@ -4678,7 +4672,7 @@ set_obj(int tag, int obj_type)
 		    continue;
 
 		}
-                break;
+		break;
 
 	default:
 		int_error(c_token, "unrecognized object type");

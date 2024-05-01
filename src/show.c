@@ -462,8 +462,8 @@ show_command()
 	show_jitter();
 	break;
     case S_MARK:
-    	show_mark();
-    	break;
+	show_mark();
+	break;
     case S_VIEW:
 	show_view();
 	break;
@@ -3724,7 +3724,7 @@ show_mark()
         z = this->polygon.vertex[i].z;
         c = this->color[i];
         if (isnan(x) || isnan(y)) 
-            sprintf(line, "");
+	    *line = '\0';
         else if ( c < 0 ) 
  	    sprintf(line, "%g\t%g\t%i\t-1", x, y, (int) round(z));
         else if ( c < 0x1000000 )

@@ -2050,10 +2050,10 @@ save_contourfill(FILE *fp)
 void
 save_marks(FILE *fp)
 {
-    struct mark_data *this, *prev;
+    struct mark_data *this;
     int i, c, tag;
     double x, y, z;
-    for (this=first_mark, prev=NULL; this != NULL; prev=this, this=this->next) {
+    for (this=first_mark; this != NULL; this=this->next) {
         tag = this->tag;
         fprintf(fp, "$MARK_%i <<EOM\n", tag);
         for (i=0; i<this->vertices; i++) {

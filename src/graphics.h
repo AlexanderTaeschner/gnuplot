@@ -157,9 +157,9 @@ void attach_title_to_plot(struct curve_points *this_plot, legend_key *key);
 
 /* Only used in marks style */
 
-#define MARKS_FILLSTYLE 0     
-#define MARKS_STROKE	1
-#define MARKS_FILL	2
+#define MARKS_FILLSTYLE 	0
+#define MARKS_STROKE		1
+#define MARKS_FILL		2
 #define MARKS_FILL_STROKE	3
 
 #endif /* GNUPLOT_GRAPHICS_H */
