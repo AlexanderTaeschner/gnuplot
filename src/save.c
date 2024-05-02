@@ -1531,8 +1531,12 @@ save_fillstyle(FILE *fp, const struct fill_style_type *fs)
 		fs->fillpattern);
 	break;
     case FS_DEFAULT:
-	fprintf(fp, " default\n");
-	return;
+	if (fs->border_color.type == TC_DEFAULT) {
+	    fprintf(fp, " default\n");
+	    return;
+	}
+	/* The combination of default + non-default border color is used only by marks */
+	break;
     default:
 	fprintf(fp, " empty ");
 	break;
