@@ -2874,8 +2874,13 @@ eval_plots()
 			if (almost_equals(c_token, "var$iable")) {
 			    this_plot->marks_options.tag = MARK_TYPE_VARIABLE;
 			    c_token++;
-			} else
-			   this_plot->marks_options.tag = int_expression();
+			} else {
+			    i = int_expression();
+			    if (i >= 0)
+				this_plot->marks_options.tag = i;
+			    else
+				int_error(c_token,"mark type must be >= 0");
+			}
 			continue;
 		    }
 		    

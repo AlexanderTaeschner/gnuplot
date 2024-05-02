@@ -3028,7 +3028,7 @@ mark_allocate (int size)
    t_colorspec mark_fillcolor = DEFAULT_COLORSPEC;
 
    if (size > MARK_MAX_VERTICES)
-        int_error(NO_CARET, "too large number of vertices in a mark");
+        int_error(NO_CARET, "too many vertices (> %d) in a mark", MARK_MAX_VERTICES);
    mark = gp_alloc(sizeof(struct mark_data), "mark_data");
    mark->next = NULL;
    mark->tag = -1;
@@ -3051,6 +3051,8 @@ mark_allocate (int size)
 static struct mark_data *
 mark_reallocate (struct mark_data *mark, int size) 
 {
+   if (size > MARK_MAX_VERTICES)
+        int_error(NO_CARET, "too many vertices (> %d) in a mark", MARK_MAX_VERTICES);
    if (size > 0) {
        mark->asize = size;
        mark->polygon.vertex = (t_position *) gp_realloc(mark->polygon.vertex,
@@ -3137,7 +3139,7 @@ set_mark ()
 {
     int tag;
     struct mark_data *mark, *this;
-    int lines;
+    int ierr, lines;
     t_position *vertex;
     double v[4];
     char *name_str;
@@ -3195,7 +3197,9 @@ set_mark ()
     inside_plot_command = TRUE;
 
     df_set_plot_mode(MODE_QUERY);	/* Needed only for binary datafiles */
-    df_open(name_str, 4, NULL);
+    ierr = df_open(name_str, 4, NULL);
+    if (ierr < 0)
+	int_error(NO_CARET, "could not open %s", name_str);
 
     mark = mark_allocate(0xff);
     mark->tag = tag;
@@ -3252,6 +3256,9 @@ set_mark ()
         }
     }
     df_close();
+
+    if (lines == 0)
+	int_warn(NO_CARET, "no vertices read from file");
 
     mark = mark_reallocate(mark, lines);
     mark->vertices = lines;

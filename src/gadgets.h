@@ -212,7 +212,7 @@ struct mark_data {
 #define MARK_UNITS_GXX (4)
 #define MARK_UNITS_GYY (5)
 #define MARK_UNITS_PS  (6)
-#define MARK_MAX_VERTICES 0xffff
+#define MARK_MAX_VERTICES 1024	/* admittedly arbitrary */
 
 typedef struct marks_options {
     int tag;
