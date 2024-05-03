@@ -3368,6 +3368,9 @@ do_mark (struct mark_data *mark,
 		    else
 			set_rgbcolor_const(my_fillrgb);
 		    fillarea[0].style = style_from_fill(my_fillstyle);
+		    /* Special case: inherited fillstyle is "empty" but mode is FILL */
+		    if (my_fillstyle->fillstyle == FS_EMPTY)
+			fillarea[0].style = FS_OPAQUE;
 	            term->filled_polygon(in, fillarea);
 	        }
 	    }
