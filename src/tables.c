@@ -790,6 +790,19 @@ const struct gen_table filledcurves_opts_tbl[] =
     { NULL, -1 }
 };
 
+const struct gen_table mark_units_tbl[] =
+{
+    { "xy", MARK_UNITS_XY },
+    { "xx", MARK_UNITS_XX },
+    { "yy", MARK_UNITS_YY },
+    { "xy", MARK_UNITS_XY },
+    { "gxy", MARK_UNITS_GXY },
+    { "gxy", MARK_UNITS_GXY },
+    { "gxy", MARK_UNITS_GXY },
+    { "ps", MARK_UNITS_PS },
+    { NULL, -1 }
+};
+
 const struct gen_table fit_verbosity_level[] =
 {
     { "brief", BRIEF },

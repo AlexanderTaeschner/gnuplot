@@ -205,21 +205,19 @@ struct mark_data {
     struct t_colorspec mark_fillcolor;
 };
 
-#define MARK_UNITS_XY  (0)
-#define MARK_UNITS_XX  (1)
-#define MARK_UNITS_YY  (2)
-#define MARK_UNITS_GXY (3)
-#define MARK_UNITS_GXX (4)
-#define MARK_UNITS_GYY (5)
-#define MARK_UNITS_PS  (6)
-#define MARK_MAX_VERTICES 1024	/* admittedly arbitrary */
+typedef enum mark_units_id {
+    MARK_UNITS_XY=0, MARK_UNITS_XX, MARK_UNITS_YY,
+    MARK_UNITS_GXY, MARK_UNITS_GXX, MARK_UNITS_GYY,
+    MARK_UNITS_PS
+} mark_units_id;
 
 typedef struct marks_options {
     int tag;
-    int units;
+    enum mark_units_id units;
 } marks_opts;
 
 #define MARK_TYPE_VARIABLE -1	/* tag value indicating "marktype variable" */
+#define MARK_MAX_VERTICES 1024	/* admittedly arbitrary */
 #define DEFAULT_MARKS_OPTS { 1, MARK_UNITS_PS }
 
 /* Datastructure implementing 'set dashtype' */

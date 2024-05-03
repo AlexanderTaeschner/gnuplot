@@ -2885,24 +2885,10 @@ eval_plots()
 		    }
 		    
 		    if (almost_equals(c_token,"unit$s")) {
-			c_token++;
-			if (equals(c_token,"xy")) {
-			    this_plot->marks_options.units = MARK_UNITS_XY;
-			} else if (equals(c_token,"xx")) {
-			    this_plot->marks_options.units = MARK_UNITS_XX;
-			} else if (equals(c_token,"yy")) {
-			    this_plot->marks_options.units = MARK_UNITS_YY;
-			} else if (equals(c_token,"gxy")) {
-			    this_plot->marks_options.units = MARK_UNITS_GXY;
-			} else if (equals(c_token,"gxx")) {
-			    this_plot->marks_options.units = MARK_UNITS_GXX;
-			} else if (equals(c_token,"gyy")) {
-			    this_plot->marks_options.units = MARK_UNITS_GYY;
-			} else if (equals(c_token,"ps")) {
-			    this_plot->marks_options.units = MARK_UNITS_PS;
-			} else {
+			mark_units_id units = lookup_table(mark_units_tbl, ++c_token);
+			if (units < 0)
 			    int_error(c_token, "expecting 'xy', 'xx', 'yy', 'gxy', 'gxx', 'gyy', or 'ps'" );
-			}
+			this_plot->marks_options.units = units;
 			c_token++;
 			continue;
 		    }

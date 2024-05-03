@@ -206,6 +206,7 @@ enum filledcurves_opts_id {
     FILLEDCURVES_DEFAULT
 };
 
+
 extern const struct gen_table command_tbl[];
 extern const struct gen_table plot_axes_tbl[];
 extern const struct gen_table plot_smooth_tbl[];
@@ -232,6 +233,7 @@ extern int num_userdefined_colors;
 extern const struct gen_ftable command_ftbl[];
 
 extern const struct gen_table filledcurves_opts_tbl[];
+extern const struct gen_table mark_units_tbl[];
 
 /* Function prototypes */
 int lookup_table(const struct gen_table *, int);
