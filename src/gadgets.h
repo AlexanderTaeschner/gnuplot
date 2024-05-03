@@ -199,8 +199,9 @@ struct mark_data {
     double xmin, xmax;
     double ymin, ymax;
     int vertices;
-    t_polygon polygon;
     int asize; /* number of allocated size of polygon.vertex and color array */
+    t_polygon polygon;
+    char *title;	/* will be reported by "show mark" */
     struct fill_style_type mark_fillstyle;
     struct t_colorspec mark_fillcolor;
 };
@@ -211,6 +212,7 @@ typedef enum mark_units_id {
     MARK_UNITS_PS
 } mark_units_id;
 
+/* Structure used in plot header */
 typedef struct marks_options {
     int tag;
     enum mark_units_id units;

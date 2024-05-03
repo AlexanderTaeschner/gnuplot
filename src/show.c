@@ -3689,7 +3689,10 @@ conv_text(const char *t)
 static void
 show_one_mark(struct mark_data *mark)
 {
-    fprintf(stderr, "\tmarktype %i, polygon vertices %i ", mark->tag, mark->vertices);
+    fprintf(stderr, "\tmarktype %i ", mark->tag);
+    if (mark->title)
+	fprintf(stderr, " title \"%s\" ", mark->title);
+    fprintf(stderr, "polygon vertices %i ", mark->vertices);
     if (mark->mark_fillcolor.type != TC_DEFAULT) {
 	fprintf(stderr, "fillcolor ");
 	save_pm3dcolor(stderr, &mark->mark_fillcolor);
@@ -3703,8 +3706,6 @@ show_mark()
 {
     int tag = -1;
     struct mark_data *this;
-    double x, y;
-    int i;
 
     if (!END_OF_COMMAND)
 	tag = int_expression();
@@ -3722,18 +3723,6 @@ show_mark()
 	return;
 
     show_one_mark(this);
-    
-    for (i=0; i<this->vertices; i++) {
-	int mode;
-        x = this->polygon.vertex[i].x;
-        y = this->polygon.vertex[i].y;
-        mode = this->polygon.vertex[i].z;
-        if (isnan(x) || isnan(y)) 
-	    fprintf(stderr,"\n");
-        else
-	    fprintf(stderr, "%g\t%g\t%i\n", x, y, mode);
-    }
-
     fprintf(stderr, "\n"); 
 }
 

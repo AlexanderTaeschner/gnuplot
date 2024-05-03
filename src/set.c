@@ -3034,6 +3034,7 @@ mark_allocate (int size)
    mark->tag = -1;
    mark->asize = size;
    mark->vertices = 0;
+   mark->title = NULL;
    if (size > 0) {
        mark->polygon.vertex = (t_position *) gp_alloc(size*sizeof(t_position), "mark vertex");
    } else {
@@ -3060,8 +3061,10 @@ mark_reallocate (struct mark_data *mark, int size)
    }
    else {
         free(mark->polygon.vertex);
+	free(mark->title);
         mark->asize = 0;
         mark->polygon.vertex = NULL;
+	mark->title = NULL;
    }
    return mark;
 }
@@ -3209,11 +3212,17 @@ set_mark ()
      * Must come after df_open().
      * Style and color can be given in either order, so give it two chances.
      */
-    if (!END_OF_COMMAND) {
+    while (!END_OF_COMMAND) {
+	int save_token = c_token;
 	parse_fillstyle(&mark->mark_fillstyle);
 	if ((equals(c_token,"fc") || almost_equals(c_token,"fillc$olor")))
 	    parse_colorspec(&mark->mark_fillcolor, TC_Z);
-	parse_fillstyle(&mark->mark_fillstyle);
+	if (almost_equals(c_token,"ti$tle")) {
+	    c_token++;
+	    mark->title = try_to_get_string();
+	}
+	if (c_token == save_token)
+	    break;
     }
 
     lines = 0;

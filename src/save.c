@@ -2071,6 +2071,8 @@ save_marks(FILE *fp)
         }
         fprintf(fp, "EOM\n");
         fprintf(fp, "set mark %i $MARK_%i ", tag, tag);
+	if (this->title)
+	    fprintf(fp, "title \"%s\" ", this->title);
 	if (this->mark_fillcolor.type != TC_DEFAULT) {
 	    fprintf(fp, "fillcolor ");
 	    save_pm3dcolor(fp, &this->mark_fillcolor);
