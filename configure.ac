@@ -1060,7 +1060,7 @@ if test "${enable_qt}" = yes ; then
     pkg_failed="not_tried"
     if test "x${with_qt}" != "xqt5"; then
       AC_MSG_CHECKING([Checking for Qt6 support libraries])
-      PKG_CHECK_MODULES_NOFAIL(QT, [Qt6Core Qt6Gui Qt6Network Qt6Svg Qt6PrintSupport Qt6Core5Compat])
+      PKG_CHECK_MODULES_NOFAIL(QT, [Qt6Core Qt6Gui Qt6Network Qt6Svg Qt6PrintSupport Qt6Widgets Qt6Core5Compat])
     fi
     if test $pkg_failed = no; then
       QT6LOC=`$PKG_CONFIG --variable=libexecdir Qt6Core`
