@@ -1823,6 +1823,9 @@ SVG_filled_polygon(int points, gpiPoint* corners)
 	    break;
     }
 
+    /* request EvenOdd criterion for defining an interior (default is 'nonzero') */
+    fputs(" fill-rule = 'evenodd'", gpoutfile);
+
     fputs(" points = '", gpoutfile);
     for (i = 0; i < points; i++)
 	fprintf(gpoutfile, "%.*f,%.*f%s",

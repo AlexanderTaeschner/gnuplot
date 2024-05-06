@@ -1,5 +1,5 @@
 %
-% Gnuplot Prolog Version 5.2 (Dec 2017)
+% Gnuplot Prolog Version 6.0 (May 2024)
 %
 %/SuppressPDFMark true def
 %
@@ -254,8 +254,8 @@
   /ColG ColG Fillden mul Fillden sub 1 add def
   /ColB ColB Fillden mul Fillden sub 1 add def
   ColR ColG ColB setrgbcolor} def
-/BoxColFill {gsave Rec PolyFill} def
-/PolyFill {gsave Density fill grestore grestore} def
+/BoxColFill {gsave Rec Density fill grestore} def
+/PolyFill {gsave Density eofill grestore grestore} def
 /h {rlineto rlineto rlineto closepath gsave fill grestore stroke} bind def
 %
 % PostScript Level 1 Pattern Fill routine for rectangles

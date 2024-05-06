@@ -234,6 +234,11 @@ void gp_cairo_initialize_context(plot_struct *plot)
 	cairo_set_matrix(plot->cr, &matrix);
 
 	gp_cairo_set_lineprops(plot);
+
+	/* winding number criterion for polygon fill
+	 * default is CAIRO_FILL_RULE_WINDING
+	 */
+	cairo_set_fill_rule(plot->cr, CAIRO_FILL_RULE_EVEN_ODD);
 }
 
 void gp_cairo_set_lineprops(plot_struct *plot)

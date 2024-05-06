@@ -370,7 +370,10 @@ void QtGnuplotPoints::paint(QPainter* painter, const QStyleOptionGraphicsItem* o
 				pen = brush.color();
 			painter->setPen(pen);
 			painter->setBrush(brush);
+			// Default fill criterion for inside/outside is Qt::OddEvenFill
 			painter->drawPolygon(m_filledPolygons[k].polygon);
+			// The alternative is WindingFill
+			// painter->drawPolygon(m_filledPolygons[k].polygon, Qt::WindingFill);
 		}
 
 	}

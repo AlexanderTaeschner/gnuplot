@@ -74,8 +74,8 @@ pgf.DEFAULT_FONT_V_CHAR = 308
 
 pgf.STYLE_FILE_BASENAME = "gnuplot-lua-tikz"  -- \usepackage{gnuplot-lua-tikz}
 
-pgf.REVISION = "118"
-pgf.REVISION_DATE = "2023/04/12 19:21:00"
+pgf.REVISION = "119"
+pgf.REVISION_DATE = "2024/05/06 13:23:00"
 
 pgf.styles = {}
 
@@ -930,6 +930,10 @@ f:write([[
   \pgfutil@definecolor{gpbgfillcolor}{rgb}{#1}%
   \tikzset{tight background,background rectangle/.style={fill=gpbgfillcolor},show background rectangle}%
 }
+
+% This controls what criterion is used to determine the interior of filled areas.
+% The default is \pgfsetnonzerorule but we request an even/odd test instead.
+\pgfseteorule
 
 % this should reverse the normal text node presets, for the
 % later referencing as described below
