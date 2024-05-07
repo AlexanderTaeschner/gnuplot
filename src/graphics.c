@@ -3357,7 +3357,21 @@ do_mark (struct mark_data *mark,
 	     * - the mode is MARKS_FILL
 	     * - the mode is MARKS_FILL_STROKE
 	     * - the mode is MARK_FILLSTYLE and the fillstyle is not FS_EMPTY
+	     * - the mode is MARK_FILL_BACKGROUND
 	     */
+
+	    /* Background fill */
+	    if (draw_style == MARKS_FILL_BACKGROUND) {
+	        clip_polygon(vertex, fillarea, points, &in);
+	        if (in > 1 && term->filled_polygon) {
+		    t_colorspec background = {.type=TC_LT, .lt=LT_BACKGROUND};
+		    apply_pm3dcolor(&background);
+		    fillarea[0].style = FS_OPAQUE;
+	            term->filled_polygon(in, fillarea);
+		}
+	    }
+
+	    /* Normal fill */
 	    if ((draw_style == MARKS_FILL)
 	    ||  (draw_style == MARKS_FILL_STROKE)
 	    ||  ((draw_style == MARKS_FILLSTYLE) && (my_fillstyle->fillstyle != FS_EMPTY))) {
@@ -3392,6 +3406,7 @@ do_mark (struct mark_data *mark,
 		    set_rgbcolor_const(my_strokergb);
 		draw_clip_polygon(points, vertex);
 	    }
+
 	}
 	points = 0;
     }

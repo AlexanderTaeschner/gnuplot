@@ -161,5 +161,6 @@ void attach_title_to_plot(struct curve_points *this_plot, legend_key *key);
 #define MARKS_STROKE		1
 #define MARKS_FILL		2
 #define MARKS_FILL_STROKE	3
+#define MARKS_FILL_BACKGROUND	4
 
 #endif /* GNUPLOT_GRAPHICS_H */
