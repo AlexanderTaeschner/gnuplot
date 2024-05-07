@@ -1,4 +1,4 @@
-This is gnuplot version 5.5-git -- binary distribution for Windows
+This is gnuplot version 6.1-git -- binary distribution for Windows
 ===========================================================================
 
 This is a test version built from gnuplot's git development branch,
@@ -67,7 +67,7 @@ gnuplot binaries
   Use gnuplot.exe instead.
 
 * runtime library files
-  Runtime library files (e.g. freetype6.dll) that are required for gnuplot
+  Runtime library files (e.g. libfreetype-6.dll) that are required for gnuplot
   are included in the package.  Licenses of these runtime libraries can be
   found in the 'license' directory.
 
@@ -84,7 +84,7 @@ behaviour in persist mode.  Also wxt uses the same drawing code as the pngcairo
 and pdfcairo terminals, which allows for non-interactive saving of graphs.  The
 windows terminal's graph windows can be docked to the wgnuplot text window.
 
-By default, gnuplot on Windows will use the wxt terminal.  If you prefer, you
+By default, gnuplot on Windows will use the qt terminal.  If you prefer, you
 can change this by setting the GNUTERM environment variable.  See below on how
 to change environment variables. Alternatively, you can add
     set term windows / wxt / qt
@@ -210,4 +210,4 @@ for an up-to-date bug tracking system.
 
 --------------------------------------------------------------------------------
 
-The gnuplot team, January 2022
+The gnuplot team, April 2024
