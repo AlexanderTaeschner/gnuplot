@@ -3209,8 +3209,8 @@ do_mark (struct mark_data *mark,
     double aspect = (double)term->v_tic / (double)term->h_tic;
     struct polygon *polygon;
     struct fill_style_type *my_fillstyle;
-    unsigned int my_fillrgb;
     unsigned int my_strokergb;
+    t_colorspec *my_fillcolor;
     double cosa, sina, rada;
     double dx, dy, mx1, my1, mx2, my2;
     int draw_style;
@@ -3240,17 +3240,17 @@ do_mark (struct mark_data *mark,
      * otherwise it is inherited from the parent object or plot.
      */
     if (mark->mark_fillcolor.type != TC_DEFAULT) {
-	my_fillrgb = rgb_from_colorspec(&mark->mark_fillcolor);
+	my_fillcolor = &mark->mark_fillcolor;
     } else if (!plot) {
 	/* parent must be an object */
-	my_fillrgb = rgb_from_colorspec(&parent_lp_properties->pm3d_color);
+	my_fillcolor = &parent_lp_properties->pm3d_color;
     } else if (check_for_variable_color(plot, &varcolor)) {
 	/* this check applies the color immediately, but we may need to re-apply it later */
 	has_varcolor = TRUE;
-	my_fillrgb = 0;	/* should not be used! */
+	my_fillcolor = NULL;	/* should not be used! */
     } else {
 	/* parent must be a plot without varcolor */
-	my_fillrgb = rgb_from_colorspec(&plot->lp_properties.pm3d_color);
+	my_fillcolor = &parent_lp_properties->pm3d_color;
     }
 
     /* Stroke color is taken from the mark border color if specified by "set mark",
@@ -3356,7 +3356,7 @@ do_mark (struct mark_data *mark,
 	     * if any of these conditions holds for the current set of vertices
 	     * - the mode is MARKS_FILL
 	     * - the mode is MARKS_FILL_STROKE
-	     * - the mode is MARK_FILLSTYLE and the fillstyle has a border
+	     * - the mode is MARK_FILLSTYLE and the fillstyle is not FS_EMPTY
 	     */
 	    if ((draw_style == MARKS_FILL)
 	    ||  (draw_style == MARKS_FILL_STROKE)
@@ -3366,7 +3366,7 @@ do_mark (struct mark_data *mark,
 		    if (has_varcolor && check_for_variable_color(plot, &varcolor))
 			; /* check_for_variable_color applies the color */
 		    else
-			set_rgbcolor_const(my_fillrgb);
+			apply_pm3dcolor(my_fillcolor);
 		    fillarea[0].style = style_from_fill(my_fillstyle);
 		    /* Special case: inherited fillstyle is "empty" but mode is FILL */
 		    if (my_fillstyle->fillstyle == FS_EMPTY)
