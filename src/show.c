@@ -3694,7 +3694,7 @@ show_one_mark(struct mark_data *mark)
 	fprintf(stderr, "fillcolor ");
 	save_pm3dcolor(stderr, &mark->mark_fillcolor);
     }
-    fprintf(stderr, "fillstyle");
+    fprintf(stderr, " fillstyle");
     save_fillstyle(stderr, &mark->mark_fillstyle);
 }
 

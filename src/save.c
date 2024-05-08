@@ -2071,8 +2071,16 @@ save_marks(FILE *fp)
         }
         fprintf(fp, "EOM\n");
         fprintf(fp, "set mark %i $MARK_%i ", tag, tag);
-	fprintf(fp, "fillstyle ");
-	save_fillstyle(fp, &this->mark_fillstyle);
+	if (this->mark_fillcolor.type != TC_DEFAULT) {
+	    fprintf(fp, "fillcolor ");
+	    save_pm3dcolor(fp, &this->mark_fillcolor);
+	}
+	if (this->mark_fillstyle.fillstyle == FS_DEFAULT) {
+	    fprintf(fp, "\n");
+	} else {
+	    fprintf(fp, " fillstyle ");
+	    save_fillstyle(fp, &this->mark_fillstyle);
+	}
         fprintf(fp, "undefine $MARK_%i\n", tag);
         fprintf(fp, "\n");
     }
