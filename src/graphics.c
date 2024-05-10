@@ -3386,7 +3386,9 @@ do_mark (struct mark_data *mark,
 	    if ((draw_style == MARKS_STROKE)
 	    ||  (draw_style == MARKS_FILL_STROKE)
 	    ||  ((draw_style == MARKS_FILLSTYLE) && withborder)) {
-		if (!has_varcolor || !check_for_variable_color(plot, &varcolor))
+		if (!(my_fillstyle->fillstyle == FS_EMPTY)
+		||  !has_varcolor
+		||  !check_for_variable_color(plot, &varcolor))
 		    set_rgbcolor_const(my_strokergb);
 		draw_clip_polygon(points, vertex);
 	    }
