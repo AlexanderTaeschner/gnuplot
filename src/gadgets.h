@@ -160,6 +160,15 @@ typedef struct polygon {
     t_position *vertex;		/* Array of vertices */
 } t_polygon;
 
+typedef struct mark {
+    int	type;			/* marktype */
+    t_position center;		/* center */
+    double xscale;		/* xscale */
+    double yscale;		/* yscale */
+    double angle;               /* rotation angle */
+    int units;
+} t_mark;
+
 typedef enum en_clip_object {
     OBJ_CLIP,		/* Clip to graph unless coordinate type is screen */
     OBJ_NOCLIP,	/* Clip to canvas, never to graph */
@@ -175,12 +184,43 @@ typedef struct object {
     t_clip_object clip;
     fill_style_type fillstyle;
     lp_style_type lp_properties;
-    union o {t_rectangle rectangle; t_circle circle; t_ellipse ellipse; t_polygon polygon;} o;
+    union o {t_rectangle rectangle; t_circle circle; t_ellipse ellipse; t_polygon polygon; t_mark mark; } o;
 } t_object;
 #define OBJ_RECTANGLE (1)
 #define OBJ_CIRCLE (2)
 #define OBJ_ELLIPSE (3)
 #define OBJ_POLYGON (4)
+#define OBJ_MARK (5)
+
+/* Datastructure for 'set mark' */
+struct mark_data {
+    struct mark_data *next;
+    int tag;
+    double xmin, xmax;
+    double ymin, ymax;
+    int vertices;
+    int asize; /* number of allocated size of polygon.vertex and color array */
+    t_polygon polygon;
+    char *title;	/* will be reported by "show mark" */
+    struct fill_style_type mark_fillstyle;
+    struct t_colorspec mark_fillcolor;
+};
+
+typedef enum mark_units_id {
+    MARK_UNITS_XY=0, MARK_UNITS_XX, MARK_UNITS_YY,
+    MARK_UNITS_GXY, MARK_UNITS_GXX, MARK_UNITS_GYY,
+    MARK_UNITS_PS
+} mark_units_id;
+
+/* Structure used in plot header */
+typedef struct marks_options {
+    int tag;
+    enum mark_units_id units;
+} marks_opts;
+
+#define MARK_TYPE_VARIABLE -1	/* tag value indicating "marktype variable" */
+#define MARK_MAX_VERTICES 1024	/* admittedly arbitrary */
+#define DEFAULT_MARKS_OPTS { 1, MARK_UNITS_PS }
 
 /* Datastructure implementing 'set dashtype' */
 struct custom_dashtype_def {
@@ -638,6 +678,12 @@ extern struct object default_ellipse;
 	{0, LT_BLACK, 0, DASHTYPE_SOLID, 0, 0, 1.0, 0.0, DEFAULT_P_CHAR, BLACK_COLORSPEC, DEFAULT_DASHPATTERN}, \
 	{.polygon = {0, NULL} } }
 
+#define DEFAULT_MARK_FILLSTYLE {FS_DEFAULT, 100, 0, {TC_DEFAULT, -2, 0}}
+#define DEFAULT_MARK_STYLE { NULL, -1, 0, OBJ_MARK, OBJ_CLIP, \
+	DEFAULT_MARK_FILLSTYLE, \
+	{0, LT_BLACK, 0, DASHTYPE_SOLID, 0, 0, 1.0, 0.0, DEFAULT_P_CHAR, BLACK_COLORSPEC, DEFAULT_DASHPATTERN}, \
+	{.mark = {-1, {0,0,0,0.,0.,0.}, 1.0, 1.0, 0.0, MARK_UNITS_PS} } }
+
 #define WALL_Y0_TAG 0
 #define WALL_X0_TAG 1
 #define WALL_Y1_TAG 2
@@ -724,5 +770,10 @@ extern struct iso_curve *mask_2Dpolygon_set;
 extern struct iso_curve *mask_3Dpolygon_set;
 extern void construct_2D_mask_set(struct coordinate *points, int p_count);
 extern TBOOLEAN masked(double x, double y, struct iso_curve *mask_polygon_set);
+
+void free_mark (struct mark_data *mark);
+extern struct mark_data *first_mark;
+struct mark_data *get_mark(struct mark_data *first, int tag);
+
 
 #endif /* GNUPLOT_GADGETS_H */

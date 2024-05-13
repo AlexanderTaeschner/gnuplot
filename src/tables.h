@@ -65,7 +65,7 @@ enum plot_axes_id {
 
 /* options for 'save' command */
 enum save_id { SAVE_INVALID, SAVE_FUNCS, SAVE_TERMINAL, SAVE_SET, SAVE_VARS,
-		SAVE_FIT, SAVE_DATABLOCKS };
+		SAVE_FIT, SAVE_DATABLOCKS, SAVE_MARKS };
 
 /* options for 'show' and 'set' commands
  * this is rather big, we might be better off with a hash table */
@@ -79,7 +79,7 @@ enum set_id {
     S_HIDDEN3D, S_HISTORY, S_HISTORYSIZE, S_ISOSAMPLES, S_ISOTROPIC, S_PIXMAP,
     S_JITTER, S_KEY, S_LABEL, S_LINK, S_NONLINEAR,
     S_LINESTYLE, S_LINETYPE, S_LOADPATH, S_LOCALE, S_LOGSCALE, S_MACROS,
-    S_MAPPING, S_MARGIN, S_LMARGIN, S_RMARGIN, S_TMARGIN, S_BMARGIN, S_MISSING,
+    S_MAPPING, S_MARK, S_MARGIN, S_LMARGIN, S_RMARGIN, S_TMARGIN, S_BMARGIN, S_MISSING,
     S_MICRO, S_MINUS_SIGN,
     S_MOUSE,
     S_MONOCHROME, S_MULTIPLOT, S_MX2TICS, S_NOMX2TICS, S_MXTICS, S_NOMXTICS,
@@ -206,6 +206,7 @@ enum filledcurves_opts_id {
     FILLEDCURVES_DEFAULT
 };
 
+
 extern const struct gen_table command_tbl[];
 extern const struct gen_table plot_axes_tbl[];
 extern const struct gen_table plot_smooth_tbl[];
@@ -232,6 +233,7 @@ extern int num_userdefined_colors;
 extern const struct gen_ftable command_ftbl[];
 
 extern const struct gen_table filledcurves_opts_tbl[];
+extern const struct gen_table mark_units_tbl[];
 
 /* Function prototypes */
 int lookup_table(const struct gen_table *, int);

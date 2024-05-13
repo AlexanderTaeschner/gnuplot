@@ -351,12 +351,12 @@
 #include "texdraw.trm"
 
 /* METAFONT */
-#ifdef WITH_METAFONT
+#ifdef HAVE_METAFONT
 #include "metafont.trm"
 #endif
 
 /* METAPOST */
-#ifdef WITH_METAPOST
+#ifdef HAVE_METAPOST
 #include "metapost.trm"
 #endif
 

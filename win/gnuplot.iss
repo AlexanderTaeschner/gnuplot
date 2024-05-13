@@ -159,7 +159,6 @@ Name: "{group}\{#MyAppName} Help (Japanese)"; Filename: "{app}\bin\wgnuplot-ja.c
 Name: "{group}\{#MyAppName} Documentation"; Filename: "{app}\docs\gnuplot.pdf"; Flags: CreateOnlyIfFileExists; Components: docs
 Name: "{group}\{#MyAppName} FAQ"; Filename: "{app}\docs\FAQ.pdf"; Flags: CreateOnlyIfFileExists; Components: docs
 Name: "{group}\{#MyAppName} Quick Reference"; Filename: "{app}\docs\gpcard.pdf"; Flags: CreateOnlyIfFileExists; Components: docs
-Name: "{group}\{#MyAppName} LaTeX Tutorial"; Filename: "{app}\docs\tutorial.pdf"; Flags: CreateOnlyIfFileExists; Components: docs
 Name: "{group}\{cm:ProgramOnTheWeb,{#MyAppName}}"; Filename: "{#MyAppURL}"
 Name: "{group}\{cm:UninstallProgram,{#MyAppName}}"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\{#MyAppName} {#MyAppVersionShort}"; Filename: "{app}\bin\{#MyAppExeName}"; WorkingDir: "{#MyDocuments}"; Components: core; Tasks: desktopicon

@@ -1308,6 +1308,9 @@ set_palette_file()
     if (!(name_str = string_or_express(NULL)))
 	int_error(c_token, "expecting filename or datablock");
 
+    /* Same interlock as plot/splot/stats */
+    inside_plot_command = TRUE;
+
     df_set_plot_mode(MODE_QUERY);	/* Needed only for binary datafiles */
     df_open(name_str, 4, NULL);
 
@@ -1365,6 +1368,7 @@ set_palette_file()
     df_close();
     if (i==0)
 	int_error( c_token, "No valid palette found" );
+    inside_plot_command = FALSE;
 
     sm_palette.gradient_num = i;
     check_palette_grayscale();

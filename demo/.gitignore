@@ -4,6 +4,7 @@ Makefile.in
 fit.log
 soundfit.par
 binary?
+dodecahedron.bin
 *.manifest
 *.tmp
 *.exe

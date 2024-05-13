@@ -107,6 +107,7 @@ static void set_locale(void);
 static void set_logscale(void);
 static void set_mapping(void);
 static void set_margin(t_position *);
+static void set_mark(void);
 static void set_minus_sign(void);
 static void set_micro(void);
 static void set_missing(void);
@@ -365,6 +366,9 @@ set_command()
 	    break;
 	case S_MAPPING:
 	    set_mapping();
+	    break;
+	case S_MARK:
+	    set_mark();
 	    break;
 	case S_MARGIN:
 	    /* Jan 2015: CHANGE to order <left>,<right>,<bottom>,<top> */
@@ -3011,6 +3015,296 @@ set_margin(t_position *margin)
 
 }
 
+/*  process 'set mark' command
+ *      'set mark <tag> DATASPEC'
+ *      'set mark <tag> append DATASPEC'
+ */
+
+static struct mark_data *
+mark_allocate (int size)
+{
+   struct mark_data *mark;
+   struct fill_style_type mark_fillstyle = DEFAULT_MARK_FILLSTYLE;
+   t_colorspec mark_fillcolor = DEFAULT_COLORSPEC;
+
+   if (size > MARK_MAX_VERTICES)
+        int_error(NO_CARET, "too many vertices (> %d) in a mark", MARK_MAX_VERTICES);
+   mark = gp_alloc(sizeof(struct mark_data), "mark_data");
+   mark->next = NULL;
+   mark->tag = -1;
+   mark->asize = size;
+   mark->vertices = 0;
+   mark->title = NULL;
+   if (size > 0) {
+       mark->polygon.vertex = (t_position *) gp_alloc(size*sizeof(t_position), "mark vertex");
+   } else {
+       mark->polygon.vertex = NULL;
+   }
+   mark->xmin = VERYLARGE;
+   mark->xmax = -VERYLARGE;
+   mark->ymin = VERYLARGE;
+   mark->ymax = -VERYLARGE;
+   mark->mark_fillstyle = mark_fillstyle;
+   mark->mark_fillcolor = mark_fillcolor;
+   return mark;
+}
+
+static struct mark_data *
+mark_reallocate (struct mark_data *mark, int size) 
+{
+   if (size > MARK_MAX_VERTICES)
+        int_error(NO_CARET, "too many vertices (> %d) in a mark", MARK_MAX_VERTICES);
+   if (size > 0) {
+       mark->asize = size;
+       mark->polygon.vertex = (t_position *) gp_realloc(mark->polygon.vertex,
+                                                        size*sizeof(t_position), "mark vertex");
+   }
+   else {
+        free(mark->polygon.vertex);
+	free(mark->title);
+        mark->asize = 0;
+        mark->polygon.vertex = NULL;
+	mark->title = NULL;
+   }
+   return mark;
+}
+
+void
+free_mark (struct mark_data *mark)
+{
+    if (mark) {
+	mark_reallocate(mark, 0);
+	free(mark);
+    }
+}
+
+/*
+ * updates the range of the enclosure (xmin,xmax,ymin,ymax) of polygons
+ *             in the mark_data structure based on the current polygon data.
+ */
+static void
+mark_update_limits (struct mark_data *mark)
+{
+    double mx1 = 10e30;
+    double mx2 = -10e30;
+    double my1 = 10e30;
+    double my2 = -10e30;
+    double mx, my;
+    int i;
+
+    for (i=0; i<mark->vertices; i++) {
+        mx = mark->polygon.vertex[i].x;
+        my = mark->polygon.vertex[i].y;
+        mx1 = (mx < mx1) ? mx : mx1;
+        mx2 = (mx > mx2) ? mx : mx2;
+        my1 = (my < my1) ? my : my1;
+        my2 = (my > my2) ? my : my2;
+    }
+
+    mark->xmin = mx1;
+    mark->xmax = mx2;
+    mark->ymin = my1;
+    mark->ymax = my2;        
+}
+
+static void
+mark_append(struct mark_data *dst, struct mark_data *src)
+{
+   int vertices;
+   int dst_vertices = dst->vertices;
+   int src_vertices = src->vertices;
+
+   vertices = dst_vertices + 1 + src_vertices;
+   dst = mark_reallocate(dst, vertices);
+   dst->vertices = vertices;
+
+   dst->polygon.vertex[dst_vertices].x = not_a_number();
+   dst->polygon.vertex[dst_vertices].y = not_a_number();
+
+   memcpy(dst->polygon.vertex+dst_vertices+1, src->polygon.vertex, (src_vertices)*sizeof(t_position));
+
+   if (dst->xmin > src->xmin)
+       dst->xmin = src->xmin;
+   if (dst->xmax < src->xmax)
+       dst->xmax = src->xmax;
+   if (dst->ymin > src->ymin)
+       dst->ymin = src->ymin;
+   if (dst->ymax < src->ymax)
+       dst->ymax = src->ymax;
+}
+
+#define MARK_ACTION_UNDEFINED 0
+#define MARK_ACTION_CREATE    1
+#define MARK_ACTION_APPEND    2
+
+static void
+set_mark ()
+{
+    int tag;
+    struct mark_data *mark, *this;
+    int ierr, lines;
+    t_position *vertex;
+    double v[4];
+    char *name_str;
+    int saved_token;
+    int append = FALSE;
+    int action = MARK_ACTION_UNDEFINED;
+    int sample_range_token;
+    int j;
+
+    c_token++;
+    saved_token = c_token;
+    tag = int_expression();
+
+    if (tag < 0)
+       int_error(c_token, "tag must be >= 0");
+
+    if (equals(c_token, "empty")) {
+        c_token++;
+        mark = mark_allocate(0);
+        mark->tag = tag;
+        action = MARK_ACTION_CREATE;
+        goto push_mark_to_list;
+    }
+
+    if (equals(c_token, "append")) {
+       c_token++;
+       append = TRUE;
+    }
+
+    /* Check for a sampling range. */
+    init_sample_range(axis_array + FIRST_X_AXIS, DATA);
+    sample_range_token = parse_range(SAMPLE_AXIS);
+    if (sample_range_token != 0) {
+	axis_array[SAMPLE_AXIS].range_flags |= RANGE_SAMPLED;
+    }
+
+    saved_token = c_token;
+
+    if ( equals(c_token, "\"++\"") ) {
+	int_error(c_token, "pseudofile \"++\" can not be used for 'set mark'");
+    } else if ( (name_str = string_or_express(NULL)) ) {
+	/* WARNING: do NOT free name_str */
+        if (append)
+            action = MARK_ACTION_APPEND;
+        else
+            action = MARK_ACTION_CREATE;                
+    }
+
+    if (action == MARK_ACTION_UNDEFINED)
+	int_error(saved_token, "unrecognized data source for mark");
+
+    saved_token = c_token;
+
+    /* Same interlock as plot/splot/stats */
+    inside_plot_command = TRUE;
+
+    df_set_plot_mode(MODE_QUERY);	/* Needed only for binary datafiles */
+    ierr = df_open(name_str, 4, NULL);
+    if (ierr < 0)
+	int_error(NO_CARET, "could not open %s", name_str);
+
+    mark = mark_allocate(0xff);
+    mark->tag = tag;
+    vertex = mark->polygon.vertex;
+
+    /* Read optional fillstyle and fill color from the command line.
+     * Must come after df_open().
+     * Style and color can be given in either order, so give it two chances.
+     */
+    while (!END_OF_COMMAND) {
+	int save_token = c_token;
+	parse_fillstyle(&mark->mark_fillstyle);
+	if ((equals(c_token,"fc") || almost_equals(c_token,"fillc$olor")))
+	    parse_colorspec(&mark->mark_fillcolor, TC_Z);
+	if (almost_equals(c_token,"ti$tle")) {
+	    c_token++;
+	    mark->title = try_to_get_string();
+	}
+	if (c_token == save_token)
+	    break;
+    }
+
+    lines = 0;
+    while ((j = df_readline(v, 4)) != DF_EOF) {
+        if ( lines > mark->asize-1 ) {
+            mark = mark_reallocate(mark, mark->asize+0xff);
+            vertex = mark->polygon.vertex;
+        }
+	if (j > 3)	/* Ignore any excess using specs */
+	    j = 3;
+	switch (j) {
+	case 2:
+	    vertex[lines].x = v[0];
+	    vertex[lines].y = v[1];
+	    vertex[lines].z = MARKS_FILLSTYLE;
+	    lines++;
+	    break;
+	case 3:
+	    vertex[lines].x = v[0];
+	    vertex[lines].y = v[1];
+	    vertex[lines].z = v[2];	/* mode */
+	    lines++;
+	    break;
+	case DF_FIRST_BLANK:
+        case DF_UNDEFINED:
+        case DF_MISSING:
+            vertex[lines].x = not_a_number();
+            vertex[lines].y = not_a_number();
+            vertex[lines].z = not_a_number();
+            lines++;
+            break;
+        case DF_SECOND_BLANK:
+        case DF_COLUMN_HEADERS:
+            continue;
+            break;
+        default:
+            df_close();
+            int_error(c_token, "Bad data on line %d", df_line_number);
+            break;
+        }
+    }
+    df_close();
+
+    if (lines == 0)
+	int_warn(NO_CARET, "no vertices read from file");
+
+    mark = mark_reallocate(mark, lines);
+    mark->vertices = lines;
+    mark_update_limits(mark);
+
+    inside_plot_command = FALSE;
+
+
+    push_mark_to_list:
+
+    if (!first_mark) {  /* the mark list is empty */
+	first_mark = mark;
+    } else {
+        this = get_mark(first_mark, tag);
+        if (!this) {    /* no existing mark with the specified tag */
+            push_mark(first_mark, mark);
+        } else {        /* the mark with the specified tag is found */
+            if (action == MARK_ACTION_APPEND) {
+                mark_append(this, mark);
+                free_mark(mark);
+            } else {
+		/* Replace content of old mark that had this tag */
+		struct mark_data *save_next = this->next;
+		mark_reallocate(this, -1);
+		*this = *mark;
+		this->next = save_next;
+		free(mark);
+            }
+        }
+    }
+}
+
+#undef MARK_ACTION_UNDEFINED
+#undef MARK_ACTION_CREATE
+#undef MARK_ACTION_APPEND
+
+
 /* process 'set micro' command */
 static void
 set_micro()
@@ -4017,7 +4311,8 @@ set_object()
     /* The next token must either be a tag or the object type */
     c_token++;
     if (almost_equals(c_token, "rect$angle") || almost_equals(c_token, "ell$ipse")
-    ||  almost_equals(c_token, "circ$le") || almost_equals(c_token, "poly$gon"))
+    ||  almost_equals(c_token, "circ$le") || almost_equals(c_token, "poly$gon")
+    ||  equals(c_token, "mark"))
 	tag = -1; /* We'll figure out what it really is later */
     else {
 	tag = int_expression();
@@ -4036,6 +4331,9 @@ set_object()
 
     } else if (almost_equals(c_token, "poly$gon")) {
 	set_obj(tag, OBJ_POLYGON);
+
+    } else if (equals(c_token, "mark")) {
+	set_obj(tag, OBJ_MARK);
 
     } else if (tag > 0) {
 	/* Look for existing object with this tag */
@@ -4061,6 +4359,7 @@ new_object(int tag, int object_type, t_object *new)
     t_object def_ellipse = DEFAULT_ELLIPSE_STYLE;
     t_object def_circle = DEFAULT_CIRCLE_STYLE;
     t_object def_polygon = DEFAULT_POLYGON_STYLE;
+    t_object def_mark = DEFAULT_MARK_STYLE;
 
     if (!new)
 	new = gp_alloc(sizeof(struct object), "object");
@@ -4077,6 +4376,8 @@ new_object(int tag, int object_type, t_object *new)
 	*new = def_circle;
     else if (object_type == OBJ_POLYGON)
 	*new = def_polygon;
+    else if (object_type == OBJ_MARK) 
+	*new = def_mark;
     else
 	int_error(NO_CARET,"object initialization failure");
 
@@ -4093,6 +4394,7 @@ set_obj(int tag, int obj_type)
     t_ellipse *this_ellipse = NULL;
     t_circle *this_circle = NULL;
     t_polygon *this_polygon = NULL;
+    t_mark *this_mark = NULL;
     t_object *this_object = NULL;
     t_object *new_obj = NULL;
     t_object *prev_object = NULL;
@@ -4152,6 +4454,7 @@ set_obj(int tag, int obj_type)
 	this_ellipse = &this_object->o.ellipse;
 	this_circle = &this_object->o.circle;
 	this_polygon = &this_object->o.polygon;
+	this_mark = &this_object->o.mark;
 
     }
 
@@ -4330,6 +4633,44 @@ set_obj(int tag, int obj_type)
 			this_polygon->type = 0;
 			int_error(c_token, "Unrecognized polygon syntax");
 		/* End of polygon options */
+
+	case OBJ_MARK:
+		if (almost_equals(c_token,"markt$ype") || equals(c_token,"mt")) {
+		    c_token++;
+		    this_mark->type = int_expression();
+		    continue;
+
+		} else if (equals(c_token,"at") || almost_equals(c_token, "cen$ter")) {
+		    /* Read in the center position */
+		    c_token++;
+		    get_position(&this_mark->center);
+		    continue;
+
+		} else if (equals(c_token,"scale") || equals(c_token,"ps")) {
+		    /* Read in the width and height */
+		    c_token++;
+		    this_mark->xscale = real_expression();
+		    this_mark->yscale = this_mark->xscale;
+		    if (equals(c_token, ",")) {
+			c_token++;
+		        this_mark->yscale = real_expression();
+		    }
+		    continue;
+
+		} else if (almost_equals(c_token,"ang$le")) {
+		    c_token++;
+		    this_mark->angle = real_expression();
+		    continue;
+
+		} else if (almost_equals(c_token,"unit$s")) {
+		    mark_units_id units = lookup_table(mark_units_tbl, ++c_token);
+		    if (units < 0)
+			int_error(c_token, "expecting 'xy', 'xx', 'yy', 'gxy', 'gxx', 'gyy', or 'ps'" );
+		    this_mark->units = units;
+		    c_token++;
+		    continue;
+		}
+		break;
 
 	default:
 		int_error(c_token, "unrecognized object type");
@@ -4886,6 +5227,7 @@ set_terminal()
 #ifdef USE_MOUSE
     event_reset((void *)1);   /* cancel zoombox etc. */
 #endif
+
     term_reset();
 
     /* `set term pop' */

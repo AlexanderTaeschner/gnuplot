@@ -101,6 +101,7 @@ void
 save_all(FILE *fp)
 {
 	show_version(fp);
+        save_marks(fp);
 	save_set_all(fp);
 	save_functions__sub(fp);
 	save_variables__sub(fp);
@@ -1530,8 +1531,12 @@ save_fillstyle(FILE *fp, const struct fill_style_type *fs)
 		fs->fillpattern);
 	break;
     case FS_DEFAULT:
-	fprintf(fp, " default\n");
-	return;
+	if (fs->border_color.type == TC_DEFAULT) {
+	    fprintf(fp, " default\n");
+	    return;
+	}
+	/* The combination of default + non-default border color is used only by marks */
+	break;
     default:
 	fprintf(fp, " empty ");
 	break;
@@ -1543,6 +1548,17 @@ save_fillstyle(FILE *fp, const struct fill_style_type *fs)
 	save_pm3dcolor(fp, &fs->border_color);
 	fprintf(fp, "\n");
     }
+}
+
+void
+save_packed_fillstyle(FILE *fp, int packed_fillstyle)
+{
+    struct fill_style_type fs;
+    fs.fillstyle = packed_fillstyle & 0xf;
+    fs.filldensity =  packed_fillstyle >> 4;
+    fs.fillpattern =  packed_fillstyle >> 4;
+    fprintf(fp,"fillstyle ");
+    save_fillstyle(fp, &fs);
 }
 
 void
@@ -1849,6 +1865,53 @@ save_object(FILE *fp, int tag)
 	    }
 	}
 
+	else if ((this_object->object_type == OBJ_MARK)
+	    && (tag == 0 || tag == this_object->tag)) {
+	    t_mark *this_mark = &this_object->o.mark;
+	    showed = TRUE;
+	    fprintf(fp, "%sobject %2d mark marktype %d ",
+		(fp==stderr) ? "\t" : "set ", this_object->tag, this_mark->type);
+	    fprintf(fp, "center ");
+	    save_position(fp, &this_mark->center, 3, FALSE);
+	}
+
+	else if ((this_object->object_type == OBJ_MARK)
+	    && (tag == 0 || tag == this_object->tag)) {
+	    t_mark *this_mark = &this_object->o.mark;
+	    showed = TRUE;
+	    fprintf(fp, "%sobject %2d mark ", (fp==stderr) ? "\t" : "set ",this_object->tag);
+	    fprintf(fp, "center ");
+	    save_position(fp, &this_mark->center, 2, FALSE);
+	    fprintf(fp, " scale ");
+	    fprintf(fp, "%g", this_mark->xscale);
+	    fprintf(fp, ", %g", this_mark->yscale);
+	    fprintf(fp, "  angle %g", this_mark->angle);
+	    fputs(" units ", fp);
+	    switch (this_mark->units) {
+		case MARK_UNITS_PS:
+		    fputs("ps", fp);
+		    break;
+		case MARK_UNITS_XY:
+		    fputs("xy", fp);
+		    break;
+		case MARK_UNITS_XX:
+		    fputs("xx", fp);
+		    break;
+		case MARK_UNITS_YY:
+		    fputs("yy", fp);
+		    break;
+		case MARK_UNITS_GXY:
+		    fputs("gxy", fp);
+		    break;
+		case MARK_UNITS_GXX:
+		    fputs("gxx", fp);
+		    break;
+		case MARK_UNITS_GYY:
+		    fputs("gyy", fp);
+		    break;
+	    }
+	}
+
 	/* Properties common to all objects */
 	if (tag == 0 || tag == this_object->tag) {
 	    fprintf(fp, "\n%sobject %2d ", (fp==stderr) ? "\t" : "set ",this_object->tag);
@@ -1986,4 +2049,41 @@ save_contourfill(FILE *fp)
 	fprintf(fp, "set contourfill firstlinetype %d\n", contourfill.firstlinetype);
     else
 	fprintf(fp, "set contourfill palette\n");
+}
+
+void
+save_marks(FILE *fp)
+{
+    struct mark_data *this;
+    int i, tag;
+    double x, y, z;
+    for (this=first_mark; this != NULL; this=this->next) {
+        tag = this->tag;
+        fprintf(fp, "$MARK_%i <<EOM\n", tag);
+        for (i=0; i<this->vertices; i++) {
+            x = this->polygon.vertex[i].x;
+            y = this->polygon.vertex[i].y;
+            z = this->polygon.vertex[i].z;
+            if (isnan(x) || isnan(y))
+		fprintf(fp, "\n");
+            else
+		fprintf(fp, "%g\t%g\t%i\n", x, y, (int) round(z));
+        }
+        fprintf(fp, "EOM\n");
+        fprintf(fp, "set mark %i $MARK_%i ", tag, tag);
+	if (this->title)
+	    fprintf(fp, "title \"%s\" ", this->title);
+	if (this->mark_fillcolor.type != TC_DEFAULT) {
+	    fprintf(fp, "fillcolor ");
+	    save_pm3dcolor(fp, &this->mark_fillcolor);
+	}
+	if (this->mark_fillstyle.fillstyle == FS_DEFAULT) {
+	    fprintf(fp, "\n");
+	} else {
+	    fprintf(fp, " fillstyle ");
+	    save_fillstyle(fp, &this->mark_fillstyle);
+	}
+        fprintf(fp, "undefine $MARK_%i\n", tag);
+        fprintf(fp, "\n");
+    }
 }

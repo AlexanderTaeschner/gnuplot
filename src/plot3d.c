@@ -1244,6 +1244,15 @@ get_3ddata(struct surface_points *this_plot)
 			color = rgb_from_colorspec( &lptmp.pm3d_color );
 			color_from_column(TRUE);
 		    }
+		    /* This allows "with polygons lc rgb variable" to set fillcolor.
+		     * FIXME: I'd rather that "lc" affected border color.
+		     */
+		    if (this_plot->lp_properties.pm3d_color.type == TC_RGB
+		    &&  this_plot->lp_properties.pm3d_color.value < 0.0) {
+			color = v[3];
+			color_from_column(TRUE);
+		    }
+		    /* This handles "with polygons fc rgb variable" */
 		    if (this_plot->fill_properties.border_color.type == TC_RGB
 		    &&  this_plot->fill_properties.border_color.value < 0) {
 			color = v[3];

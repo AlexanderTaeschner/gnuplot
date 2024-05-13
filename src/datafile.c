@@ -339,6 +339,7 @@ static TBOOLEAN df_read_binary;
 static TBOOLEAN df_nonuniform_matrix;
 static TBOOLEAN df_matrix_columnheaders, df_matrix_rowheaders;
 static int df_plot_mode;
+static TBOOLEAN df_bin_blank_if_NaN;
 
 static int df_readascii(double [], int);
 static int df_readbinary(double [], int);
@@ -1145,6 +1146,7 @@ df_open(const char *cmd_filename, int max_using, struct curve_points *plot)
     df_matrix_columnheaders = FALSE;
     df_matrix_rowheaders = FALSE;
     df_skip_at_front = 0;
+    df_bin_blank_if_NaN = FALSE;
 
     df_xpixels = 0;
     df_ypixels = 0;
@@ -3545,6 +3547,8 @@ df_bin_default_columns default_style_cols[] = {
     {CIRCLES, 2, 1},
     {SECTORS, 4, 2},
     {ELLIPSES, 2, 3},
+    {MARKS, 2, 3},
+    {LINESMARKS, 2, 3},
     {TABLESTYLE, 0, 0}
 };
 
@@ -4008,7 +4012,7 @@ plot_option_binary(TBOOLEAN set_matrix, TBOOLEAN set_default)
 	    continue;
 	}
 
-	/* deal with origin */
+	/* deal with center */
 	if (almost_equals(c_token, "cen$ter")) {
 	    if (set_origin)
 		int_error(c_token, origin_and_center_conflict_message);
@@ -4028,7 +4032,7 @@ plot_option_binary(TBOOLEAN set_matrix, TBOOLEAN set_default)
 	    continue;
 	}
 
-	/* deal with rotation angle */
+	/* deal with perpendicular rotation */
 	if (almost_equals(c_token, "perp$endicular")) {
 	    if (df_plot_mode == MODE_PLOT)
 		int_error(c_token, "Key word `perpendicular` is not allowed with `plot` command");
@@ -4106,6 +4110,18 @@ plot_option_binary(TBOOLEAN set_matrix, TBOOLEAN set_default)
 		free(format_string);
 	    }
 	    set_format = TRUE;
+	    continue;
+	}
+
+	/* blank=NaN signals that a binary record with NaN in the first field
+	 * is to be treated as a blank line would be treated during text input.
+	 * This only affects general binary input.
+	 */
+	if (equals(c_token, "blank")) {
+	    c_token++;
+	    if (!equals(c_token++,"=") || !equals(c_token++,"NaN"))
+		int_error(c_token,"only 'blank=NaN' is supported");
+	    df_bin_blank_if_NaN = TRUE;
 	    continue;
 	}
 
@@ -5379,6 +5395,11 @@ df_readbinary(double v[], int max)
 	    }
 	} else { /* Not matrix file, general binary. */
 	    df_datum = point_count + 1;
+	    if (df_bin_blank_if_NaN && (i > 0) && isnan(df_column[0].datum)) {
+		/* User requested to treat record starting with NaN as if it were a blank line */
+		line_count++;
+		return DF_FIRST_BLANK;
+	    }
 	    if (i != df_no_bin_cols) {
 		if (feof(data_fp)) {
 		    if (i != 0)

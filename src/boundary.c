@@ -1319,6 +1319,11 @@ do_key_sample(
 	       &&  (style == FS_EMPTY || (! this_plot->hsteps_options.baseline))
 	       &&  w > 0) {
 	    draw_clip_line(xl + key_sample_left, yl, xl + key_sample_right, yl);
+        } else if (this_plot->plot_style == MARKS) {
+	    /* Handle the mark itself later in do_key_sample_point() */
+        } else if (this_plot->plot_style == LINESMARKS) {
+	    draw_clip_line(xl + key_sample_left, yl, xl + key_sample_right, yl);
+	    /* Handle the mark itself later in do_key_sample_point() */
 	} else if (w > 0) {    /* All other plot types with fill */
 	    if (style != FS_EMPTY)
 		(*t->fillbox)(style,x,y,w,h);
@@ -1444,6 +1449,11 @@ do_key_sample_point(
 	if (on_page(xl + key_point_offset, yl))
 	    (*t->point) (xl + key_point_offset, yl, -1);
 
+    } else if (this_plot->plot_style == MARKS || this_plot->plot_style == LINESMARKS) {
+	if  (this_plot->marks_options.tag >= 0)
+	    do_key_sample_mark(this_plot, xl + key_point_offset, yl,
+		    this_plot->marks_options.tag);
+
     } else if (this_plot->plot_style & PLOT_STYLE_HAS_POINT) {
 	if (this_plot->lp_properties.p_size == PTSZ_VARIABLE)
 	    (*t->pointsize)(pointsize);
@@ -1475,6 +1485,7 @@ do_key_sample_point(
 	    term_apply_lp_properties(&label->lp_properties);
 	    (*t->point) (xl + key_point_offset, yl, label->lp_properties.p_type);
 	}
+
     }
 
     xl = xl_save;

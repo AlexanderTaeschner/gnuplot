@@ -88,9 +88,9 @@ TERM_H = $(top_srcdir)/src/term.h
 DOCHEADERS = doc2x.h xref.h
 
 EXTRA_DIST = Makefile.in doc2texi.el gnuplot.doc \
-titlepag.ipf titlepag.tex title-ja.tex	\
-toc_entr.sty psdoc gnuplot-ja.doc README.ja	\
-term-ja.diff plotstyles.gnu gnuplot.pdf \
+titlepag.ipf titlepag.tex title-ja.tex \
+toc_entr.sty psdoc gnuplot-ja.doc README.ja \
+term-ja.diff plotstyles.gnu gnuplot.pdf webp_figures.gnu \
 windows/wgnuplot.hhk windows/wgnuplot.hhp windows/wgnuplot.stp windows/doc2html.c \
 html/gnuplot_docs.css
 
@@ -404,7 +404,7 @@ clean-local:
 	$(AM_V_at)rm -f pdf_figures
 	$(AM_V_at)rm -rf ja
 
-distclean: clean
+distclean-local: clean
 	-rm -f $(BUILT_SOURCES)
 
 #the end

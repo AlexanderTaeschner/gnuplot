@@ -181,6 +181,8 @@ static void show_ticdefp(struct axis *);
 static void show_functions(void);
 static void show_warnings(void);
 
+static void show_mark();
+
 static int var_show_all = 0;
 
 /* following code segments appear over and over again */
@@ -458,6 +460,9 @@ show_command()
 	break;
     case S_JITTER:
 	show_jitter();
+	break;
+    case S_MARK:
+	show_mark();
 	break;
     case S_VIEW:
 	show_view();
@@ -3680,3 +3685,44 @@ conv_text(const char *t)
     *s = NUL;
     return r;
 }
+
+static void
+show_one_mark(struct mark_data *mark)
+{
+    fprintf(stderr, "\tmarktype %i ", mark->tag);
+    if (mark->title)
+	fprintf(stderr, " title \"%s\" ", mark->title);
+    fprintf(stderr, "polygon vertices %i ", mark->vertices);
+    if (mark->mark_fillcolor.type != TC_DEFAULT) {
+	fprintf(stderr, "fillcolor ");
+	save_pm3dcolor(stderr, &mark->mark_fillcolor);
+    }
+    fprintf(stderr, " fillstyle");
+    save_fillstyle(stderr, &mark->mark_fillstyle);
+}
+
+static void
+show_mark()
+{
+    int tag = -1;
+    struct mark_data *this;
+
+    if (!END_OF_COMMAND)
+	tag = int_expression();
+
+    if (tag < 0) {
+        for (this = first_mark; this != NULL; this = this->next) {
+	    show_one_mark(this);
+	    fprintf(stderr,"\n");
+        }
+        return;
+    }
+
+    this = get_mark(first_mark, tag);
+    if (!this)
+	return;
+
+    show_one_mark(this);
+    fprintf(stderr, "\n"); 
+}
+
