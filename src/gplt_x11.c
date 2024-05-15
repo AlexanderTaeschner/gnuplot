@@ -664,7 +664,6 @@ static Atom WM_PROTOCOLS, WM_DELETE_WINDOW;
 
 static XPoint Diamond[5], Triangle[4];
 static XSegment Plus[2], Cross[2], Star[4];
-static XPoint Pentagon[6], Squash[9];
 
 /* pixmaps used for filled boxes (ULIG) */
 /* FIXME EAM - These data structures are a duplicate of the ones in bitmap.c */
@@ -2596,18 +2595,12 @@ exec_cmd(plot_struct *plot, char *command)
 	    unsigned char fill = 0;
 	    unsigned char upside_down_fill = 0;
 	    short upside_down_sign = 1;
-	    float delta = (plot->px + plot->py + 1)/2;
+	    int delta = (plot->px + plot->py + 1)/2;
 
 	    /* Force line type to solid, with round ends */
 	    XSetLineAttributes(dpy, *current_gc, plot->lwidth, LineSolid, CapRound, JoinRound);
 
-	    if (point < 1000 || point > 1007)
-		point = point % 13;
-
-	    switch (point) {
-	    default:		/* dot */
-		XDrawPoint(dpy, plot->pixmap, *current_gc, X(x), Y(y));
-		break;
+	    switch (point % 13) {
 	    case 0:		/* do plus */
 		Plus[0].x1 = (short) X(x) - delta;
 		Plus[0].y1 = (short) Y(y);
@@ -2674,13 +2667,11 @@ exec_cmd(plot_struct *plot, char *command)
 		upside_down_fill = 1;
 		/* FALLTHRU */
 	    case 9:		/* do upside-down triangle */
-	    case 1003:
 		upside_down_sign = (short)-1;
 	    case 8:		/* filled triangle */
 		fill = 1;
 		/* FALLTHRU */
 	    case 7:		/* do triangle */
-	    case 1002:
 		{
 		    short temp_x, temp_y;
 
@@ -2696,14 +2687,6 @@ exec_cmd(plot_struct *plot, char *command)
 		    Triangle[3].x = (short) temp_x;
 		    Triangle[3].y = (short) -(upside_down_sign * 2 * delta);
 
-		    if (point == 1002 || point == 1003) {
-			XSetForeground(dpy, gc, plot->cmap->colors[0]);
-			XFillPolygon(dpy, plot->pixmap, *current_gc,
-				Triangle, 4, Convex, CoordModePrevious);
-			XSetForeground(dpy, gc, plot->current_rgb);
-			XDrawLines(dpy, plot->pixmap, *current_gc, Triangle, 4, CoordModePrevious);
-			break;
-		    }
 		    if ((upside_down_sign == 1 && fill) || upside_down_fill) {
 			XFillPolygon(dpy, plot->pixmap, *current_gc,
 				Triangle, 4, Convex, CoordModePrevious);
@@ -2717,7 +2700,6 @@ exec_cmd(plot_struct *plot, char *command)
 		fill = 1;
 		/* FALLTHRU */
 	    case 11:		/* do diamond */
-	    case 1004:		/* background-fill diamond */
 		Diamond[0].x = (short) X(x) - delta;
 		Diamond[0].y = (short) Y(y);
 		Diamond[1].x = (short) delta;
@@ -2732,12 +2714,7 @@ exec_cmd(plot_struct *plot, char *command)
 		/*
 		 * Should really do a check with XMaxRequestSize()
 		 */
-		if (point == 1004) {
-		    XSetForeground(dpy, gc, plot->cmap->colors[0]);
-		    XFillPolygon(dpy, plot->pixmap, *current_gc,
-			    Diamond, 5, Convex, CoordModePrevious);
-		    XSetForeground(dpy, gc, plot->current_rgb);
-		}
+
 		if (fill) {
 		    XFillPolygon(dpy, plot->pixmap, *current_gc,
 			    Diamond, 5, Convex, CoordModePrevious);
@@ -2745,67 +2722,6 @@ exec_cmd(plot_struct *plot, char *command)
 		    XDrawLines(dpy, plot->pixmap, *current_gc, Diamond, 5, CoordModePrevious);
 		    XDrawPoint(dpy, plot->pixmap, *current_gc, X(x), Y(y));
 		}
-		break;
-
-	    case 1000:	/* Extra point type 1001 background-fill box */
-		XSetForeground(dpy, gc, plot->cmap->colors[0]);
-		XFillRectangle(dpy, plot->pixmap, *current_gc, X(x) - delta, Y(y) - delta,
-			(delta + delta), (delta + delta));
-		XSetForeground(dpy, gc, plot->current_rgb);
-		XDrawRectangle(dpy, plot->pixmap, *current_gc, X(x) - delta, Y(y) - delta,
-			(delta + delta), (delta + delta));
-		break;
-	    case 1001:  /* Extra point type 1002 background-fill circle */
-		XSetForeground(dpy, gc, plot->cmap->colors[0]);
-		XFillArc(dpy, plot->pixmap, *current_gc, X(x) - delta, Y(y) - delta,
-			2 * delta, 2 * delta, 0, 23040 /* 360 * 64 */);
-		XSetForeground(dpy, gc, plot->current_rgb);
-		XDrawArc(dpy, plot->pixmap, *current_gc, X(x) - delta, Y(y) - delta,
-			2 * delta, 2 * delta, 0, 23040 /* 360 * 64 */);
-		break;
-	    case 1005:	/* Extra pont type 1006 background-fill pentagon */
-		Pentagon[0].x = X(x);
-		Pentagon[0].y = Y(y) + 1.0000 * delta;
-		Pentagon[1].x =  0.9511 * delta;
-		Pentagon[1].y = -0.8090 * delta;
-		Pentagon[2].x = -0.3633 * delta;
-		Pentagon[2].y = -1.1180* delta;
-		Pentagon[3].x = -1.1756 * delta;
-		Pentagon[3].y =  0.0000 * delta;
-		Pentagon[4].x = -0.3633 * delta;
-		Pentagon[4].y =  1.1180 * delta;
-		Pentagon[5].x =  0.9511 * delta;
-		Pentagon[5].y =  0.8090 * delta;
-		XSetForeground(dpy, gc, plot->cmap->colors[0]);
-		XFillPolygon(dpy, plot->pixmap, *current_gc,
-			Pentagon, 6, Convex, CoordModePrevious);
-		XSetForeground(dpy, gc, plot->current_rgb);
-		XDrawLines(dpy, plot->pixmap, *current_gc, Pentagon, 6, CoordModePrevious);
-		break;
-	    case 1006:	/* Extra point type 1007 star (4 points only) */
-		Squash[0].x =  X(x);
-		Squash[0].y =  Y(y) + 0.4 * delta;
-		Squash[1].x =  0.9 * delta;
-		Squash[1].y =  0.5 * delta;
-		Squash[2].x = -0.5 * delta;
-		Squash[2].y = -0.9 * delta;
-		Squash[3].x =  0.5 * delta;
-		Squash[3].y = -0.9 * delta;
-		Squash[4].x = -0.9 * delta;
-		Squash[4].y =  0.5 * delta;
-		Squash[5].x = -0.9 * delta;
-		Squash[5].y = -0.5 * delta;
-		Squash[6].x =  0.5 * delta;
-		Squash[6].y =  0.9 * delta;
-		Squash[7].x = -0.5 * delta;
-		Squash[7].y =  0.9 * delta;
-		Squash[8].x =  0.9 * delta;
-		Squash[8].y = -0.5 * delta;
-		XSetForeground(dpy, gc, plot->cmap->colors[0]);
-		XFillPolygon(dpy, plot->pixmap, *current_gc,
-			Squash, 9, Nonconvex, CoordModePrevious);
-		XSetForeground(dpy, gc, plot->current_rgb);
-		XDrawLines(dpy, plot->pixmap, *current_gc, Squash, 9, CoordModePrevious);
 		break;
 	    }
 

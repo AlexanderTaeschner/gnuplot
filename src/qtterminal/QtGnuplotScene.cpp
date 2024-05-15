@@ -162,7 +162,6 @@ void QtGnuplotScene::flushCurrentPointsItem()
 	addItem(m_currentPointsItem);
 	m_currentGroup.append(m_currentPointsItem);
 	m_currentPointsItem = new QtGnuplotPoints();
-	m_currentPointsItem->setBackgroundFill( m_widget->backgroundColor() );
 }
 
 void QtGnuplotScene::update_key_box(const QRectF rect)
@@ -337,8 +336,7 @@ void QtGnuplotScene::processEvent(QtGnuplotEventType type, QDataStream& in)
 		else
 		{
 			flushCurrentPointsItem();
-			QtGnuplotPoint* pointItem = new QtGnuplotPoint(style,
-				m_currentPointSize, m_currentPen, m_widget->backgroundColor());
+			QtGnuplotPoint* pointItem = new QtGnuplotPoint(style, m_currentPointSize, m_currentPen);
 			pointItem->setPos(clipPoint(point));
 			pointItem->setZValue(m_currentZ++);
 			addItem(pointItem);
@@ -683,7 +681,6 @@ void QtGnuplotScene::resetItems()
 	clear();
 	delete m_currentPointsItem;
 	m_currentPointsItem = new QtGnuplotPoints;
-	m_currentPointsItem->setBackgroundFill( m_widget->backgroundColor() );
 
 	m_currentZ = 1.;
 

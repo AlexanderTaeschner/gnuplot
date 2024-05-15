@@ -131,12 +131,11 @@ void QtGnuplotEnhancedFragment::paint(QPainter* painter, const QStyleOptionGraph
 /////////////////////////////
 // QtGnuplotPoint
 
-QtGnuplotPoint::QtGnuplotPoint(int style, double size, QPen pen, QColor background, QGraphicsItem * parent)
+QtGnuplotPoint::QtGnuplotPoint(int style, double size, QPen pen, QGraphicsItem * parent)
 	: QGraphicsItem(parent)
 {
 	m_pen   = pen;
 	m_color = pen.color();
-	m_backgroundFill = background;
 	m_style = style;
 	m_size = 3.*size;
 }
@@ -151,24 +150,9 @@ void QtGnuplotPoint::paint(QPainter* painter, const QStyleOptionGraphicsItem* op
 	Q_UNUSED(option);
 	Q_UNUSED(widget);
 
-	int style = m_style % 15;
+	const int style = m_style % 15;
 
-	/* Extra point types 1001 - 1006 (background fill) */
-	if (1000 <= m_style && m_style < 1020) {
-		switch (m_style) {
-			case 1000: style = 4; break;
-			case 1001: style = 6; break;
-			case 1002: style = 8; break;
-			case 1003: style = 10; break;
-			case 1004: style = 12; break;
-			case 1005: style = 14; break;
-			case 1006: style = 15; break;
-			default:   style = -1; break;
-		}
-		painter->setPen(m_color);
-		painter->setBrush(m_backgroundFill);
-	}
-	else if ((style % 2 == 0) && (style > 3)) // Filled points
+	if ((style % 2 == 0) && (style > 3)) // Filled points
 	{
 		painter->setPen(m_color);
 		painter->setBrush(m_color);
@@ -232,21 +216,6 @@ void QtGnuplotPoint::drawPoint(QPainter* painter, const QPointF& origin, double 
 						origin + QPointF(-size*0.9511,  size*0.3090)};
 		painter->drawPolygon(p, 5);
 	}
-	else if (style == 15) // star
-	{
-		const double scl = size * 1.2;
-		const QPointF p[10] = { origin + QPointF( scl*0.5878,  scl*0.8090),
-					origin + QPointF( scl*0.0   ,  scl*0.5090),
-					origin + QPointF(-scl*0.5878,  scl*0.8090),
-					origin + QPointF(-scl*0.4755,  scl*0.1545),
-					origin + QPointF(-scl*0.9511, -scl*0.3090),
-					origin + QPointF(-scl*0.2939, -scl*0.4040),
-					origin + QPointF( scl*0.0   , -scl*1.0000),
-					origin + QPointF( scl*0.2939, -scl*0.4040),
-					origin + QPointF( scl*0.9511, -scl*0.3090),
-					origin + QPointF( scl*0.4755,  scl*0.1545) };
-		painter->drawPolygon(p, 10);
-	}
 }
 
 /////////////////////////////
@@ -256,12 +225,6 @@ QtGnuplotPoints::QtGnuplotPoints(QGraphicsItem * parent)
 	: QGraphicsItem(parent)
 {
 	m_currentZ = 0;
-	m_backgroundFill = Qt::white;	// I don't know how to retrieve it from the scene!
-}
-
-void QtGnuplotPoints::setBackgroundFill(const QColor color)
-{
-	m_backgroundFill = color;
 }
 
 QRectF QtGnuplotPoints::boundingRect() const
@@ -325,29 +288,13 @@ void QtGnuplotPoints::paint(QPainter* painter, const QStyleOptionGraphicsItem* o
 	{
 		for (; i < m_points.size() && m_points[i].z == z; i++, z++)
 		{
-			int style = m_points[i].style % 15;
+			const int style = m_points[i].style % 15;
 
-			/* Extra point types 1001 - 1006 (background fill) */
-			if (1000 <= m_points[i].style && m_points[i].style < 1020) {
-				switch (m_points[i].style) {
-					case 1000: style = 4; break;
-					case 1001: style = 6; break;
-					case 1002: style = 8; break;
-					case 1003: style = 10; break;
-					case 1004: style = 12; break;
-					case 1005: style = 14; break;
-					case 1006: style = 15; break;
-					default:   style = -1; break;
-				}
-				painter->setPen(m_points[i].pen);
-				painter->setBrush(m_backgroundFill);
-			}
-			else if ((style % 2 == 0) && (style > 3))
-			{
-				// Filled points
-				painter->setPen(m_points[i].pen.color());
+			painter->setPen(m_points[i].pen.color());
+			if ((style % 2 == 0) && (style > 3)) // Filled points
 				painter->setBrush(m_points[i].pen.color());
-			} else {
+			else
+			{
 				painter->setPen(m_points[i].pen);
 				painter->setBrush(Qt::NoBrush);
 			}
