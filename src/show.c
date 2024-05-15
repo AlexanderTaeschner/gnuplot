@@ -1085,13 +1085,15 @@ show_version(FILE *fp)
 		"";
 #endif
 
+	    const char *got_marks = "+MARKS ";
+
 	    sprintf(compile_options,
-		    "    %s%s\n    %s%s\n    %s%s%s%s\n    %s\n    %s%s%s%s\n    %s%s\n",
+		    "    %s%s\n    %s%s\n    %s%s%s%s\n    %s\n    %s%s%s%s\n    %s%s%s\n",
 		    rdline, gnu_rdline, unicodebuild, plotoptions,
 		    complexfunc, libcerf, libamos, have_cexint,
 		    libgd,
 		    nocwdrc, x11, use_mouse, hiddenline,
-		    fblocks, chi_shapes
+		    fblocks, chi_shapes, got_marks
 		    );
 	}
 
