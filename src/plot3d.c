@@ -1872,13 +1872,8 @@ eval_3dplots()
 	    this_plot->lp_properties.l_type = line_num;
 	    this_plot->lp_properties.p_type = line_num;
 	    this_plot->lp_properties.d_type = line_num;
-
-	    /* user may prefer explicit line styles */
 	    this_plot->hidden3d_top_linetype = line_num;
-	    if (prefer_line_styles)
-		lp_use_properties(&this_plot->lp_properties, line_num+1);
-	    else
-		load_linetype(&this_plot->lp_properties, line_num+1);
+	    load_linetype(&this_plot->lp_properties, line_num+1);
 
 	    /* pm 25.11.2001 allow any order of options */
 	    while (!END_OF_COMMAND || !checked_once) {
@@ -2089,11 +2084,7 @@ eval_3dplots()
 		    lp.p_type = line_num;
 		    lp.d_type = line_num;
 
-		    /* user may prefer explicit line styles */
-		    if (prefer_line_styles)
-			lp_use_properties(&lp, line_num+1);
-		    else
-			load_linetype(&lp, line_num+1);
+		    load_linetype(&lp, line_num+1);
 
  		    new_lt = lp_parse(&lp, LP_ADHOC,
 			     this_plot->plot_style & PLOT_STYLE_HAS_POINT);
@@ -2238,11 +2229,7 @@ eval_3dplots()
 			this_plot->lp_properties.d_type = line_num;
 		    this_plot->lp_properties.p_size = pointsize;
 
-		    /* user may prefer explicit line styles */
-		    if (prefer_line_styles)
-			lp_use_properties(&this_plot->lp_properties, line_num+1);
-		    else
-			load_linetype(&this_plot->lp_properties, line_num+1);
+		    load_linetype(&this_plot->lp_properties, line_num+1);
 
 		    new_lt = lp_parse(&this_plot->lp_properties, LP_ADHOC,
 			 this_plot->plot_style & PLOT_STYLE_HAS_POINT);

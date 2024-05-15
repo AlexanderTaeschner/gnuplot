@@ -841,14 +841,6 @@ do_plot(struct curve_points *plots, int pcount)
 	x_axis = this_plot->x_axis;
 	y_axis = this_plot->y_axis;
 
-	/* Crazy corner case handling Bug #3499425 */
-	if (prefer_line_styles
-	&&  (this_plot->plot_style == HISTOGRAMS) && (!key_pass && key->front)) {
-		struct lp_style_type ls;
-		lp_use_properties(&ls, this_plot->lp_properties.l_type+1);
-		this_plot->lp_properties.pm3d_color = ls.pm3d_color;
-	}
-
 	term_apply_lp_properties(&(this_plot->lp_properties));
 
 	/* Skip a line in the key between histogram clusters */
@@ -875,10 +867,7 @@ do_plot(struct curve_points *plots, int pcount)
 		    this_plot->lp_properties.l_type = histogram_linetype;
 		    this_plot->fill_properties.fillpattern = histogram_linetype;
 		    if (key_entry->text) {
-			if (prefer_line_styles)
-			    lp_use_properties(&this_plot->lp_properties, histogram_linetype);
-			else
-			    load_linetype(&this_plot->lp_properties, histogram_linetype);
+			load_linetype(&this_plot->lp_properties, histogram_linetype);
 			do_key_sample(this_plot, key, key_entry->text, 0.0);
 		    }
 		    key_count++;
@@ -2507,10 +2496,7 @@ plot_boxes(struct curve_points *plot, int xaxis_y)
 		    case HT_STACKED_IN_TOWERS: /* columnstacked */
 			stack = 0;
 			/* Line type (color) must match row number */
-			if (prefer_line_styles)
-			    lp_use_properties(&ls, histogram_linetype);
-			else
-			    load_linetype(&ls, histogram_linetype);
+			load_linetype(&ls, histogram_linetype);
 			apply_pm3dcolor(&ls.pm3d_color);
 			plot->fill_properties.fillpattern = histogram_linetype;
 			/* Fall through */
@@ -5561,12 +5547,7 @@ check_for_variable_color(struct curve_points *plot, double *colorvalue)
 	return TRUE;
     } else if (plot->lp_properties.l_type == LT_COLORFROMCOLUMN) {
 	lp_style_type lptmp;
-	/* lc variable will only pick up line _style_ as opposed to _type_ */
-	/* in the case of "set style increment user".  THIS IS A CHANGE.   */
-	if (prefer_line_styles)
-	    lp_use_properties(&lptmp, (int)(*colorvalue));
-	else
-	    load_linetype(&lptmp, (int)(*colorvalue));
+	load_linetype(&lptmp, (int)(*colorvalue));
 	apply_pm3dcolor(&(lptmp.pm3d_color));
 	return TRUE;
     } else

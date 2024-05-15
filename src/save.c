@@ -521,8 +521,6 @@ save_set_all(FILE *fp)
     }
 
     /* Mostly for backwards compatibility */
-    if (prefer_line_styles)
-	fprintf(fp, "set style increment userstyles\n");
     fputs("unset style line\n", fp);
     for (this_linestyle = first_linestyle; this_linestyle != NULL;
 	 this_linestyle = this_linestyle->next) {

@@ -1046,11 +1046,7 @@ lp_parse(struct lp_style_type *lp, lp_class destination_class, TBOOLEAN allow_po
 		    /* These replace the base style */
 		    new_lt = int_expression();
 		    lp->l_type = new_lt - 1;
-		    /* user may prefer explicit line styles */
-		    if (prefer_line_styles && (destination_class != LP_STYLE))
-			lp_use_properties(lp, new_lt);
-		    else
-			load_linetype(lp, new_lt);
+		    load_linetype(lp, new_lt);
 		}
 	} /* linetype, lt */
 

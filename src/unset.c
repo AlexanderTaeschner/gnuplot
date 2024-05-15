@@ -2306,10 +2306,6 @@ reset_command()
     unset_textbox_style();
     unset_watchpoint_style();
 
-#ifdef BACKWARD_COMPATIBILITY
-    prefer_line_styles = FALSE;
-#endif
-
     reset_hulls(1);
     reset_watches();
 

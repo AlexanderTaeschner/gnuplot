@@ -2136,10 +2136,7 @@ store_label(
     /* Check for optional (textcolor variable) */
     else if (listhead->textcolor.type == TC_VARIABLE) {
 	struct lp_style_type lptmp;
-	if (prefer_line_styles)
-	    lp_use_properties(&lptmp, (int)colorval);
-	else
-	    load_linetype(&lptmp, (int)colorval);
+	load_linetype(&lptmp, (int)colorval);
 	tl->textcolor = lptmp.pm3d_color;
     }
 
@@ -2154,10 +2151,7 @@ store_label(
 	/* Check for optional (point linecolor variable) */
 	else if (listhead->lp_properties.l_type == LT_COLORFROMCOLUMN) {
 	    struct lp_style_type lptmp;
-	    if (prefer_line_styles)
-		lp_use_properties(&lptmp, (int)colorval);
-	    else
-		load_linetype(&lptmp, (int)colorval);
+	    load_linetype(&lptmp, (int)colorval);
 	    tl->lp_properties.pm3d_color = lptmp.pm3d_color;
 	}
     }
@@ -2848,10 +2842,7 @@ eval_plots()
 
 		    if (!set_lpstyle) {
 			default_arrow_style(&(this_plot->arrow_properties));
-			if (prefer_line_styles)
-			    lp_use_properties(&(this_plot->arrow_properties.lp_properties), line_num+1);
-			else
-			    load_linetype(&(this_plot->arrow_properties.lp_properties), line_num+1);
+			load_linetype(&(this_plot->arrow_properties.lp_properties), line_num+1);
 		    }
 
 		    arrow_parse(&(this_plot->arrow_properties), TRUE);
@@ -2935,11 +2926,7 @@ eval_plots()
 		    lp.p_type = line_num;
 		    lp.d_type = line_num;
 
-		    /* user may prefer explicit line styles */
-		    if (prefer_line_styles)
-			lp_use_properties(&lp, line_num+1);
-		    else
-			load_linetype(&lp, line_num+1);
+		    load_linetype(&lp, line_num+1);
 
 		    if (this_plot->plot_style == BOXPLOT) {
 			lp.p_type = boxplot_opts.pointtype;
@@ -3085,10 +3072,7 @@ eval_plots()
 	     * copy this to overall plot linetype so that the key sample matches */
 	    if (this_plot->plot_style & PLOT_STYLE_HAS_VECTOR) {
 		if (!set_lpstyle) {
-		    if (prefer_line_styles)
-			lp_use_properties(&(this_plot->arrow_properties.lp_properties), line_num+1);
-		    else
-			load_linetype(&(this_plot->arrow_properties.lp_properties), line_num+1);
+		    load_linetype(&(this_plot->arrow_properties.lp_properties), line_num+1);
 		    arrow_parse(&this_plot->arrow_properties, TRUE);
 		}
 		this_plot->lp_properties = this_plot->arrow_properties.lp_properties;
@@ -3104,11 +3088,7 @@ eval_plots()
 		this_plot->lp_properties.d_type = line_num;
 		this_plot->lp_properties.p_size = pointsize;
 
-		/* user may prefer explicit line styles */
-		if (prefer_line_styles)
-		    lp_use_properties(&this_plot->lp_properties, line_num+1);
-		else
-		    load_linetype(&this_plot->lp_properties, line_num+1);
+		load_linetype(&this_plot->lp_properties, line_num+1);
 
 		if (this_plot->plot_style == BOXPLOT) {
 		    this_plot->lp_properties.p_type = boxplot_opts.pointtype;

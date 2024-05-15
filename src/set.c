@@ -5103,17 +5103,7 @@ set_style()
     case SHOW_STYLE_INCREMENT:
 	c_token++;
 	int_warn(c_token, "deprecated command");
-#ifdef BACKWARD_COMPATIBILITY
-	if (END_OF_COMMAND || almost_equals(c_token,"def$ault"))
-	    prefer_line_styles = FALSE;
-	else if (almost_equals(c_token,"u$serstyles"))
-	    prefer_line_styles = TRUE;
-	else
-	    int_error(c_token,"unrecognized option");
-	c_token++;
-#else
 	while (!END_OF_COMMAND) c_token++;
-#endif
 	break;
     case SHOW_STYLE_BOXPLOT:
 	set_boxplot();
