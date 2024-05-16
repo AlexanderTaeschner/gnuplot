@@ -1089,7 +1089,11 @@ rgb_from_colorspec(struct t_colorspec *tc)
 	case TC_COLORMAP:
 		/* not handled but perhaps it should be? */
 	default:
-		/* cannot happen in a linetype */
+		/* FIXME: I think that "real" linetypes (lt > 0) do not end up here
+		 *        because higher-level code has already translated it into
+		 *        one of the above modes.  However LT_NODRAW, LT_BACKGROUND, etc
+		 *        can end up here and returning 0 (== black) is wrong.
+		 */
 		return 0;
     }
 

@@ -3246,8 +3246,13 @@ do_mark (struct mark_data *mark,
 	my_strokergb = rgb_from_colorspec(&mark->mark_fillstyle.border_color);
     else if (parent_fill_properties->border_color.type == TC_DEFAULT)
 	my_strokergb = rgb_from_colorspec(&parent_lp_properties->pm3d_color);
-    else
-	my_strokergb = rgb_from_colorspec(&parent_fill_properties->border_color);
+    else {
+	if (parent_fill_properties->border_color.type == TC_LT
+	&&  parent_fill_properties->border_color.lt == LT_NODRAW)
+	    my_strokergb = 0xffffffff;
+	else
+	    my_strokergb = rgb_from_colorspec(&parent_fill_properties->border_color);
+    }
 
     /* Check border should be drawn */
     if (my_fillstyle->border_color.type == TC_LT && my_fillstyle->border_color.lt == LT_NODRAW)
@@ -3390,7 +3395,8 @@ do_mark (struct mark_data *mark,
 		||  !has_varcolor
 		||  !check_for_variable_color(plot, &varcolor))
 		    set_rgbcolor_const(my_strokergb);
-		draw_clip_polygon(points, vertex);
+		if (my_strokergb != 0xffffffff)	/* forced stroke but stroke is LT_NODRAW */
+		    draw_clip_polygon(points, vertex);
 	    }
 
 	}
