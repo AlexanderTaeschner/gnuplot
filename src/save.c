@@ -2075,7 +2075,8 @@ save_marks(FILE *fp)
 	    fprintf(fp, "fillcolor ");
 	    save_pm3dcolor(fp, &this->mark_fillcolor);
 	}
-	if (this->mark_fillstyle.fillstyle == FS_DEFAULT) {
+	if (this->mark_fillstyle.fillstyle == FS_DEFAULT
+	&&  this->mark_fillstyle.border_color.type == TC_DEFAULT) {
 	    fprintf(fp, "\n");
 	} else {
 	    fprintf(fp, " fillstyle ");
