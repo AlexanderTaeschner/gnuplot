@@ -1380,12 +1380,12 @@ fi
 if test "$enable_qt_ok" = yes; then
   if test "$QTVER" = 4; then
       AC_MSG_RESULT([  Qt                   : yes (qt4)])
-  fi
-  if test "$QTVER" = 5; then
+  elif test "$QTVER" = 5; then
       AC_MSG_RESULT([  Qt                   : yes (qt5)])
-  fi
-  if test "$QTVER" = 6; then
+  elif test "$QTVER" = 6; then
       AC_MSG_RESULT([  Qt                   : yes (qt6)])
+  else
+      AC_MSG_RESULT([  Qt                   : no (requires C++, Qt5 or Qt6 support libraries)])
   fi
 else
   AC_MSG_RESULT([  Qt                   : no (use --with-qt or --with-qt=qt4 or --with-qt=qt5 to enable])
