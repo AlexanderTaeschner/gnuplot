@@ -3133,7 +3133,6 @@ mark_append(struct mark_data *dst, struct mark_data *src)
        dst->ymax = src->ymax;
 }
 
-#define MARK_ACTION_UNDEFINED 0
 #define MARK_ACTION_CREATE    1
 #define MARK_ACTION_APPEND    2
 
@@ -3147,8 +3146,7 @@ set_mark ()
     double v[4];
     char *name_str;
     int saved_token;
-    int append = FALSE;
-    int action = MARK_ACTION_UNDEFINED;
+    int action = MARK_ACTION_CREATE;
     int sample_range_token;
     int j;
 
@@ -3157,19 +3155,18 @@ set_mark ()
     tag = int_expression();
 
     if (tag < 0)
-       int_error(c_token, "tag must be >= 0");
+       int_error(saved_token, "tag must be >= 0");
 
     if (equals(c_token, "empty")) {
         c_token++;
         mark = mark_allocate(0);
         mark->tag = tag;
-        action = MARK_ACTION_CREATE;
         goto push_mark_to_list;
     }
 
     if (equals(c_token, "append")) {
        c_token++;
-       append = TRUE;
+       action = MARK_ACTION_APPEND;
     }
 
     /* Check for a sampling range. */
@@ -3180,21 +3177,8 @@ set_mark ()
     }
 
     saved_token = c_token;
-
-    if ( equals(c_token, "\"++\"") ) {
-	int_error(c_token, "pseudofile \"++\" can not be used for 'set mark'");
-    } else if ( (name_str = string_or_express(NULL)) ) {
-	/* WARNING: do NOT free name_str */
-        if (append)
-            action = MARK_ACTION_APPEND;
-        else
-            action = MARK_ACTION_CREATE;                
-    }
-
-    if (action == MARK_ACTION_UNDEFINED)
+    if ( ! (name_str = string_or_express(NULL)) ) /* WARNING: do NOT free name_str */
 	int_error(saved_token, "unrecognized data source for mark");
-
-    saved_token = c_token;
 
     /* Same interlock as plot/splot/stats */
     inside_plot_command = TRUE;
@@ -3204,26 +3188,12 @@ set_mark ()
     if (ierr < 0)
 	int_error(NO_CARET, "could not open %s", name_str);
 
+    if (!strcmp(df_filename,"++"))
+	int_error(c_token, "pseudofile \"++\" can not be used for 'set mark'");
+
     mark = mark_allocate(0xff);
     mark->tag = tag;
     vertex = mark->polygon.vertex;
-
-    /* Read optional fillstyle and fill color from the command line.
-     * Must come after df_open().
-     * Style and color can be given in either order, so give it two chances.
-     */
-    while (!END_OF_COMMAND) {
-	int save_token = c_token;
-	parse_fillstyle(&mark->mark_fillstyle);
-	if ((equals(c_token,"fc") || almost_equals(c_token,"fillc$olor")))
-	    parse_colorspec(&mark->mark_fillcolor, TC_Z);
-	if (almost_equals(c_token,"ti$tle")) {
-	    c_token++;
-	    mark->title = try_to_get_string();
-	}
-	if (c_token == save_token)
-	    break;
-    }
 
     lines = 0;
     while ((j = df_readline(v, 4)) != DF_EOF) {
@@ -3275,14 +3245,34 @@ set_mark ()
 
     inside_plot_command = FALSE;
 
-
     push_mark_to_list:
+
+    if (action == MARK_ACTION_CREATE) {
+       /* Read optional fillstyle and fill color from the command line.
+        * Must come after df_open().
+        * Style and color can be given in either order, so give it two chances.
+        */
+        while (!END_OF_COMMAND) {
+	    int save_token = c_token;
+	    parse_fillstyle(&mark->mark_fillstyle);
+	    if ((equals(c_token,"fc") || almost_equals(c_token,"fillc$olor")))
+		parse_colorspec(&mark->mark_fillcolor, TC_Z);
+	    if (almost_equals(c_token,"ti$tle")) {
+		c_token++;
+		mark->title = try_to_get_string();
+	    }
+	    if (c_token == save_token)
+		break;
+        }
+    }
 
     if (!first_mark) {  /* the mark list is empty */
 	first_mark = mark;
     } else {
         this = get_mark(first_mark, tag);
         if (!this) {    /* no existing mark with the specified tag */
+	    if (action == MARK_ACTION_APPEND)
+		int_error(c_token, "attempted to append data to undefined mark tag %d", tag);
             push_mark(first_mark, mark);
         } else {        /* the mark with the specified tag is found */
             if (action == MARK_ACTION_APPEND) {
@@ -3300,7 +3290,6 @@ set_mark ()
     }
 }
 
-#undef MARK_ACTION_UNDEFINED
 #undef MARK_ACTION_CREATE
 #undef MARK_ACTION_APPEND
 
