@@ -3204,6 +3204,7 @@ do_mark (struct mark_data *mark,
     int k;
     TBOOLEAN withborder = FALSE;
     TBOOLEAN has_varcolor = FALSE;
+    TBOOLEAN has_bordercolor = FALSE;
 
     if (!mark)
        return;
@@ -3242,16 +3243,19 @@ do_mark (struct mark_data *mark,
     /* Stroke color is taken from the mark border color if specified by "set mark",
      * otherwise it is inherited from the parent object or plot.
      */
-    if (mark->mark_fillstyle.border_color.type != TC_DEFAULT)
+    if (mark->mark_fillstyle.border_color.type != TC_DEFAULT) {
+	has_bordercolor = TRUE;
 	my_strokergb = rgb_from_colorspec(&mark->mark_fillstyle.border_color);
-    else if (parent_fill_properties->border_color.type == TC_DEFAULT)
+    } else if (parent_fill_properties->border_color.type == TC_DEFAULT)
 	my_strokergb = rgb_from_colorspec(&parent_lp_properties->pm3d_color);
     else {
 	if (parent_fill_properties->border_color.type == TC_LT
 	&&  parent_fill_properties->border_color.lt == LT_NODRAW)
 	    my_strokergb = 0xffffffff;
-	else
+	else {
+	    has_bordercolor = TRUE;
 	    my_strokergb = rgb_from_colorspec(&parent_fill_properties->border_color);
+        }
     }
 
     /* Check border should be drawn */
@@ -3391,9 +3395,11 @@ do_mark (struct mark_data *mark,
 	    if ((draw_style == MARKS_STROKE)
 	    ||  (draw_style == MARKS_FILL_STROKE)
 	    ||  ((draw_style == MARKS_FILLSTYLE) && withborder)) {
-		if (!(my_fillstyle->fillstyle == FS_EMPTY)
-		||  !has_varcolor
-		||  !check_for_variable_color(plot, &varcolor))
+		if (has_bordercolor)
+		    set_rgbcolor_const(my_strokergb);
+		else if (has_varcolor)
+		    check_for_variable_color(plot, &varcolor);
+		else
 		    set_rgbcolor_const(my_strokergb);
 		if (my_strokergb != 0xffffffff)	/* forced stroke but stroke is LT_NODRAW */
 		    draw_clip_polygon(points, vertex);
