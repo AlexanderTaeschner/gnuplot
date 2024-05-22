@@ -94,6 +94,7 @@ TERM_PUBLIC void WEBP_options(int);	/* We call it from cairotrm_options */
 
 static cairo_status_t cairostream_write(void *closure, unsigned char *data, unsigned int length);
 static int cairostream_error[1];
+static void cairopng_write_cropped_image(cairo_surface_t *surface);
 
 /* Terminal id */
 enum CAIROTRM_id {
@@ -998,7 +999,7 @@ cairostream_write(void *closure, unsigned char *data, unsigned int length)
 	return CAIRO_STATUS_SUCCESS;
 }
 
-void
+static void
 cairopng_write_cropped_image(cairo_surface_t *surface)
 {
   unsigned char *data = cairo_image_surface_get_data(surface);

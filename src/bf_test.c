@@ -29,6 +29,7 @@
 #endif
 
 static float function (int p, double x, double y);
+int fwrite_matrix( FILE *fout, float **m, int xsize, int ysize, float *rt, float *ct);
 
 typedef struct {
   float xmin, xmax;

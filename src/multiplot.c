@@ -61,6 +61,7 @@ static void mp_layout_size_and_offset(void);
 static void mp_layout_margins_and_spacing(void);
 static void mp_layout_set_margin_or_spacing(t_position *);
 static void init_multiplot_datablock(void);
+static void multiplot_previous(void);
 
 enum set_multiplot_id {
     S_MULTIPLOT_LAYOUT,
@@ -164,7 +165,7 @@ multiplot_next()
     }
 }
 
-void
+static void
 multiplot_previous(void)
 {
     mp_layout.current_panel--;

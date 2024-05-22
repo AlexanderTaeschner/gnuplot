@@ -24,7 +24,7 @@ writebyte_fputc(void *out, unsigned char ch) {
   return fputc(ch, (FILE *)out);
 }
 
-void
+static void
 init_base64_state_data (base64s *b64, writebyte_cb cb, void *out) {
   b64->shift = 6;
   b64->bit6 = 0;
@@ -112,7 +112,7 @@ write_png_image (unsigned m, unsigned n, coordval *image, t_imagecolor color_mod
   return retval;
 }
 
-cairo_status_t
+static cairo_status_t
 cairo_write_base64_callback (void *closure, const unsigned char *data, unsigned int length) {
   if (piecemeal_write_base64_data (data, length, closure) == 0)
     return CAIRO_STATUS_SUCCESS;

@@ -105,6 +105,7 @@ static complex double lnGamma( complex double z );
 static complex double Igamma( complex double a, complex double z );
 static double complex Igamma_GL( double complex a, double complex z );
 static double complex Igamma_negative_z( double a, double complex z );
+static complex double Riemann_zeta( complex double z );
 
 #undef IGAMMA_POINCARE
 #ifdef IGAMMA_POINCARE
@@ -783,7 +784,7 @@ Igamma_Poincare(double a, double complex z)
  *
  */
 
-complex double
+static complex double
 Riemann_zeta( complex double s )
 {
     int n = 18;				/* sufficient for IEEE double */

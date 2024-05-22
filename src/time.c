@@ -38,6 +38,7 @@
  */
 
 
+#include "standard.h"
 #include "gp_time.h"
 #include "gplocale.h"
 #include "eval.h"

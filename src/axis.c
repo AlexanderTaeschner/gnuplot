@@ -193,6 +193,7 @@ static void load_one_range(struct axis *axis, double *a, t_autoscale *autoscale,
 static double quantize_duodecimal_tics(double, int);
 static void get_position_type(enum position_type * type, AXIS_INDEX *axes);
 static void gen_time_minitics(struct axis *this, double start, double end, tic_callback callback);
+static int looks_like_numeric(char *format);
 
 /* ---------------------- routines ----------------------- */
 
@@ -570,7 +571,7 @@ make_auto_time_minitics(t_timelevel tlevel, double incr)
 
 /* {{{ copy_or_invent_formatstring() */
 /* Rarely called helper function looks_like_numeric() */
-int
+static int
 looks_like_numeric(char *format)
 {
     if (!(format = strchr(format, '%')))

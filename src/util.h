@@ -120,7 +120,7 @@ void int_error();
 void int_warn();
 void common_error_exit();
 #endif
-void warn_command();
+void warn_command(void);
 
 void squash_spaces(char *s, int remain);
 

@@ -225,6 +225,11 @@ textbox_style textbox_opts[NUM_TEXTBOX_STYLES];
 struct iso_curve *mask_2Dpolygon_set = NULL;
 struct iso_curve *mask_3Dpolygon_set = NULL;
 static TBOOLEAN interior(double x, double y, struct coordinate *mask, int nv);
+static TBOOLEAN vertex_is_inside(gpiPoint test_vertex, gpiPoint *clip_boundary);
+static void intersect_polyedge_with_boundary(gpiPoint first, gpiPoint second,
+				gpiPoint *intersect, gpiPoint *clip_boundary);
+static void clip_polygon_to_boundary(gpiPoint *in, gpiPoint *out, int in_length,
+				int *out_length, gpiPoint *clip_boundary);
 
 /*****************************************************************/
 /* Routines that deal with global objects defined in this module */
@@ -544,7 +549,7 @@ clip_line(int *x1, int *y1, int *x2, int *y2)
 /* test if coordinates of a vertex are inside boundary box. The start
    and end points for the clip_boundary must be in correct order for
    this to work properly (see respective definitions in clip_polygon()). */
-TBOOLEAN
+static TBOOLEAN
 vertex_is_inside(gpiPoint test_vertex, gpiPoint *clip_boundary)
 {
     if (clip_boundary[1].x > clip_boundary[0].x)              /*bottom edge*/
@@ -558,7 +563,7 @@ vertex_is_inside(gpiPoint test_vertex, gpiPoint *clip_boundary)
     return FALSE;
 } 
 
-void
+static void
 intersect_polyedge_with_boundary(gpiPoint first, gpiPoint second, gpiPoint *intersect, gpiPoint *clip_boundary)
 {
     /* This routine is called only if one point is outside and the other
@@ -581,7 +586,7 @@ intersect_polyedge_with_boundary(gpiPoint first, gpiPoint second, gpiPoint *inte
 }
 
 /* Clip the given polygon to a single edge of the bounding box. */
-void 
+static void 
 clip_polygon_to_boundary(gpiPoint *in, gpiPoint *out, int in_length, int *out_length, gpiPoint *clip_boundary)
 {
     gpiPoint prev, curr; /* start and end point of current polygon edge. */

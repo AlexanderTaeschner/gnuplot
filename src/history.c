@@ -38,12 +38,16 @@
 #include "plot.h"
 #include "util.h"
 
+/* Local prototypes */
+#ifdef USE_READLINE
+static void write_history_list(const int num, const char *const filename, const char *mode);
+#endif
+
 /* Public variables */
 
 int gnuplot_history_size = HISTORY_SIZE;
 TBOOLEAN history_quiet = FALSE;
 TBOOLEAN history_full = FALSE;
-
 
 #if defined(READLINE)
 
@@ -398,7 +402,7 @@ gp_read_history(const char *filename)
  *
  * Peter Weilbacher, 28Jun2004
  */
-void
+static void
 write_history_list(const int num, const char *const filename, const char *mode)
 {
     const HIST_ENTRY *list_entry;
