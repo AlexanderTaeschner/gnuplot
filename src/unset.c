@@ -113,8 +113,8 @@ static void unset_logscale(void);
 static void unset_mapping(void);
 static void unset_margin(t_position *);
 static void delete_mark(struct mark_data *prev, struct mark_data *this);
-static void clear_mark();
-static void unset_mark();
+static void clear_mark(void);
+static void unset_mark(void);
 static void unset_missing(void);
 static void unset_micro(void);
 static void unset_minus_sign(void);
@@ -1448,33 +1448,36 @@ delete_mark(struct mark_data *prev, struct mark_data *this)
 	else			/* this = first_object so change first_object */
 	    first_mark = this->next;
 	/* NOTE:  Must free contents as well */
-        free_mark(this);
+	free_mark(this);
     }
 }
 
 static void
 clear_mark()
 {
-   /* delete all marks */
-   while (first_mark != NULL)
-      delete_mark((struct mark_data *) NULL, first_mark);
+    /* delete all marks */
+    while (first_mark != NULL)
+	delete_mark((struct mark_data *) NULL, first_mark);
 }
 
 static void
 unset_mark()
 {
+    int tag;
+    struct mark_data *this, *prev;
+
     if (END_OF_COMMAND) {
-        clear_mark();
-    } else {
-        int tag = int_expression();
-        struct mark_data *this, *prev;
-        for (this = first_mark, prev = NULL; this != NULL;
-	     prev = this, this = this->next) {
-	    if (this->tag == tag) {
-	        delete_mark(prev, this);
-	        break;
-	    }
-        }
+	clear_mark();
+	return;
+    }
+
+    tag = int_expression();
+    for (this = first_mark, prev = NULL; this != NULL;
+	 prev = this, this = this->next) {
+	if (this->tag == tag) {
+	    delete_mark(prev, this);
+	    break;
+	}
     }
 }
 

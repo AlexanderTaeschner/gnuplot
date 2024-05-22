@@ -181,7 +181,8 @@ static void show_ticdefp(struct axis *);
 static void show_functions(void);
 static void show_warnings(void);
 
-static void show_mark();
+static void show_one_mark(struct mark_data *mark);
+static void show_mark(void);
 
 static int var_show_all = 0;
 
