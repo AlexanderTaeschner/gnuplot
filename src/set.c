@@ -3245,16 +3245,20 @@ read_mark_data()
     return mark;
 }
 
-
-#define MARK_ACTION_CREATE    1
-#define MARK_ACTION_APPEND    2
+/* process 'set mark' command
+ * set mark tag {<data source> | empty}
+ *              {fill | fs <fillstyle>}
+ *              {fillcolor | fc <colorspec>}
+ *              {title <text>}
+ * set mark append <data source>
+ */
 
 static void
 set_mark()
 {
     int tag;
-    struct mark_data *mark;
-    int action = MARK_ACTION_CREATE;
+    struct mark_data *mark, *this;
+    TBOOLEAN append = FALSE;
 
     c_token++;
     tag = int_expression();
@@ -3275,42 +3279,40 @@ set_mark()
     } else {
 	if (equals(c_token, "append")) {
 	    c_token++;
-	    action = MARK_ACTION_APPEND;
+	    append = TRUE;
 	}
 	/* The usual case; allocate mark and fill in the vertices */
 	mark = read_mark_data();
 	mark->tag = tag;
     } 
 
-    if (action == MARK_ACTION_CREATE)
-	set_mark_properties(mark);
+    if (append) {
+	if (first_mark && (this = get_mark(first_mark, tag))) {
+	    mark_append(this, mark);
+	    free_mark(mark);	
+	} else {
+       	    int_error(c_token, "attempted to append data to undefined mark tag %d", tag);		
+	}
+	return;
+    }
+
+    set_mark_properties(mark);
 
     if (!first_mark) {  /* the mark list is empty */
 	first_mark = mark;
     } else {
-	struct mark_data *this = get_mark(first_mark, tag);
+	this = get_mark(first_mark, tag);
 	if (!this) {    /* no existing mark with the specified tag */
-	    if (action == MARK_ACTION_APPEND)
-		int_error(c_token, "attempted to append data to undefined mark tag %d", tag);
 	    push_mark(first_mark, mark);
-	} else {        /* the mark with the specified tag is found */
-	    if (action == MARK_ACTION_APPEND) {
-	        mark_append(this, mark);
-	        free_mark(mark);
-	    } else {
-		/* Replace content of old mark that had this tag */
-		struct mark_data *save_next = this->next;
-		mark_reallocate(this, -1);
-		*this = *mark;
-		this->next = save_next;
-		free(mark);
-	    }
+	} else {        /* replace content of old mark that had this tag */
+	    struct mark_data *save_next = this->next;
+	    mark_reallocate(this, -1);
+	    *this = *mark;
+	    this->next = save_next;
+	    free(mark);
 	}
     }
 }
-
-#undef MARK_ACTION_CREATE
-#undef MARK_ACTION_APPEND
 
 
 /* process 'set micro' command */
