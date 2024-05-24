@@ -678,9 +678,11 @@ extern struct object default_ellipse;
 	{0, LT_BLACK, 0, DASHTYPE_SOLID, 0, 0, 1.0, 0.0, DEFAULT_P_CHAR, BLACK_COLORSPEC, DEFAULT_DASHPATTERN}, \
 	{.polygon = {0, NULL} } }
 
+/* this is the default for a new mark */
 #define DEFAULT_MARK_FILLSTYLE {FS_DEFAULT, 100, 0, {TC_DEFAULT, -2, 0}}
+/* this is the default for a new object that holds a mark */
 #define DEFAULT_MARK_STYLE { NULL, -1, 0, OBJ_MARK, OBJ_CLIP, \
-	DEFAULT_MARK_FILLSTYLE, \
+	{FS_EMPTY, 100, 0, {TC_DEFAULT, -2, 0}}, \
 	{0, LT_BLACK, 0, DASHTYPE_SOLID, 0, 0, 1.0, 0.0, DEFAULT_P_CHAR, BLACK_COLORSPEC, DEFAULT_DASHPATTERN}, \
 	{.mark = {-1, {0,0,0,0.,0.,0.}, 1.0, 1.0, 0.0, MARK_UNITS_PS} } }
 
