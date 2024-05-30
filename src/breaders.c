@@ -500,6 +500,18 @@ df_image_get_pixel(int i, int j, int component)
 
 #else /* No libgd no libstbi */
 
+/*
+ * No image reading support is present (libgd or libstbi)
+ */
+
+void png_filetype_function()
+{
+    int_error(NO_CARET, "This copy of gnuplot was built without support for reading an image file");
+}
+void jpeg_filetype_function() { png_filetype_function(); }
+void gif_filetype_function() { png_filetype_function(); }
+int df_image_get_pixel(int i, int j, int component) { return 0; }
+
 #endif /* HAVE_GD_PNG */
 
 TBOOLEAN
@@ -533,8 +545,10 @@ df_read_pixmap( t_pixmap *pixmap )
 
 #ifdef HAVE_GD_PNG
     gd_filetype_function(filetype, pixmap->filename);
-#else
+#elif HAVE_STBI
     stbi_filetype_function(pixmap->filename);
+#else
+    png_filetype_function(); /* Will emit error */
 #endif
 
     pixmap->ncols = df_bin_record[0].scan_dim[0];

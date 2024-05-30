@@ -2,6 +2,11 @@
 # Demonstrate use of 'set pixmap' to provide a slide background,
 # a project logo, and a plot element
 #
+if (!strstrt(GPVAL_COMPILE_OPTIONS,"+GD_PNG") && !strstrt(GPVAL_COMPILE_OPTIONS,"+LIBSTBI")) \
+    print ">>> Skipping demo <<<\n" ; \
+    print "This copy of gnuplot was built without support for loading png images" ;\
+    exit ;
+
 set pixmap 1 'gradient.png' at screen 0,0 size screen 1,1 behind
 set pixmap 2 'icon64x64.png' at screen 0.02, 0.02 width screen 0.05 back
 set pixmap 3 'aries.png' at polar 29., 1.11, 0.0 center width char 2.5
