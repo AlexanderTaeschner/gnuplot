@@ -89,7 +89,7 @@ static void pm3d_rearrange_part(struct iso_curve *, const int, struct iso_curve 
 static int apply_lighting_model(struct coordinate *, struct coordinate *,
 				struct coordinate *, struct coordinate *,
 				double gray, TBOOLEAN gray_is_rgb );
-static void illuminate_one_quadrangle( quadrangle *q );
+static void illuminate_one_quadrangle(quadrangle *q, double gray, TBOOLEAN gray_is_rgb);
 
 static void filled_polygon(struct surface_points *from_plot, int index,
 			    gpdPoint *corners, int nv);
@@ -512,10 +512,6 @@ pm3d_plot(struct surface_points *this_plot, int at_which_z)
 
     if (this_plot->lp_properties.colormap)
 	private_colormap = this_plot->lp_properties.colormap;
-
-    /* Feb 2023:  not necessary and may be counter-productive
-	term_apply_lp_properties(&this_plot->lp_properties);
-     */
 
     if (at_which_z != PM3D_AT_BASE && at_which_z != PM3D_AT_TOP && at_which_z != PM3D_AT_SURFACE)
 	return;
@@ -1104,6 +1100,30 @@ pm3d_plot(struct surface_points *this_plot, int at_which_z)
 	term->layer(TERM_LAYER_END_PM3D_MAP);
 }				/* end of pm3d splotting mode */
 
+/*
+ * Adapt pm3d color assignment code to apply to triangles
+ * (used by splot with polygons)
+ */
+double
+pm3d_assign_triangle_z( double cb1, double cb2, double cb3 )
+{
+    double netz;
+    switch (pm3d.which_corner_color) {
+	default:
+	case PM3D_WHICHCORNER_MEDIAN:
+	case PM3D_WHICHCORNER_GEOMEAN:
+	case PM3D_WHICHCORNER_HARMEAN:
+	case PM3D_WHICHCORNER_MEAN: netz = (cb1 + cb2 + cb3) / 3.; break;
+	case PM3D_WHICHCORNER_C1: netz = cb1; break;
+	case PM3D_WHICHCORNER_C2: netz = cb2; break;
+	case PM3D_WHICHCORNER_C3: netz = cb3; break;
+	case PM3D_WHICHCORNER_C4: netz = cb1; break;
+	case PM3D_WHICHCORNER_MIN: netz = minimum4(cb1, cb2, cb3, cb1); break;
+	case PM3D_WHICHCORNER_MAX: netz = maximum4(cb1, cb2, cb3, cb1); break;
+	case PM3D_WHICHCORNER_RMS: netz = sqrt( (cb1*cb1 + cb2*cb2 + cb3*cb3)/3. ); break;
+    }
+    return netz;
+}
 
 /*
  * unset pm3d for the reset command
@@ -1158,7 +1178,7 @@ pm3d_draw_one(struct surface_points *plot)
 
 /*
  * Add one pm3d quadrangle to the mix.
- * Called by zerrorfill() and by plot3d_boxes().
+ * Called by zerrorfill() plot3d_boxes() do_polygon() plot3d_polygons().
  * Also called by vplot_isosurface().
  */
 void
@@ -1224,21 +1244,30 @@ pm3d_add_polygon(struct surface_points *plot, gpdPoint corners[], int vertices)
     } else if (plot->pm3d_color_from_column
 		&& !(plot->plot_style == POLYGONS)) {
 	/* This is the usual path for 'splot with boxes' */
-	color_from_rgbvar = TRUE;
 	if (pm3d_shade.strength > 0) {
-	    q->gray = plot->lp_properties.pm3d_color.lt;
-	    illuminate_one_quadrangle(q);
+	    color_from_rgbvar = TRUE;
+	    illuminate_one_quadrangle(q, plot->lp_properties.pm3d_color.lt, color_from_rgbvar);
 	} else {
 	    q->qcolor = plot->lp_properties.pm3d_color.lt;
 	    q->gray = PM3D_USE_RGB_COLOR_INSTEAD_OF_GRAY;
 	}
 
     } else if (plot->lp_properties.pm3d_color.type == TC_Z) {
-	/* This is a special case for 'splot with boxes lc palette z' */
-	q->gray = cb2gray(corners[1].z);
-	color_from_rgbvar = FALSE;
+	if (plot->plot_style == POLYGONS) {
+	    if (pm3d_shade.strength > 0) {
+		q->gray = corners[0].c;
+		color_from_rgbvar = TRUE;
+	    } else {
+		q->qcolor = corners[0].c;
+		q->gray = PM3D_USE_RGB_COLOR_INSTEAD_OF_GRAY;
+	    }
+	} else {
+	    /* This is a special case for 'splot with boxes lc palette z' */
+	    q->gray = cb2gray(corners[1].z);
+	    color_from_rgbvar = FALSE;
+	}
 	if (pm3d_shade.strength > 0)
-	    illuminate_one_quadrangle(q);
+	    illuminate_one_quadrangle(q, q->gray, color_from_rgbvar);
 
     } else if (plot->plot_style == ISOSURFACE
            ||  plot->plot_style == POLYGONS) {
@@ -1266,9 +1295,8 @@ pm3d_add_polygon(struct surface_points *plot, gpdPoint corners[], int vertices)
 	}
 	q->qcolor = rgb_color;
 	if (pm3d_shade.strength > 0) {
-	    q->gray = rgb_color;
 	    color_from_rgbvar = TRUE;
-	    illuminate_one_quadrangle(q);
+	    illuminate_one_quadrangle(q, rgb_color, color_from_rgbvar);
 	}
 
     } else {
@@ -1418,7 +1446,7 @@ pm3d_init_lighting_model()
  * Layer on layer of coordinate conventions
  */
 static void
-illuminate_one_quadrangle( quadrangle *q )
+illuminate_one_quadrangle( quadrangle *q, double gray, TBOOLEAN gray_is_rgb )
 {
     struct coordinate c1, c2, c3, c4;
     vertex vtmp;
@@ -1431,7 +1459,7 @@ illuminate_one_quadrangle( quadrangle *q )
     c3.x = vtmp.x; c3.y = vtmp.y; c3.z = vtmp.z;
     map3d_xyz(q->vertex.corners[3].x, q->vertex.corners[3].y, q->vertex.corners[3].z, &vtmp);
     c4.x = vtmp.x; c4.y = vtmp.y; c4.z = vtmp.z;
-    q->gray = apply_lighting_model( &c1, &c2, &c3, &c4, q->gray, color_from_rgbvar);
+    q->gray = apply_lighting_model( &c1, &c2, &c3, &c4, gray, gray_is_rgb);
 }
 
 /*

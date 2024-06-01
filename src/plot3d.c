@@ -243,7 +243,7 @@ sp_free(struct surface_points *sp)
  * iso_alloc() allocates a iso_curve structure that can hold 'num'
  * points.
  */
-struct iso_curve *
+static struct iso_curve *
 iso_alloc(int num)
 {
     struct iso_curve *ip;
@@ -263,7 +263,7 @@ iso_alloc(int num)
  * iso_extend() reallocates a iso_curve structure to hold "num"
  * points. This will either expand or shrink the storage.
  */
-void
+static void
 iso_extend(struct iso_curve *ip, int num)
 {
     if (num == ip->p_max)
@@ -286,7 +286,7 @@ iso_extend(struct iso_curve *ip, int num)
  * iso_free() releases any memory which was previously malloc()'d to hold
  *   iso curve points.
  */
-void
+static void
 iso_free(struct iso_curve *ip)
 {
     if (ip)

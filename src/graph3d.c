@@ -4222,7 +4222,10 @@ plot3d_polygons(struct surface_points *plot)
 	/* Coloring piggybacks on options for isosurface */
 	if (plot->pm3d_color_from_column && !isnan(points[0].CRD_COLOR))
 	    quad[0].c = points[0].CRD_COLOR;
-	else
+	else if (plot->fill_properties.border_color.type == TC_DEFAULT) {
+	    double z = pm3d_assign_triangle_z(points[0].z, points[1].z, points[2].z);
+	    quad[0].c = rgb_from_gray(cb2gray(z));
+	} else
 	    quad[0].c = plot->fill_properties.border_color.lt;
 	quad[1].c = style;
 	pm3d_add_polygon( plot, quad, nv );

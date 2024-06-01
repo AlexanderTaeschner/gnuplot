@@ -156,9 +156,9 @@ extern struct lp_style_type default_pm3d_border;
 extern TBOOLEAN track_pm3d_quadrangles;
 
 
-/****
-  Declaration of routines
-****/
+/*
+ *  prototypes
+ */
 
 int get_pm3d_at_option(char *pm3d_where);
 void pm3d_depth_queue_clear(void);
@@ -170,6 +170,7 @@ void pm3d_add_polygon(struct surface_points* plot, gpdPoint *corners, int vertic
 void pm3d_init_lighting_model(void);
 int pm3d_side( struct coordinate *p0, struct coordinate *p1, struct coordinate *p2);
 double cb2gray(double cb);
+double pm3d_assign_triangle_z( double cb1, double cb2, double cb3 );
 void pm3d_rearrange_scan_array(struct surface_points* this_plot,
     struct iso_curve*** first_ptr, int* first_n, int* first_invert,
     struct iso_curve*** second_ptr, int* second_n, int* second_invert);
