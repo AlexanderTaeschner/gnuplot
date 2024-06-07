@@ -1224,8 +1224,8 @@ get_data(struct curve_points *current_plot)
 	}
 
 	case POLYGONS:
-	{   /* Nothing yet to distinguish this from filledcurves */
-	    store2d_point(current_plot, i++, v[0], v[1], v[0], v[0], v[1], v[1], 0);
+	{   /* Just like filledcurves except we carry along a z coordinate value */
+	    store2d_point(current_plot, i++, v[0], v[1], v[0], v[0], v[1], v[1], v[2]);
 	    break;
 	}
 

@@ -190,6 +190,10 @@ print_table(struct curve_points *current_plot, int plot_num)
 	case RGBA_IMAGE:
 	    len = strappend(&line, &size, len, "  red green blue alpha");
 	    break;
+	case POLYGONS:
+	    if (df_no_use_specs >= 3)
+		len = strappend(&line, &size, len, " z");
+	    break;
 
 	default:
 	    if (interactive)
@@ -313,6 +317,10 @@ print_table(struct curve_points *current_plot, int plot_num)
 		    case STEPS:
 		    case FSTEPS:
 		    case HISTEPS:
+			break;
+		    case POLYGONS:
+			if (df_no_use_specs >= 3)
+			    OUTPUT_NUMBER(point->z, FIRST_Z_AXIS);
 			break;
 		    default:
 			/* ? */
