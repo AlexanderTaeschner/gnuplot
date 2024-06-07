@@ -1,0 +1,38 @@
+#
+# The Delaunay triangulation filter is an undocumented adjunct to the
+# support for concave hulls.  It may become a fully supported feature
+# after some cleanup, modifications to make it easier to use, and
+# documentation.
+#
+
+if (!strstrt(GPVAL_COMPILE_OPTIONS, "+CHI_SHAPES")) {
+    print "Your copy of gnuplot was not built with support for chi shapes"
+} else {
+    set table $hemisphere
+    plot 'hemisphr.dat' using 1:2:3 delaunay with polygons
+    unset table
+
+    set pm3d lighting primary 0.5 spec 0.2 spec2 0.3
+    set pm3d border lc "black" lw 0.5
+    set palette viridis
+    set xyplane 0
+    set isotropic
+    set view 60,127, 1.63
+    set border 15
+    set tics format ""
+    unset ztics
+    set grid x y
+
+    set multiplot layout 1,2
+
+    set pm3d lighting primary 0.5 spec 0.2 spec2 0.3
+    splot $hemisphere with polygons title "pm3d lighting"
+
+    set pm3d nolighting
+    splot $hemisphere with polygons title "no lighting model"
+
+    unset multiplot
+}
+
+pause -1 "<cr> to continue"
+reset
