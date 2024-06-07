@@ -3377,15 +3377,22 @@ eval_plots()
 		/* Sep 2017 - Check for all points bad or out of range  */
 		/* (normally harmless but must not cause infinite loop) */
 		if (forever_iteration(plot_iterator)) {
-		    int n, ninrange = 0;
-		    for (n=0; n<this_plot->p_count; n++)
+		    int n, ninrange = 0, noutrange = 0;
+		    for (n=0; n<this_plot->p_count; n++) {
 			if (this_plot->points[n].type == INRANGE)
 			    ninrange++;
+			if (this_plot->points[n].type == OUTRANGE)
+			    noutrange++;
+		    }
 		    if (ninrange == 0) {
-			this_plot->plot_type = NODATA;
-			flag_iteration_nodata(plot_iterator);
-			line_num--;
-			goto SKIPPED_EMPTY_FILE;
+			if (noutrange > 1 && clip_lines2)
+			    int_warn(NO_CARET, "all points out of range");
+			else {
+			    this_plot->plot_type = NODATA;
+			    flag_iteration_nodata(plot_iterator);
+			    line_num--;
+			    goto SKIPPED_EMPTY_FILE;
+			}
 		    }
 		}
 
