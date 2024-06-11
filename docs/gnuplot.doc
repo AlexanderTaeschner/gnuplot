@@ -4843,7 +4843,8 @@ Ffigure_boxplot
  equal or less than the second quartile (median) value, etc.  A box is drawn
  around the region between the first and third quartiles, with a horizontal line
  at the median value.  Whiskers extend from the box to user-specified limits.
- Points that lie outside these limits are drawn individually.
+ Points that lie outside these limits are drawn individually.  The horizontal
+ spread of outliers with the same y value may be adjusted by `set jitter`.
 
  Examples
 
@@ -12609,8 +12610,8 @@ D hidden 6
  offset to the coordinates of these superimposed points that spreads them into a
  cluster.  The threshold value for treating the points as being overlapped may
  be specified in character widths or any of the usual coordinate options.
- See `coordinates`.  Jitter affects 2D plot styles `with points` and
- `with impulses`.  It also affects 3D plotting of voxel grids.
+ See `coordinates`.  Jitter affects 2D plot styles `with points`,
+ `with impulses` and `with boxplot`. It also affects 3D plotting of voxel grids.
 
  The default jittering operation displaces points only along x.
  This produces a distinctive pattern sometimes called a "bee swarm plot".

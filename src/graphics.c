@@ -4353,6 +4353,9 @@ plot_boxplot(struct curve_points *plot, TBOOLEAN only_autoscale)
 	    int p_width = term->h_tic * plot->lp_properties.p_size;
 	    int p_height = term->v_tic * plot->lp_properties.p_size;
 
+	    if (jitter.spread > 0)
+		p_width *= jitter.spread;
+
 	    for (i = 0; i < subset_count; i++) {
 
 		if (subset_points[i].y >= candle.ylow
