@@ -4844,7 +4844,7 @@ Ffigure_boxplot
  around the region between the first and third quartiles, with a horizontal line
  at the median value.  Whiskers extend from the box to user-specified limits.
  Points that lie outside these limits are drawn individually.  The horizontal
- spread of outliers with the same y value may be adjusted by `set jitter`.
+ spread of outliers with overlapping y value may be adjusted by `set jitter`.
 
  Examples
 
