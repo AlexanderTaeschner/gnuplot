@@ -126,12 +126,8 @@
 #endif /* NOEXPORT */
 
 
-#if !(defined(VMS) || defined(CRIPPLED_SELECT))
+#if !(defined(VMS))
 # define DEFAULT_X11
-#endif
-
-#if defined(VMS) && defined(CRIPPLED_SELECT)
-Error. Incompatible options.
 #endif
 
 #include <math.h>
@@ -782,15 +778,11 @@ main(int argc, char *argv[])
 /*-----------------------------------------------------------------------------
  *   mainloop processing - process X events and input from gnuplot
  *
- *   Three different versions of main loop processing are provided to support
- *   three different platforms.
+ *   Different versions of main loop processing are provided to support
+ *   different platforms.
  *
  *   DEFAULT_X11:     use select() for both X events and input on stdin
  *                    from gnuplot inboard driver
- *
- *   CRIPPLED_SELECT: use select() to service X events and check during
- *                    select timeout for temporary plot file created
- *                    by inboard driver
  *
  *   VMS:             use XNextEvent to service X events and AST to
  *                    service input from gnuplot inboard driver on stdin
@@ -925,75 +917,6 @@ mainloop()
     }
 }
 
-#elif defined(CRIPPLED_SELECT)
-
-char X11_ipcpath[32];
-
-/*
- * CRIPPLED_SELECT mainloop
- */
-static void
-mainloop()
-{
-    SELECT_TYPE_ARG1 nf, nfds, cn = ConnectionNumber(dpy);
-    struct timeval timeout, *timer;
-    fd_set tset;
-    unsigned long all = (unsigned long) (-1L);
-    XEvent xe;
-
-    timeout.tv_sec = 1;
-    timeout.tv_usec = 0;
-    timer = &timeout;
-    sprintf(X11_ipcpath, "/tmp/Gnuplot_%d", getppid());
-    nfds = cn + 1;
-
-    while (1) {
-	XFlush(dpy);		/* see above */
-
-	FD_ZERO(&tset);
-	FD_SET(cn, &tset);
-
-	/* Don't wait for events if we know that input is
-	 * already sitting in a buffer.  Also don't wait for
-	 * input to become available.
-	 */
-	if (buffered_input_available) {
-	    timeout.tv_sec = 0;
-	    timeout.tv_usec = 0;
-	    timer = &timeout;
-	} else {
-	    timer = (struct timeval *) 0;
-	    FD_SET(in, &tset);
-	}
-
-	nfds = (cn > in) ? cn + 1 : in + 1;
-
-	nf = select(nfds, SELECT_TYPE_ARG234 &tset, 0, 0, SELECT_TYPE_ARG5 timer);
-
-	if (nf < 0) {
-	    if (errno == EINTR)
-		continue;
-	    perror("gnuplot_x11: select failed");
-	    EXIT(1);
-	}
-
-	if (nf > 0)
-	    XNoOp(dpy);
-
-	if (FD_ISSET(cn, &tset)) {
-	    while (XCheckMaskEvent(dpy, all, &xe)) {
-		process_event(&xe);
-	    }
-	}
-	if ((X11_ipc = fopen(X11_ipcpath, "r"))) {
-	    unlink(X11_ipcpath);
-	    record();
-	    fclose(X11_ipc);
-	}
-    }
-}
-
-
 #elif defined(VMS)
 /*-----------------------------------------------------------------------------
  *    VMS mainloop - Yehavi Bourvine - YEHAVI@VMS.HUJI.AC.IL
@@ -1062,9 +985,9 @@ mainloop()
 	process_event(&xe);
     }
 }
-#else /* !(DEFAULT_X11 || CRIPPLED_SELECT || VMS */
+#else /* !(DEFAULT_X11 || VMS */
 # error You lose. No mainloop.
-#endif				/* !(DEFAULT_X11 || CRIPPLED_SELECT || VMS */
+#endif				/* !(DEFAULT_X11 || VMS */
 
 /* delete a window / plot */
 static void

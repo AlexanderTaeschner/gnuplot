@@ -345,9 +345,6 @@ AS_IF([test x$malloc_zero_returns_zero = xyes],
 dnl Argument types of select()
 AC_FUNC_SELECT_ARGTYPES
 
-dnl On SVR3.
-dnl FIXME AC_DEFINE(CRIPPLED_SELECT)
-
 dnl .gih help file location
 eval gp_datadir=$datadir
 if test "$gp_datadir" = NONE/share; then
