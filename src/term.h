@@ -275,11 +275,6 @@
 #include "mif.trm"
 #endif
 
-/* DEPRECATED since 5.0.6
- * PDF terminal based on non-free library PDFlib or PDFlib-lite from GmbH.
- */
-/* # include "pdf.trm" */
-
 #if defined(HAVE_GD_PNG) || defined(HAVE_GD_JPEG) || defined(HAVE_GD_GIF)
 # include "gd.trm"
 #endif

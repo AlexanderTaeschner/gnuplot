@@ -2514,7 +2514,7 @@ enhanced_recursion(
 
 	    /* Enhanced mode always uses \xyz as an octal character representation
 	     * but each terminal type must give us the actual output format wanted.
-	     * pdf.trm wants the raw character code, which is why we use strtol();
+	     * pdf.trm wanted the raw character code, which is why we use strtol();
 	     * most other terminal types want some variant of "\\%o".
 	     */
 	    if (p[1] >= '0' && p[1] <= '7') {
