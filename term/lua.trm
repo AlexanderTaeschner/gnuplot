@@ -316,11 +316,7 @@ LUA_GP_term_out(lua_State *L) {
     *line = '\0';
     if (pagelines >= 22) {
       fputs("Press return for more: ", stderr);
-#if defined(ATARI) || defined(MTOS)
-      do
-        c = tos_getch();
-      while (c != '\x04' && c != '\r' && c != '\n');
-#elif defined(_WIN32) || defined(MSDOS) || defined(OS2)
+#if defined(_WIN32) || defined(MSDOS) || defined(OS2)
       do
         c = getchar();
       while (c != EOF && c != '\n' && c != '\r');
