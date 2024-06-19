@@ -2,7 +2,7 @@
 # Demonstrate use of 'set pixmap' to provide a slide background,
 # a project logo, and a plot element
 #
-if (!strstrt(GPVAL_COMPILE_OPTIONS,"+GD_PNG") && !strstrt(GPVAL_COMPILE_OPTIONS,"+LIBSTBI")) \
+if (!strstrt(GPVAL_COMPILE_OPTIONS,"+GD_PNG") && !strstrt(GPVAL_COMPILE_OPTIONS,"+IMAGE_INPUT")) \
     print ">>> Skipping demo <<<\n" ; \
     print "This copy of gnuplot was built without support for loading png images" ;\
     exit ;

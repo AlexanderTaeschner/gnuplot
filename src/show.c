@@ -1021,11 +1021,11 @@ show_version(FILE *fp)
 #endif
 		"";
 
-	    const char *libstbi =
-#ifdef HAVE_STBI
-		"+LIBSTBI  ";
+	    const char *image_input =
+#if defined(HAVE_STBI) || defined(HAVE_GD_PNG) || defined(HAVE_CAIROPDF)
+		"+IMAGE_INPUT  ";
 #else
-		"";
+		"-IMAGE_INPUT  ";
 #endif
 
 	    const char *nocwdrc =
@@ -1099,7 +1099,7 @@ show_version(FILE *fp)
 		    "    %s%s\n    %s%s\n    %s%s%s%s\n    %s%s\n    %s%s%s%s\n    %s%s%s\n",
 		    rdline, gnu_rdline, unicodebuild, plotoptions,
 		    complexfunc, libcerf, libamos, have_cexint,
-		    libgd, libstbi,
+		    libgd, image_input,
 		    nocwdrc, x11, use_mouse, hiddenline,
 		    fblocks, chi_shapes, got_marks
 		    );

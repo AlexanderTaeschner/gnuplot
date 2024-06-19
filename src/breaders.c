@@ -271,6 +271,10 @@ edf_filetype_function(void)
 
 /*
  *	Image reading routines using libgd
+ *	    png_filetype_function
+ *	    jpeg_filetype_function
+ *	    gif_filetype_function
+ *	    df_image_get_pixel
  *
  *	Use libgd for input of binary images in PNG GIF JPEG formats
  *	Ethan A Merritt - August 2009
@@ -280,7 +284,7 @@ edf_filetype_function(void)
 static gdImagePtr im = NULL;
 
 /* local prototypes for libgd */
-void gd_filetype_function(int filetype, char *filename);
+static void gd_filetype_function(int filetype, char *filename);
 
 void
 png_filetype_function(void)
@@ -300,7 +304,7 @@ jpeg_filetype_function(void)
     gd_filetype_function(FILETYPE_JPEG, df_filename);
 }
 
-void
+static void
 gd_filetype_function(int filetype, char *filename)
 {
     FILE *fp;
@@ -388,17 +392,168 @@ df_image_get_pixel(int i, int j, int component)
 }
 
 
-#elif HAVE_STBI		/* no libgd */
+#elif HAVE_CAIROPDF
+
+/*
+ *	Image reading routines using cairo
+ *	    png_filetype_function
+ *	    jpeg_filetype_function
+ *	    gif_filetype_function
+ *	    df_image_get_pixel
+ *
+ *	Ethan A Merritt - June 2024
+ */
+
+#include <cairo.h>
+static unsigned char *im = NULL;	/* Image data */
+static int stride;			/* length in bytes of a single image row */
+
+/* local prototypes for cairo */
+static void cairo_filetype_function(int filetype, char *filename);
+
+void
+png_filetype_function(void)
+{
+    cairo_filetype_function(FILETYPE_PNG, df_filename);
+}
+
+void
+gif_filetype_function(void)
+{
+    cairo_filetype_function(FILETYPE_GIF, df_filename);
+}
+
+void
+jpeg_filetype_function(void)
+{
+    cairo_filetype_function(FILETYPE_JPEG, df_filename);
+}
+
+static void
+cairo_filetype_function(int filetype, char *filename)
+{
+    static cairo_surface_t *image = NULL;
+    FILE *imagefile = NULL;
+    int height, width;
+
+    /* free previous image, if any */
+    if (image != NULL) {
+	cairo_surface_destroy(image);
+	image = NULL;
+	im = NULL;
+    }
+
+    if (filetype != FILETYPE_PNG)
+	int_error(NO_CARET, "this copy of gnuplot can only read png images");
+
+    /* Search for the named file in current load path.
+     * If the search is successful, the full path name is in global loadpath_fontname.
+     */
+    imagefile = loadpath_fopen(filename, "r");
+    if (imagefile) {
+	cairo_format_t image_format;
+	char *fullname = loadpath_fontname ? loadpath_fontname : filename;
+
+	fclose(imagefile);
+	image = cairo_image_surface_create_from_png(fullname);
+	if (cairo_surface_status(image) != CAIRO_STATUS_SUCCESS) {
+	    cairo_surface_destroy(image);
+	    int_error(NO_CARET, "cannot read png image from %s\n", fullname);
+	}
+	im = cairo_image_surface_get_data(image);
+	height = cairo_image_surface_get_height(image);
+	width = cairo_image_surface_get_width(image);
+	stride = cairo_image_surface_get_stride(image);
+	image_format = cairo_image_surface_get_format(image);
+	FPRINTF((stderr, "Read %dx%d (stride %d) image from %s\n",
+		width, height, stride, fullname));
+	if (image_format != CAIRO_FORMAT_RGB24 && image_format != CAIRO_FORMAT_ARGB32)
+	    int_warn(NO_CARET, "Unsupported format in png file");
+    } else {
+	int_error(NO_CARET, "cannot find or open %s\n", filename);
+    }
+
+    /*
+     * Fill in binary record structure for gnuplot's bookkeeping
+     */
+    df_pixeldata = im;
+    df_matrix_file = FALSE;
+    df_binary_file = TRUE;
+
+    df_bin_record[0].scan_skip[0] = 0;
+    df_bin_record[0].scan_dim[0] = width;
+    df_bin_record[0].scan_dim[1] = height;
+
+    df_bin_record[0].scan_dir[0] = 1;
+    df_bin_record[0].scan_dir[1] = -1;
+    df_bin_record[0].scan_generate_coord = TRUE;
+    df_bin_record[0].cart_scan[0] = DF_SCAN_POINT;
+    df_bin_record[0].cart_scan[1] = DF_SCAN_LINE;
+
+    df_extend_binary_columns(4);
+    df_set_read_type(1, DF_UCHAR);
+    df_set_read_type(2, DF_UCHAR);
+    df_set_read_type(3, DF_UCHAR);
+    df_set_read_type(4, DF_UCHAR);
+    df_set_skip_before(1,0);
+
+    df_no_use_specs = 4;
+    use_spec[0].column = 1;
+    use_spec[1].column = 2;
+    use_spec[2].column = 3;
+    use_spec[3].column = 4;
+}
+
+int
+df_image_get_pixel(int i, int j, int component)
+{
+    /* CAIRO_FORMAT_ARGB32
+     *	each pixel is a 32-bit quantity, with alpha in the upper 8 bits,
+     *	then red, then green, then blue. Alpha is premultiplied;
+     *  that is, 50% transparent red is 0x80800000, not 0x80ff0000.
+     * CAIRO_FORMAT_RGB24
+     *  each pixel is a 32-bit quantity with the upper 8 bits unused.
+     */
+    int pixel;
+
+    switch (component) {
+	case 0:	/* Red */
+		pixel = *(im + stride*j + 4*i + 2);
+		break;
+	case 1: /* Green */
+		pixel = *(im + stride*j + 4*i + 1);
+		break;
+	case 2: /* Blue */
+		pixel = *(im + stride*j + 4*i + 0);
+		break;
+	case 3: /* Alpha */
+		pixel = *(im + stride*j + 4*i + 3);
+		break;
+	default:
+		pixel = 0;
+		break;
+    }
+
+    return pixel;
+}
+
+
+#elif HAVE_STBI		/* no libgd no libcairo */
 
 /*
  *	Image reading routines using libstbi
+ *	    png_filetype_function
+ *	    jpeg_filetype_function
+ *	    gif_filetype_function
+ *	    df_image_get_pixel
+ *
  *
  *	Ethan A Merritt - May 2024
  */
 #include <stb_image.h>
 
 /* local prototypes for libstbi */
-void stbi_filetype_function(char *filename);
+static void stbi_filetype_function(char *filename);
 
 /* Buffer that the image will be read into */
 static unsigned char *im = NULL;
@@ -423,7 +578,7 @@ jpeg_filetype_function(void)
     stbi_filetype_function(df_filename);
 }
 
-void
+static void
 stbi_filetype_function(char *filename)
 {
     int width, height, channels;
@@ -498,10 +653,16 @@ df_image_get_pixel(int i, int j, int component)
     return channel;
 }
 
-#else /* No libgd no libstbi */
+#else /* No libgd no libcairo no libstbi */
 
 /*
- * No image reading support is present (libgd or libstbi)
+ * No image reading support is present (libgd or libcairo or libstbi)
+ * Print error message without opening any files
+ *	    png_filetype_function
+ *	    jpeg_filetype_function
+ *	    gif_filetype_function
+ *	    df_image_get_pixel
+ *
  */
 
 void png_filetype_function()
@@ -545,6 +706,8 @@ df_read_pixmap( t_pixmap *pixmap )
 
 #ifdef HAVE_GD_PNG
     gd_filetype_function(filetype, pixmap->filename);
+#elif CAIRO_HAS_IMAGE_SURFACE
+    cairo_filetype_function(filetype, pixmap->filename);
 #elif HAVE_STBI
     stbi_filetype_function(pixmap->filename);
 #else
