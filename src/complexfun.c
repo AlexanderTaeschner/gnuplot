@@ -485,6 +485,7 @@ static complex double
 Igamma(complex double a, complex double z)
 {
     complex double arg, ga1;
+    complex double argl;
     complex double aa;
     complex double an;
     complex double b;
@@ -535,11 +536,19 @@ Igamma(complex double a, complex double z)
 
     /* Check value of factor arg */
     ga1 = lnGamma(a + 1.0);
-    arg = a * clog(z) - z - ga1;
-    arg = cexp(arg);
+    argl = a * clog(z) - z - ga1;
+    arg = cexp(argl);
 
     /* Underflow of arg is common for large z or a */
     handle_underflow("Igamma", arg);
+    /* FIXME
+     * Jun 2024: the above used to suffice but current glibc sometimes
+     * sets errno to ERANGE rather than setting a floating underflow trap.
+     */
+    if (cimag(argl) == 0 && creal(argl) < E_MINEXP) {
+	arg = 0.0;
+	errno = 0;
+    }
 
     /* Choose infinite series or continued fraction. */
 
