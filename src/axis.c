@@ -161,8 +161,11 @@ TBOOLEAN raxis = FALSE;
 double theta_origin = 0.0;	/* default origin at right side */
 double theta_direction = 1;	/* counterclockwise from origin */
 
-/* Length of the longest tics label, set by widest_tic_callback(): */
+/* Length of the longest tics label, set by widest_tic_callback() */
 int widest_tic_strlen;
+
+/* Number of axis tics actually placed, set by tic_count_callback() */
+static int axis_tic_count;
 
 /* flag to indicate that in-line axis ranges should be ignored
  * and zoom/pan range limits take precedence over auto-scaling
@@ -687,10 +690,6 @@ copy_or_invent_formatstring(struct axis *this_axis)
  * hardwired into the calls to here. Maybe we will restore it
  * to the automatic calculation one day
  */
-
-/* HBB 20020220: Changed to use value itself as first argument, not
- * log10(value).  Done to allow changing the calculation method
- * to avoid numerical problems */
 double
 quantize_normal_tics(double arg, int guide)
 {
@@ -757,7 +756,8 @@ make_tics(struct axis *this_axis, int guide)
     }
 
     tic = quantize_normal_tics(xr, guide);
-    if (this_axis->log && tic < 1.0)
+    if ((this_axis->log && tic < 1.0)
+    &&  this_axis->ticdef.logscaling && !this_axis->ticdef.force_linear_tics)
 	tic = 1.0;
     if (this_axis->tictype == DT_TIMEDATE)
 	tic = quantize_time_tics(this_axis, tic, xr, guide);
@@ -1145,7 +1145,7 @@ gen_tics(struct axis *this, tic_callback callback)
 		    end = step * ceil(lmax / step);
 		else
 		    end = def->def.series.end;
-		if (def->logscaling) {
+		if (def->logscaling && !def->force_linear_tics) {
 		    /* This tries to emulate earlier gnuplot versions in handling
 		     *     set log y; set ytics 10
 		     */
@@ -1175,7 +1175,10 @@ gen_tics(struct axis *this, tic_callback callback)
 	    }
 	    break;
 	case TIC_COMPUTED:
-	    if (nonlinear(this)) {
+	    if (this->log
+	    && (!this->ticdef.logscaling || this->ticdef.force_linear_tics)) {
+		FPRINTF((stderr,"special case (log axis but linear tic intervals)\n"));
+	    } else if (nonlinear(this)) {
 		lmin = this->linked_to_primary->min;
 		lmax = this->linked_to_primary->max;
 		reorder_if_necessary(lmin, lmax);
@@ -1213,8 +1216,8 @@ gen_tics(struct axis *this, tic_callback callback)
 	step = fabs(step);
 
 	if (minitics != MINI_OFF) {
-	    FPRINTF((stderr,"axis.c: %d  start = %g end = %g step = %g base = %g\n",
-			__LINE__, start, end, step, this->base));
+	    FPRINTF((stderr,"axis.c: %d  %s start = %g end = %g step = %g base = %g\n",
+			__LINE__, axis_name(this->index), start, end, step, this->base));
 
 	    /* {{{  figure out ministart, ministep, miniend */
 	    if (minitics == MINI_USER) {
@@ -1232,7 +1235,7 @@ gen_tics(struct axis *this, tic_callback callback)
 		    ministart = ministep = step / this->mtic_freq;
 		    miniend = step;
  		}
-	    } else if (nonlinear(this) && this->ticdef.logscaling) {
+	    } else if (nonlinear(this) && this->ticdef.logscaling && !this->ticdef.force_linear_tics) {
 		ministart = ministep = step / (this->base - 1);
 		miniend = step;
 	    } else if (this->tictype == DT_TIMEDATE) {
@@ -1307,6 +1310,12 @@ gen_tics(struct axis *this, tic_callback callback)
 		nsteps--;
 	}
 
+	/* For debugging logscale tic generation */
+	FPRINTF((stderr, "gen_tics: %s axis %s logscaling %d force_linear %d\n",
+	    axis_name(this->index),
+	    def->type == 1 ? "COMPUTED" : def->type == 2 ? "SERIES" : "USER",
+	    def->logscaling, def->force_linear_tics));
+
 	for (tic = start; nsteps > 0; tic += step, nsteps--) {
 
 	    /* {{{  calc internal and user co-ords */
@@ -1315,8 +1324,12 @@ gen_tics(struct axis *this, tic_callback callback)
 		internal = tic;
 		user = tic;
 	    } else if (nonlinear(this)) {
-		if (def->type == TIC_SERIES && def->logscaling)
+		if (def->type == TIC_SERIES && def->logscaling && !def->force_linear_tics)
 		    user = eval_link_function(this, tic);
+		else if (def->type == TIC_SERIES)
+		    user = tic;
+		else if (def->type == TIC_COMPUTED && def->force_linear_tics)
+		    user = tic;
 		else if (def->type == TIC_COMPUTED)
 		    user = eval_link_function(this, tic);
 		else
@@ -1382,7 +1395,8 @@ gen_tics(struct axis *this, tic_callback callback)
 			}
 
 			/* This is where we finally decided to put the tic mark */
-			if (nonlinear(this) && (def->type == TIC_SERIES && def->logscaling))
+			if (nonlinear(this)
+			&& (def->type == TIC_SERIES && def->logscaling && !def->force_linear_tics))
 			    position = user;
 			else if (nonlinear(this) && (def->type == TIC_COMPUTED))
 			    position = user;
@@ -1414,20 +1428,38 @@ gen_tics(struct axis *this, tic_callback callback)
 		continue;
 
 	    if (minitics != MINI_OFF) {
-		/* {{{  process minitics */
+		/* process minitics */
 		double mplace, mtic_user, mtic_internal;
+
+		/* Make up for bad calculation of ministart/ministep/miniend.
+		 * Logscale with step > 1 means that the span between major tics
+		 * is more than one log unit.  In this case we position minitics
+		 * only at the otherwise unmarked unit log intervals.
+		 */
+		if (this->log && def->logscaling && !def->force_linear_tics) {
+		    if (step > 1) {
+			ministart = internal;
+			ministep = 1;
+			miniend = internal + step;
+		    }
+		}
 
 		for (mplace = ministart; mplace < miniend; mplace += ministep) {
 		    if (this->tictype == DT_TIMEDATE) {
 			mtic_user = time_tic_just(this->timelevel - 1, internal + mplace);
 			mtic_internal = mtic_user;
-		    } else if ((nonlinear(this) && (def->type == TIC_COMPUTED))
-			   ||  (nonlinear(this) && (def->type == TIC_SERIES && def->logscaling))) {
+		    } else if ((nonlinear(this) && def->logscaling && !def->force_linear_tics)
+			   &&  ((def->type == TIC_COMPUTED) || (def->type == TIC_SERIES))) {
 			/* Make up for bad calculation of ministart/ministep/miniend */
-			double this_major = eval_link_function(this, internal);
-			double next_major = eval_link_function(this, internal+step);
-			mtic_user = this_major + mplace/miniend * (next_major - this_major);
-			mtic_internal = eval_link_function(this->linked_to_primary, mtic_user);
+			if (step > 1) {
+			    mtic_user = eval_link_function(this,mplace);
+			    mtic_internal = mplace;
+			} else {
+			    double this_major = eval_link_function(this, internal);
+			    double next_major = eval_link_function(this, internal+step);
+			    mtic_user = this_major + mplace/miniend * (next_major - this_major);
+			    mtic_internal = eval_link_function(this->linked_to_primary, mtic_user);
+			}
 		    } else if (nonlinear(this) && this->log) {
 			mtic_user = internal + mplace;
 			mtic_internal = eval_link_function(this->linked_to_primary, mtic_user);
@@ -1453,7 +1485,6 @@ gen_tics(struct axis *this, tic_callback callback)
 		    &&  inrange(mtic_internal, start - step * SIGNIF, end + step * SIGNIF))
 			(*callback) (this, mtic_user, NULL, 1, mgrd, NULL);
 		}
-		/* }}} */
 	    }
 	}
 
@@ -2012,6 +2043,35 @@ widest_tic_callback(struct axis *this_axis, double place, char *text,
     }
 }
 
+/* Sanity check for auto-generated tics on logscale axes.
+ * If fewer than 3 tics were generated we will switch to using
+ * linear increment tic intervals when they are drawn by place_grid().
+ */
+void
+sanity_check_log_tics( int axis_index )
+{
+    struct axis *axis = &axis_array[axis_index];
+    if (axis->log) {
+	axis->ticdef.force_linear_tics = FALSE;
+	axis_tic_count = 0;			/* reset counter for actual number of tics */
+	gen_tics(axis, tic_count_callback);	/* find actual number of tics */
+	if (axis_tic_count < 3) {
+	    axis->ticdef.force_linear_tics = TRUE;
+	    setup_tics(axis, 20);
+	}
+    }
+}
+
+/* this callback increments axis_tic_count for each tic placed */
+void
+tic_count_callback(struct axis *this_axis, double place, char *text,
+    int ticlevel, struct lp_style_type grid, struct ticmark *userlabels)
+{
+    if (ticlevel != 0)
+	return;
+    if (inrange(place, this_axis->min, this_axis->max))
+	axis_tic_count++;
+}
 
 /*
  * get and set routines for range writeback

@@ -121,6 +121,7 @@ typedef struct ticdef {
     TBOOLEAN rangelimited;		/* Limit tics to data range */
     TBOOLEAN enhanced;			/* Use enhanced text mode or labels */
     TBOOLEAN logscaling;		/* place tics using old logscale algorithm */
+    TBOOLEAN force_linear_tics;		/* override the logscaling flag */
 } t_ticdef;
 
 /* Version 5.5 (Jun 2021)
@@ -256,7 +257,7 @@ typedef struct axis {
     double paxis_x;		/* x coordinate of parallel axis */
 } AXIS;
 
-#define DEFAULT_AXIS_TICDEF {TIC_COMPUTED, NULL, {TC_DEFAULT, 0, 0.0}, {NULL, {0.,0.,0.}, FALSE},  { character, character, character, 0., 0., 0. }, FALSE, TRUE, FALSE }
+#define DEFAULT_AXIS_TICDEF {TIC_COMPUTED, NULL, {TC_DEFAULT, 0, 0.0}, {NULL, {0.,0.,0.}, FALSE},  { character, character, character, 0., 0., 0. }, FALSE, TRUE, FALSE, FALSE }
 #define DEFAULT_AXIS_ZEROAXIS {0, LT_AXIS, 0, DASHTYPE_AXIS, 0, 0, 1.0, PTSZ_DEFAULT, DEFAULT_P_CHAR, BLACK_COLORSPEC, DEFAULT_DASHPATTERN}
 
 #define DEFAULT_AXIS_STRUCT {						    \
@@ -368,7 +369,7 @@ extern double theta_grid_angle; /* angle step in polar grid in radians */
 extern double theta_origin;	/* 0 = right side of plot */
 extern double theta_direction;	/* 1 = counterclockwise -1 = clockwise */
 
-/* Length of the longest tics label, set by widest_tic_callback(): */
+/* Length of the longest tics label, set by widest_tic_callback() */
 extern int widest_tic_strlen;
 
 /* flag to indicate that in-line axis ranges should be ignored
@@ -486,6 +487,10 @@ double parse_one_range_limit( double default_value );
 /* set widest_tic_label: length of the longest tics label */
 void widest_tic_callback(struct axis *, double place, char *text, int ticlevel,
 			struct lp_style_type grid, struct ticmark *);
+/* callback that just counts the number of tics that are placed */
+void tic_count_callback(struct axis *, double place, char *text, int ticlevel,
+			struct lp_style_type grid, struct ticmark *);
+void sanity_check_log_tics( int axis_index );
 
 void get_position(struct position *pos);
 void get_position_default(struct position *pos, enum position_type default_type,

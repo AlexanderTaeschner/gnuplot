@@ -2956,6 +2956,7 @@ set_logscale()
 	    }
 	    do_string(command);
 	    axis_array[axis].ticdef.logscaling = TRUE;
+	    axis_array[axis].ticdef.force_linear_tics = FALSE;
 	    axis_array[axis].base = newbase;
 	    axis_array[axis].log_base = log(newbase);
 	    axis_array[axis].linked_to_primary->base = newbase;
@@ -5994,6 +5995,7 @@ set_tic_prop(struct axis *this_axis)
 	    } else if (almost_equals(c_token, "log$scale")) {
 		++c_token;
 		this_axis->ticdef.logscaling = TRUE;
+		this_axis->ticdef.force_linear_tics = FALSE;
 	    } else if (almost_equals(c_token, "nolog$scale")) {
 		++c_token;
 		this_axis->ticdef.logscaling = FALSE;
