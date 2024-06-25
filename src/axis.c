@@ -2211,6 +2211,9 @@ add_tic_user(struct axis *this_axis, char *label, double position, int level)
     struct ticmark *tic, *newtic;
     struct ticmark listhead;
 
+    if (isnan(position))
+	return;
+
     if (!label && level < 0)
 	return;
 
