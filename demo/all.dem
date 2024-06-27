@@ -446,9 +446,9 @@ load "imageNaN.dem"
 load "barchart_art.dem"
 reset
 
-print "********************** file stringvar.dem *********************"
-load "stringvar.dem"
-reset
+# print "********************** file stringvar.dem *********************"
+# load "stringvar.dem"
+# reset
 
 print "********************** file running_avg.dem *********************"
 load "running_avg.dem"
@@ -534,7 +534,8 @@ reset
 print "********************** linked axes **************************"
 load "linked_autoscale.dem"
 
-
+print "********************** tics on logscale axes **************************"
+load "log_tics.dem"
 
 print "********************** file map_projection.dem *********************"
 load "map_projection.dem"
@@ -569,9 +570,9 @@ load "vplot.dem"
 print "********************** file isosurface.dem *********************"
 load "isosurface.dem"
 
-#print "********************** file voxel.dem *********************"
-#load "voxel.dem"
-#
+# print "********************** file voxel.dem *********************"
+# load "voxel.dem"
+
 print "*********************** file watchpoints.dem *********************"
 load "watchpoints.dem"
 
