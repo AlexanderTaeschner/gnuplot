@@ -2813,6 +2813,18 @@ eval_3dplots()
 	setup_tics(&axis_array[SECOND_Y_AXIS], 20);
     }
 
+    /* Sanity check for auto-generated tics on logscale axes.
+     * If fewer than 3 tics were generated we will switch to using linear
+     * increment tic intervals when they are drawn by draw_3d_graphbox().
+     */
+    sanity_check_log_tics(FIRST_X_AXIS);
+    sanity_check_log_tics(FIRST_Y_AXIS);
+    sanity_check_log_tics(FIRST_Z_AXIS);
+    if (splot_map) {
+	sanity_check_log_tics(SECOND_X_AXIS);
+	sanity_check_log_tics(SECOND_Y_AXIS);
+    }
+
     set_plot_with_palette(plot_num, MODE_SPLOT);
     if (is_plot_with_palette()) {
 	set_cbminmax();

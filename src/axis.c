@@ -1280,7 +1280,11 @@ gen_tics(struct axis *this, tic_callback callback)
 	/* }}} */
 
 	/* This protects against user error, not precision errors */
-	if ( (internal_max-internal_min)/step > term->xmax) {
+	/* Note: tick-counting via tic_count_callback can execute before the
+	 * terminal has been initialised.
+	 */
+	if (term_initialised
+	&&  (internal_max-internal_min)/step > term->xmax) {
 	    int_warn(NO_CARET,"Too many axis ticks requested (>%.0g)",
 		(internal_max-internal_min)/step);
 	    return;
