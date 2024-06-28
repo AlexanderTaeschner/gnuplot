@@ -1446,7 +1446,7 @@ plot_lines(struct curve_points *plot)
     }
 
     /* The last polygon may need to be closed */
-    if (plot->plot_style == POLYGONS)
+    if (plot->plot_style == POLYGONS && polygon_start < plot->p_count-1)
 	close_polygon(plot, polygon_start, plot->p_count-1);
 }
 
