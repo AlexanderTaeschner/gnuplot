@@ -628,6 +628,7 @@ D epi_data 1
        set style increment user
  Current equivalent
        use "set linetype" to redefine a convenient range of linetypes
+       explicit use of "linestyle N" or "linestyle variable"
 
  Deprecated in version 5.0, removed in 6.0
        show palette fit2rgbformulae
@@ -3734,13 +3735,17 @@ Ffigure_newsyntax
       plot 0 lt bgnd
 4 linecolor variable
 ?linecolor variable
+?linestyle variable
 ?lc variable
+?ls variable
 ?textcolor variable
 ?tc variable
 ?variable linecolor
  `lc variable` tells the program to use the value read from one column of the
  input data as a linetype index, and use the color belonging to that linetype.
  This requires a corresponding additional column in the `using` specifier.
+ `ls variable` does the same except the value read from the input data stream
+ is interpreted as the index of a linestyle rather than a linetype.
  Text colors can be set similarly using `tc variable`.
 
  Examples:

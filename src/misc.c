@@ -1001,7 +1001,14 @@ lp_parse(struct lp_style_type *lp, lp_class destination_class, TBOOLEAN allow_po
     if ((destination_class == LP_ADHOC)
     && (almost_equals(c_token, "lines$tyle") || equals(c_token, "ls"))) {
 	c_token++;
-	lp_use_properties(lp, int_expression());
+	if (almost_equals(c_token, "var$iable")) {
+	    c_token++;
+	    newlp.l_type = LT_COLORFROMCOLUMN;
+	    newlp.pm3d_color.type = TC_LINESTYLE;
+	    newlp.pm3d_color.value = -1;
+	} else {
+	    lp_use_properties(lp, int_expression());
+	}
     }
 
     while (!END_OF_COMMAND) {
@@ -1108,6 +1115,7 @@ lp_parse(struct lp_style_type *lp, lp_class destination_class, TBOOLEAN allow_po
 		c_token++;
 		newlp.l_type = LT_COLORFROMCOLUMN;
 		newlp.pm3d_color.type = TC_LINESTYLE;
+		newlp.pm3d_color.value = 0;
 	    } else {
 		/* Pull the line colour from a default linetype, but */
 		/* only if we are not in the middle of defining one! */
@@ -1268,8 +1276,13 @@ lp_parse(struct lp_style_type *lp, lp_class destination_class, TBOOLEAN allow_po
 	lp->p_number = newlp.p_number;
 	lp->p_interval = 0;
     }
-    if (newlp.l_type == LT_COLORFROMCOLUMN)
+    if (newlp.l_type == LT_COLORFROMCOLUMN) {
 	lp->l_type = LT_COLORFROMCOLUMN;
+	if (newlp.pm3d_color.type == TC_LINESTYLE) {
+	    lp->pm3d_color.type = TC_LINESTYLE;
+	    lp->pm3d_color.value = newlp.pm3d_color.value;
+	}
+    }
     if (set_dt) {
 	lp->d_type = newlp.d_type;
 	lp->custom_dash_pattern = newlp.custom_dash_pattern;

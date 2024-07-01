@@ -5587,8 +5587,15 @@ check_for_variable_color(struct curve_points *plot, double *colorvalue)
 	set_rgbcolor_var( rgb_from_colormap(gray, plot->lp_properties.colormap) );
 	return TRUE;
     } else if (plot->lp_properties.l_type == LT_COLORFROMCOLUMN) {
+	/* "lt variable" -> TC_LINESTYLE + value 0	(why not TC_LT?)
+	 * "ls variable" -> TC_LINESTYLE + value -1
+	 */
 	lp_style_type lptmp;
-	load_linetype(&lptmp, (int)(*colorvalue));
+	if (plot->lp_properties.pm3d_color.type == TC_LINESTYLE
+	&&  plot->lp_properties.pm3d_color.value == -1)
+	    lp_use_properties(&lptmp, (int)(*colorvalue));
+	else
+	    load_linetype(&lptmp, (int)(*colorvalue));
 	apply_pm3dcolor(&(lptmp.pm3d_color));
 	return TRUE;
     } else
