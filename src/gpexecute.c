@@ -126,13 +126,6 @@ gp_execute(char *s)
 	strcpy(input_from_PM_Terminal, s);
     if (((char *) input_from_PM_Terminal)[0] == 0)
 	return;
-#if 0
-    if (pausing) {		/* no communication during pause */
-	/* DosBeep(440,111); */
-	((char *) input_from_PM_Terminal)[0] = 0;
-	return;
-    }
-#endif
     gp_post_shared_mem();
 }
 

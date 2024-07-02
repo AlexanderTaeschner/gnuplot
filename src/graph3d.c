@@ -1521,7 +1521,6 @@ do_3dplot(
 							      * this_plot->lp_properties.l_width;
 			    thiscontour_lp_properties.d_type = ls.d_type;
 			    thiscontour_lp_properties.custom_dash_pattern = ls.custom_dash_pattern;
-//			    term_apply_lp_properties(&thiscontour_lp_properties);
 			}
 
 			/* Key entry */
