@@ -410,28 +410,37 @@ FindHelp(char *keyword)		/* string we look for */
 
     for (key = keys; key->key != NULL; key++) {
 	if (!strncmp(keyword, key->key, len)) {  /* we have a match! */
-	    if (!Ambiguous(key, len)) {
-		size_t key_len = strlen(key->key);
-		size_t keyword_len = strlen(keyword);
+	    size_t key_len = strlen(key->key);
+	    size_t keyword_len = strlen(keyword);
 
-		if (key_len != len) {
-		    /* Expand front portion of keyword */
-		    int i, shift = key_len - len;
-
-		    for (i=keyword_len+shift; i >= len && i >= shift; i--)
-			keyword[i] = keyword[i-shift];
-		    strncpy(keyword, key->key, key_len);  /* give back the full spelling */
-		    len = key_len;
-		    keyword_len += shift;
-		}
-		/* Check for another subword */
+	    if (len == strcspn(key->key, " ")) {
+		/* Exact match to first word is not ambiguous.
+		 * Extend the probe to include the second word also.
+		 */
 		if (keyword[len] == ' ') {
 		    len = len + 1 + strcspn(keyword + len + 1, " ");
-		    key--; /* start with current key */
-		} else
-		    return (key);  /* found!!  non-ambiguous abbreviation */
-	    } else
+		    /* If it doesn't match this key, maybe the next one */
+		    if (strncmp(keyword, key->key, len))
+			continue;
+		}
+	    } else if (Ambiguous(key, len)) {
 		return (&empty_key);
+	    } else if (key_len != len) {
+		/* Expand front portion of keyword */
+		int i, shift = key_len - len;
+
+		for (i=keyword_len+shift; i >= len && i >= shift; i--)
+		    keyword[i] = keyword[i-shift];
+		strncpy(keyword, key->key, key_len);  /* give back the full spelling */
+		len = key_len;
+		keyword_len += shift;
+	    }
+	    /* Check for another subword */
+	    if (keyword[len] == ' ') {
+		len = len + 1 + strcspn(keyword + len + 1, " ");
+		key--; /* start with current key */
+	    } else
+		return key;  /* found!! */
 	}
     }
 
