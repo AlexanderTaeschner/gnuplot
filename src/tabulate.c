@@ -439,7 +439,7 @@ print_3dtable(int pcount)
 	    continue;
 	}
 
-	if (draw_surface) {
+	if (draw_surface && !this_plot->opt_out_of_surface) {
 	    struct iso_curve *icrvs;
 	    int curve;
 
@@ -508,7 +508,7 @@ print_3dtable(int pcount)
 	    print_line("");
 	} /* if (draw_surface) */
 
-	if (draw_contour) {
+	if (draw_contour && ! this_plot->opt_out_of_contours) {
 	    int number = 0;
 	    struct gnuplot_contours *c = this_plot->contours;
 
