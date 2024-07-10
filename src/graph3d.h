@@ -115,6 +115,7 @@ typedef struct surface_points {
     TBOOLEAN opt_out_of_dgrid3d;  /* set by "nogrid" option to splot command */
     TBOOLEAN pm3d_color_from_column;
     TBOOLEAN has_grid_topology;
+    TBOOLEAN contourz_at_base;    /* set by "with contourfill at base" */
     int hidden3d_top_linetype;	/* before any calls to load_linetype() */
     void *iteration;		/* needed for tracking iteration */
 

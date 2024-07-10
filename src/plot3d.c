@@ -1971,13 +1971,9 @@ eval_3dplots()
 			    get_image_options(&this_plot->image_properties);
 		    }
 
-		    if ((this_plot->plot_style | data_style) & PM3DSURFACE) {
-			if (equals(c_token, "at")) {
-			/* option 'with pm3d [at ...]' is explicitly specified */
-			c_token++;
-			if (get_pm3d_at_option(&this_plot->pm3d_where[0]))
-			    return; /* error */
-			}
+		    if (this_plot->plot_style == PM3DSURFACE) {
+			if (equals(c_token, "at"))
+			    get_pm3d_at_option(&this_plot->pm3d_where[0]);
 		    }
 
 		    if ((this_plot->plot_type == VOXELDATA)
@@ -2071,6 +2067,15 @@ eval_3dplots()
  		    lp_parse(&this_plot->lp_properties, LP_ADHOC, FALSE);
 		    if (stored_token != c_token) {
 			set_lpstyle = TRUE;
+			continue;
+		    }
+		}
+
+		if (this_plot->plot_style == CONTOURFILL) {
+		    /* "contourfill at base" uses different mechanism than "pm3d at b" */
+		    if (equals(c_token, "at") && almost_equals(++c_token, "b$ase")) {
+			this_plot->contourz_at_base = TRUE;
+			c_token ++;
 			continue;
 		    }
 		}

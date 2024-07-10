@@ -160,7 +160,7 @@ extern TBOOLEAN track_pm3d_quadrangles;
  *  prototypes
  */
 
-int get_pm3d_at_option(char *pm3d_where);
+void get_pm3d_at_option(char *pm3d_where);
 void pm3d_depth_queue_clear(void);
 void pm3d_depth_queue_flush(void);
 void pm3d_reset(void);

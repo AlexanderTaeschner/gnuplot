@@ -1432,39 +1432,35 @@ set_contour()
 }
 
 /* Determine criteria for choosing zslice boundaries
- * during "splot with contourfill"
+ * used by "splot with contourfill"
  */
 void
 set_contourfill(void)
 {
-    int temp;
-
     c_token++;
-    if (equals(c_token, "auto")) {
-	c_token++;
-	contourfill.mode = CFILL_AUTO;
-	temp = int_expression();
-	cliptorange(temp,1,MAX_ZSLICES);
-	contourfill.nslices = temp;
-
-    } else if (equals(c_token, "ztics")) {
-	c_token++;
-	contourfill.mode = CFILL_ZTICS;
-
-    } else if (equals(c_token, "cbtics")) {
-	c_token++;
-	contourfill.mode = CFILL_CBTICS;
-
-    } else if (almost_equals(c_token, "pal$ette")) {
-	c_token++;
-	contourfill.firstlinetype = -1;
-
-    } else if (almost_equals(c_token, "first$linetype")) {
-	c_token++;
-	contourfill.firstlinetype = int_expression();
-
-    } else
-	int_error(c_token, "Unrecognized option");
+    while (!END_OF_COMMAND) {
+	if (equals(c_token, "auto")) {
+	    int temp;
+	    c_token++;
+	    contourfill.mode = CFILL_AUTO;
+	    temp = int_expression();
+	    cliptorange(temp,1,MAX_ZSLICES);
+	    contourfill.nslices = temp;
+	} else if (equals(c_token, "ztics")) {
+	    c_token++;
+	    contourfill.mode = CFILL_ZTICS;
+	} else if (equals(c_token, "cbtics")) {
+	    c_token++;
+	    contourfill.mode = CFILL_CBTICS;
+	} else if (almost_equals(c_token, "pal$ette")) {
+	    c_token++;
+	    contourfill.firstlinetype = -1;
+	} else if (almost_equals(c_token, "first$linetype")) {
+	    c_token++;
+	    contourfill.firstlinetype = int_expression();
+	} else
+	    int_error(c_token, "Unrecognized option");
+    }
 }
 
 /* process 'set colorsequence command */
@@ -3978,9 +3974,7 @@ set_pm3d()
 	    switch (lookup_table(&set_pm3d_tbl[0],c_token)) {
 	    /* where to plot */
 	    case S_PM3D_AT: /* "at" */
-		c_token++;
-		if (get_pm3d_at_option(&pm3d.where[0]))
-		    return; /* error */
+		get_pm3d_at_option(&pm3d.where[0]);
 		c_token--;
 #if 1
 		if (c_token == c_token0+1)

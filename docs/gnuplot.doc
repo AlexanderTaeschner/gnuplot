@@ -5052,11 +5052,17 @@ Ffigure_piechart
 ?with contourfill
 ?contourfill
 Ffigure_contourfill
+ Syntax:
+      splot f(x,y) with contourfill {at base} {fillstyle <style>}
+
  Contourfill is a 3D plotting style used to color a pm3d surface in slices
- along the z axis.  It can be used in 2D projection (`set view map`) to create
- 2D contour plots with solid color between contour lines.
- The slice boundaries and the assigned colors are both controlled using
- `set contourfill`.  See also `pm3d`, `zclip`.
+ along the z axis.  It can be used in 2D projection (`set view map` or
+ `with contourfill at base`) to create 2D contour plots with solid color
+ between contour lines.  The slice boundaries and the assigned colors are both
+ controlled using `set contourfill`.  See also `pm3d`, `zclip`.
+
+ The default fill properties are taken from `set pm3d` but may be modified
+ by providing a different fillstyle in the splot command.
 
  This style can be combined with `set contours` to superimpose contour
  lines that bound the slices.  Care must be taken that the slice boundaries
@@ -5072,6 +5078,12 @@ Ffigure_contourfill
       set cntrlabel onecolor
       set view map
       splot g(x,y) with contourfill, g(x,y) with lines nosurface
+
+ By default the contours are rendered onto the original 3D surface.
+ Plotting `with contourfill at base` instead projects the colored surface onto
+ the base plane.  To draw both a surface and its projected contour coloring
+      set hidden3d front
+      splot f(x,y) using lines, f(x,y) using contourfill at base
 
 2 dots
 ?plotting styles dots
@@ -11301,8 +11313,8 @@ Ffigure_colornames
       set contourfill {palette | firstlinetype N}
 
  The default is `set contourfill auto 5 palette`, which splits the current
- z range into five equal slices (6 bounding planes) and assigns each slice
- the palette mapped color of its midpoint z value.
+ z range into five equal slices (6 bounding planes) and colors each slice
+ of the surface with the palette-mapped color of its midpoint z value.
 
  The options `ztics` or `cbtics` place split zrange by slicing at major ticks
  along that axis.  For example to slice specifically at z=2.5, z=7 and z=10
@@ -11316,6 +11328,7 @@ Ffigure_colornames
       set for [i=101:110] linetype i lc mycolor[i]
       set contourfill firstlinetype 101
  `set contourfill palette` restores palette coloring.
+
 D contourfill 3
 
 3 dashtype
