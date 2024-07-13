@@ -4336,7 +4336,6 @@ plot3d_contourfill(struct surface_points *plot)
      */
     for (level = 0; level < nslices; level++) {
 	plot->zclip_index = level;
-	plot->fill_properties.border_color = slice[level].color;
 	pm3d_draw_one(plot);
     }
 }

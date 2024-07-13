@@ -490,6 +490,7 @@ pm3d_plot(struct surface_points *this_plot, int at_which_z)
     TBOOLEAN color_from_column = FALSE;
     TBOOLEAN color_from_fillcolor = FALSE;
     udvt_entry *private_colormap = NULL;
+    t_colorspec fillcolorspec;
 
     /* should never happen */
     if (this_plot == NULL)
@@ -503,8 +504,11 @@ pm3d_plot(struct surface_points *this_plot, int at_which_z)
     &&  this_plot->lp_properties.pm3d_color.value == -1)
 	color_from_rgbvar = TRUE;
 
-    if (this_plot->fill_properties.border_color.type == TC_RGB
-    ||  this_plot->fill_properties.border_color.type == TC_LINESTYLE) {
+    if (this_plot->plot_style == CONTOURFILL)
+	fillcolorspec = this_plot->zclip[this_plot->zclip_index].color;
+    else
+	fillcolorspec = this_plot->fill_properties.border_color;
+    if (fillcolorspec.type == TC_RGB || fillcolorspec.type == TC_LINESTYLE) {
 	color_from_rgbvar = TRUE;
 	color_from_fillcolor = TRUE;
     }
@@ -720,11 +724,11 @@ pm3d_plot(struct surface_points *this_plot, int at_which_z)
 		    cb4 = pointsB[ii1].CRD_COLOR;
 		} else if (color_from_fillcolor) {
 		    /* color is set by "fc <rgbvalue>" */
-		    cb1 = cb2 = cb3 = cb4 = this_plot->fill_properties.border_color.lt;
+		    cb1 = cb2 = cb3 = cb4 = fillcolorspec.lt;
 		    /* pm3d fc linestyle N generates
 		     * top/bottom color difference as with hidden3d
 		     */
-		    if (this_plot->fill_properties.border_color.type == TC_LINESTYLE) {
+		    if (fillcolorspec.type == TC_LINESTYLE) {
 			struct lp_style_type style;
 			int side = pm3d_side( &pointsA[i], &pointsA[i1], &pointsB[ii]);
 			lp_use_properties(&style, side < 0 ? cb1 + 1 : cb1);
@@ -955,11 +959,11 @@ pm3d_plot(struct surface_points *this_plot, int at_which_z)
 
 			if (color_from_fillcolor) {
 			    /* color is set by "fc <rgbval>" */
-			    gray = this_plot->fill_properties.border_color.lt;
+			    gray = fillcolorspec.lt;
 			    /* pm3d fc linestyle N generates
 			     * top/bottom color difference as with hidden3d
 			     */
-			    if (this_plot->fill_properties.border_color.type == TC_LINESTYLE) {
+			    if (fillcolorspec.type == TC_LINESTYLE) {
 				struct lp_style_type style;
 				int side = pm3d_side( &pointsA[i], &pointsB[ii], &pointsB[ii1]);
 				lp_use_properties(&style, side < 0 ? gray + 1 : gray);
@@ -1708,7 +1712,13 @@ filled_polygon(struct surface_points *from_plot, int index, gpdPoint *corners, i
 
     term->filled_polygon(nv, icorners);
 
-    if (from_plot && from_plot->plot_style == BOXES) {
+    if (from_plot && (from_plot->plot_style == CONTOURFILL)) {
+	t_colorspec *bordercolor = &(from_plot->fill_properties.border_color);
+	if (bordercolor->type == TC_LT && bordercolor->lt == LT_NODRAW)
+	    return;
+	if (bordercolor->type != TC_DEFAULT)
+	    apply_pm3dcolor(bordercolor);
+    } else if (from_plot &&  (from_plot->plot_style == BOXES)) {
 	t_colorspec *bordercolor = &(from_plot->fill_properties.border_color);
 	if (bordercolor->type == TC_LT && bordercolor->lt == LT_NODRAW)
 	    return;

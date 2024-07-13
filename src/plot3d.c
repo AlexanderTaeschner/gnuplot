@@ -2148,10 +2148,23 @@ eval_3dplots()
 		/* Some plots have a fill style as well */
 		if ((this_plot->plot_style & PLOT_STYLE_HAS_FILL) && !set_fillstyle){
 		    int stored_token = c_token;
-		    if (equals(c_token,"fs") || almost_equals(c_token,"fill$style")) {
+
+		    if (this_plot->plot_style == CONTOURFILL) {
+			this_plot->fill_properties.fillstyle = FS_SOLID;
+			this_plot->fill_properties.filldensity = 100;
+			if (!set_lpstyle) {
+			    /* TC_DEFAULT indicates "retrace", TC_LT would give "noborder" */
+			    this_plot->fill_properties.border_color.type = TC_DEFAULT;
+			    this_plot->fill_properties.border_color.lt = LT_NODRAW;
+			}
+		    } else {
 			this_plot->fill_properties.fillstyle = default_fillstyle.fillstyle;
 			this_plot->fill_properties.filldensity = default_fillstyle.filldensity;
 			this_plot->fill_properties.fillpattern = 1;
+			if (this_plot->fill_properties.fillstyle == FS_EMPTY)
+			    this_plot->fill_properties.fillstyle = FS_SOLID;
+		    }
+		    if (equals(c_token,"fs") || almost_equals(c_token,"fill$style")) {
 			parse_fillstyle(&this_plot->fill_properties);
 			set_fillstyle = TRUE;
 		    }
@@ -2248,10 +2261,10 @@ eval_3dplots()
 	    /* If this plot style uses a fillstyle and we saw an explicit
 	     * fill color, save it in lp_properties now.
 	     * FIXME: make other plot styles work like BOXES.
-	     *        ZERRORFILL is weird.
+	     *        ZERRORFILL and CONTOURFILL are weird.
 	     */
 	    if ((this_plot->plot_style & PLOT_STYLE_HAS_FILL) && set_fillcolor) {
-		if (this_plot->plot_style == ZERRORFILL) {
+		if (this_plot->plot_style == ZERRORFILL || this_plot->plot_style == CONTOURFILL) {
 		    this_plot->fill_properties.border_color = this_plot->lp_properties.pm3d_color;
 		    this_plot->lp_properties.pm3d_color = fillcolor;
 		} else if (this_plot->plot_style == BOXES) {
