@@ -305,10 +305,8 @@ print_table(struct curve_points *current_plot, int plot_num)
 			OUTPUT_NUMBER((point->yhigh - point->y), current_plot->y_axis);
 			break;
 		    case POINTSTYLE:
-			if (current_plot->plot_filter == FILTER_ZSORT) {
-			    snprintf(buffer, BUFFERSIZE, "%g ", point->z);
-			    len = strappend(&line, &size, len, buffer);
-			}
+			if (current_plot->plot_filter == FILTER_ZSORT)
+			    OUTPUT_NUMBER(point->z, FIRST_Z_AXIS);
 			break;
 		    case LINES:
 		    case LINESPOINTS:
