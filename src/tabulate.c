@@ -59,7 +59,6 @@ FILE *table_outfile = NULL;
 udvt_entry *table_var = NULL;
 TBOOLEAN table_mode = FALSE;
 char *table_sep = NULL;
-struct at_type *table_filter_at = NULL;
 
 static char *expand_newline(const char *in);
 static TBOOLEAN blanks_needed(curve_points *this_plot);
@@ -603,15 +602,15 @@ blanks_needed(curve_points *this_plot)
  * Called from plot2d.c (get_data) for "plot with table"
  */
 TBOOLEAN
-tabulate_one_line(double v[], struct value str[], int ncols)
+tabulate_one_line(struct curve_points *plot, double v[], struct value str[], int ncols)
 {
     int col;
     FILE *outfile = (table_outfile) ? table_outfile : gpoutfile;
     struct value keep;
 
-    if (table_filter_at) {
+    if (plot->if_filter_at) {
 	evaluate_inside_using = TRUE;
-	evaluate_at(table_filter_at, &keep);
+	evaluate_at(plot->if_filter_at, &keep);
 	evaluate_inside_using = FALSE;
 	if (undefined || isnan(real(&keep)) || real(&keep) == 0)
 	    return FALSE;

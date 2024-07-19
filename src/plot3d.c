@@ -232,6 +232,7 @@ sp_free(struct surface_points *sp)
 	}
 
 	free_at(sp->plot_function.at);
+	free_at(sp->if_filter_at);
 	free(sp->zclip);
 
 	free(sp);
