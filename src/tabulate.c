@@ -606,15 +606,6 @@ tabulate_one_line(struct curve_points *plot, double v[], struct value str[], int
 {
     int col;
     FILE *outfile = (table_outfile) ? table_outfile : gpoutfile;
-    struct value keep;
-
-    if (plot->if_filter_at) {
-	evaluate_inside_using = TRUE;
-	evaluate_at(plot->if_filter_at, &keep);
-	evaluate_inside_using = FALSE;
-	if (undefined || isnan(real(&keep)) || real(&keep) == 0)
-	    return FALSE;
-    }
 
     if (table_var == NULL) {
 	char sep = (table_sep && *table_sep) ? *table_sep : '\t';
