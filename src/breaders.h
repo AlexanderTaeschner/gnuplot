@@ -34,8 +34,8 @@
  * to the extent permitted by applicable law.
 ]*/
 
-#ifndef GNUPLOT_BINEDF_H
-# define GNUPLOT_BINEDF_H
+#ifndef GNUPLOT_BINREADERS_H
+# define GNUPLOT_BINREADERS_H
 
 #ifdef HAVE_CONFIG_H
 # include "config.h"
@@ -50,8 +50,9 @@ void edf_filetype_function(void);
 void png_filetype_function(void);
 void gif_filetype_function(void);
 void jpeg_filetype_function(void);
+
 int  df_image_get_pixel(int i, int j, int component);
 
 TBOOLEAN df_read_pixmap(t_pixmap *pixmap);
 
-#endif /* GNUPLOT_BINEDF_H */
+#endif /* GNUPLOT_BINREADERS_H */

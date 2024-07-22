@@ -11,7 +11,7 @@ pause -1 "Hit return to continue"
 
 #set incremental levels
 set cntrp level incr -20, 5, 9
-set title "9 incremental contours starting at -20, stepping by 5"
+set title "incremental contours starting at -20, stepping by 5"
 replot
 pause -1 "Hit return to continue"
 

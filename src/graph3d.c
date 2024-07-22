@@ -1521,7 +1521,6 @@ do_3dplot(
 							      * this_plot->lp_properties.l_width;
 			    thiscontour_lp_properties.d_type = ls.d_type;
 			    thiscontour_lp_properties.custom_dash_pattern = ls.custom_dash_pattern;
-//			    term_apply_lp_properties(&thiscontour_lp_properties);
 			}
 
 			/* Key entry */
@@ -4222,7 +4221,10 @@ plot3d_polygons(struct surface_points *plot)
 	/* Coloring piggybacks on options for isosurface */
 	if (plot->pm3d_color_from_column && !isnan(points[0].CRD_COLOR))
 	    quad[0].c = points[0].CRD_COLOR;
-	else
+	else if (plot->fill_properties.border_color.type == TC_DEFAULT) {
+	    double z = pm3d_assign_triangle_z(points[0].z, points[1].z, points[2].z);
+	    quad[0].c = rgb_from_gray(cb2gray(z));
+	} else
 	    quad[0].c = plot->fill_properties.border_color.lt;
 	quad[1].c = style;
 	pm3d_add_polygon( plot, quad, nv );
@@ -4334,7 +4336,6 @@ plot3d_contourfill(struct surface_points *plot)
      */
     for (level = 0; level < nslices; level++) {
 	plot->zclip_index = level;
-	plot->fill_properties.border_color = slice[level].color;
 	pm3d_draw_one(plot);
     }
 }

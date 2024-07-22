@@ -1055,43 +1055,7 @@ SVG_write_preamble ()
 	     "\t<path id='gpPt13' stroke-width='%.3f' stroke='currentColor' d='M0,1.330 L1.265,0.411 L0.782,-1.067 L-0.782,-1.076 L-1.265,0.411 z'/>\n"
 	     /* 14 pentagon              filled */
 	     "\t<use xlink:href='#gpPt13' id='gpPt14' fill='currentColor' stroke='none'/>\n"
-	     , stroke_width
-	     , stroke_width
-	     , stroke_width
-	     , stroke_width
-	     , stroke_width
-	     , stroke_width
-	     , stroke_width
-	     , stroke_width
-	);
 
-
-    fprintf (gpoutfile,
-	     /* Extra point types 1001 - 1006 */
-	     "\t<rect id='gpPt1001' stroke-width='%.3f' stroke='currentColor' fill='%s' x='-1' y='-1' width='2' height='2'/>\n"
-	     "\t<use xlink:href='#gpPt5'  id='gpPt1002' fill='%s' stroke='currentColor'/>\n"
-	     "\t<use xlink:href='#gpPt7'  id='gpPt1003' fill='%s' stroke='currentColor'/>\n"
-	     "\t<use xlink:href='#gpPt9' id='gpPt1004' fill='%s' stroke='currentColor'/>\n"
-	     "\t<use xlink:href='#gpPt11' id='gpPt1005' fill='%s' stroke='currentColor'/>\n"
-	     "\t<use xlink:href='#gpPt13' id='gpPt1006' fill='%s' stroke='currentColor'/>\n"
-	     , stroke_width , SVG_pens[0].color
-	     , SVG_pens[0].color
-	     , SVG_pens[0].color
-	     , SVG_pens[0].color
-	     , SVG_pens[0].color
-	     , SVG_pens[0].color
-	);
-
-    fprintf (gpoutfile,
-	    /* Extra point type 1007 */
-	     "\t<path id='gpPt15' stroke-width='%.3f' stroke='currentColor' d='"
-	     "M0.707,0.971 L0.0,0.611 L-0.707,0.971 L-0.571,0.185 L-1.141,-0.371 "
-	     "L-0.353,-0.485 L0.0,-1.2 L0.353,-0.485 L1.141,-0.371 L0.571,0.185 z' />\n"
-	     "\t<use xlink:href='#gpPt15' id='gpPt1007' fill='%s' stroke='currentColor'/>\n"
-	     , stroke_width, SVG_pens[0].color
-	);
-
-    fprintf (gpoutfile,
 	     /* NOTE: Fill patterns must be defined after the stroke color has been
 	      * set to use the correct (current) stroke color. Therefore we can't
 	      * define fill patterns here. */
@@ -1106,6 +1070,14 @@ SVG_write_preamble ()
 	     "\t</filter>\n"
 
 	     "</defs>\n"
+	     , stroke_width
+	     , stroke_width
+	     , stroke_width
+	     , stroke_width
+	     , stroke_width
+	     , stroke_width
+	     , stroke_width
+	     , stroke_width
 	     , SVG_pens[0].color
 	);
 }
@@ -1518,15 +1490,9 @@ onmouseout=\"gnuplot_svg.hideHypertext()\"><title> </title>\n",
 \t<use xlink:href='#gpDot' x='%.*f' y='%.*f'%s/>\n",
 		 PREC, X(x), PREC, Y(y), color_spec);
     } else {			/* draw a point symbol */
-	int pointtype;
-	/* Extra point types 1001-1006 */
-	if (1000 <= number && number <= 1006)
-		pointtype = number+1;
-	else
-		pointtype = number % 15;
 	fprintf (gpoutfile, "\
 \t<use xlink:href='#gpPt%u' transform='translate(%.*f,%.*f) scale(%.2f)'%s/>",
-		 pointtype, PREC, X(x), PREC, Y(y),
+		 number % 15, PREC, X(x), PREC, Y(y),
 		 term_pointsize * term->h_tic / (2 * SVG_SCALE),
 		 color_spec);
     }

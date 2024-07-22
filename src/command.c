@@ -152,6 +152,7 @@ static void load_or_call_command( TBOOLEAN call );
        void do_shell(void);
 
 static int expand_1level_macros(void);
+static void timed_pause(double sleep_time);
 
 struct lexical_unit *token;
 int token_table_size;
@@ -1832,7 +1833,7 @@ local_command()
 }
 
 /* helper routine to multiplex mouse event handling with a timed pause command */
-void
+static void
 timed_pause(double sleep_time)
 {
 #if defined(HAVE_USLEEP) && defined(USE_MOUSE) && !defined(_WIN32)

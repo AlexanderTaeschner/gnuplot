@@ -549,10 +549,11 @@ init_array( struct udvt_entry *array, int size )
 	A[i].type = NOTDEFINED;
 }
 
-/* some machines have trouble with exp(-x) for large x
- * if E_MINEXP is defined at compile time, use gp_exp(x) instead,
+/* Some machines have trouble with exp(-x) for large x.
+ * If E_MINEXP is defined at compile time, use gp_exp(x) instead,
  * which returns 0 for exp(x) with x < E_MINEXP
- * exp(x) will already have been defined as gp_exp(x) in plot.h
+ * If E_MINEXP is not difined, use gp_exp(x) anyway to avoid useless
+ * "errors" on floating underflow.
  */
 
 double

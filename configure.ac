@@ -345,9 +345,6 @@ AS_IF([test x$malloc_zero_returns_zero = xyes],
 dnl Argument types of select()
 AC_FUNC_SELECT_ARGTYPES
 
-dnl On SVR3.
-dnl FIXME AC_DEFINE(CRIPPLED_SELECT)
-
 dnl .gih help file location
 eval gp_datadir=$datadir
 if test "$gp_datadir" = NONE/share; then
@@ -967,6 +964,18 @@ fi
 
 AM_CONDITIONAL(BUILD_GPCAIRO, test "${build_gpcairo}" = yes)
 
+dnl If neither libgd nor cairo is present, we need another way to read in image files.
+dnl Try libstbi
+if test "$with_gd" = no && test "$with_cairo" = no; then
+    AC_CHECK_LIB(stbi, stbi_load_from_file,
+       [AC_DEFINE(HAVE_STBI,1,[ Define to use libstbi as a fallback for reading image data])
+        with_stbi=yes && TERMLIBS="$TERMLIBS -lstbi"
+        AC_CHECK_HEADERS(stb_image.h,,
+            AC_MSG_WARN([please add path to stb_image.h to CPPFLAGS in Makefile]))
+    ])
+fi
+dnl end check for libstbi
+
 dnl webp terminal
 if test "${with_cairo}" = yes; then
   with_webp=yes
@@ -1380,12 +1389,12 @@ fi
 if test "$enable_qt_ok" = yes; then
   if test "$QTVER" = 4; then
       AC_MSG_RESULT([  Qt                   : yes (qt4)])
-  fi
-  if test "$QTVER" = 5; then
+  elif test "$QTVER" = 5; then
       AC_MSG_RESULT([  Qt                   : yes (qt5)])
-  fi
-  if test "$QTVER" = 6; then
+  elif test "$QTVER" = 6; then
       AC_MSG_RESULT([  Qt                   : yes (qt6)])
+  else
+      AC_MSG_RESULT([  Qt                   : no (requires C++, Qt5 or Qt6 support libraries)])
   fi
 else
   AC_MSG_RESULT([  Qt                   : no (use --with-qt or --with-qt=qt4 or --with-qt=qt5 to enable])
@@ -1424,6 +1433,16 @@ if test "$enable_history_file" = yes; then
   AC_MSG_RESULT([  Command-line history file:                       yes])
 else
   AC_MSG_RESULT([  Command-line history file:                       no])
+fi
+
+if test "$with_gd" = yes; then
+  AC_MSG_RESULT([  Support for image file input:                    yes (using libgd)])
+elif test "$with_cairo" = yes; then
+  AC_MSG_RESULT([  Support for image file input:                    yes (using cairo)])
+elif test "$with_stbi" = yes; then
+  AC_MSG_RESULT([  Support for image file input:                    yes (using libstbi)])
+elif test "$with_gd" = no; then
+  AC_MSG_RESULT([  Support for image file input:                    no])
 fi
 
 if test "${enable_stable_sort}" = yes; then

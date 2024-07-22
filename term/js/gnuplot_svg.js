@@ -37,7 +37,7 @@ if (window) {
 
 gnuplot_svg = function (svgElement) {
 
-    var version = '09 April 2019';
+    var version = '12 June 2024';
 
     var settings = {};
 
@@ -89,10 +89,9 @@ gnuplot_svg = function (svgElement) {
     var parseSettings = function () {
         var script = svgElement.querySelectorAll('script');
         if (script && script[1]) {
-            // Chrome may break the original CDATA section into more than 1
-            // continous sections witch will lead to failure if we dont
-            // combine them back into 1
-            var scriptText = script[1].innerHTML.replaceAll("<![CDATA[", "").replaceAll("]]>", "")
+            // Chrome may break the original CDATA section into more than one piece,
+            // which will lead to failure if we don't combine them back into a single section.
+            var scriptText = script[1].innerHTML.replaceAll("<!\[CDATA\[", "").replaceAll("\]\]>", "")
             // Remove inline comments
             scriptText = scriptText.replace(/^\s*\/\/.*\n/g, '');
             // Change prefix to "

@@ -46,6 +46,10 @@
 #include "misc.h"
 
 /*
+ * Local prototypes
+ */
+
+/*
  * Reader for the ESRF Header File format files (EDF / EHF).
  */
 
@@ -65,7 +69,7 @@ struct gen_table4 {
     short signum; /* 0..unsigned, 1..signed, 2..float or double */
     short sajzof; /* sizeof on 32bit architecture */
 };
- 
+
 /* Exactly like lookup_table_nth from tables.c, but for gen_table4 instead
  * of gen_table.
  */ 
@@ -257,58 +261,50 @@ edf_filetype_function(void)
 
 }
 
+
+
+#define FILETYPE_PNG 1
+#define FILETYPE_GIF 2
+#define FILETYPE_JPEG 3
+
+#ifdef HAVE_GD_PNG
+
 /*
+ *	Image reading routines using libgd
+ *	    png_filetype_function
+ *	    jpeg_filetype_function
+ *	    gif_filetype_function
+ *	    df_image_get_pixel
+ *
  *	Use libgd for input of binary images in PNG GIF JPEG formats
  *	Ethan A Merritt - August 2009
  */
 
-#define GD_PNG 1
-#define GD_GIF 2
-#define GD_JPEG 3
-void gd_filetype_function(int filetype, char *filename);
+#include <gd.h>
+static gdImagePtr im = NULL;
+
+/* local prototypes for libgd */
+static void gd_filetype_function(int filetype, char *filename);
 
 void
 png_filetype_function(void)
 {
-    gd_filetype_function(GD_PNG, df_filename);
+    gd_filetype_function(FILETYPE_PNG, df_filename);
 }
 
 void
 gif_filetype_function(void)
 {
-    gd_filetype_function(GD_GIF, df_filename);
+    gd_filetype_function(FILETYPE_GIF, df_filename);
 }
 
 void
 jpeg_filetype_function(void)
 {
-    gd_filetype_function(GD_JPEG, df_filename);
+    gd_filetype_function(FILETYPE_JPEG, df_filename);
 }
 
-#ifndef HAVE_GD_PNG
-
-void
-gd_filetype_function(int type, char *filename)
-{
-    int_error(NO_CARET, "This copy of gnuplot cannot read png/gif/jpeg images");
-}
-
-int
-df_image_get_pixel(int i, int j, int component) { return 0; }
-
-TBOOLEAN
-df_read_pixmap( t_pixmap *pixmap )
-{
-    int_warn(NO_CARET, "This copy of gnuplot cannot read png/gif/jpeg images");
-    return FALSE;
-}
-
-#else
-
-#include <gd.h>
-static gdImagePtr im = NULL;
-
-void
+static void
 gd_filetype_function(int filetype, char *filename)
 {
     FILE *fp;
@@ -324,22 +320,22 @@ gd_filetype_function(int filetype, char *filename)
     fp = loadpath_fopen(filename, "rb");
     if (!fp)
 	int_error(NO_CARET, "Can't open data file \"%s\"", filename);
-    
+
     switch(filetype) {
-	case GD_PNG:	im = gdImageCreateFromPng(fp); break;
-	case GD_GIF:
+	case FILETYPE_PNG:	im = gdImageCreateFromPng(fp); break;
+	case FILETYPE_GIF:
 #ifdef HAVE_GD_GIF
 			im = gdImageCreateFromGif(fp);
 #endif
 			break;
-	case GD_JPEG:
+	case FILETYPE_JPEG:
 #ifdef HAVE_GD_JPEG
 			im = gdImageCreateFromJpeg(fp);
 #endif
 	default:	break;
     }
     fclose(fp);
-    
+
     if (!im)
 	int_error(NO_CARET, "libgd doesn't recognize the format of \"%s\"", filename);
 
@@ -353,14 +349,14 @@ gd_filetype_function(int filetype, char *filename)
     df_matrix_file = FALSE;
     df_binary_file = TRUE;
 
-    df_bin_record[0].scan_skip[0] = 0;                                                  
-    df_bin_record[0].scan_dim[0] = M;                                                   
-    df_bin_record[0].scan_dim[1] = N;                                                   
+    df_bin_record[0].scan_skip[0] = 0;
+    df_bin_record[0].scan_dim[0] = M;
+    df_bin_record[0].scan_dim[1] = N;
 
-    df_bin_record[0].scan_dir[0] = 1;                                                   
-    df_bin_record[0].scan_dir[1] = -1;                                                  
-    df_bin_record[0].scan_generate_coord = TRUE;                                        
-    df_bin_record[0].cart_scan[0] = DF_SCAN_POINT;                                      
+    df_bin_record[0].scan_dir[0] = 1;
+    df_bin_record[0].scan_dir[1] = -1;
+    df_bin_record[0].scan_generate_coord = TRUE;
+    df_bin_record[0].cart_scan[0] = DF_SCAN_POINT;
     df_bin_record[0].cart_scan[1] = DF_SCAN_LINE;
 
     df_extend_binary_columns(4);
@@ -395,6 +391,290 @@ df_image_get_pixel(int i, int j, int component)
     }
 }
 
+
+#elif HAVE_CAIROPDF
+
+/*
+ *	Image reading routines using cairo
+ *	    png_filetype_function
+ *	    jpeg_filetype_function
+ *	    gif_filetype_function
+ *	    df_image_get_pixel
+ *
+ *	Ethan A Merritt - June 2024
+ */
+
+#include <cairo.h>
+static unsigned char *im = NULL;	/* Image data */
+static int stride;			/* length in bytes of a single image row */
+
+/* local prototypes for cairo */
+static void cairo_filetype_function(int filetype, char *filename);
+
+void
+png_filetype_function(void)
+{
+    cairo_filetype_function(FILETYPE_PNG, df_filename);
+}
+
+void
+gif_filetype_function(void)
+{
+    cairo_filetype_function(FILETYPE_GIF, df_filename);
+}
+
+void
+jpeg_filetype_function(void)
+{
+    cairo_filetype_function(FILETYPE_JPEG, df_filename);
+}
+
+static void
+cairo_filetype_function(int filetype, char *filename)
+{
+    static cairo_surface_t *image = NULL;
+    FILE *imagefile = NULL;
+    int height, width;
+
+    /* free previous image, if any */
+    if (image != NULL) {
+	cairo_surface_destroy(image);
+	image = NULL;
+	im = NULL;
+    }
+
+    if (filetype != FILETYPE_PNG)
+	int_error(NO_CARET, "this copy of gnuplot can only read png images");
+
+    /* Search for the named file in current load path.
+     * If the search is successful, the full path name is in global loadpath_fontname.
+     */
+    imagefile = loadpath_fopen(filename, "r");
+    if (imagefile) {
+	cairo_format_t image_format;
+	char *fullname = loadpath_fontname ? loadpath_fontname : filename;
+
+	fclose(imagefile);
+	image = cairo_image_surface_create_from_png(fullname);
+	if (cairo_surface_status(image) != CAIRO_STATUS_SUCCESS) {
+	    cairo_surface_destroy(image);
+	    int_error(NO_CARET, "cannot read png image from %s\n", fullname);
+	}
+	im = cairo_image_surface_get_data(image);
+	height = cairo_image_surface_get_height(image);
+	width = cairo_image_surface_get_width(image);
+	stride = cairo_image_surface_get_stride(image);
+	image_format = cairo_image_surface_get_format(image);
+	FPRINTF((stderr, "Read %dx%d (stride %d) image from %s\n",
+		width, height, stride, fullname));
+	if (image_format != CAIRO_FORMAT_RGB24 && image_format != CAIRO_FORMAT_ARGB32)
+	    int_warn(NO_CARET, "Unsupported format in png file");
+    } else {
+	int_error(NO_CARET, "cannot find or open %s\n", filename);
+    }
+
+    /*
+     * Fill in binary record structure for gnuplot's bookkeeping
+     */
+    df_pixeldata = im;
+    df_matrix_file = FALSE;
+    df_binary_file = TRUE;
+
+    df_bin_record[0].scan_skip[0] = 0;
+    df_bin_record[0].scan_dim[0] = width;
+    df_bin_record[0].scan_dim[1] = height;
+
+    df_bin_record[0].scan_dir[0] = 1;
+    df_bin_record[0].scan_dir[1] = -1;
+    df_bin_record[0].scan_generate_coord = TRUE;
+    df_bin_record[0].cart_scan[0] = DF_SCAN_POINT;
+    df_bin_record[0].cart_scan[1] = DF_SCAN_LINE;
+
+    df_extend_binary_columns(4);
+    df_set_read_type(1, DF_UCHAR);
+    df_set_read_type(2, DF_UCHAR);
+    df_set_read_type(3, DF_UCHAR);
+    df_set_read_type(4, DF_UCHAR);
+    df_set_skip_before(1,0);
+
+    df_no_use_specs = 4;
+    use_spec[0].column = 1;
+    use_spec[1].column = 2;
+    use_spec[2].column = 3;
+    use_spec[3].column = 4;
+}
+
+int
+df_image_get_pixel(int i, int j, int component)
+{
+    /* CAIRO_FORMAT_ARGB32
+     *	each pixel is a 32-bit quantity, with alpha in the upper 8 bits,
+     *	then red, then green, then blue. Alpha is premultiplied;
+     *  that is, 50% transparent red is 0x80800000, not 0x80ff0000.
+     * CAIRO_FORMAT_RGB24
+     *  each pixel is a 32-bit quantity with the upper 8 bits unused.
+     */
+    int pixel;
+
+    switch (component) {
+	case 0:	/* Red */
+		pixel = *(im + stride*j + 4*i + 2);
+		break;
+	case 1: /* Green */
+		pixel = *(im + stride*j + 4*i + 1);
+		break;
+	case 2: /* Blue */
+		pixel = *(im + stride*j + 4*i + 0);
+		break;
+	case 3: /* Alpha */
+		pixel = *(im + stride*j + 4*i + 3);
+		break;
+	default:
+		pixel = 0;
+		break;
+    }
+
+    return pixel;
+}
+
+
+#elif HAVE_STBI		/* no libgd no libcairo */
+
+/*
+ *	Image reading routines using libstbi
+ *	    png_filetype_function
+ *	    jpeg_filetype_function
+ *	    gif_filetype_function
+ *	    df_image_get_pixel
+ *
+ *
+ *	Ethan A Merritt - May 2024
+ */
+#include <stb_image.h>
+
+/* local prototypes for libstbi */
+static void stbi_filetype_function(char *filename);
+
+/* Buffer that the image will be read into */
+static unsigned char *im = NULL;
+static int stbi_rows;
+static int stbi_cols;
+
+void
+png_filetype_function(void)
+{
+    stbi_filetype_function(df_filename);
+}
+
+void
+gif_filetype_function(void)
+{
+    stbi_filetype_function(df_filename);
+}
+
+void
+jpeg_filetype_function(void)
+{
+    stbi_filetype_function(df_filename);
+}
+
+static void
+stbi_filetype_function(char *filename)
+{
+    int width, height, channels;
+    int ok;
+    FILE *fp;
+
+    /* Free any previous image */
+    if (im)
+	stbi_image_free(im);
+    im = NULL;
+
+    /* Check readability and size of requested image file */
+    /* Note: the stbi routines may consume up to 92 bytes trying to identify
+     * the file type and segfault if this fails.
+     */
+    if ((fp = loadpath_fopen(filename, "rb")) == NULL)
+	int_error(NO_CARET, "Cannot open file %s\n", filename);
+    if ((fseek(fp, 0L, SEEK_END) < 0)
+    ||  (ftell(fp) < 128L)
+    ||  (fseek(fp, 0L, SEEK_SET) < 0))
+	int_error(NO_CARET, "file %s not usable as a pixmap\n", filename);
+
+    /* Always request RGBA (4 channel) representation)
+     * It would be possible to check file suitability without allocating image data
+     *     ok = stbi_info_from_file(fp, &width, &height, &channels);
+     *     if (!ok) ...
+     */
+    im = stbi_load_from_file(fp, &width, &height, &channels, 4);
+    if (!im) {
+	fclose(fp);
+	int_error(NO_CARET, "libstbi failed to open or read from %s\n", filename);
+    }
+    stbi_rows = height;
+    stbi_cols = width;
+    fclose(fp);
+
+    /*
+     * Fill in binary record structure for gnuplot's bookkeeping
+     */
+    df_pixeldata = im;
+    df_matrix_file = FALSE;
+    df_binary_file = TRUE;
+
+    df_bin_record[0].scan_skip[0] = 0;
+    df_bin_record[0].scan_dim[0] = width;
+    df_bin_record[0].scan_dim[1] = height;
+
+    df_bin_record[0].scan_dir[0] = 1;
+    df_bin_record[0].scan_dir[1] = -1;
+    df_bin_record[0].scan_generate_coord = TRUE;
+    df_bin_record[0].cart_scan[0] = DF_SCAN_POINT;
+    df_bin_record[0].cart_scan[1] = DF_SCAN_LINE;
+
+    df_extend_binary_columns(4);
+    df_set_read_type(1, DF_UCHAR);
+    df_set_read_type(2, DF_UCHAR);
+    df_set_read_type(3, DF_UCHAR);
+    df_set_read_type(4, DF_UCHAR);
+    df_set_skip_before(1,0);
+
+    df_no_use_specs = 4;
+    use_spec[0].column = 1;
+    use_spec[1].column = 2;
+    use_spec[2].column = 3;
+    use_spec[3].column = 4;
+}
+
+int
+df_image_get_pixel(int i, int j, int component)
+{
+    int channel = im[ 4 * (j * stbi_cols + i) + component ];
+    return channel;
+}
+
+#else /* No libgd no libcairo no libstbi */
+
+/*
+ * No image reading support is present (libgd or libcairo or libstbi)
+ * Print error message without opening any files
+ *	    png_filetype_function
+ *	    jpeg_filetype_function
+ *	    gif_filetype_function
+ *	    df_image_get_pixel
+ *
+ */
+
+void png_filetype_function()
+{
+    int_error(NO_CARET, "This copy of gnuplot was built without support for reading an image file");
+}
+void jpeg_filetype_function() { png_filetype_function(); }
+void gif_filetype_function() { png_filetype_function(); }
+int df_image_get_pixel(int i, int j, int component) { return 0; }
+
+#endif /* HAVE_GD_PNG */
+
 TBOOLEAN
 df_read_pixmap( t_pixmap *pixmap )
 {
@@ -404,26 +684,36 @@ df_read_pixmap( t_pixmap *pixmap )
     char *file_ext = strrchr(pixmap->filename, '.');
 
     /* Parse file name */
-    if (!file_ext++)
+    if (!file_ext++) {
+	int_warn(NO_CARET, "unrecognized pixmap type: %s", pixmap->filename);
 	return FALSE;
+    }
     if (!strcasecmp(file_ext, "png"))
-	filetype = GD_PNG;
+	filetype = FILETYPE_PNG;
     else if (!strcasecmp(file_ext, "gif"))
-	filetype = GD_GIF;
+	filetype = FILETYPE_GIF;
     else if (!strcasecmp(file_ext, "jpeg") || !strcasecmp(file_ext, "jpg"))
-	filetype = GD_JPEG;
+	filetype = FILETYPE_JPEG;
     else {
 	/* Clear anything that was there before */
 	pixmap->nrows = pixmap->ncols = 0;
 	int_warn(NO_CARET, "unrecognized pixmap type: %s", pixmap->filename);
 	return FALSE;
     }
-    
+
     /* Create a blank record that gd_filetype_function can write into */
     df_add_binary_records(1, DF_CURRENT_RECORDS);
 
-    /* Open file and allocate space for image data */
+#ifdef HAVE_GD_PNG
     gd_filetype_function(filetype, pixmap->filename);
+#elif CAIRO_HAS_IMAGE_SURFACE
+    cairo_filetype_function(filetype, pixmap->filename);
+#elif HAVE_STBI
+    stbi_filetype_function(pixmap->filename);
+#else
+    png_filetype_function(); /* Will emit error */
+#endif
+
     pixmap->ncols = df_bin_record[0].scan_dim[0];
     pixmap->nrows = df_bin_record[0].scan_dim[1];
     pixmap->image_data = gp_realloc( pixmap->image_data,
@@ -443,4 +733,3 @@ df_read_pixmap( t_pixmap *pixmap )
     return TRUE;
 }
 
-#endif

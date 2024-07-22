@@ -540,9 +540,6 @@ D epi_data 1
 #b The position of the key box can be manually tweaked by specifying an
 ## offset to be added to whatever position the program would otherwise use.
 ## See `set key offset`.
-#b Numerical point types starting with pointtype 1001 are background-fill
-## polygons. These special symbols are not implemented for all terminals.
-## See `pointtype symbols`.
 #end
 
 3 Brief summary of features introduced in version 5
@@ -631,6 +628,7 @@ D epi_data 1
        set style increment user
  Current equivalent
        use "set linetype" to redefine a convenient range of linetypes
+       explicit use of "linestyle N" or "linestyle variable"
 
  Deprecated in version 5.0, removed in 6.0
        show palette fit2rgbformulae
@@ -3737,13 +3735,17 @@ Ffigure_newsyntax
       plot 0 lt bgnd
 4 linecolor variable
 ?linecolor variable
+?linestyle variable
 ?lc variable
+?ls variable
 ?textcolor variable
 ?tc variable
 ?variable linecolor
  `lc variable` tells the program to use the value read from one column of the
  input data as a linetype index, and use the color belonging to that linetype.
  This requires a corresponding additional column in the `using` specifier.
+ `ls variable` does the same except the value read from the input data stream
+ is interpreted as the index of a linestyle rather than a linetype.
  Text colors can be set similarly using `tc variable`.
 
  Examples:
@@ -4846,7 +4848,8 @@ Ffigure_boxplot
  equal or less than the second quartile (median) value, etc.  A box is drawn
  around the region between the first and third quartiles, with a horizontal line
  at the median value.  Whiskers extend from the box to user-specified limits.
- Points that lie outside these limits are drawn individually.
+ Points that lie outside these limits are drawn individually.  The horizontal
+ spread of outliers with overlapping y value may be adjusted by `set jitter`.
 
  Examples
 
@@ -5049,11 +5052,17 @@ Ffigure_piechart
 ?with contourfill
 ?contourfill
 Ffigure_contourfill
+ Syntax:
+      splot f(x,y) with contourfill {at base} {fillstyle <style>}
+
  Contourfill is a 3D plotting style used to color a pm3d surface in slices
- along the z axis.  It can be used in 2D projection (`set view map`) to create
- 2D contour plots with solid color between contour lines.
- The slice boundaries and the assigned colors are both controlled using
- `set contourfill`.  See also `pm3d`, `zclip`.
+ along the z axis.  It can be used in 2D projection (`set view map` or
+ `with contourfill at base`) to create 2D contour plots with solid color
+ between contour lines.  The slice boundaries and the assigned colors are both
+ controlled using `set contourfill`.  See also `pm3d`, `zclip`.
+
+ The default fill properties are taken from `set pm3d` but may be modified
+ by providing a different fillstyle in the splot command.
 
  This style can be combined with `set contours` to superimpose contour
  lines that bound the slices.  Care must be taken that the slice boundaries
@@ -5069,6 +5078,12 @@ Ffigure_contourfill
       set cntrlabel onecolor
       set view map
       splot g(x,y) with contourfill, g(x,y) with lines nosurface
+
+ By default the contours are rendered onto the original 3D surface.
+ Plotting `with contourfill at base` instead projects the colored surface onto
+ the base plane.  To draw both a surface and its projected contour coloring
+      set hidden3d front
+      splot f(x,y) using lines, f(x,y) using contourfill at base
 
 2 dots
 ?plotting styles dots
@@ -6062,9 +6077,9 @@ Ffigure_points
  to show what is provided by the current terminal settings.
  See also `pointtype symbols` below.
 
- Any single printable character may be given instead of a numerical point type,
- as in the example below.  You may use any unicode character as the pointtype
- (this assumes utf8 support). See `escape sequences`.
+ Alternatively any single printable character may be given instead of a
+ numerical point type, as in the example below.  You may use any unicode
+ character as the pointtype (assumes utf8 support). See `escape sequences`.
  Longer strings may be plotted using plot style `labels` rather than `points`.
 
  Examples
@@ -6083,12 +6098,6 @@ Ffigure_points
  distinct symbols; after that the symbols repeat in order, so the symbol used
  for "pointtype 16" is the same as that for "pointtype 1" although it may use
  a different color.  Use the `test` command to see the symbol types.
-
-D extra_points 1
- Numerical pointtypes in the range 1001 - 1020 are an exception.
- These are polygons with background fill intended for use with the plot
- style `with linespoints`.  Not all terminals provide these extra point types,
- and only seven polygons are currently implemented.
 
 3 variable point properties
 ?points variable
@@ -6475,7 +6484,6 @@ Ffigure_xyerrorlines
  An additional input column (5th or 7th) may be used to provide variable color.
  This style does not permit variable point properties.
 
-#TeX \newpage
 2 yerrorbars
 ?plotting styles yerrorbars
 ?plotting styles errorbars
@@ -11305,8 +11313,8 @@ Ffigure_colornames
       set contourfill {palette | firstlinetype N}
 
  The default is `set contourfill auto 5 palette`, which splits the current
- z range into five equal slices (6 bounding planes) and assigns each slice
- the palette mapped color of its midpoint z value.
+ z range into five equal slices (6 bounding planes) and colors each slice
+ of the surface with the palette-mapped color of its midpoint z value.
 
  The options `ztics` or `cbtics` place split zrange by slicing at major ticks
  along that axis.  For example to slice specifically at z=2.5, z=7 and z=10
@@ -11320,6 +11328,7 @@ Ffigure_colornames
       set for [i=101:110] linetype i lc mycolor[i]
       set contourfill firstlinetype 101
  `set contourfill palette` restores palette coloring.
+
 D contourfill 3
 
 3 dashtype
@@ -12619,8 +12628,8 @@ D hidden 6
  offset to the coordinates of these superimposed points that spreads them into a
  cluster.  The threshold value for treating the points as being overlapped may
  be specified in character widths or any of the usual coordinate options.
- See `coordinates`.  Jitter affects 2D plot styles `with points` and
- `with impulses`.  It also affects 3D plotting of voxel grids.
+ See `coordinates`.  Jitter affects 2D plot styles `with points`,
+ `with impulses` and `with boxplot`. It also affects 3D plotting of voxel grids.
 
  The default jittering operation displaces points only along x.
  This produces a distinctive pattern sometimes called a "bee swarm plot".

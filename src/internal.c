@@ -51,6 +51,9 @@
 # include <windows.h>
 #endif
 
+/* internal prototypes */
+static void cmplx_divide(double a, double b, double c, double d, struct value *result);
+
 /*
  * Any platforms that still want support for matherr should
  * add appropriate definitions here.  Everyone else can now ignore it.
@@ -1030,7 +1033,7 @@ f_mult(union argument *arg)
  * [a(c/d) + b] + i[b(c/d) − a] / [c(c/d) + d] for |c| <  |d|
  *
  */
-void
+static void
 cmplx_divide(double a, double b, double c, double d, struct value *result)
 {
     double f1, f2, denom;

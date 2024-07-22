@@ -433,6 +433,15 @@ boundary(struct curve_points *plots, int count)
     setup_tics(&axis_array[FIRST_Y_AXIS], 20);
     setup_tics(&axis_array[SECOND_Y_AXIS], 20);
 
+    /* Sanity check for auto-generated tics on logscale axes.
+     * If fewer than 3 tics were generated we will switch to using
+     * linear increment tic intervals when they are drawn by place_grid().
+     */
+    sanity_check_log_tics(FIRST_X_AXIS);
+    sanity_check_log_tics(SECOND_X_AXIS);
+    sanity_check_log_tics(FIRST_Y_AXIS);
+    sanity_check_log_tics(SECOND_Y_AXIS);
+
     /* Adjust color axis limits if necessary. */
     if (is_plot_with_palette()) {
 	axis_checked_extend_empty_range(COLOR_AXIS, "All points of color axis undefined.");

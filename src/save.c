@@ -521,8 +521,6 @@ save_set_all(FILE *fp)
     }
 
     /* Mostly for backwards compatibility */
-    if (prefer_line_styles)
-	fprintf(fp, "set style increment userstyles\n");
     fputs("unset style line\n", fp);
     for (this_linestyle = first_linestyle; this_linestyle != NULL;
 	 this_linestyle = this_linestyle->next) {
@@ -2077,7 +2075,8 @@ save_marks(FILE *fp)
 	    fprintf(fp, "fillcolor ");
 	    save_pm3dcolor(fp, &this->mark_fillcolor);
 	}
-	if (this->mark_fillstyle.fillstyle == FS_DEFAULT) {
+	if (this->mark_fillstyle.fillstyle == FS_DEFAULT
+	&&  this->mark_fillstyle.border_color.type == TC_DEFAULT) {
 	    fprintf(fp, "\n");
 	} else {
 	    fprintf(fp, " fillstyle ");

@@ -1,7 +1,7 @@
 #
 # Demo of using rescaled images to construct a bar chart
 #
-if (!strstrt(GPVAL_COMPILE_OPTIONS,"+GD_PNG")) \
+if (!strstrt(GPVAL_COMPILE_OPTIONS,"+GD_PNG") && !strstrt(GPVAL_COMPILE_OPTIONS,"+IMAGE_INPUT")) \
     print ">>> Skipping demo <<<\n" ; \
     print "This copy of gnuplot was built without support for loading png images" ;\
     exit ;

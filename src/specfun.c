@@ -199,6 +199,7 @@ static double inverse_normal_func(double p);
 static double inverse_incomplete_gamma(double a, double p);
 static double inverse_incomplete_beta(double a, double b, double p);
 static double lambertw(double x);
+static int airy( double x, double *ai, double *aip, double *bi, double *bip );
 static double expint(double n, double x);
 #ifndef HAVE_COMPLEX_FUNCS
 static double igamma(double a, double x);
@@ -3368,7 +3369,7 @@ static unsigned short APGD[40] = {
 };
 #endif
 
-int
+static int
 airy( double x, double *ai, double *aip, double *bi, double *bip )
 {
     double z, zz, t, f, g, uf, ug, k, zeta, theta;

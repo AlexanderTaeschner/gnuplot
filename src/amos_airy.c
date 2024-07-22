@@ -38,6 +38,7 @@
 
 #include "eval.h"
 #include "stdfn.h"	/* for not_a_number() */
+#include "amos_airy.h"
 
 #ifdef HAVE_AMOS
 

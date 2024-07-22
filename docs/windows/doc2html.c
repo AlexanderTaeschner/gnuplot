@@ -68,6 +68,8 @@ static const char name[] = "wgnuplot";
 
 void convert(FILE *, FILE *, FILE *, FILE *);
 void process_line(char *, FILE *, FILE *, FILE *);
+void header(FILE *a, char * title);
+void footer(FILE *a);
 
 int
 main (int argc, char **argv)

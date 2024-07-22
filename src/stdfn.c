@@ -415,7 +415,7 @@ double _Complex cexp(double _Complex z)
 {
     double x = creal(z);
     double y = cimag(z);
-    return exp(x) * (cos(y) + I*sin(y));
+    return gp_exp(x) * (cos(y) + I*sin(y));
 }
 #endif
 

@@ -187,9 +187,6 @@ wrap_readline_signal_handler()
 /*
  * Set up structures using the proper include file
  */
-# if defined(_IBMR2) || defined(alliant)
-#  define SGTTY
-# endif
 
 /*  submitted by Francois.Dagorn@cicb.fr */
 # ifdef SGTTY

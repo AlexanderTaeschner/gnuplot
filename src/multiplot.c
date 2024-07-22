@@ -61,6 +61,7 @@ static void mp_layout_size_and_offset(void);
 static void mp_layout_margins_and_spacing(void);
 static void mp_layout_set_margin_or_spacing(t_position *);
 static void init_multiplot_datablock(void);
+static void multiplot_previous(void);
 
 enum set_multiplot_id {
     S_MULTIPLOT_LAYOUT,
@@ -164,7 +165,7 @@ multiplot_next()
     }
 }
 
-void
+static void
 multiplot_previous(void)
 {
     mp_layout.current_panel--;
@@ -496,14 +497,46 @@ multiplot_end()
     }
 
     if (!multiplot_playback) {
+	char *save_start = NULL;
+	char *save_end = NULL;
+
 	/* Create or recycle a user-visible datablock for replay */
 	struct udvt_entry *datablock = add_udv_by_name("$GPVAL_LAST_MULTIPLOT");
 	free_value(&datablock->udv_value);
 
-	/* Save the current "unset multiplot" command before moving the command list */
-	append_to_datablock(&multiplot_udv, strdup(gp_input_line));
+	/* For the simple case of line-by-line input either from the keyboard or from
+	 * a script file, the individual commands have already been saved and all that
+	 * is needed here is to save the "unset multiplot" command.
+	 * However if the current context is inside a bracketed clause the
+	 * entire bracketed clause is held in gp_input_line and the set ... unset
+	 * multiplot sequence of commands is embedded somewhere in that string.
+	 *
+	 * FIXME: There should be some way to detect being inside a bracketed clause.
+	 */
+	if (c_token <= 2) /* the simple case */
+	    ;
+	else {
+	    if ( (save_start = strstr(gp_input_line, "set multi"))
+	    ||   (save_start = strstr(gp_input_line, "se multi"))) {
+		/* make sure this isn't the 'unset multiplot' itself */
+		int offset = save_start - gp_input_line;
+		if ((offset > 1) && gp_input_line[offset-1] != 'n') {
+		    char *save_clause = strdup(save_start);
+		    if ( (save_end = strstr(save_clause, "unset multi"))
+		    ||   (save_end = strstr(save_clause, "uns multi"))) {
+			*save_end = '\0';
+		    } else {
+			int_warn(c_token,"multiplot_end: cannot find 'unset multiplot'");
+		    }
+		    append_to_datablock(&multiplot_udv, save_clause);
+		}
+	    }
+	}
 
-	/* Move the command list to $GPVAL_LAST_MULTIPLOT */
+	/* Add the closing "unset multiplot" command
+	 * before saving the command list to $GPVAL_LAST_MULTIPLOT
+	 */
+	append_to_datablock(&multiplot_udv, strdup("unset multiplot"));
 	datablock->udv_value = multiplot_udv;
 	multiplot_udv.v.data_array = NULL;
     }

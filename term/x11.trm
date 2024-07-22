@@ -823,24 +823,18 @@ X11_update_opts()
 
 
 /*-----------------------------------------------------------------------------
- *   Three different versions of the remainder of the X11 terminal driver
+ *   Different versions of the remainder of the X11 terminal driver
  *   are provided to support three different types of IPC with the
  *   gnuplot_x11 outboard terminal driver:
  *
  *   DEFAULT_X11:      popen() pipe for most un*x platforms
  *
- *   CRIPPLED_SELECT : file IPC for un*x platforms with incomplete or faulty
- *                     implementation of BSD select()
- *
  *   VMS :             mailbox/spawn IPC
  *---------------------------------------------------------------------------*/
 
 #define DEFAULT_X11
-#if defined(VMS) || defined(CRIPPLED_SELECT)
+#if defined(VMS)
 # undef DEFAULT_X11
-#endif
-#if defined(VMS) && defined(CRIPPLED_SELECT)
-Error.Incompatible options.
 #endif
 /* we do not want to have to duplicate all the code, so we
  * do most of it with macros.
@@ -1186,53 +1180,6 @@ X11_reset()
 #define AFTER_TEXT		/* nowt */
 
 
-#elif defined(CRIPPLED_SELECT)
-/* PLEASE CAN SOMEONE CHECK THAT THIS STILL WORKS !!! */
-/*-----------------------------------------------------------------------------
- *   CRIPPLED_SELECT file IPC
- *---------------------------------------------------------------------------*/
-static char X11_tmp[32], X11_tmp0[32], X11_shutdown[32];
-static int X11_pid;
-
-TERM_PUBLIC void
-X11_init()
-{
-    if (!(X11_pid = fork())) {
-	execvp(X11_full_command_path, optvec);
-	_exit(1);
-    }
-    sprintf(X11_tmp, "/tmp/Gnuplot_%d", X11_pid);
-    sprintf(X11_tmp0, "%s-", X11_tmp);
-    sprintf(X11_shutdown, "echo R >%s", X11_tmp);
-}
-
-TERM_PUBLIC void
-X11_reset()
-{
-    system(X11_shutdown);
-}
-
-#define BEFORE_GRAPHICS \
- if (!(X11_ipc = fopen(X11_tmp0, "w"))) { \
-   perror(X11_tmp0); system(X11_shutdown); gp_exit(EXIT_FAILURE); \
- }
-
-#define AFTER_TEXT \
- { fclose(X11_ipc); rename(X11_tmp0, X11_tmp); }
-
-#define PRINT0(fmt)          fprintf(X11_ipc, fmt)
-#define PRINT1(fmt,p1)       fprintf(X11_ipc, fmt,p1)
-#define PRINT2(fmt,p1,p2)    fprintf(X11_ipc, fmt,p1,p2)
-#define PRINT3(fmt,p1,p2,p3) fprintf(X11_ipc, fmt,p1,p2,p3)
-#define PRINT4(fmt,p1,p2,p3,p4) fprintf(X11_ipc, fmt,p1,p2,p3,p4)
-#define PRINT5(fmt,p1,p2,p3,p4,p5) fprintf(X11_ipc, fmt,p1,p2,p3,p4,p5)
-#define FFLUSH()             fflush(X11_ipc)
-
-static void
-X11_atexit()
-{
-    /* WHAT SHOULD I DO ? */
-}
 #elif defined(VMS)
 /*-----------------------------------------------------------------------------
  *   VMS mailbox/spawn IPC - Yehavi Bourvine - YEHAVI@VMS.HUJI.AC.IL

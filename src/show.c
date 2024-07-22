@@ -181,7 +181,8 @@ static void show_ticdefp(struct axis *);
 static void show_functions(void);
 static void show_warnings(void);
 
-static void show_mark();
+static void show_one_mark(struct mark_data *mark);
+static void show_mark(void);
 
 static int var_show_all = 0;
 
@@ -1020,6 +1021,13 @@ show_version(FILE *fp)
 #endif
 		"";
 
+	    const char *image_input =
+#if defined(HAVE_STBI) || defined(HAVE_GD_PNG) || defined(HAVE_CAIROPDF)
+		"+IMAGE_INPUT  ";
+#else
+		"-IMAGE_INPUT  ";
+#endif
+
 	    const char *nocwdrc =
 		"-USE_CWDRC  ";
 
@@ -1085,13 +1093,15 @@ show_version(FILE *fp)
 		"";
 #endif
 
+	    const char *got_marks = "+MARKS ";
+
 	    sprintf(compile_options,
-		    "    %s%s\n    %s%s\n    %s%s%s%s\n    %s\n    %s%s%s%s\n    %s%s\n",
+		    "    %s%s\n    %s%s\n    %s%s%s%s\n    %s%s\n    %s%s%s%s\n    %s%s%s\n",
 		    rdline, gnu_rdline, unicodebuild, plotoptions,
 		    complexfunc, libcerf, libamos, have_cexint,
-		    libgd,
+		    libgd, image_input,
 		    nocwdrc, x11, use_mouse, hiddenline,
-		    fblocks, chi_shapes
+		    fblocks, chi_shapes, got_marks
 		    );
 	}
 
@@ -2863,15 +2873,7 @@ show_hidden3d()
 static void
 show_increment()
 {
-#ifdef BACKWARD_COMPATIBILITY
-    fprintf(stderr,"\tPlot lines increment over ");
-    if (prefer_line_styles)
-	fprintf(stderr, "user-defined line styles rather than default line types\n");
-    else
-	fprintf(stderr, "default linetypes\n");
-#else
     fprintf(stderr,"\t'set style increment' is deprecated\n");
-#endif
 }
 
 static void
@@ -3697,7 +3699,7 @@ show_one_mark(struct mark_data *mark)
 	fprintf(stderr, "fillcolor ");
 	save_pm3dcolor(stderr, &mark->mark_fillcolor);
     }
-    fprintf(stderr, " fillstyle");
+    fprintf(stderr, " fillstyle ");
     save_fillstyle(stderr, &mark->mark_fillstyle);
 }
 

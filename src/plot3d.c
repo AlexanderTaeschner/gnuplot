@@ -243,7 +243,7 @@ sp_free(struct surface_points *sp)
  * iso_alloc() allocates a iso_curve structure that can hold 'num'
  * points.
  */
-struct iso_curve *
+static struct iso_curve *
 iso_alloc(int num)
 {
     struct iso_curve *ip;
@@ -263,7 +263,7 @@ iso_alloc(int num)
  * iso_extend() reallocates a iso_curve structure to hold "num"
  * points. This will either expand or shrink the storage.
  */
-void
+static void
 iso_extend(struct iso_curve *ip, int num)
 {
     if (num == ip->p_max)
@@ -286,7 +286,7 @@ iso_extend(struct iso_curve *ip, int num)
  * iso_free() releases any memory which was previously malloc()'d to hold
  *   iso curve points.
  */
-void
+static void
 iso_free(struct iso_curve *ip)
 {
     if (ip)
@@ -1872,13 +1872,8 @@ eval_3dplots()
 	    this_plot->lp_properties.l_type = line_num;
 	    this_plot->lp_properties.p_type = line_num;
 	    this_plot->lp_properties.d_type = line_num;
-
-	    /* user may prefer explicit line styles */
 	    this_plot->hidden3d_top_linetype = line_num;
-	    if (prefer_line_styles)
-		lp_use_properties(&this_plot->lp_properties, line_num+1);
-	    else
-		load_linetype(&this_plot->lp_properties, line_num+1);
+	    load_linetype(&this_plot->lp_properties, line_num+1);
 
 	    /* pm 25.11.2001 allow any order of options */
 	    while (!END_OF_COMMAND || !checked_once) {
@@ -1976,13 +1971,9 @@ eval_3dplots()
 			    get_image_options(&this_plot->image_properties);
 		    }
 
-		    if ((this_plot->plot_style | data_style) & PM3DSURFACE) {
-			if (equals(c_token, "at")) {
-			/* option 'with pm3d [at ...]' is explicitly specified */
-			c_token++;
-			if (get_pm3d_at_option(&this_plot->pm3d_where[0]))
-			    return; /* error */
-			}
+		    if (this_plot->plot_style == PM3DSURFACE) {
+			if (equals(c_token, "at"))
+			    get_pm3d_at_option(&this_plot->pm3d_where[0]);
 		    }
 
 		    if ((this_plot->plot_type == VOXELDATA)
@@ -2080,6 +2071,15 @@ eval_3dplots()
 		    }
 		}
 
+		if (this_plot->plot_style == CONTOURFILL) {
+		    /* "contourfill at base" uses different mechanism than "pm3d at b" */
+		    if (equals(c_token, "at") && almost_equals(++c_token, "b$ase")) {
+			this_plot->contourz_at_base = TRUE;
+			c_token ++;
+			continue;
+		    }
+		}
+
 		if (this_plot->plot_style != LABELPOINTS) {
 		    int stored_token = c_token;
 		    struct lp_style_type lp = DEFAULT_LP_STYLE_TYPE;
@@ -2089,11 +2089,7 @@ eval_3dplots()
 		    lp.p_type = line_num;
 		    lp.d_type = line_num;
 
-		    /* user may prefer explicit line styles */
-		    if (prefer_line_styles)
-			lp_use_properties(&lp, line_num+1);
-		    else
-			load_linetype(&lp, line_num+1);
+		    load_linetype(&lp, line_num+1);
 
  		    new_lt = lp_parse(&lp, LP_ADHOC,
 			     this_plot->plot_style & PLOT_STYLE_HAS_POINT);
@@ -2152,10 +2148,23 @@ eval_3dplots()
 		/* Some plots have a fill style as well */
 		if ((this_plot->plot_style & PLOT_STYLE_HAS_FILL) && !set_fillstyle){
 		    int stored_token = c_token;
-		    if (equals(c_token,"fs") || almost_equals(c_token,"fill$style")) {
+
+		    if (this_plot->plot_style == CONTOURFILL) {
+			this_plot->fill_properties.fillstyle = FS_SOLID;
+			this_plot->fill_properties.filldensity = 100;
+			if (!set_lpstyle) {
+			    /* TC_DEFAULT indicates "retrace", TC_LT would give "noborder" */
+			    this_plot->fill_properties.border_color.type = TC_DEFAULT;
+			    this_plot->fill_properties.border_color.lt = LT_NODRAW;
+			}
+		    } else {
 			this_plot->fill_properties.fillstyle = default_fillstyle.fillstyle;
 			this_plot->fill_properties.filldensity = default_fillstyle.filldensity;
 			this_plot->fill_properties.fillpattern = 1;
+			if (this_plot->fill_properties.fillstyle == FS_EMPTY)
+			    this_plot->fill_properties.fillstyle = FS_SOLID;
+		    }
+		    if (equals(c_token,"fs") || almost_equals(c_token,"fill$style")) {
 			parse_fillstyle(&this_plot->fill_properties);
 			set_fillstyle = TRUE;
 		    }
@@ -2238,11 +2247,7 @@ eval_3dplots()
 			this_plot->lp_properties.d_type = line_num;
 		    this_plot->lp_properties.p_size = pointsize;
 
-		    /* user may prefer explicit line styles */
-		    if (prefer_line_styles)
-			lp_use_properties(&this_plot->lp_properties, line_num+1);
-		    else
-			load_linetype(&this_plot->lp_properties, line_num+1);
+		    load_linetype(&this_plot->lp_properties, line_num+1);
 
 		    new_lt = lp_parse(&this_plot->lp_properties, LP_ADHOC,
 			 this_plot->plot_style & PLOT_STYLE_HAS_POINT);
@@ -2256,10 +2261,10 @@ eval_3dplots()
 	    /* If this plot style uses a fillstyle and we saw an explicit
 	     * fill color, save it in lp_properties now.
 	     * FIXME: make other plot styles work like BOXES.
-	     *        ZERRORFILL is weird.
+	     *        ZERRORFILL and CONTOURFILL are weird.
 	     */
 	    if ((this_plot->plot_style & PLOT_STYLE_HAS_FILL) && set_fillcolor) {
-		if (this_plot->plot_style == ZERRORFILL) {
+		if (this_plot->plot_style == ZERRORFILL || this_plot->plot_style == CONTOURFILL) {
 		    this_plot->fill_properties.border_color = this_plot->lp_properties.pm3d_color;
 		    this_plot->lp_properties.pm3d_color = fillcolor;
 		} else if (this_plot->plot_style == BOXES) {
@@ -2824,6 +2829,18 @@ eval_3dplots()
     if (splot_map) {
 	setup_tics(&axis_array[SECOND_X_AXIS], 20);
 	setup_tics(&axis_array[SECOND_Y_AXIS], 20);
+    }
+
+    /* Sanity check for auto-generated tics on logscale axes.
+     * If fewer than 3 tics were generated we will switch to using linear
+     * increment tic intervals when they are drawn by draw_3d_graphbox().
+     */
+    sanity_check_log_tics(FIRST_X_AXIS);
+    sanity_check_log_tics(FIRST_Y_AXIS);
+    sanity_check_log_tics(FIRST_Z_AXIS);
+    if (splot_map) {
+	sanity_check_log_tics(SECOND_X_AXIS);
+	sanity_check_log_tics(SECOND_Y_AXIS);
     }
 
     set_plot_with_palette(plot_num, MODE_SPLOT);

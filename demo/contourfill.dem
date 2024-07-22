@@ -36,7 +36,7 @@ pause -1 "<cr> to continue"
 set label 2 "set contourfill cbtics\nsplot with contourfill"
 set contourfill cbtics
 
-splot f(x,y) with contourfill
+splot f(x,y) with contourfill fs border lc "black" lw 0.5
 
 pause -1 "set contourfill ztics"
 reset
@@ -93,7 +93,7 @@ set lmargin screen 0
 set bmargin screen 0
 
 set contourfill ztics
-splot g(x,y) with contourfill notitle
+splot g(x,y) with contourfill fs solid border lc "black" lw 0.5 notitle
 
 pause -1 "<cr> for 2D projection"
 
@@ -119,7 +119,7 @@ set view map
 set tics scale 0
 set key inside samplen .1 reverse
 set key title "&{----} z = x^2 + y^2(1-x)^3"
-splot g(x,y) with contourfill notitle, \
+splot g(x,y) with contourfill fs solid border notitle, \
       g(x,y) nosurface lt black title "Contour levels Δz = 5"
 
 pause -1 "<cr> to continue"

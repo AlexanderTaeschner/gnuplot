@@ -841,14 +841,6 @@ do_plot(struct curve_points *plots, int pcount)
 	x_axis = this_plot->x_axis;
 	y_axis = this_plot->y_axis;
 
-	/* Crazy corner case handling Bug #3499425 */
-	if (prefer_line_styles
-	&&  (this_plot->plot_style == HISTOGRAMS) && (!key_pass && key->front)) {
-		struct lp_style_type ls;
-		lp_use_properties(&ls, this_plot->lp_properties.l_type+1);
-		this_plot->lp_properties.pm3d_color = ls.pm3d_color;
-	}
-
 	term_apply_lp_properties(&(this_plot->lp_properties));
 
 	/* Skip a line in the key between histogram clusters */
@@ -875,10 +867,7 @@ do_plot(struct curve_points *plots, int pcount)
 		    this_plot->lp_properties.l_type = histogram_linetype;
 		    this_plot->fill_properties.fillpattern = histogram_linetype;
 		    if (key_entry->text) {
-			if (prefer_line_styles)
-			    lp_use_properties(&this_plot->lp_properties, histogram_linetype);
-			else
-			    load_linetype(&this_plot->lp_properties, histogram_linetype);
+			load_linetype(&this_plot->lp_properties, histogram_linetype);
 			do_key_sample(this_plot, key, key_entry->text, 0.0);
 		    }
 		    key_count++;
@@ -1457,7 +1446,7 @@ plot_lines(struct curve_points *plot)
     }
 
     /* The last polygon may need to be closed */
-    if (plot->plot_style == POLYGONS)
+    if (plot->plot_style == POLYGONS && polygon_start < plot->p_count-1)
 	close_polygon(plot, polygon_start, plot->p_count-1);
 }
 
@@ -2507,10 +2496,7 @@ plot_boxes(struct curve_points *plot, int xaxis_y)
 		    case HT_STACKED_IN_TOWERS: /* columnstacked */
 			stack = 0;
 			/* Line type (color) must match row number */
-			if (prefer_line_styles)
-			    lp_use_properties(&ls, histogram_linetype);
-			else
-			    load_linetype(&ls, histogram_linetype);
+			load_linetype(&ls, histogram_linetype);
 			apply_pm3dcolor(&ls.pm3d_color);
 			plot->fill_properties.fillpattern = histogram_linetype;
 			/* Fall through */
@@ -3218,6 +3204,7 @@ do_mark (struct mark_data *mark,
     int k;
     TBOOLEAN withborder = FALSE;
     TBOOLEAN has_varcolor = FALSE;
+    TBOOLEAN has_bordercolor = FALSE;
 
     if (!mark)
        return;
@@ -3256,12 +3243,20 @@ do_mark (struct mark_data *mark,
     /* Stroke color is taken from the mark border color if specified by "set mark",
      * otherwise it is inherited from the parent object or plot.
      */
-    if (mark->mark_fillstyle.border_color.type != TC_DEFAULT)
+    if (mark->mark_fillstyle.border_color.type != TC_DEFAULT) {
+	has_bordercolor = TRUE;
 	my_strokergb = rgb_from_colorspec(&mark->mark_fillstyle.border_color);
-    else if (parent_fill_properties->border_color.type == TC_DEFAULT)
+    } else if (parent_fill_properties->border_color.type == TC_DEFAULT)
 	my_strokergb = rgb_from_colorspec(&parent_lp_properties->pm3d_color);
-    else
-	my_strokergb = rgb_from_colorspec(&parent_fill_properties->border_color);
+    else {
+	if (parent_fill_properties->border_color.type == TC_LT
+	&&  parent_fill_properties->border_color.lt == LT_NODRAW)
+	    my_strokergb = 0xffffffff;
+	else {
+	    has_bordercolor = TRUE;
+	    my_strokergb = rgb_from_colorspec(&parent_fill_properties->border_color);
+        }
+    }
 
     /* Check border should be drawn */
     if (my_fillstyle->border_color.type == TC_LT && my_fillstyle->border_color.lt == LT_NODRAW)
@@ -3400,11 +3395,14 @@ do_mark (struct mark_data *mark,
 	    if ((draw_style == MARKS_STROKE)
 	    ||  (draw_style == MARKS_FILL_STROKE)
 	    ||  ((draw_style == MARKS_FILLSTYLE) && withborder)) {
-		if (!(my_fillstyle->fillstyle == FS_EMPTY)
-		||  !has_varcolor
-		||  !check_for_variable_color(plot, &varcolor))
+		if (has_bordercolor)
 		    set_rgbcolor_const(my_strokergb);
-		draw_clip_polygon(points, vertex);
+		else if (has_varcolor)
+		    check_for_variable_color(plot, &varcolor);
+		else
+		    set_rgbcolor_const(my_strokergb);
+		if (my_strokergb != 0xffffffff)	/* forced stroke but stroke is LT_NODRAW */
+		    draw_clip_polygon(points, vertex);
 	    }
 
 	}
@@ -4348,12 +4346,26 @@ plot_boxplot(struct curve_points *plot, TBOOLEAN only_autoscale)
 	    plot->p_count = save_count;
 	}
 
-	/* Now draw individual points for the outliers */
+	/* Now draw individual points for the outliers.
+	 * There are two mechanisms by which you might adjust the placement
+	 * 1) "set jitter spread <scale>" changes the spacing
+	 * 2) using a character as a point symbol allows you to change the font
+	 *    and control the spacing with pointsize (ignored for character points)
+	 */
 	outliers:
 	if (boxplot_opts.outliers) {
 	    int i,j,x,y;
-	    int p_width = term->h_tic * plot->lp_properties.p_size;
-	    int p_height = term->v_tic * plot->lp_properties.p_size;
+	    int p_width = abs(term->h_tic * plot->lp_properties.p_size);
+	    int p_height = abs(term->v_tic * plot->lp_properties.p_size)/2;
+
+	    if (jitter.spread > 0)
+		p_width *= jitter.spread;
+
+	    if (plot->lp_properties.p_type == PT_CHARACTER) {
+		if (plot->labels->font && plot->labels->font[0])
+		    (term->set_font) (plot->labels->font);
+		(term->justify_text) (CENTRE);
+	    }
 
 	    for (i = 0; i < subset_count; i++) {
 
@@ -4374,12 +4386,27 @@ plot_boxplot(struct curve_points *plot, TBOOLEAN only_autoscale)
 		||  y > plot_bounds.ytop - p_height)
 			continue;
 
-		/* Separate any duplicate outliers */
-		for (j=1; (i >= j) && (subset_points[i].y == subset_points[i-j].y); j++)
+		/* Separate (jitter) any outliers with overlapping y coordinate */
+		for (j=1; (i >= j); j++) {
+		    int yj = map_y(subset_points[i-j].y);
+		    if (abs(yj - y) > p_height)
+			break;
 		    x += p_width * ((j & 1) == 0 ? -j : j);;
+		}
 
-		(term->point) (x, y, plot->lp_properties.p_type);
+		/* Accept a character as a point symbol */
+		if (plot->lp_properties.p_type == PT_CHARACTER)
+		    (term->put_text) (x, y, plot->lp_properties.p_char);
+		else if (plot->lp_properties.p_type >= -1)
+		    (term->point) (x, y, plot->lp_properties.p_type);
 	    }
+
+	    /* Restore initial state */
+	    if (plot->lp_properties.p_type == PT_CHARACTER) {
+		if (plot->labels->font && plot->labels->font[0])
+		    (term->set_font) ("");
+	    }
+
 	}
 
     }
@@ -5560,10 +5587,12 @@ check_for_variable_color(struct curve_points *plot, double *colorvalue)
 	set_rgbcolor_var( rgb_from_colormap(gray, plot->lp_properties.colormap) );
 	return TRUE;
     } else if (plot->lp_properties.l_type == LT_COLORFROMCOLUMN) {
+	/* "lt variable" -> TC_LINESTYLE + value 0	(why not TC_LT?)
+	 * "ls variable" -> TC_LINESTYLE + value -1
+	 */
 	lp_style_type lptmp;
-	/* lc variable will only pick up line _style_ as opposed to _type_ */
-	/* in the case of "set style increment user".  THIS IS A CHANGE.   */
-	if (prefer_line_styles)
+	if (plot->lp_properties.pm3d_color.type == TC_LINESTYLE
+	&&  plot->lp_properties.pm3d_color.value == -1)
 	    lp_use_properties(&lptmp, (int)(*colorvalue));
 	else
 	    load_linetype(&lptmp, (int)(*colorvalue));

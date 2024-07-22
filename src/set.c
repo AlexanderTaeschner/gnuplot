@@ -181,6 +181,11 @@ static void set_spiderplot(void);
 static void parse_lighting_options(void);
 static void parse_spotlight_options(void);
 
+static struct mark_data * read_mark_data(void);
+static TBOOLEAN set_mark_properties(struct mark_data *mark);
+static void mark_append(struct mark_data *dst, struct mark_data *src);
+static struct mark_data * mark_allocate (int size);
+
 static const struct position default_position
 	= {first_axes, first_axes, first_axes, 0., 0., 0.};
 static const struct position default_offset
@@ -1427,39 +1432,35 @@ set_contour()
 }
 
 /* Determine criteria for choosing zslice boundaries
- * during "splot with contourfill"
+ * used by "splot with contourfill"
  */
 void
 set_contourfill(void)
 {
-    int temp;
-
     c_token++;
-    if (equals(c_token, "auto")) {
-	c_token++;
-	contourfill.mode = CFILL_AUTO;
-	temp = int_expression();
-	cliptorange(temp,1,MAX_ZSLICES);
-	contourfill.nslices = temp;
-
-    } else if (equals(c_token, "ztics")) {
-	c_token++;
-	contourfill.mode = CFILL_ZTICS;
-
-    } else if (equals(c_token, "cbtics")) {
-	c_token++;
-	contourfill.mode = CFILL_CBTICS;
-
-    } else if (almost_equals(c_token, "pal$ette")) {
-	c_token++;
-	contourfill.firstlinetype = -1;
-
-    } else if (almost_equals(c_token, "first$linetype")) {
-	c_token++;
-	contourfill.firstlinetype = int_expression();
-
-    } else
-	int_error(c_token, "Unrecognized option");
+    while (!END_OF_COMMAND) {
+	if (equals(c_token, "auto")) {
+	    int temp;
+	    c_token++;
+	    contourfill.mode = CFILL_AUTO;
+	    temp = int_expression();
+	    cliptorange(temp,1,MAX_ZSLICES);
+	    contourfill.nslices = temp;
+	} else if (equals(c_token, "ztics")) {
+	    c_token++;
+	    contourfill.mode = CFILL_ZTICS;
+	} else if (equals(c_token, "cbtics")) {
+	    c_token++;
+	    contourfill.mode = CFILL_CBTICS;
+	} else if (almost_equals(c_token, "pal$ette")) {
+	    c_token++;
+	    contourfill.firstlinetype = -1;
+	} else if (almost_equals(c_token, "first$linetype")) {
+	    c_token++;
+	    contourfill.firstlinetype = int_expression();
+	} else
+	    int_error(c_token, "Unrecognized option");
+    }
 }
 
 /* process 'set colorsequence command */
@@ -2951,6 +2952,7 @@ set_logscale()
 	    }
 	    do_string(command);
 	    axis_array[axis].ticdef.logscaling = TRUE;
+	    axis_array[axis].ticdef.force_linear_tics = FALSE;
 	    axis_array[axis].base = newbase;
 	    axis_array[axis].log_base = log(newbase);
 	    axis_array[axis].linked_to_primary->base = newbase;
@@ -3023,50 +3025,49 @@ set_margin(t_position *margin)
 static struct mark_data *
 mark_allocate (int size)
 {
-   struct mark_data *mark;
-   struct fill_style_type mark_fillstyle = DEFAULT_MARK_FILLSTYLE;
-   t_colorspec mark_fillcolor = DEFAULT_COLORSPEC;
+    struct mark_data *mark;
+    struct fill_style_type mark_fillstyle = DEFAULT_MARK_FILLSTYLE;
+    t_colorspec mark_fillcolor = DEFAULT_COLORSPEC;
 
-   if (size > MARK_MAX_VERTICES)
-        int_error(NO_CARET, "too many vertices (> %d) in a mark", MARK_MAX_VERTICES);
-   mark = gp_alloc(sizeof(struct mark_data), "mark_data");
-   mark->next = NULL;
-   mark->tag = -1;
-   mark->asize = size;
-   mark->vertices = 0;
-   mark->title = NULL;
-   if (size > 0) {
-       mark->polygon.vertex = (t_position *) gp_alloc(size*sizeof(t_position), "mark vertex");
-   } else {
-       mark->polygon.vertex = NULL;
-   }
-   mark->xmin = VERYLARGE;
-   mark->xmax = -VERYLARGE;
-   mark->ymin = VERYLARGE;
-   mark->ymax = -VERYLARGE;
-   mark->mark_fillstyle = mark_fillstyle;
-   mark->mark_fillcolor = mark_fillcolor;
-   return mark;
+    if (size > MARK_MAX_VERTICES)
+	int_error(NO_CARET, "too many vertices (> %d) in a mark", MARK_MAX_VERTICES);
+    mark = gp_alloc(sizeof(struct mark_data), "mark_data");
+    mark->next = NULL;
+    mark->tag = -1;
+    mark->asize = size;
+    mark->vertices = 0;
+    mark->title = NULL;
+    if (size > 0) {
+	mark->polygon.vertex = (t_position *) gp_alloc(size*sizeof(t_position), "mark vertex");
+    } else {
+	mark->polygon.vertex = NULL;
+    }
+    mark->xmin = VERYLARGE;
+    mark->xmax = -VERYLARGE;
+    mark->ymin = VERYLARGE;
+    mark->ymax = -VERYLARGE;
+    mark->mark_fillstyle = mark_fillstyle;
+    mark->mark_fillcolor = mark_fillcolor;
+    return mark;
 }
 
 static struct mark_data *
 mark_reallocate (struct mark_data *mark, int size) 
 {
-   if (size > MARK_MAX_VERTICES)
-        int_error(NO_CARET, "too many vertices (> %d) in a mark", MARK_MAX_VERTICES);
-   if (size > 0) {
-       mark->asize = size;
-       mark->polygon.vertex = (t_position *) gp_realloc(mark->polygon.vertex,
-                                                        size*sizeof(t_position), "mark vertex");
-   }
-   else {
-        free(mark->polygon.vertex);
+    if (size > MARK_MAX_VERTICES)
+	int_error(NO_CARET, "too many vertices (> %d) in a mark", MARK_MAX_VERTICES);
+    if (size > 0) {
+	mark->asize = size;
+	mark->polygon.vertex = (t_position *) gp_realloc(mark->polygon.vertex,
+						size*sizeof(t_position), "mark vertex");
+    } else {
+	free(mark->polygon.vertex);
 	free(mark->title);
-        mark->asize = 0;
-        mark->polygon.vertex = NULL;
+	mark->asize = 0;
+	mark->polygon.vertex = NULL;
 	mark->title = NULL;
-   }
-   return mark;
+    }
+    return mark;
 }
 
 void
@@ -3110,108 +3111,37 @@ mark_update_limits (struct mark_data *mark)
 static void
 mark_append(struct mark_data *dst, struct mark_data *src)
 {
-   int vertices;
-   int dst_vertices = dst->vertices;
-   int src_vertices = src->vertices;
+    int vertices;
+    int dst_vertices = dst->vertices;
+    int src_vertices = src->vertices;
 
-   vertices = dst_vertices + 1 + src_vertices;
-   dst = mark_reallocate(dst, vertices);
-   dst->vertices = vertices;
+    vertices = dst_vertices + 1 + src_vertices;
+    dst = mark_reallocate(dst, vertices);
+    dst->vertices = vertices;
 
-   dst->polygon.vertex[dst_vertices].x = not_a_number();
-   dst->polygon.vertex[dst_vertices].y = not_a_number();
+    dst->polygon.vertex[dst_vertices].x = not_a_number();
+    dst->polygon.vertex[dst_vertices].y = not_a_number();
 
-   memcpy(dst->polygon.vertex+dst_vertices+1, src->polygon.vertex, (src_vertices)*sizeof(t_position));
+    memcpy(dst->polygon.vertex+dst_vertices+1, src->polygon.vertex, (src_vertices)*sizeof(t_position));
 
-   if (dst->xmin > src->xmin)
-       dst->xmin = src->xmin;
-   if (dst->xmax < src->xmax)
-       dst->xmax = src->xmax;
-   if (dst->ymin > src->ymin)
-       dst->ymin = src->ymin;
-   if (dst->ymax < src->ymax)
-       dst->ymax = src->ymax;
+    if (dst->xmin > src->xmin)
+	dst->xmin = src->xmin;
+    if (dst->xmax < src->xmax)
+	dst->xmax = src->xmax;
+    if (dst->ymin > src->ymin)
+	dst->ymin = src->ymin;
+    if (dst->ymax < src->ymax)
+	dst->ymax = src->ymax;
 }
 
-#define MARK_ACTION_UNDEFINED 0
-#define MARK_ACTION_CREATE    1
-#define MARK_ACTION_APPEND    2
-
-static void
-set_mark ()
+/* Read optional mark fillstyle and fill color from the command line.
+ * Returns TRUE if anything was set
+ */
+static TBOOLEAN
+set_mark_properties( struct mark_data *mark )
 {
-    int tag;
-    struct mark_data *mark, *this;
-    int ierr, lines;
-    t_position *vertex;
-    double v[4];
-    char *name_str;
-    int saved_token;
-    int append = FALSE;
-    int action = MARK_ACTION_UNDEFINED;
-    int sample_range_token;
-    int j;
+    int original_token = c_token;
 
-    c_token++;
-    saved_token = c_token;
-    tag = int_expression();
-
-    if (tag < 0)
-       int_error(c_token, "tag must be >= 0");
-
-    if (equals(c_token, "empty")) {
-        c_token++;
-        mark = mark_allocate(0);
-        mark->tag = tag;
-        action = MARK_ACTION_CREATE;
-        goto push_mark_to_list;
-    }
-
-    if (equals(c_token, "append")) {
-       c_token++;
-       append = TRUE;
-    }
-
-    /* Check for a sampling range. */
-    init_sample_range(axis_array + FIRST_X_AXIS, DATA);
-    sample_range_token = parse_range(SAMPLE_AXIS);
-    if (sample_range_token != 0) {
-	axis_array[SAMPLE_AXIS].range_flags |= RANGE_SAMPLED;
-    }
-
-    saved_token = c_token;
-
-    if ( equals(c_token, "\"++\"") ) {
-	int_error(c_token, "pseudofile \"++\" can not be used for 'set mark'");
-    } else if ( (name_str = string_or_express(NULL)) ) {
-	/* WARNING: do NOT free name_str */
-        if (append)
-            action = MARK_ACTION_APPEND;
-        else
-            action = MARK_ACTION_CREATE;                
-    }
-
-    if (action == MARK_ACTION_UNDEFINED)
-	int_error(saved_token, "unrecognized data source for mark");
-
-    saved_token = c_token;
-
-    /* Same interlock as plot/splot/stats */
-    inside_plot_command = TRUE;
-
-    df_set_plot_mode(MODE_QUERY);	/* Needed only for binary datafiles */
-    ierr = df_open(name_str, 4, NULL);
-    if (ierr < 0)
-	int_error(NO_CARET, "could not open %s", name_str);
-
-    mark = mark_allocate(0xff);
-    mark->tag = tag;
-    vertex = mark->polygon.vertex;
-
-    /* Read optional fillstyle and fill color from the command line.
-     * Must come after df_open().
-     * Style and color can be given in either order, so give it two chances.
-     */
     while (!END_OF_COMMAND) {
 	int save_token = c_token;
 	parse_fillstyle(&mark->mark_fillstyle);
@@ -3224,6 +3154,40 @@ set_mark ()
 	if (c_token == save_token)
 	    break;
     }
+    return (c_token != original_token);
+}
+
+static struct mark_data *
+read_mark_data()
+{
+    struct mark_data *mark;
+    t_position *vertex;
+    double v[4];
+    char *name_str;
+    int lines, ierr;
+    int j;
+
+    /* Check for a sampling range. */
+    init_sample_range(axis_array + FIRST_X_AXIS, DATA);
+    if (parse_range(SAMPLE_AXIS) != 0)
+	axis_array[SAMPLE_AXIS].range_flags |= RANGE_SAMPLED;
+
+    if ( ! (name_str = string_or_express(NULL)) ) /* WARNING: do NOT free name_str */
+	int_error(c_token, "unrecognized data source for mark");
+
+    /* Same interlock as plot/splot/stats */
+    inside_plot_command = TRUE;
+
+    df_set_plot_mode(MODE_QUERY);	/* Needed only for binary datafiles */
+    ierr = df_open(name_str, 4, NULL);
+    if (ierr < 0)
+	int_error(NO_CARET, "could not open %s", name_str);
+
+    if (!strcmp(df_filename,"++"))
+	int_error(c_token, "pseudofile \"++\" can not be used for 'set mark'");
+
+    mark = mark_allocate(0xff);
+    vertex = mark->polygon.vertex;
 
     lines = 0;
     while ((j = df_readline(v, 4)) != DF_EOF) {
@@ -3275,34 +3239,77 @@ set_mark ()
 
     inside_plot_command = FALSE;
 
+    return mark;
+}
 
-    push_mark_to_list:
+/* process 'set mark' command
+ * set mark tag {<data source> | empty}
+ *              {fill | fs <fillstyle>}
+ *              {fillcolor | fc <colorspec>}
+ *              {title <text>}
+ * set mark append <data source>
+ */
+
+static void
+set_mark()
+{
+    int tag;
+    struct mark_data *mark, *this;
+    TBOOLEAN append = FALSE;
+
+    c_token++;
+    tag = int_expression();
+
+    if (tag < 0)
+       int_error(NO_CARET, "tag must be >= 0");
+
+    /* Check for modification of existing mark properties */
+    mark = get_mark(first_mark, tag);
+    if (mark && set_mark_properties(mark))
+	return;
+
+    if (equals(c_token, "empty")) {
+        c_token++;
+        mark = mark_allocate(0);
+        mark->tag = tag;
+
+    } else {
+	if (equals(c_token, "append")) {
+	    c_token++;
+	    append = TRUE;
+	}
+	/* The usual case; allocate mark and fill in the vertices */
+	mark = read_mark_data();
+	mark->tag = tag;
+    } 
+
+    if (append) {
+	if (first_mark && (this = get_mark(first_mark, tag))) {
+	    mark_append(this, mark);
+	    free_mark(mark);	
+	} else {
+       	    int_error(c_token, "attempted to append data to undefined mark tag %d", tag);		
+	}
+	return;
+    }
+
+    set_mark_properties(mark);
 
     if (!first_mark) {  /* the mark list is empty */
 	first_mark = mark;
     } else {
-        this = get_mark(first_mark, tag);
-        if (!this) {    /* no existing mark with the specified tag */
-            push_mark(first_mark, mark);
-        } else {        /* the mark with the specified tag is found */
-            if (action == MARK_ACTION_APPEND) {
-                mark_append(this, mark);
-                free_mark(mark);
-            } else {
-		/* Replace content of old mark that had this tag */
-		struct mark_data *save_next = this->next;
-		mark_reallocate(this, -1);
-		*this = *mark;
-		this->next = save_next;
-		free(mark);
-            }
-        }
+	this = get_mark(first_mark, tag);
+	if (!this) {    /* no existing mark with the specified tag */
+	    push_mark(first_mark, mark);
+	} else {        /* replace content of old mark that had this tag */
+	    struct mark_data *save_next = this->next;
+	    mark_reallocate(this, -1);
+	    *this = *mark;
+	    this->next = save_next;
+	    free(mark);
+	}
     }
 }
-
-#undef MARK_ACTION_UNDEFINED
-#undef MARK_ACTION_CREATE
-#undef MARK_ACTION_APPEND
 
 
 /* process 'set micro' command */
@@ -3967,9 +3974,7 @@ set_pm3d()
 	    switch (lookup_table(&set_pm3d_tbl[0],c_token)) {
 	    /* where to plot */
 	    case S_PM3D_AT: /* "at" */
-		c_token++;
-		if (get_pm3d_at_option(&pm3d.where[0]))
-		    return; /* error */
+		get_pm3d_at_option(&pm3d.where[0]);
 		c_token--;
 #if 1
 		if (c_token == c_token0+1)
@@ -5103,17 +5108,7 @@ set_style()
     case SHOW_STYLE_INCREMENT:
 	c_token++;
 	int_warn(c_token, "deprecated command");
-#ifdef BACKWARD_COMPATIBILITY
-	if (END_OF_COMMAND || almost_equals(c_token,"def$ault"))
-	    prefer_line_styles = FALSE;
-	else if (almost_equals(c_token,"u$serstyles"))
-	    prefer_line_styles = TRUE;
-	else
-	    int_error(c_token,"unrecognized option");
-	c_token++;
-#else
 	while (!END_OF_COMMAND) c_token++;
-#endif
 	break;
     case SHOW_STYLE_BOXPLOT:
 	set_boxplot();
@@ -5994,6 +5989,7 @@ set_tic_prop(struct axis *this_axis)
 	    } else if (almost_equals(c_token, "log$scale")) {
 		++c_token;
 		this_axis->ticdef.logscaling = TRUE;
+		this_axis->ticdef.force_linear_tics = FALSE;
 	    } else if (almost_equals(c_token, "nolog$scale")) {
 		++c_token;
 		this_axis->ticdef.logscaling = FALSE;

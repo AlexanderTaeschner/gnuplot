@@ -220,15 +220,6 @@ FILE * win_popen(const char *filename, const char *mode);
 #endif /* MSDOS */
 
 
-#if defined(alliant)
-# undef HAVE_LIMITS_H
-#endif
-
-#ifdef sequent
-# undef HAVE_LIMITS_H
-# undef HAVE_STRCHR
-#endif
-
 /* HBB 20000416: stuff moved from plot.h to here. It's system-dependent,
  * so it belongs here, IMHO */
 

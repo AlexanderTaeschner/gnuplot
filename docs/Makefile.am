@@ -59,7 +59,7 @@ LEGACYTERM = $(T)latex.trm $(T)emtex.trm $(T)eepic.trm $(T)tpic.trm \
 $(T)corel.trm $(T)dxy.trm $(T)excl.trm $(T)kyo.trm $(T)mif.trm \
 $(T)metafont.trm $(T)metapost.trm $(T)ggi.trm\
 $(T)hp2648.trm $(T)hp26.trm $(T)hp500c.trm $(T)hpljii.trm $(T)hppj.trm \
-$(T)pc.trm $(T)pdf.trm $(T)qms.trm $(T)vws.trm
+$(T)pc.trm $(T)qms.trm $(T)vws.trm
 
 # Same thing for the subset of terminals for which we have
 # Japanese documentation
@@ -111,6 +111,8 @@ wxhelp_figures wxhelp/*.html wxhelp/wgnuplot.hhc wxhelp/wgnuplot.hhk	\
 wxhelp/wgnuplot.htc wxhelp/doc2html$(EXEEXT) windows/wgnuplot.htk	\
 svg_figures html/*.html html/*.svg html/*.hhc html/*.hhk                \
 webp_figures html/*.webp html/figure_mask.png                           \
+psdoc/*.aux psdoc/*.dvi psdoc/*.log                                     \
+psdoc/ps_fontfile_doc.pdf psdoc/ps_fontfile_doc.ps psdoc/ps_symbols.ps  \
 windows/*.png gnuplot.htb gnuplot.texi gnuplot-eldoc.el $(ELCS)
 
 DISTFILES = $(DIST_COMMON) $(SOURCES) $(DOCHEADERS) $(EXTRA_DIST)

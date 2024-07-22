@@ -101,15 +101,43 @@
 #endif
 
 /* internal prototypes */
+static complex double gp_cexp( complex double z );
 static complex double lnGamma( complex double z );
 static complex double Igamma( complex double a, complex double z );
 static double complex Igamma_GL( double complex a, double complex z );
 static double complex Igamma_negative_z( double a, double complex z );
+static complex double Riemann_zeta( complex double z );
 
 #undef IGAMMA_POINCARE
 #ifdef IGAMMA_POINCARE
 static double complex Igamma_Poincare( double a, double complex z );
 #endif
+
+/*
+ * This is the complex equivalent of gp_exp()
+ * Some combinations and/or versions of glibc and the C compiler
+ * return 0 and set FE_UNDERFLOW if the argument to cexp is very negative.
+ * Others set errno to ERANGE and return NaN.
+ * There may be other combinations of return and error reporting.
+ * Gnuplot prefers a consistent return of zero with no error trap.
+ */
+static complex double
+gp_cexp( complex double z )
+{
+#ifdef E_MINEXP
+    if (creal(z) < E_MINEXP)
+	return 0.0;
+    else
+	return cexp(z);
+#else
+    int old_errno = errno;
+    complex double zz = cexp(z);
+    handle_underflow("gp_cexp", zz);
+    if (zz == 0.0)
+	errno = old_errno;
+    return zz;
+#endif
+}
 
 /* wrapper for Igamma so that when it replaces igamma
  * there is still something for old callers who want to call
@@ -196,8 +224,8 @@ f_LambertW(union argument *arg)
  * dzexpz( z )  = first derivative of ze^z = e^z + ze^z
  * ddzexpz( z ) = second derivative of ze^z = e^z + e^z + ze^z
  */
-#define dzexpz(z)  (cexp(z) + z * cexp(z))
-#define ddzexpz(z) (2. * cexp(z) + z * cexp(z))
+#define dzexpz(z)  (gp_cexp(z) + z * gp_cexp(z))
+#define ddzexpz(z) (2. * gp_cexp(z) + z * gp_cexp(z))
 
 /*
  * The hard part is choosing a starting point
@@ -290,7 +318,7 @@ LambertW(complex double z, int k)
 
     for (i = 0; i < LAMBERT_MAXITER; i++) {
 	complex double wprev = w;
-	complex double delta = w * cexp(w) - z;
+	complex double delta = w * gp_cexp(w) - z;
 
 	w -=    2. * (delta * dzexpz(w))
 	     / (2. * dzexpz(w) * dzexpz(w) - delta * ddzexpz(w));
@@ -535,10 +563,9 @@ Igamma(complex double a, complex double z)
     /* Check value of factor arg */
     ga1 = lnGamma(a + 1.0);
     arg = a * clog(z) - z - ga1;
-    arg = cexp(arg);
 
-    /* Underflow of arg is common for large z or a */
-    handle_underflow("Igamma", arg);
+    /* gp_cexp() because underflow of cexp(arg) is common for large z or a */
+    arg = gp_cexp(arg);
 
     /* Choose infinite series or continued fraction. */
 
@@ -783,7 +810,7 @@ Igamma_Poincare(double a, double complex z)
  *
  */
 
-complex double
+static complex double
 Riemann_zeta( complex double s )
 {
     int n = 18;				/* sufficient for IEEE double */

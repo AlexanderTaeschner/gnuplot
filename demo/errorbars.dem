@@ -30,11 +30,14 @@ plot [0:50] "battery.dat" u 1:2:4 t "Power" w yerr, n(x) t "Theory" w lines
 pause -1 "X as well? (-> return)"
 set title "xyerrorbars in log scale"
 set logscale xy
+unset mxtics
+set xtics 5
 plot [1:50] "battery.dat" t "Power" w xyerr, n(x) t "Theory" w lines
 
 pause -1 "If you like bars without tics (-> return)"
 set title "xyerrorbars with no crossbar"
 unset logscale
+set xtics auto
 set bars small
 plot [0:50] "battery.dat" t "Power" with xyerrorbars, n(x) t "Theory" w lines
 

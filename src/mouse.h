@@ -107,6 +107,7 @@ TBOOLEAN exec_event(char type, int mx, int my, int par1, int par2, int winid); /
 int plot_mode(int mode);
 void event_reset(struct gp_event_t *ge);
 void zoom_reset_after_error(void);
+const char* GE_evt_name(int type);
 
 /* bind prototype(s) */
 

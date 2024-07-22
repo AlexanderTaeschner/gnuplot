@@ -534,6 +534,9 @@ void closepath(void);
  */
 void check_for_mouse_events(void);
 
+/* multiplex mouse and keyboard input for interactive terminals */
+int term_waitforinput(int options);
+
 /* shared routined to add backslash in front of reserved characters */
 char *escape_reserved_chars(const char *str, const char *reserved);
 

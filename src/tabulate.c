@@ -190,6 +190,10 @@ print_table(struct curve_points *current_plot, int plot_num)
 	case RGBA_IMAGE:
 	    len = strappend(&line, &size, len, "  red green blue alpha");
 	    break;
+	case POLYGONS:
+	    if (df_no_use_specs >= 3)
+		len = strappend(&line, &size, len, " z");
+	    break;
 
 	default:
 	    if (interactive)
@@ -301,10 +305,8 @@ print_table(struct curve_points *current_plot, int plot_num)
 			OUTPUT_NUMBER((point->yhigh - point->y), current_plot->y_axis);
 			break;
 		    case POINTSTYLE:
-			if (current_plot->plot_filter == FILTER_ZSORT) {
-			    snprintf(buffer, BUFFERSIZE, "%g ", point->z);
-			    len = strappend(&line, &size, len, buffer);
-			}
+			if (current_plot->plot_filter == FILTER_ZSORT)
+			    OUTPUT_NUMBER(point->z, FIRST_Z_AXIS);
 			break;
 		    case LINES:
 		    case LINESPOINTS:
@@ -313,6 +315,10 @@ print_table(struct curve_points *current_plot, int plot_num)
 		    case STEPS:
 		    case FSTEPS:
 		    case HISTEPS:
+			break;
+		    case POLYGONS:
+			if (df_no_use_specs >= 3)
+			    OUTPUT_NUMBER(point->z, FIRST_Z_AXIS);
 			break;
 		    default:
 			/* ? */
@@ -431,7 +437,7 @@ print_3dtable(int pcount)
 	    continue;
 	}
 
-	if (draw_surface) {
+	if (draw_surface && !this_plot->opt_out_of_surface) {
 	    struct iso_curve *icrvs;
 	    int curve;
 
@@ -500,7 +506,7 @@ print_3dtable(int pcount)
 	    print_line("");
 	} /* if (draw_surface) */
 
-	if (draw_contour) {
+	if (draw_contour && ! this_plot->opt_out_of_contours) {
 	    int number = 0;
 	    struct gnuplot_contours *c = this_plot->contours;
 
