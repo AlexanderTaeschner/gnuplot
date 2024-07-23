@@ -1,7 +1,7 @@
 /* GNUPLOT - filters.c */
 
 /*[
- * Copyright Ethan A Merritt 2013 - 2023
+ * Copyright Ethan A Merritt 2013 - 2024
  * All code in this file is dual-licensed.
  *
  * Gnuplot license:

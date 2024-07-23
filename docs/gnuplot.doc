@@ -20,7 +20,7 @@ C
 ^  James R. Van Zandt, Alex Woo, Johannes Zellner<br>
 ^</p>
 ^<p align="center">  Copyright (C) 1986 - 1993, 1998 - 2004   Thomas Williams, Colin Kelley<br>
-^     Copyright (C) 2004 - 2023 various authors</p>
+^     Copyright (C) 2004 - 2024 various authors</p>
 ^<p align="center">   Mailing list for comments: <tt>gnuplot-info@lists.sourceforge.net</tt><br>
 ^   Gnuplot <a href="http://gnuplot.info"> home page </a><br>
 ^      Issue trackers: &nbsp;
@@ -32,7 +32,7 @@ C
 ?copyright
 ?license
      Copyright (C) 1986 - 1993, 1998, 2004, 2007  Thomas Williams, Colin Kelley
-     Copyright (C) 2004-2023  various authors
+     Copyright (C) 2004-2024  various authors
 
  Permission to use, copy, and distribute this software and its
  documentation for any purpose with or without fee is hereby granted,
