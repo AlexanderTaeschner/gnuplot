@@ -580,7 +580,11 @@ void gp_rewinddir(GPDIR *);
 
 /* Prototypes from "stdfn.c" */
 
-void safe_strncpy(char *, const char *, size_t);
+#ifdef HAVE_STRLCPY
+    #define safe_strncpy(dest, src, len) strlcpy(dest, src, len)
+#else
+    void safe_strncpy(char *, const char *, size_t);
+#endif
 
 #ifndef HAVE_SLEEP
 unsigned int sleep(unsigned int);

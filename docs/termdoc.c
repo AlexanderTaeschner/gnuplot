@@ -178,8 +178,9 @@ get_line( char *buffer, int max, FILE *fp)
 
 /* Safe, '\0'-terminated version of strncpy()
  * safe_strncpy(dest, src, n), where n = sizeof(dest)
- * This is basically strlcpy except for the return value.
+ * This is basically strlcpy() except for the [lack of] return value.
  */
+#ifndef HAVE_STRLCPY
 void
 safe_strncpy( char *d, const char *s, size_t n)
 {
@@ -187,6 +188,7 @@ safe_strncpy( char *d, const char *s, size_t n)
     if (strlen(s) >= n)
         d[n-1] = NUL;
 }
+#endif
 
 
 #ifdef TEST_TERMDOC
