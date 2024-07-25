@@ -1037,8 +1037,7 @@ bind_command()
 	char *first = gp_input_line + token[c_token].start_index;
 	int size = strcspn(first, " \";");
 	lhs = gp_alloc(size + 1, "bind_command->lhs");
-	strncpy(lhs, first, size);
-	lhs[size] = '\0';
+	safe_strncpy(lhs, first, size);
 	FPRINTF((stderr,"Got bind unquoted lhs = \"%s\"\n",lhs));
 	while (gp_input_line + token[c_token].start_index < first+size)
 	    c_token++;
@@ -3580,8 +3579,9 @@ do_shell()
     c_token++;
 
     if (user_shell) {
-	if (system(safe_strncpy(&exec[sizeof(EXEC) - 1], user_shell,
-				sizeof(exec) - sizeof(EXEC) - 1)))
+	safe_strncpy(&exec[sizeof(EXEC) - 1], user_shell,
+		     sizeof(exec) - sizeof(EXEC) - 1);
+	if (system(exec))
 	    os_error(NO_CARET, "system() failed");
     }
     (void) putc('\n', stderr);
@@ -3795,8 +3795,7 @@ expand_1level_macros()
     temp_string = gp_alloc(gp_input_line_len,"string variable");
     len = strlen(gp_input_line);
     if (len >= gp_input_line_len) len = gp_input_line_len-1;
-    strncpy(temp_string,gp_input_line,len);
-    temp_string[len] = '\0';
+    safe_strncpy(temp_string,gp_input_line,len);
 
     for (c=temp_string; len && c && *c; c++, len--) {
 	switch (*c) {

@@ -763,15 +763,13 @@ CONTEXT_init()
 
 			/* <name>.xx.png; must be at least 7 characters long */
 			CONTEXT_image_filename = (char *)gp_alloc(CONTEXT_image_filename_length + 10, "ConTeXt image filename");
-			strncpy(CONTEXT_image_filename, outstr, CONTEXT_image_filename_length);
-			CONTEXT_image_filename[CONTEXT_image_filename_length] = 0;
+			safe_strncpy(CONTEXT_image_filename, outstr, CONTEXT_image_filename_length);
 		} else {
 			CONTEXT_image_filename_length = strlen("gp_image");
 			CONTEXT_image_filename_start  = 0;
 			/* <name>.xx.png; must be at least 7 characters long */
 			CONTEXT_image_filename = (char *)gp_alloc(CONTEXT_image_filename_length + 10, "ConTeXt image filename");
-			strncpy(CONTEXT_image_filename, "gp_image", CONTEXT_image_filename_length);
-			CONTEXT_image_filename[CONTEXT_image_filename_length] = 0;
+			safe_strncpy(CONTEXT_image_filename, "gp_image", CONTEXT_image_filename_length);
 		}
 	}
 #endif

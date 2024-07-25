@@ -1661,7 +1661,7 @@ HPGL2_set_font(const char *font)
 	font = "";
 
     sep = strcspn(font, ",");
-    strncpy(name, font, sizeof(name)-1);
+    safe_strncpy(name, font, sizeof(name)-1);
 
     if (sep < sizeof(name))
 	name[sep] = NUL;
@@ -3080,7 +3080,7 @@ HPGL2_enh_put_text(unsigned int x, unsigned int y, const char str[])
     enhanced_fontscale = 1.0;
     HPGL2_opened_string = FALSE;
     HPGL2_base = 0.;
-    strncpy(enhanced_escape_format, "%c", sizeof(enhanced_escape_format));
+    strcpy(enhanced_escape_format, "%c");
 
     /* Text justification requires two passes. During the first pass we */
     /* don't draw anything, we just move the "cursor".                  */

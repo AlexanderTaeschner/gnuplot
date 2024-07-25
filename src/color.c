@@ -1394,7 +1394,7 @@ set_palette_function()
     strcpy( saved_dummy_var, c_dummy_var[0]);
 
     /* set dummy variable */
-    strncpy( c_dummy_var[0], "gray", MAX_ID_LEN );
+    strcpy( c_dummy_var[0], "gray" );
 
     /* Afunc */
     start_token = c_token;

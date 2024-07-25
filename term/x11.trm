@@ -538,7 +538,7 @@ X11_options()
 	    if (END_OF_COMMAND)
 		int_error(c_token, "expecting font name");
 	    if (isstringvalue(c_token) && (s = try_to_get_string())) {
-		strncpy(X11_default_font, s, sizeof(X11_default_font)-1);
+		safe_strncpy(X11_default_font, s, sizeof(X11_default_font)-1);
 		free(s);
 	    } else {
 		copy_str(X11_default_font, c_token, sizeof(X11_default_font));
@@ -1639,7 +1639,7 @@ TERM_PUBLIC int
 X11_set_font(const char *fontname)
 {
     PRINT1("QF%s\n", fontname?fontname:"");
-    strncpy(X11_next_font_used,fontname?fontname:"",sizeof(X11_next_font_used)-1);
+    safe_strncpy(X11_next_font_used,fontname?fontname:"",sizeof(X11_next_font_used)-1);
     return(TRUE);
 }
 
@@ -2076,7 +2076,7 @@ ENHX11_put_text(unsigned int x, unsigned int y, const char *str)
     /* set up the global variables needed by enhanced_recursion() */
     enhanced_fontscale = 1.25;
     ENHx11_opened_string = FALSE;
-    strncpy(enhanced_escape_format,"%c",sizeof(enhanced_escape_format));
+    strcpy(enhanced_escape_format,"%c");
 
     /* Terrible, horrible, no good, very bad hack to fix wonky rotation of
      * enhanced text. This should be done, and done better, in gnuplot_x11.

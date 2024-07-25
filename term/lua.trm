@@ -194,8 +194,7 @@ LUA_GP_term_options(lua_State *L) {
   if (n > MAX_LINE_LEN)
     return luaL_error(L, "Option string consists of %d characters but only %d are allowed", n, MAX_LINE_LEN);
 
-  strncpy(term_options, opt_str, MAX_LINE_LEN);
-  term_options[MAX_LINE_LEN] = '\0';
+  safe_strncpy(term_options, opt_str, MAX_LINE_LEN);
   return(0);
 }
 
@@ -1310,7 +1309,7 @@ LUA_image (unsigned m, unsigned n, coordval *image, gpiPoint *corner, t_imagecol
       if ((idx = strrchr(outstr, '.')) == NULL)
         idx = strchr(outstr, '\0');
       image_file = (char*)gp_alloc((idx-outstr)+10, "LUA_image");
-      strncpy(image_file, outstr, (idx-outstr) + 1);
+      safe_strncpy(image_file, outstr, (idx-outstr) + 1);
       snprintf(image_file+(idx-outstr), 9, ".%03d.png", (unsigned char)(++image_cnt));
 
       write_png_image (m, n, image, color_mode, image_file);

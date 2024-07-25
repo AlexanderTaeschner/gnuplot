@@ -317,7 +317,7 @@ load_file(FILE *fp, char *name, int calltype)
 		 * continuation request.
 		 */
 		if (!fp && datablock_input_line) {
-		    strncpy(&(gp_input_line[start]), *datablock_input_line, left);
+		    safe_strncpy(&(gp_input_line[start]), *datablock_input_line, left);
 		    datablock_input_line++;
 		}
 		inline_num++;

@@ -2198,7 +2198,7 @@ store_label(
 	textlen -= 2, string++;
 
     tl->text = gp_alloc(textlen+1,"labelpoint text");
-    strncpy( tl->text, string, textlen );
+    safe_strncpy( tl->text, string, textlen );
     tl->text[textlen] = '\0';
     parse_esc(tl->text);
 

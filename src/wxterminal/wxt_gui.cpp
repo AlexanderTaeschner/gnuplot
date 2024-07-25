@@ -2203,7 +2203,7 @@ void wxt_put_text(unsigned int x, unsigned int y, const char * string)
 
 		/* set up the global variables needed by enhanced_recursion() */
 		enhanced_fontscale = 1.0;
-		strncpy(enhanced_escape_format, "%c", sizeof(enhanced_escape_format));
+		safe_strncpy(enhanced_escape_format, "%c", sizeof(enhanced_escape_format));
 
 		/* Set the recursion going. We say to keep going until a
 		* closing brace, but we don't really expect to find one.

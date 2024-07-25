@@ -698,7 +698,7 @@ gprintf_value(
 		if (bracket_flag)
 		    tmp2[j++] = '}';
 		tmp2[j] = '\0';
-		strncpy(dest, tmp2, remaining_space);
+		safe_strncpy(dest, tmp2, remaining_space);
 #undef LOCAL_BUFFER_SIZE
 	    }
 

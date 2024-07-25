@@ -176,8 +176,7 @@ edf_filetype_function(void)
     if ((p = edf_findInHeader(header, "EDF_BinaryFileName"))) {
 	int plen = strcspn(p, " ;\n");
 	df_filename = gp_realloc(df_filename, plen+1, "datafile name");
-	strncpy(df_filename, p, plen);
-	df_filename[plen] = '\0';
+	safe_strncpy(df_filename, p, plen);
 	if ((p = edf_findInHeader(header, "EDF_BinaryFilePosition")))
 	    df_bin_record[0].scan_skip[0] = atoi(p);
 	else

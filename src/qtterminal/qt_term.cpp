@@ -760,7 +760,7 @@ void qt_put_text(unsigned int x, unsigned int y, const char* string)
 
 	// set up the global variables needed by enhanced_recursion()
 	enhanced_fontscale = 1.0;
-	strncpy(enhanced_escape_format, "%c", sizeof(enhanced_escape_format));
+	safe_strncpy(enhanced_escape_format, "%c", sizeof(enhanced_escape_format));
 
 	// Baseline correction
 	qt_max_pos_base = qt_max_neg_base = 0.0;

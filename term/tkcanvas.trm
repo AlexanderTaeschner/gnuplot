@@ -684,7 +684,7 @@ TK_dashtype(int dt, t_dashtype *custom_dash_pattern)
     } else if (dt == DASHTYPE_CUSTOM) {
 	if (custom_dash_pattern->dstring[0] != NUL) {
 	    /* Tk and gnuplot support the very same dash pattern syntax. */
-	    strncpy(tmp_dashpattern, custom_dash_pattern->dstring, sizeof(tmp_dashpattern)-1);
+	    safe_strncpy(tmp_dashpattern, custom_dash_pattern->dstring, sizeof(tmp_dashpattern));
 	    preserve = TRUE; /* do not change pattern */
 	} else {
 	    tmp_dashpattern[0] = NUL;
@@ -1438,7 +1438,7 @@ TK_put_enhanced_text(unsigned int x, unsigned int y, const char *str)
 {
     /* Set up global variables needed by enhanced_recursion() */
     enhanced_fontscale = 1.0;
-    strncpy(enhanced_escape_format, "%c", sizeof(enhanced_escape_format));
+    strcpy(enhanced_escape_format, "%c");
     tk_enhanced_opened_string = FALSE;
 
     tk_lastx = x;

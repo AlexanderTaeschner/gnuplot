@@ -329,16 +329,12 @@ strndup(const char * str, size_t n)
 /* Safe, '\0'-terminated version of strncpy()
  * safe_strncpy(dest, src, n), where n = sizeof(dest)
  */
-char *
+void
 safe_strncpy(char *d, const char *s, size_t n)
 {
-    char *ret;
-
-    ret = strncpy(d, s, n);
+    strncpy(d, s, n);
     if (strlen(s) >= n)
 	d[n > 0 ? n - 1 : 0] = NUL;
-
-    return ret;
 }
 
 

@@ -2202,7 +2202,7 @@ ENHGD_put_text(unsigned int x, unsigned int y, const char *str)
 
     /* set up the global variables needed by enhanced_recursion() */
     enhanced_fontscale = png_state.fontscale;
-    strncpy(enhanced_escape_format,"&#x%2.2x;",sizeof(enhanced_escape_format));
+    safe_strncpy(enhanced_escape_format,"&#x%2.2x;",sizeof(enhanced_escape_format));
 
     ENHgd_opened_string = FALSE;
     ENHgd_show = TRUE;

@@ -178,19 +178,14 @@ get_line( char *buffer, int max, FILE *fp)
 
 /* Safe, '\0'-terminated version of strncpy()
  * safe_strncpy(dest, src, n), where n = sizeof(dest)
- * This is basically the old fit.c(copy_max) function
+ * This is basically strlcpy except for the return value.
  */
-
-char *
+void
 safe_strncpy( char *d, const char *s, size_t n)
 {
-    char *ret;
-
-    ret = strncpy(d, s, n);
+    strncpy(d, s, n);
     if (strlen(s) >= n)
         d[n-1] = NUL;
-
-    return ret;
 }
 
 

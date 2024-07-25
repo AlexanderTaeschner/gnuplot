@@ -2398,8 +2398,7 @@ enhanced_recursion(
 			/* We found a new font name {/Font ...} */
 			int len = end_of_fontname - start_of_fontname;
 			localfontname = gp_alloc(len+1,"localfontname");
-			strncpy(localfontname, start_of_fontname, len);
-			localfontname[len] = '\0';
+			safe_strncpy(localfontname, start_of_fontname, len);
 		    }
 		}
 		/*}}}*/

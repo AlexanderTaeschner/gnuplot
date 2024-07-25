@@ -609,7 +609,7 @@ copy_or_invent_formatstring(struct axis *this_axis)
     if (this_axis->tictype != DT_TIMEDATE
     ||  !looks_like_numeric(this_axis->formatstring)) {
 	/* The simple case: formatstring is usable, so use it! */
-	strncpy(tempfmt, this_axis->formatstring, MAX_ID_LEN);
+	safe_strncpy(tempfmt, this_axis->formatstring, MAX_ID_LEN);
 	/* Ensure enough precision to distinguish tics */
 	if (!strcmp(tempfmt, DEF_FORMAT)) {
 	    double axmin = this_axis->min;
