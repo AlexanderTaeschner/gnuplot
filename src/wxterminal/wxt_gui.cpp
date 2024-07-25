@@ -2066,7 +2066,8 @@ void wxt_text()
 
 #ifdef USE_MOUSE
 	/* Save a snapshot of the axis state so that we can continue
-	 * to update mouse cursor coordinates even though the plot is not active */
+	 * to update mouse cursor coordinates even though the plot is not active
+	 */
 	wxt_current_window->axis_mask = wxt_axis_mask;
 	memcpy( wxt_current_window->axis_state,
 	 	wxt_axis_state, sizeof(wxt_axis_state) );
@@ -3287,6 +3288,8 @@ static double mouse_to_axis(int mouse_coord, wxt_axis_state_t *axis)
 	    return 0;
 	axis_coord = axis->min
 	           + ((double)mouse_coord - axis->term_lower) / axis->term_scale;
+	if (axis->logbase < 0)
+		axis_coord = NAN;
 	if (axis->logbase > 0)
 		axis_coord = exp(axis_coord * axis->logbase);
 

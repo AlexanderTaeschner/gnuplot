@@ -450,11 +450,20 @@ TERM_PUBLIC void wxt_text_wrapper()
 	}
 
 	for (i=0; i<4; i++) {
-		wxt_axis_state[i].min = axis_array[axis_order[i]].min;
-		wxt_axis_state[i].term_lower = axis_array[axis_order[i]].term_lower;
-		wxt_axis_state[i].term_scale = axis_array[axis_order[i]].term_scale;
-		wxt_axis_state[i].logbase = axis_array[axis_order[i]].log
-			? axis_array[axis_order[i]].log_base : 0;
+		struct axis *mousing_axis = &axis_array[axis_order[i]];
+		double log_base;
+		if (mousing_axis->log)
+			log_base = mousing_axis->log_base;
+		else if (nonlinear(mousing_axis))
+			log_base = -1;
+		else
+			log_base = 0;
+		if (mousing_axis->log && mousing_axis->linked_to_primary)
+			mousing_axis = mousing_axis->linked_to_primary;
+		wxt_axis_state[i].min = mousing_axis->min;
+		wxt_axis_state[i].term_lower = mousing_axis->term_lower;
+		wxt_axis_state[i].term_scale = mousing_axis->term_scale;
+		wxt_axis_state[i].logbase = log_base;
 	}
 #endif
 
