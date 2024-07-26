@@ -5419,13 +5419,6 @@ set_ticscale()
 	for (i = 0; i < NUMBER_OF_MAIN_VISIBLE_AXES; ++i) {
 	    axis_array[i].ticscale = lticscale;
 	    axis_array[i].miniticscale = lminiticscale;
-	    /* For backward compatibility, setting tic scale has the side
-	     * effect of reenabling display of tics that had been "unset".
-	     * This allows auto-extension of axes with tic scale 0.
-	     * NB: The old code also turned on mirroring; now we don't.
-	     */
-	    if (i != SECOND_X_AXIS && i != SECOND_Y_AXIS)
-		axis_array[i].ticmode = TICS_ON_BORDER;
 	}
 	ticlevel = 2;
 	while (equals(c_token, ",")) {
