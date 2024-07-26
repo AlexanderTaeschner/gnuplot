@@ -5352,7 +5352,7 @@ static void
 set_tics()
 {
     int i;
-    int save_token = c_token;
+    int save_token = c_token++;
 
     /* On a bare "set tics" command, reset the default on/off/placement/mirror
      * state of the visible axes.
@@ -5419,6 +5419,13 @@ set_ticscale()
 	for (i = 0; i < NUMBER_OF_MAIN_VISIBLE_AXES; ++i) {
 	    axis_array[i].ticscale = lticscale;
 	    axis_array[i].miniticscale = lminiticscale;
+	    /* Setting tic scale has the side effect of reenabling display of
+	     * tics that had been "unset".
+	     * FIXME: IMHO this is crazy, but apparently people are used to it
+	     *        and thus do "set tics scale 0" rather than just "set tics".
+	     */
+	    if (i != SECOND_X_AXIS && i != SECOND_Y_AXIS)
+		axis_array[i].ticmode |= TICS_ON_BORDER;
 	}
 	ticlevel = 2;
 	while (equals(c_token, ",")) {
