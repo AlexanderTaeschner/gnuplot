@@ -3795,7 +3795,8 @@ expand_1level_macros()
     temp_string = gp_alloc(gp_input_line_len,"string variable");
     len = strlen(gp_input_line);
     if (len >= gp_input_line_len) len = gp_input_line_len-1;
-    safe_strncpy(temp_string,gp_input_line,len);
+    strncpy(temp_string, gp_input_line, len);	/* NOT safe_strncpy */
+    temp_string[len] = '\0';
 
     for (c=temp_string; len && c && *c; c++, len--) {
 	switch (*c) {

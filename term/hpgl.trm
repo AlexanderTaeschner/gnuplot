@@ -1661,7 +1661,7 @@ HPGL2_set_font(const char *font)
 	font = "";
 
     sep = strcspn(font, ",");
-    safe_strncpy(name, font, sizeof(name)-1);
+    safe_strncpy(name, font, sizeof(name));
 
     if (sep < sizeof(name))
 	name[sep] = NUL;

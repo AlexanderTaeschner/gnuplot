@@ -538,7 +538,7 @@ X11_options()
 	    if (END_OF_COMMAND)
 		int_error(c_token, "expecting font name");
 	    if (isstringvalue(c_token) && (s = try_to_get_string())) {
-		safe_strncpy(X11_default_font, s, sizeof(X11_default_font)-1);
+		safe_strncpy(X11_default_font, s, sizeof(X11_default_font));
 		free(s);
 	    } else {
 		copy_str(X11_default_font, c_token, sizeof(X11_default_font));
@@ -1639,7 +1639,7 @@ TERM_PUBLIC int
 X11_set_font(const char *fontname)
 {
     PRINT1("QF%s\n", fontname?fontname:"");
-    safe_strncpy(X11_next_font_used,fontname?fontname:"",sizeof(X11_next_font_used)-1);
+    safe_strncpy(X11_next_font_used,fontname?fontname:"",sizeof(X11_next_font_used));
     return(TRUE);
 }
 

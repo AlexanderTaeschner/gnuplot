@@ -1767,7 +1767,7 @@ f_sprintf(union argument *arg)
 		int int_spec_pos = strcspn(next_start, "diouxX");
 		char *newformat = gp_alloc(strlen(next_start) + strlen(PRId64) + 1, NULL);
 		char *new_int_spec;
-		safe_strncpy(newformat, next_start, int_spec_pos);
+		strncpy(newformat, next_start, int_spec_pos);	/* NOT safe_strncpy */
 		switch (next_start[int_spec_pos]) {
 		    default:
 		    case 'd': new_int_spec = PRId64; break;
@@ -1777,7 +1777,7 @@ f_sprintf(union argument *arg)
 		    case 'x': new_int_spec = PRIx64; break;
 		    case 'X': new_int_spec = PRIX64; break;
 		}
-		safe_strncpy(newformat+int_spec_pos, new_int_spec, strlen(new_int_spec)+1);
+		strncpy(newformat+int_spec_pos, new_int_spec, strlen(new_int_spec)+1);
 		strcat(newformat, next_start+int_spec_pos+1);
 		snprintf(outpos, bufsize-(outpos-buffer), newformat, int64_val);
 		free(newformat);
@@ -1912,7 +1912,7 @@ f_strftime(union argument *arg)
      */
     fmtlen = strlen(fmt.v.string_val) + 1;
     fmtstr = gp_alloc(fmtlen + 1, "f_strftime: fmt");
-    safe_strncpy(fmtstr, fmt.v.string_val, fmtlen);
+    strncpy(fmtstr, fmt.v.string_val, fmtlen);
     strncat(fmtstr, " ", fmtlen);
     buflen = 80 + 2*fmtlen;
     buffer = gp_alloc(buflen, "f_strftime: buffer");

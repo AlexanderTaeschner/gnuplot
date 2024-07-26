@@ -702,7 +702,7 @@ TERM_PUBLIC void cairotrm_options()
 		if (!cairo_params->fontname)
 			ps_params->font[0] = '\0';
 		else
-			safe_strncpy(ps_params->font, cairo_params->fontname, sizeof(ps_params->font) - 1);
+			safe_strncpy(ps_params->font, cairo_params->fontname, sizeof(ps_params->font));
 		ps_params->fontsize = cairo_params->fontsize;
 		ps_params->fontscale = cairo_params->fontscale;
 		if (cairo_params->transparent) {
