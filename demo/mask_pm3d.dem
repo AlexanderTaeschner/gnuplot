@@ -16,7 +16,7 @@ set tics scale 0
 
 set title "Convex hull constructed around scattered points"
 plot  'mask_pm3d.dat' using 1:2:3 with points lc palette pt 7 ps 2, \
-      '' using 1:2 convexhull lc "black" lw 3
+      '' using 1:2 convexhull with lines lc "black" lw 3
 
 set table $HULL
 plot 'mask_pm3d.dat' using 1:2 convexhull with lines title "Convex hull"
