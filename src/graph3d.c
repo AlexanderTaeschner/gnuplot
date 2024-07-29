@@ -3120,25 +3120,29 @@ xtick_callback(
     /* Draw bottom tic mark */
     if ((this_axis->index == FIRST_X_AXIS)
     ||  (this_axis->index == SECOND_X_AXIS && (this_axis->ticmode & TICS_MIRROR))) {
-	v2.x = v1.x + tic_unitx * scale * t->v_tic ;
-	v2.y = v1.y + tic_unity * scale * t->v_tic ;
-	v2.z = v1.z + tic_unitz * scale * t->v_tic ;
-	v2.real_z = v1.real_z;
-	draw3d_line(&v1, &v2, &border_lp);
+	if (scale != 0) {
+	    v2.x = v1.x + tic_unitx * scale * t->v_tic ;
+	    v2.y = v1.y + tic_unity * scale * t->v_tic ;
+	    v2.z = v1.z + tic_unitz * scale * t->v_tic ;
+	    v2.real_z = v1.real_z;
+	    draw3d_line(&v1, &v2, &border_lp);
+	}
     }
 
     /* Draw top tic mark */
     if ((this_axis->index == SECOND_X_AXIS)
     ||  (this_axis->index == FIRST_X_AXIS && (this_axis->ticmode & TICS_MIRROR))) {
-	if (xz_projection || zx_projection) {
-	    map3d_xyz(place, 0, Z_AXIS.max, &v3);
-	} else
-	    map3d_xyz(place, other_end, base_z, &v3);
-	v4.x = v3.x - tic_unitx * scale * t->v_tic;
-	v4.y = v3.y - tic_unity * scale * t->v_tic;
-	v4.z = v3.z - tic_unitz * scale * t->v_tic;
-	v4.real_z = v3.real_z;
-	draw3d_line(&v3, &v4, &border_lp);
+	if (scale != 0) {
+	    if (xz_projection || zx_projection) {
+		map3d_xyz(place, 0, Z_AXIS.max, &v3);
+	    } else
+		map3d_xyz(place, other_end, base_z, &v3);
+	    v4.x = v3.x - tic_unitx * scale * t->v_tic;
+	    v4.y = v3.y - tic_unity * scale * t->v_tic;
+	    v4.z = v3.z - tic_unitz * scale * t->v_tic;
+	    v4.real_z = v3.real_z;
+	    draw3d_line(&v3, &v4, &border_lp);
+	}
     }
 
     /* Draw tic label */
@@ -3255,25 +3259,29 @@ ytick_callback(
     /* Draw left tic mark */
     if ((this_axis->index == FIRST_Y_AXIS)
     ||  (this_axis->index == SECOND_Y_AXIS && (this_axis->ticmode & TICS_MIRROR))) {
-	v2.x = v1.x + tic_unitx * scale * t->h_tic;
-	v2.y = v1.y + tic_unity * scale * t->h_tic;
-	v2.z = v1.z + tic_unitz * scale * t->h_tic;
-	v2.real_z = v1.real_z;
-	draw3d_line(&v1, &v2, &border_lp);
+	if (scale != 0) {
+	    v2.x = v1.x + tic_unitx * scale * t->h_tic;
+	    v2.y = v1.y + tic_unity * scale * t->h_tic;
+	    v2.z = v1.z + tic_unitz * scale * t->h_tic;
+	    v2.real_z = v1.real_z;
+	    draw3d_line(&v1, &v2, &border_lp);
+	}
     }
 
     /* Draw right tic mark */
     if ((this_axis->index == SECOND_Y_AXIS)
     ||  (this_axis->index == FIRST_Y_AXIS && (this_axis->ticmode & TICS_MIRROR))) {
-	if (yz_projection)
-	    map3d_xyz(other_end, place, Z_AXIS.min, &v3);
-	else
-	    map3d_xyz(other_end, place, base_z, &v3);
-	v4.x = v3.x - tic_unitx * scale * t->h_tic;
-	v4.y = v3.y - tic_unity * scale * t->h_tic;
-	v4.z = v3.z - tic_unitz * scale * t->h_tic;
-	v4.real_z = v3.real_z;
-	draw3d_line(&v3, &v4, &border_lp);
+	if (scale != 0) {
+	    if (yz_projection)
+		map3d_xyz(other_end, place, Z_AXIS.min, &v3);
+	    else
+		map3d_xyz(other_end, place, base_z, &v3);
+	    v4.x = v3.x - tic_unitx * scale * t->h_tic;
+	    v4.y = v3.y - tic_unity * scale * t->h_tic;
+	    v4.z = v3.z - tic_unitz * scale * t->h_tic;
+	    v4.real_z = v3.real_z;
+	    draw3d_line(&v3, &v4, &border_lp);
+	}
     }
 
     /* Draw tic label */
@@ -3432,18 +3440,20 @@ ztick_callback(
     }
 
     if (Z_AXIS.ticmode & TICS_MIRROR) {
-	if (azimuth != 0) {
-	    v2.x = v3.x + (v1.x - v3.x) * len / xyscaler;
-	    v2.y = v3.y + (v1.y - v3.y) * len / xyscaler;
-	    v2.z = v3.z + (v1.z - v3.z) * len / xyscaler;
-	    draw3d_line(&v3, &v2, &border_lp);
-	} else {
-	    map3d_xyz(right_x, right_y, place, &v1);
-	    v2.x = v1.x - len / (double)xscaler;
-	    v2.y = v1.y;
-	    v2.z = v1.z;
-	    v2.real_z = v1.real_z;
-	    draw3d_line(&v1, &v2, &border_lp);
+	if (len != 0) {
+	    if (azimuth != 0) {
+		v2.x = v3.x + (v1.x - v3.x) * len / xyscaler;
+		v2.y = v3.y + (v1.y - v3.y) * len / xyscaler;
+		v2.z = v3.z + (v1.z - v3.z) * len / xyscaler;
+		draw3d_line(&v3, &v2, &border_lp);
+	    } else {
+		map3d_xyz(right_x, right_y, place, &v1);
+		v2.x = v1.x - len / (double)xscaler;
+		v2.y = v1.y;
+		v2.z = v1.z;
+		v2.real_z = v1.real_z;
+		draw3d_line(&v1, &v2, &border_lp);
+	    }
 	}
     }
 }

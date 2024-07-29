@@ -4477,7 +4477,7 @@ xtick2d_callback(
     (*t->move) (x, tic_start);
     (*t->vector) (x, tic_start + ticsize);
 
-    if (tic_mirror >= 0) {
+    if ((tic_mirror >= 0) && (ticsize != 0)) {
 	(*t->move) (x, tic_mirror);
 	(*t->vector) (x, tic_mirror - ticsize);
     }
@@ -4563,7 +4563,7 @@ ytick2d_callback(
     (*t->move) (tic_start, y);
     (*t->vector) (tic_start + ticsize, y);
 
-    if (tic_mirror >= 0) {
+    if ((tic_mirror >= 0) && (ticsize != 0)) {
 	(*t->move) (tic_mirror, y);
 	(*t->vector) (tic_mirror - ticsize, y);
     }

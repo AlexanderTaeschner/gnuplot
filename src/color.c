@@ -675,8 +675,10 @@ cbtick_callback(
     }
 
     /* draw tic */
-    (*term->move) (x1, y1);
-    (*term->vector) (x2, y2);
+    if (len != 0) {
+	(*term->move) (x1, y1);
+	(*term->vector) (x2, y2);
+    }
 
     /* draw label */
     if (text) {
@@ -732,7 +734,7 @@ cbtick_callback(
     }
 
     /* draw tic on the mirror side */
-    if (this_axis->ticmode & TICS_MIRROR) {
+    if ((this_axis->ticmode & TICS_MIRROR) && (len != 0)) {
 	if (color_box.rotation == 'h') {
 	    y1 = color_box.bounds.ytop;
 	    y2 = color_box.bounds.ytop + len;
