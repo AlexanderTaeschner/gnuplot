@@ -1188,6 +1188,14 @@ get_3ddata(struct surface_points *this_plot)
 		    color_from_column(FALSE);
 		}
 
+	    } else if (this_plot->plot_style == FILLEDCURVES) {
+		if (j != 3)
+		    int_error(NO_CARET, "this plot style wants 3 input columns x:y:z");
+		zlow = 0.0;
+		zhigh = v[2];
+		color_from_column(FALSE);
+		track_pm3d_quadrangles = TRUE;
+
 	    } else if (this_plot->plot_style == ZERRORFILL) {
 		if (j == 4) {
 		    zlow = v[2] - v[3];
@@ -1325,7 +1333,8 @@ get_3ddata(struct surface_points *this_plot)
 				this_plot->noautoscale,
 				cp->z=0;goto come_here_if_undefined);
 
-		if (this_plot->plot_style == ZERRORFILL) {
+		if ((this_plot->plot_style == ZERRORFILL)
+		||  (this_plot->plot_style == FILLEDCURVES)) {
 		    STORE_AND_UPDATE_RANGE(cp->CRD_ZLOW, zlow, cp->type, z_axis,
 				this_plot->noautoscale, goto come_here_if_undefined);
 		    STORE_AND_UPDATE_RANGE(cp->CRD_ZHIGH, zhigh, cp->type, z_axis,
@@ -2298,7 +2307,9 @@ eval_3dplots()
 	     *        ZERRORFILL and CONTOURFILL are weird.
 	     */
 	    if ((this_plot->plot_style & PLOT_STYLE_HAS_FILL) && set_fillcolor) {
-		if (this_plot->plot_style == ZERRORFILL || this_plot->plot_style == CONTOURFILL) {
+		if (this_plot->plot_style == ZERRORFILL
+		||  this_plot->plot_style == FILLEDCURVES
+		||  this_plot->plot_style == CONTOURFILL) {
 		    this_plot->fill_properties.border_color = this_plot->lp_properties.pm3d_color;
 		    this_plot->lp_properties.pm3d_color = fillcolor;
 		} else if (this_plot->plot_style == BOXES) {

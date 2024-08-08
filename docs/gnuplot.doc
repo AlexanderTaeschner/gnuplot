@@ -3729,7 +3729,7 @@ Ffigure_newsyntax
        palette z
        palette <colormap>      # use named colormap rather than current palette
        variable                # color index is read from input file
-       bgnd                    # background color
+       background or bgnd      # background color
        black
 
  The "<n>" is the linetype number the color of which is used, see `test`.
@@ -3765,20 +3765,21 @@ Ffigure_newsyntax
  from an extra column of data (not all 2D plot styles allow an extra column).
 =bgnd
 =black
- There are two special color specifiers: `bgnd` for background color and `black`.
+ There are two special color specifiers: `background` (short form `bgnd`)
+ for background color and `black`.
 4 background color
 ?background
 ?bgnd
  Most terminals allow you to set an explicit background color for the plot.
- The special linetype `bgnd` will draw in this color, and `bgnd` is also
- recognized as a color.
+ The special linetype `background` (short form `bgnd`) will draw in this color,
+ and is also recognized as a color name.
  Examples:
       # This will erase a section of the canvas by writing over it in the
       # background color
       set term wxt background rgb "gray75"
       set object 1 rectangle from x0,y0 to x1,y1 fillstyle solid fillcolor bgnd
       # Draw an "invisible" line at y=0, erasing whatever was underneath
-      plot 0 lt bgnd
+      plot 0 lt background
 4 linecolor variable
 ?linecolor variable
 ?linestyle variable
@@ -5209,13 +5210,16 @@ Ffigure_ellipses
 ?with filledcurves
 ?filledcurves
 Ffigure_filledcurves
- The `filledcurves` style is only used for 2D plotting. It has three variants.
- The first two variants require either a single function or two columns (x,y)
- of input data, and may be further modified by the options listed below.
+ The `filledcurves` style is available in both 2D and (since version 6.1) 3D.
 
- Syntax:
+ The 2D style has three variants.  The first two variants require either a
+ single function or two columns (x,y) of input data.
 
-     plot ... with filledcurves [option]
+ Syntax for 2D:
+
+     plot f(x) with filledcurves [option]
+     plot DATA using 1:2    with filledcurves [option]
+     plot DATA using 1:2:3  with filledcurves [option]
 
  where the option can be one of the following
 
@@ -5238,23 +5242,25 @@ Ffigure_filledcurves
      filledcurves xy=10,20 ... point 10,20 of x1,y1 axes (arc-like shape).
      filledcurves above r=1.5  the area of a polar plot outside radius 1.5
 
-Ffigure_yerrorfill
  The third variant fills the area between two curves sampled at the same set of
  x coordinates.  It requires three columns of input data (x, y1, y2).
  This is the default if there are three or more columns of input data.
+Ffigure_yerrorfill
  If you have a y value in column 2 and an associated error value in column 3
- the area of uncertainty can be represented by shading.
+ the three column variant can be used in combination with a solid line to show
+ the area of uncertainty on either side of that line.
  See also the similar 3D plot style `zerrorfill`.
-
-     3 columns:  x  y  yerror
 
      plot $DAT using 1:($2-$3):($2+$3) with filledcurves, \
           $DAT using 1:2 smooth mcs with lines
 
+3 above/below
+?filledcurves above
+?filledcurves below
  The `above` and `below` options apply both to commands of the form
-     ... filledcurves above {x1|x2|y|r}=<val>
+     plot f(x) with filledcurves {above|below} {y|r}=<val>
  and to commands of the form
-     ... using 1:2:3 with filledcurves below
+     plot DATA with filledcurves using 1:2:3 with filledcurves {above|below}
  In either case the option limits the filled area to one side of the bounding
  line or curve.
 
@@ -5264,6 +5270,27 @@ Ffigure_yerrorfill
  If the values <x>, <y>, or <a> are outside the drawing boundary they are
  moved to the graph boundary. Then the actual fill area in the case
  of option xy=<x>,<y> will depend on xrange and yrange.
+
+3 3D waterfall plots
+?filledcurves 3D
+?filledcurves waterfall
+?waterfallplots
+      set style fill solid border lc "black"
+      splot for [scan=N:1:-1] DATA index scan \
+            using x:y:z with filledcurves fc background
+
+ In gnuplot 6.1 the 3D `filledcurves` plot style is designed to display a
+ set of two-dimensional curves that are incrementally displaced along an
+ orthogonal axis.  Normally x or y is a fixed value for each curve so that
+ the lines either represent z=f(x) at sequential y values or z=f(y) at
+ sequential x values.  This is convenient for drawing waterfall plots.
+
+ In order to ensure that foreground curves occlude more distant ones it is
+ important to order the sequence of curves from back to front.
+
+ See also `fenceplots`.
+D waterfallplot 1
+
 3 fill properties
 ?filledcurves border
 =border
@@ -6693,11 +6720,12 @@ Ffigure_zerror
 
  If there are multiple curves in the splot command each new curve may occlude
  all previous curves.  To get proper depth sorting so that curves can only be
- occluded by curves closer to the viewer, use `set pm3d depthorder base`.
- Unfortunately this causes all the filled areas to be drawn after all of the
- corresponding lines of z values.  In order to see both the lines and the
- depth-sorted fill areas you probably will need to make the fill areas
- partially transparent or use pattern fill rather than solid fill.
+ occluded by curves closer to the viewer, it is best to order the curves from
+ back to front.  Alternatively you can use `set pm3d depthorder base` to sort
+ them automatically, but unfortunately this causes all the filled areas to be
+ drawn after all of the corresponding lines of z values. In order to see both
+ the lines and the depth-sorted fill areas you probably will need to make the
+ fill areas partially transparent.
 
  The fill area in the first two examples below is the same.
 
@@ -6707,6 +6735,7 @@ Ffigure_zerror
       splot for [k=1:5] datafile[k] with zerrorfill lt black fc lt (k+1)
 
  This plot style can also be used to create fence plots. See `fenceplots`.
+ See also `waterfallplots`.
 
 2 Animation
 ?animation

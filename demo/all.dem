@@ -26,6 +26,7 @@ reset
 print "******************** file fillcvrs.dem ********************"
 load "fillcrvs.dem"
 load "fillbetween.dem"
+load "waterfallplot.dem"
 reset
 
 print "******************** file candlesticks.dem ********************"
