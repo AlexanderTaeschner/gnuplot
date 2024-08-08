@@ -1166,7 +1166,7 @@ get_3ddata(struct surface_points *this_plot)
 		if (j < varcol)
 		    int_error(NO_CARET, "Not enough input columns");
 		if (j == varcol)
-		    color = this_plot->fill_properties.border_color.lt;
+		    color = z;
 		else
 		    color = v[varcol];
 		color_from_column(TRUE);

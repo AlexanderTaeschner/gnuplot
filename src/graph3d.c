@@ -2171,13 +2171,14 @@ plot3d_points(struct surface_points *plot)
 
 		    /* We could dummy up circles as a point of type 7, but this way */
 		    /* the radius can use x-axis coordinates rather than pointsize. */
-		    /* FIXME: track per-plot fillstyle */
+		    /* FIXME: if no radius given, pull it from "set style circle".  */
 		    if (plot->plot_style == CIRCLES) {
+			struct fill_style_type *fillstyle = &plot->fill_properties;
 			double radius = point->CRD_PTSIZE * radius_scaler;
 			do_arc(x, y, radius, 0., 360.,
-				style_from_fill(&default_fillstyle), FALSE);
+				style_from_fill(fillstyle), FALSE);
 			/* Retrace the border if the style requests it */
-			if (need_fill_border(&default_fillstyle))
+			if (need_fill_border(fillstyle))
 			    do_arc(x, y, radius, 0., 360., 0, FALSE);
 			continue;
 		    }
@@ -4389,6 +4390,8 @@ check3d_for_variable_color(struct surface_points *plot, struct coordinate *point
 	    set_rgbcolor_var( (unsigned int)point->CRD_COLOR );
 	break;
     case TC_Z:
+	set_color( cb2gray(point->z) );
+	break;
     case TC_DEFAULT:   /* pm3d mode assumes this is default */
 	if (plot->pm3d_color_from_column)
 	    set_color( cb2gray(point->CRD_COLOR) );
