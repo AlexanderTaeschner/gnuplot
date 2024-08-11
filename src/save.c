@@ -1621,11 +1621,11 @@ save_pm3dcolor(FILE *fp, const struct t_colorspec *tc)
 		      if (tc->value < 0)
 		  	fprintf(fp," rgb variable ");
 		      else if (*color)
-	    		fprintf(fp," rgb \"%s\" ", color);
+			fprintf(fp," rgb \"%s\" ", color);
 		      else
-	    		fprintf(fp," rgb \"#%6.6x\" ", tc->lt);
+			fprintf(fp," rgb \"#%6.6x\" ", tc->lt);
 		      break;
-	    	      }
+		      }
 	default:      break;
 	}
     }
@@ -1974,7 +1974,7 @@ save_walls(FILE *fp)
     int i;
 
     for (i = 0; i < 5; i++) {
-    	this_object = &grid_wall[i];
+	this_object = &grid_wall[i];
 	if (this_object->layer == LAYER_FRONTBACK) {
 	    fprintf(fp, "set wall %s ", wall_name[i]);
 	    fprintf(fp, " fc ");
@@ -2071,6 +2071,57 @@ save_contourfill(FILE *fp)
 	fprintf(fp, "set contourfill firstlinetype %d\n", contourfill.firstlinetype);
     else
 	fprintf(fp, "set contourfill palette\n");
+}
+
+/* Internal implementation of contributed script "gpsavediff".
+ * Not supported on Windows because it shuffles output via
+ * /dev/fd/ a.k.a. /proc/self/fd
+ * to access the initial state that was saved to stream savefp=tmpfile()
+ * when the program was started and another tmpfile opened here.
+ * Also we depend on shell access to standard utilities diff and sed.
+ */
+FILE *savefp = NULL;	/* tmpfile used by "save changes" */
+
+void
+save_changes(FILE *outfp, TBOOLEAN ispipe)
+{
+#if !defined(WIN32) && !defined(OS2) && !defined(MSDOS)
+    FILE *currentfp;
+    char command[1024];
+    char *output;	/* text returned by do_system_func() */
+
+    /* Original state was saved to tmpfile savefp */
+    if (!savefp)
+	int_error(NO_CARET, "No reference file was saved at start of session");
+    rewind(savefp);
+
+    /* Save current state to tmpfile currentfp */
+    currentfp = tmpfile();
+    save_all(currentfp);
+    fflush(currentfp);
+    rewind(currentfp);
+
+    /* Compare current state to saved state */
+    if (ispipe)
+	sprintf(command,
+	    "/usr/bin/diff -w /dev/fd/%d /dev/fd/%d | "
+	    "/usr/bin/sed \"/^[^>]/d;s/^> //\"",
+	    fileno(savefp), fileno(currentfp));
+    else
+	sprintf(command,
+	    "/usr/bin/diff -w /dev/fd/%d /dev/fd/%d | "
+	    "/usr/bin/sed \"/^[^>]/d;s/^> //\" >> /dev/fd/%d",
+	    fileno(savefp), fileno(currentfp), fileno(outfp));
+    do_system_func(command, &output);
+
+    if (ispipe)
+	fputs(output, outfp);
+
+    /* Clean up */
+    fclose(currentfp);
+#else
+    int_warn(c_token, "This copy of gnuplot does not support 'save changes'");
+#endif
 }
 
 void

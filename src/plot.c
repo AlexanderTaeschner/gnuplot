@@ -48,6 +48,7 @@
 #include "version.h"
 #include "voxelgrid.h"
 #include "encoding.h"
+#include "save.h"
 #include "xdg.h"
 
 #include <signal.h>
@@ -783,6 +784,20 @@ init_session()
 
 	load_rcfile(2);		/* ~/.gnuplot */
 	load_rcfile(3);		/* ~/.config/gnuplot/gnuplotrc */
+
+#if !defined(WIN32) && !defined(OS2) && !defined(MSDOS)
+	/* Save initial state variables to a file so that later
+	 * "save changes" can use them to determine what has changed.
+	 */
+	if (savefp == NULL) {
+	    if (!(savefp = tmpfile()))
+		perror("Cannot open initial state save file");
+	    else {
+		save_all(savefp);
+		fflush(savefp);
+	    }
+	}
+#endif
 }
 
 /*

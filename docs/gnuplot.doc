@@ -10343,12 +10343,20 @@ Ffigure_smooth_path
        save  {functions | variables | terminal | set | fit | datablocks}
              '<filename>' {append}
 
+       save changes '<filename>' {append}
+
  If no option is specified, `gnuplot` saves functions, user variables,
  `set` options and the most recent `plot` or `splot` command.
  The current status of `set term` and `set output` is written as a comment.
+ The saved file contains a series of gnuplot commands in plain text that
+ can be used as input to the `load` command.
 
- Saved files are written in text format and may be read by the
- `load` command.
+ `save changes "savefile.gp"` writes out only those functions, variables,
+ and settings that are different from the program state at the start of the
+ gnuplot session.  This makes for a much shorter output file that should still
+ be sufficient to allow `reset session; load "savefile.gp"` to recreate the
+ current plot and program state.  This command is not supported on all systems;
+ it may not be available in your copy of gnuplot.
 
  `save terminal` will write out just the `terminal` status, without
  the comment marker in front of it. This is mainly useful for
