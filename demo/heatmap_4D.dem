@@ -4,9 +4,9 @@
 # This plot is nice for exploring the effect of the 'l' and 'L' hotkeys.
 #
 set view 49, 28, 1, 1.48
-set urange [ 5 : 35 ] noreverse nowriteback
-set vrange [ 5 : 35 ] noreverse nowriteback
-# set zrange [ 1.0 : 3.0 ] noreverse nowriteback
+set urange [ 5 : 35 ]
+set vrange [ 5 : 35 ]
+# set zrange [ 1.0 : 3.0 ]
 set ticslevel 0
 set format cb "%4.1f"
 set colorbox user size .03, .6 noborder

@@ -11,8 +11,8 @@ unset colorbox
 
 set parametric
 set dummy u,v
-set urange [ -3.14159 : 3.14159 ] noreverse nowriteback
-set vrange [ 0.250000 : 3.14159 ] noreverse nowriteback
+set urange [ -3.14159 : 3.14159 ]
+set vrange [ 0.250000 : 3.14159 ]
 set isosamples 50, 20
 
 set multiplot layout 1,2 margins .05,.95,.2,.8 spacing 0.05
