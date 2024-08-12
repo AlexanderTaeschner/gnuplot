@@ -108,7 +108,6 @@ static void show_raxis(void);
 static void show_paxis(void);
 static void show_zeroaxis(AXIS_INDEX);
 static void show_label(int tag);
-static void show_keytitle(void);
 static void show_key(void);
 static void show_logscale(void);
 static void show_offsets(void);
@@ -1915,22 +1914,6 @@ show_arrow(int tag)
 	int_error(c_token, "arrow not found");
 }
 
-
-/* process 'show keytitle' command */
-static void
-show_keytitle()
-{
-    legend_key *key = &keyT;
-    SHOW_ALL_NL;
-
-    fprintf(stderr, "\tkey title is \"%s\" ", conv_text(key->title.text));
-    if (key->title.font && *(key->title.font))
-	fprintf(stderr,"font \"%s\" ", key->title.font);
-    show_text_justification(key->title.pos);
-    fprintf(stderr,"\n");
-}
-
-
 /* process 'show key' command */
 static void
 show_key()
@@ -2066,12 +2049,17 @@ show_key()
     if (key->font && *(key->font))
 	fprintf(stderr,"\t  font \"%s\"\n", key->font);
     if (key->textcolor.type != TC_LT || key->textcolor.lt != LT_BLACK) {
-	fputs("\t ", stderr);
+	fputs("\tentry", stderr);
 	save_textcolor(stderr, &(key->textcolor));
 	fputs("\n", stderr);
     }
 
-    show_keytitle();
+    if (key->title.text == NULL)
+	fprintf(stderr, "\n\tno key title\n");
+    else {
+	fprintf(stderr, "\n\tkey title is ");
+	save_keytitle(stderr);
+    }
 }
 
 
@@ -3084,7 +3072,7 @@ show_xyzlabel(const char *name, const char *suffix, text_label *label)
     else if (label->rotate)
 	fprintf(stderr, ", rotated by %g degrees in 2D plots", label->rotate);
 
-    if (label->textcolor.type)
+    if (label->textcolor.type != TC_DEFAULT)
 	save_textcolor(stderr, &label->textcolor);
 
     if (label->noenhanced)

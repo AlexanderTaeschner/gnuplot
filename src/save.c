@@ -1144,6 +1144,22 @@ save_tics(FILE *fp, struct axis *this_axis)
 
 }
 
+void
+save_keytitle(FILE *fp)
+{
+    legend_key *key = &keyT;
+
+    fprintf(fp, "\"%s\" ", conv_text(key->title.text));
+    fprintf(fp, "%s ", key->title.noenhanced ? "noenhanced" : "enhanced");
+    if (key->title.font && *(key->title.font))
+	fprintf(fp,"font \"%s\" ", key->title.font);
+    if (key->title.textcolor.type != TC_LT || key->title.textcolor.lt != LT_BLACK)
+	save_textcolor(fp, &key->title.textcolor);
+    fputs(" ", fp);
+    save_justification(key->title.pos, fp);
+    fputs("\n", fp);
+}
+
 static void
 save_key(FILE *fp)
 {
@@ -1152,11 +1168,8 @@ save_key(FILE *fp)
     if (key->title.text == NULL)
 	fprintf(fp, "set key notitle\n");
     else {
-	fprintf(fp, "set key title \"%s\"", conv_text(key->title.text));
-	if (key->title.font)
-	    fprintf(fp, " font \"%s\" ", key->title.font);
-	save_justification(key->title.pos, fp);
-	fputs("\n", fp);
+	fprintf(fp, "set key title ");
+	save_keytitle(fp);
     }
 
     fputs("set key ", fp);

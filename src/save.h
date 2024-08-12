@@ -80,6 +80,7 @@ void save_axis_format(FILE *fp, AXIS_INDEX axis);
 void save_bars(FILE *);
 void save_array_content(FILE *, struct value *);
 void save_label_style( FILE *fp, struct text_label *this_label );
+void save_keytitle(FILE *fp);
 void save_contourfill(FILE *fp);
 void save_marks(FILE *fp);
 
