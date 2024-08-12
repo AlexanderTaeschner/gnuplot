@@ -35,6 +35,7 @@
 #include "command.h"
 #include "contour.h"
 #include "datafile.h"
+#include "datablock.h"
 #include "eval.h"
 #include "filters.h"
 #include "fit.h"
@@ -107,11 +108,22 @@ save_all(FILE *fp)
 	save_variables__sub(fp);
 	save_colormaps(fp);
 	save_pixmaps(fp);
-	if (df_filename)
-	    fprintf(fp, "## Last datafile plotted: \"%s\"\n", df_filename);
-	fprintf(fp, "%s\n", replot_line);
 	if (last_fit_command)
 	    fprintf(fp, "## Last fit command: \"%s\"\n", last_fit_command);
+	if (df_filename)
+	    fprintf(fp, "## Last datafile plotted: \"%s\"\n", df_filename);
+	if (last_plot_was_multiplot) {
+	    char **line;
+	    fprintf(fp, "## Last plot was a multiplot\n");
+	    line = get_datablock("$GPVAL_LAST_MULTIPLOT");
+	    while (line && *line) {
+		fprintf(fp, "%s\n", *line);
+		line++;
+	    }
+	} else {
+	    fprintf(fp, "## Last plot command\n");
+	    fprintf(fp, "%s\n", replot_line);
+	}
 	fputs("#    EOF\n", fp);
 }
 
