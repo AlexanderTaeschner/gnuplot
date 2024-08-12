@@ -17287,7 +17287,6 @@ Ffigure_walls
 ?set xrange
 ?show xrange
 ?set range
-?writeback
 ?restore
 ?xrange
  The `set xrange` command sets the horizontal range that will be displayed.
@@ -17295,7 +17294,7 @@ Ffigure_walls
  polar radius r and the parametric variables t, u, and v.
 
  Syntax:
-       set xrange [{{<min>}:{<max>}}] {{no}reverse} {{no}writeback} {{no}extend}
+       set xrange [{{<min>}:{<max>}}] {{no}reverse} {{no}extend}
                   | restore
        show xrange
 
@@ -17331,22 +17330,8 @@ Ffigure_walls
  a limit on the range, to clip outliers, or to guarantee a minimum range
  that will be displayed even if the data would not need such a big range.
 
- The `writeback` option essentially saves the range found by `autoscale` in
- the buffers that would be filled by `set xrange`.  This is useful if you wish
- to plot several functions together but have the range determined by only
- some of them.  The `writeback` operation is performed during the `plot`
- execution, so it must be specified before that command.  To restore,
- the last saved horizontal range use `set xrange restore`.  For example,
-
-       set xrange [-10:10]
-       set yrange [] writeback
-       plot sin(x)
-       set yrange restore
-       replot x/2
-
- results in a yrange of [-1:1] as found only from the range of sin(x); the
- [-5:5] range of x/2 is ignored.  Executing `show yrange` after each command
- in the above example should help you understand what is going on.
+ The command `set xrange restore` overwrites the current range min and max
+ with the values found during the most recent autoscaling operation.
 
  In 2D, `xrange` and `yrange` determine the extent of the axes, `trange`
  determines the range of the parametric variable in parametric mode or the
@@ -17408,6 +17393,12 @@ Ffigure_walls
 ?xrange extend
  `set xrange noextend` is the same as `set autoscale x noextend`.
  See `noextend`.
+4 writeback
+?set range writeback
+?set xrange writeback
+ The commands "set xrange writeback" and "set xrange nowriteback"
+ are retained for backward compatibility, but have had no effect
+ on plotting since gnuplot version 5.2.4.
 3 xtics
 ?commands set xtics
 ?commands unset xtics

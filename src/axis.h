@@ -185,9 +185,8 @@ typedef struct axis {
 /* range of this axis */
     t_autoscale autoscale;	/* Which end(s) are autoscaled? */
     t_autoscale set_autoscale;	/* what does 'set' think autoscale to be? */
-    int range_flags;		/* flag bits about autoscale/writeback: */
-    /* write auto-ed ranges back to variables for autoscale */
-#define RANGE_WRITEBACK   1
+    int range_flags;		/* autoscale and range flag bits */
+#undef  RANGE_WRITEBACK    	/* no longer used */
 #define RANGE_SAMPLED     2
 #define RANGE_IS_REVERSED 4
     double min;			/* 'transient' axis extremal values */

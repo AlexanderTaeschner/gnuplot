@@ -5720,25 +5720,20 @@ set_range(struct axis *this_axis)
 	}
 	while (!END_OF_COMMAND) {
 	    if (almost_equals(c_token, "rev$erse")) {
-		++c_token;
 		this_axis->range_flags |= RANGE_IS_REVERSED;
 	    } else if (almost_equals(c_token, "norev$erse")) {
-		++c_token;
 		this_axis->range_flags &= ~RANGE_IS_REVERSED;
-	    } else if (almost_equals(c_token, "wr$iteback")) {
-		++c_token;
-		this_axis->range_flags |= RANGE_WRITEBACK;
-	    } else if (almost_equals(c_token, "nowri$teback")) {
-		++c_token;
-		this_axis->range_flags &= ~RANGE_WRITEBACK;
 	    } else if (almost_equals(c_token, "ext$end")) {
-		++c_token;
 		this_axis->set_autoscale &= ~(AUTOSCALE_FIXMIN | AUTOSCALE_FIXMAX);
 	    } else if (almost_equals(c_token, "noext$end")) {
-		++c_token;
 		this_axis->set_autoscale |= AUTOSCALE_FIXMIN | AUTOSCALE_FIXMAX;
+	    } else if (almost_equals(c_token, "wr$iteback")) {
+		/* ignore */
+	    } else if (almost_equals(c_token, "nowri$teback")) {
+		/* ignore */
 	    } else
 		int_error(c_token,"unrecognized option");
+	    ++c_token;
 	}
     }
 

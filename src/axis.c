@@ -2077,21 +2077,14 @@ tic_count_callback(struct axis *this_axis, double place, char *text,
 	axis_tic_count++;
 }
 
-/*
- * get and set routines for range writeback
- * ULIG *
- */
-
 void
 save_writeback_all_axes()
 {
-    AXIS_INDEX axis;
-
-    for (axis = 0; axis < AXIS_ARRAY_SIZE; axis++)
-	if (axis_array[axis].range_flags & RANGE_WRITEBACK) {
-	    axis_array[axis].writeback_min = axis_array[axis].min;
-	    axis_array[axis].writeback_max = axis_array[axis].max;
-	}
+    /* version 6.1 note:  this used to only include NUMBER_OF_MAIN_VISIBLE_AXES */
+    for (AXIS_INDEX axis = 0; axis < AXIS_ARRAY_SIZE; axis++) {
+	axis_array[axis].writeback_min = axis_array[axis].min;
+	axis_array[axis].writeback_max = axis_array[axis].max;
+    }
 }
 
 void

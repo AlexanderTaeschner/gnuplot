@@ -1436,9 +1436,8 @@ save_prange(FILE *fp, struct axis *this_axis)
     }
 
     if (this_axis->index < PARALLEL_AXES)
-	fprintf(fp, " ] %sreverse %swriteback",
-	    ((this_axis->range_flags & RANGE_IS_REVERSED)) ? "" : "no",
-	    this_axis->range_flags & RANGE_WRITEBACK ? "" : "no");
+	fprintf(fp, " ] %sreverse",
+	    ((this_axis->range_flags & RANGE_IS_REVERSED)) ? "" : "no");
     else
 	fprintf(fp, " ] ");
 
