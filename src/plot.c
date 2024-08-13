@@ -335,8 +335,9 @@ main(int argc_orig, char **argv)
 	}
 
 	if (!strcmp(argv[i], "-V") || !strcmp(argv[i], "--version")) {
-	    printf("gnuplot %s patchlevel %s\n",
-		    gnuplot_version, gnuplot_patchlevel);
+	    /* DEVELOPMENT VERSION */
+	    printf("gnuplot %s last modified %s\n",
+		    gnuplot_version, gnuplot_date);
 	    return 0;
 
 	} else if (!strcmp(argv[i], "-h") || !strcmp(argv[i], "--help")) {

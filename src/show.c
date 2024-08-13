@@ -1123,7 +1123,7 @@ show_version(FILE *fp)
     strcpy(fmt, "\
 %s\n\
 %s\t%s\n\
-%s\tVersion %s patchlevel %s    last modified %s\n\
+%s\tVersion %s last modified %s\n\
 %s\n\
 %s\t%s\n\
 %s\tThomas Williams, Colin Kelley and many others\n\
@@ -1141,7 +1141,7 @@ show_version(FILE *fp)
     fprintf(fp, fmt,
 	    p,			/* empty line */
 	    p, PROGRAM,
-	    p, gnuplot_version, gnuplot_patchlevel, gnuplot_date,
+	    p, gnuplot_version, gnuplot_date,
 	    p,			/* empty line */
 	    p, gnuplot_copyright,
 	    p,			/* authors */

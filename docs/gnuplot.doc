@@ -600,7 +600,6 @@ D epi_data 1
 #end
 
 2 Differences between versions 5 and 6
-
  Some changes introduced in version 5 could cause certain scripts written
  for earlier versions of gnuplot to fail or to behave differently.
  There are very few such changes in version 6.
@@ -634,6 +633,40 @@ D epi_data 1
 
  Deprecated in version 5.0, removed in 6.0
        show palette fit2rgbformulae
+
+2 Development branch (version 6.1)
+?development
+ Version 6.0 is the most recent gnuplot stable release.  Development of new
+ features and potentially disruptive code revision is carried out in a separate
+ branch that self-identifies as version 6.1.  Since the development branch code
+ may change at any time, you should also check the "last modified" date
+ reported on startup or by `gnuplot --version`.
+
+ Here is a partial list of features under development that have not yet
+ appeared in a stable release. Items near the top of the list will probably
+ be back-ported to an incremental update to the current release (6.0.x).
+ This copy of the user manual has preliminary documentation for these.
+ Items near the bottom of the list may not appear in a stable release before
+ version 6.2.
+#start
+#b New plot mode "with hsteps".
+#b Revised implementation of local variables
+#b Blank line equivalent for binary data files, needed to support binary
+## input for plot styles that expect a blank line to separate data items
+#b "linestyle variable"
+#b pm3d coloring for 3D polygons (e.g. Delaunay tesselation of surfaces)
+#b splot with contourfill at base
+#b Filter input data to plot and splot through a conditional expression.
+## For example `plot DATA using 2:3 if (stringcolumn(1) eq "ABC")`
+#b New command `save changes`  equivalent to the old contributed external script
+## `gpsavediff`
+#b Revised wxt terminal driver with more robust threading
+#b Alternatives to gdlib for handling image files as data
+#b Iteration over array contents `array A; for [e in A] { ... }`
+#b Deprecation of "sample" keyword
+#b New category of graphical objects called "marks" that allow definition
+## of complex symbols used in plots.  No documentation or demos yet.
+#end
 
 2 Demos and Online Examples
 ?demos
