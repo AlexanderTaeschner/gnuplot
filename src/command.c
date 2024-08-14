@@ -2233,7 +2233,10 @@ print_command()
 		line = block->udv_value.v.functionblock.data_array;
 	    } else
 #endif	/* USE_FUNCTIONBLOCKS */
+	    if (block->udv_value.type == DATABLOCK)
 		line = block->udv_value.v.data_array;
+	    else
+		int_error(c_token, "%s is not printable", datablock_name);
 
 	    /* Printing a datablock into itself would cause infinite recursion */
 	    if (print_out_var && !strcmp(datablock_name, print_out_name))
