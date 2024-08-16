@@ -61,8 +61,11 @@ do for [i=1:5] {
     eval( sprintf("set obj %d polygon from v9[1], v9[2], v9[3] to v3[1],v3[2],v3[3] to v6[1],v6[2],v6[3]", n) )
     n = n+1
 
-set for [o=1:n] obj o polygon depthorder fs transparent solid 0.8 fc "gray75"
-set pm3d depthorder border lc "black" lw 2
+# border color and linewidth is now per-object rather than taken from pm3d
+set for [o=1:n] obj o polygon depthorder fc "gray75"
+set for [o=1:n] obj o polygon fs transparent solid 0.8 border lc "black" lw 2.0
+
+set pm3d depthorder border lc "black" lw 2  # old version
 
 set xrange [-2:2]; set yrange [-2:2]; set zrange [-2:2]
 set view equal xyz

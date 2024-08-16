@@ -5523,7 +5523,7 @@ do_polygon( int dimensions, t_object *this_object, int style, int facing )
 	clpcorn[0].style = style;
 
 	if ((this_object->layer == LAYER_DEPTHORDER) && (vertices < 12)) {
-	    /* FIXME - size arbitrary limit */
+	    /* NB: the size limit of 12 vertices is arbitrary */
 	    gpdPoint quad[12];
 	    for (nv=0; nv < vertices; nv++) {
 		quad[nv].x = p->vertex[nv].x;
@@ -5552,8 +5552,19 @@ do_polygon( int dimensions, t_object *this_object, int style, int facing )
 		quad[0].c = face.pm3d_color.lt;
 	    }
 
-	    /* FIXME: could we pass through a per-quadrangle border style also? */
-	    quad[1].c = style;
+	    /* NB: This is the only call site where pm3d_add_polygon() is called with
+	     * plot == NULL to indicate it is from an object rather than a plot component.
+	     * As of now there is no provision to pass in a pointer to the object instead,
+	     * so we smuggle in fillstyle and border properties via quad[n].c.
+	     */
+	    if (1) {
+		t_colorspec *border = &this_object->fillstyle.border_color;
+		quad[1].c = style;
+		quad[2].c = (  (border->type == TC_LT && border->lt == LT_NODRAW)
+			    || (border->type == TC_DEFAULT))
+			? LT_NODRAW : border->lt;
+		quad[3].c = this_object->lp_properties.l_width;
+	    }
 	    pm3d_add_polygon( NULL, quad, vertices );
 
 	} else { /* Not depth-sorted; draw it now */

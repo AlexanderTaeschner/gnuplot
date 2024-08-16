@@ -655,6 +655,12 @@ D epi_data 1
 #b Blank line equivalent for binary data files, needed to support binary
 ## input for plot styles that expect a blank line to separate data items.
 ## See `binary blank`.
+#b In previous gnuplot versions all 3D polygons shared a single border color
+## and linewidth taken from "set pm3d".  Now individual 3D polygon objects take
+## their fill border and line width from "set object".
+#b splot with contourfill at base
+#b Revised implementation of local variables (faster, more well-defined scope).
+#b "linestyle variable"
 #b pm3d coloring for 3D polygons (e.g. Delaunay tesselation of surfaces).
 ## See `delaunay`.
 #b splot with contourfill at base
@@ -6237,8 +6243,8 @@ Ffigure_points
  The fill style and color may be specified in the splot command, otherwise the
  global fillstyle from `set style fill` is used.  Due to limitations in the
  pm3d code, a single border line style from `set pm3d border` is applied to all
- 3D polygons.  This restriction may be removed in a later gnuplot version,
- which will impose a distinction between the linecolor and fillcolor properties.
+ polygons from `splot with polygons`. This restriction may be relaxed in a later
+ gnuplot version, that more strongly distinguishes line color from fill color.
 
  Each polygon may be assigned a separate fill color by providing a fourth using
  specifier and the keywords `fc variable` (value is interpreted as a linetype)
@@ -8831,14 +8837,19 @@ Ffigure_concave_hull_2
  This filter is used as a first step in finding concave hulls using χ-shapes
  (see `concavehull`).  It may also be applied explicitly to a projection of a
  set of 3D points onto the xy plane in order to create a tesselated 3D surface.
+ See
+^ <a href="http://www.gnuplot.info/demo_6.1/delaunay.html">
+ delaunay.dem
+^ </a>
 
  EXPERIMENTAL (implementation details may change in a future release).
  Present only if your copy of gnuplot was configured --enable-chi-shapes.
 
  2D example
-      plot POINTS using 1:2 delaunay with polygons fs empty
+      plot POINTS using 1:2 delaunay with polygons fillstyle empty
 
  3D example
+      set pm3d border lc "black" lw 2
       splot 'hemisphere.dat' using 1:2:3 delaunay with polygons
 D concave_hull 3
 D delaunay 1
