@@ -64,6 +64,7 @@
 #include "alloc.h"
 #include "datafile.h"	/* for blank_data_line */
 #include "plot2d.h"	/* for cp_extend() */
+#include "plot3d.h"	/* for iso_alloc() */
 #include "watch.h"	/* for bisect_target() */
 
 /*
@@ -1282,8 +1283,9 @@ reset_hulls( TBOOLEAN reset )
 void
 delaunay_triangulation( struct curve_points *plot )
 {
+    struct surface_points *plot3D = (struct surface_points *)plot;
     struct coordinate *points;
-    int N = plot->p_count;
+    int N;
 
     t_edge *edges = NULL;
     int nedges;
@@ -1295,18 +1297,27 @@ delaunay_triangulation( struct curve_points *plot )
     /* Clear out any previous storage */
     reset_hulls(FALSE);
 
-    /* Pull color out of the varcolor array and copy it into point.CRD_COLOR
-     * so that it isn't lost during sort.
+    /* This routine handles both 2D and 3D plots.
+     * For 2D plots we pull color information from the varcolor array
+     * and copy it into point.CRD_COLOR so that it isn't lost during sort.
      */
-    if (plot->varcolor)
-	for (i = 0; i < plot->p_count; i++)
-	    plot->points[i].CRD_COLOR = plot->varcolor[i];
+    if (plot->plot_type == DATA) {
+	points = plot->points;
+	N = plot->p_count;
+	if (plot->varcolor)
+	    for (i = 0; i < plot->p_count; i++)
+		points[i].CRD_COLOR = plot->varcolor[i];
+    } else if (plot3D->plot_type == DATA3D) {
+	points = plot3D->iso_crvs[0].points;
+	N = plot3D->iso_crvs[0].p_count;
+    } else
+	return;
 
     /* Sort the points on x.
      * This allows us to reduce the time required from O(N^2) to
      * approximately O(NlogN).
      */
-    gp_qsort(plot->points, N, sizeof(struct coordinate), compare_xyz);
+    gp_qsort(points, N, sizeof(struct coordinate), compare_xyz);
 
     /* Construct a triangle "sufficiently big" to enclose the set of points.
      * That means each bounding vertex must be far enough away from the data
@@ -1319,8 +1330,12 @@ delaunay_triangulation( struct curve_points *plot )
 	double xdelta, ydelta, gap;
 
 	/* Allocate 4 additional points for the two triangles */
-	cp_extend(plot, N+4);
-	points = plot->points;
+	points = gp_realloc(points, (N+4)*sizeof(points[0]), "expanding 2D points");
+	if (plot->plot_type == DATA) {
+	    plot->points = points;
+	} else {
+	    plot3D->iso_crvs[0].points = points;
+	}
 
 	for (p = points; p < &points[N]; p++) {
 	    if (p->type == UNDEFINED)
@@ -1464,7 +1479,7 @@ delaunay_triangulation( struct curve_points *plot )
 	edges[nedges].v2 = v2;
 	points[v1].extra = HULL_POINT;
 	points[v2].extra = HULL_POINT;
-	edges[nedges].length = edge_length( &edges[nedges], plot->points );
+	edges[nedges].length = edge_length( &edges[nedges], points );
 	nedges++;
     }
     bounding_edges = edges;
@@ -1806,6 +1821,42 @@ save_delaunay_triangles( struct curve_points *plot )
     plot->varcolor = newcolor;
     plot->p_count = outp;
     plot->p_max = outp;
+}
+
+/*
+ * 3D polygons are stored one polygon per iso_curve.
+ * On entry to this routine each triangle in the list of good_triangles
+ * lists the indices of its vertices stored in plot->iso_crvs[0].points.
+ * This routine breaks them out into one triangle per iso_curve.
+ */
+void
+save3d_delaunay_triangles( struct surface_points *plot )
+{
+    struct coordinate *point = plot->iso_crvs[0].points;
+
+    /* Clear first iso_curve */
+    if (plot->num_iso_read > 1)
+	fprintf(stderr, "Delaunay filter can only handle one data set per file (found %d)",
+		plot->num_iso_read);
+    free(plot->iso_crvs);
+    plot->iso_crvs = NULL;
+    plot->num_iso_read = 0;
+
+    for (triangle *t = good_triangles.next; t; t = t->next) {
+	struct iso_curve *new_iso = iso_alloc(4);
+	new_iso->p_count = 4;
+	new_iso->next = plot->iso_crvs;
+	plot->iso_crvs = new_iso;
+        plot->num_iso_read++;
+
+	new_iso->points[0] = point[t->v1];
+	new_iso->points[1] = point[t->v2];
+	new_iso->points[2] = point[t->v3];
+	new_iso->points[3] = point[t->v1];
+    }
+
+    /* We no longer need the original list of points */
+    free(point);
 }
 
 #endif /* WITH_CHI_SHAPES */

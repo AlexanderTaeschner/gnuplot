@@ -65,5 +65,6 @@ extern double boxdepth;
 void plot3drequest(void);
 void refresh_3dbounds(struct surface_points *first_plot, int nplots);
 void sp_free(struct surface_points *sp);
+struct iso_curve *iso_alloc(int size);
 
 #endif /* GNUPLOT_PLOT3D_H */

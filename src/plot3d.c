@@ -88,7 +88,6 @@ static void parametric_3dfixup(struct surface_points * start_plot, int *plot_num
 static struct surface_points * sp_alloc(int num_samp_1, int num_iso_1, int num_samp_2, int num_iso_2);
 static void sp_replace(struct surface_points *sp, int num_samp_1, int num_iso_1, int num_samp_2, int num_iso_2);
 
-static struct iso_curve * iso_alloc(int num);
 static void iso_extend(struct iso_curve *ip, int num);
 static void iso_free(struct iso_curve *ip);
 
@@ -244,7 +243,7 @@ sp_free(struct surface_points *sp)
  * iso_alloc() allocates a iso_curve structure that can hold 'num'
  * points.
  */
-static struct iso_curve *
+struct iso_curve *
 iso_alloc(int num)
 {
     struct iso_curve *ip;
@@ -897,8 +896,12 @@ get_3ddata(struct surface_points *this_plot)
 		int_warn(NO_CARET, "Bad data on line %d of file %s",
 			  df_line_number, df_filename ? df_filename : ""); 
 
-	    if (j == DF_SECOND_BLANK)
+	    if (j == DF_SECOND_BLANK) {
+		if (this_plot->plot_filter == FILTER_DELAUNAY)
+		    continue;
 		break;		/* two blank lines */
+	    }
+
 	    if (j == DF_FIRST_BLANK) {
 
 		/* Images are in a sense similar to isocurves.
@@ -912,6 +915,14 @@ get_3ddata(struct surface_points *this_plot)
 		if ((this_plot->plot_style == IMAGE)
 		||  (this_plot->plot_style == RGBIMAGE)
 		||  (this_plot->plot_style == RGBA_IMAGE))
+		    continue;
+
+		/* The Delaunay triangulation filter will replace the input
+		 * list of points with a set of iso_curves, one per triangle.
+		 * It can only handle one list of input points, so ignore
+		 * any blank lines. Selecting one set by "index n" still works.
+		 */
+		if (this_plot->plot_filter == FILTER_DELAUNAY)
 		    continue;
 
 		if (this_plot->plot_style == VECTOR)
@@ -1892,6 +1903,15 @@ eval_3dplots()
 		if (save_token != c_token)
 		    continue;
 
+		/* filter options for splot */
+#ifdef WITH_CHI_SHAPES
+		if (equals(c_token, "delaunay")) {
+                    this_plot->plot_filter = FILTER_DELAUNAY;
+                    c_token++;
+		    continue;
+		}
+#endif
+
 		/* smoothing options for splot */
 		if (equals(c_token, "smooth")) {
 		    if (set_smooth)
@@ -2432,6 +2452,16 @@ eval_3dplots()
 		} while (df_return != DF_EOF);
 
 		df_close();
+
+		/* Filter operations are performed immediately after
+                 * reading in the data, before any smoothing.
+                 */
+#ifdef WITH_CHI_SHAPES
+		if (this_plot->plot_filter == FILTER_DELAUNAY) {
+                    delaunay_triangulation( (struct curve_points *)this_plot );
+		    save3d_delaunay_triangles(this_plot);
+		}
+#endif
 
 		/* Plot-type specific range-fiddling */
 		if (!axis_array[FIRST_Z_AXIS].log
