@@ -649,21 +649,28 @@ D epi_data 1
  Items near the bottom of the list may not appear in a stable release before
  version 6.2.
 #start
-#b New plot mode "with hsteps".
-#b Revised implementation of local variables
+#b New 2D plot style `with hsteps` allows construction of step-like plots with
+## a variety of representations in addition to those offered by existing styles
+## `steps`, `histeps`, `fsteps`, and `fillsteps`.  See `hsteps`.
 #b Blank line equivalent for binary data files, needed to support binary
-## input for plot styles that expect a blank line to separate data items
-#b "linestyle variable"
-#b pm3d coloring for 3D polygons (e.g. Delaunay tesselation of surfaces)
+## input for plot styles that expect a blank line to separate data items.
+## See `binary blank`.
+#b pm3d coloring for 3D polygons (e.g. Delaunay tesselation of surfaces).
+## See `delaunay`.
 #b splot with contourfill at base
-#b Filter input data to plot and splot through a conditional expression.
-## For example `plot DATA using 2:3 if (stringcolumn(1) eq "ABC")`
+#b Revised implementation of local variables (faster, more well-defined scope).
+#b "linestyle variable"
+#b Filter input data to plot and splot through a conditional expression outside
+## the "using" section. For example: 
+## `plot DATA using 2:3 with boxes if (stringcolumn(1) eq "ABC")`
 #b New command `save changes`  equivalent to the old contributed external script
-## `gpsavediff`
-#b Revised wxt terminal driver with more robust threading
+## `gpsavediff`.  This command saves only the program settings, variables, and
+## functions that distinguish the current state from the program state at the
+## start of the current gnuplot session.  See `save changes`.
+#b Revised wxt terminal driver with more robust threading and error recovery.
 #b Alternatives to gdlib for handling image files as data
 #b Iteration over array contents `array A; for [e in A] { ... }`
-#b Deprecation of "sample" keyword
+#b Deprecation of the "sample" keyword
 #b New category of graphical objects called "marks" that allow definition
 ## of complex symbols used in plots.  No documentation or demos yet.
 #end
@@ -6197,7 +6204,8 @@ Ffigure_points
  and larger polygons in 3D.  These may be facets of a 3D surface or isolated
  shapes. The code assumes that the vertices lie in a plane.
  Vertices defining individual polygons are read from successive records of the
- input file.  A blank line separates one polygon from the next.
+ input file.  A blank line separates one polygon from the next. For the case
+ of binary input files, see `binary blank`.
 
  The fill style and color may be specified in the splot command, otherwise the
  global fillstyle from `set style fill` is used.  Due to limitations in the
@@ -8634,8 +8642,8 @@ Ffigure_zerror
  In general the purpose of a filter is to replace the original full set of 
  input points with a selected subset of points, possibly modified, regrouped,
  or reordered,
- The filters currently supported are `bins`, `convexhull`, `concavehull`, `if`,
- `mask`, `sharpen`, and `zsort`.
+ The filters currently supported are `bins`, `convexhull`, `concavehull`,
+ `delaunay`, `if`, `mask`, `sharpen`, and `zsort`.
 5 bins
 ?commands plot datafile filters bins
 ?plot datafile filters bins
@@ -8776,6 +8784,35 @@ Ffigure_concave_hull_2
  hull away from the interior by a fixed distance.  This creates a new set of
  points describing a closed curve that lies outside all of the original points.
  It can be combined with `smooth path`.
+
+5 delaunay
+?commands plot datafile filters delaunay
+?plot datafile filters delaunay
+?plot filters delaunay
+?data-file filters delaunay
+?datafile filters delaunay
+?filters delaunay
+?delaunay
+
+ Delaunay triangulation subdivides a set of 2D points into sets of three points
+ such that no other point in the original set lies within the circumcircle of
+ the triangle that these three points define.  It is implemented in gnuplot as
+ a filter operation that replaces the input set of points with a list of
+ triangles in the format expected by plot style "with polygons".
+ This filter is used as a first step in finding concave hulls using χ-shapes
+ (see `concavehull`).  It may also be applied explicitly to a projection of a
+ set of 3D points onto the xy plane in order to create a tesselated 3D surface.
+
+ EXPERIMENTAL (implementation details may change in a future release).
+ Present only if your copy of gnuplot was configured --enable-chi-shapes.
+
+ 2D example
+      plot POINTS using 1:2 delaunay with polygons fs empty
+
+ 3D example
+      splot 'hemisphere.dat' using 1:2:3 delaunay with polygons
+D concave_hull 3
+D delaunay 1
 
 5 mask
 ?commands plot datafile filters mask
@@ -10339,6 +10376,7 @@ Ffigure_smooth_path
 ?save set
 ?save
 ?save fit
+?save changes
  Syntax:
        save  {functions | variables | terminal | set | fit | datablocks}
              '<filename>' {append}

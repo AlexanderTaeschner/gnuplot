@@ -208,6 +208,10 @@ load "binary.dem"
 load "binary_polygon.dem"
 reset
 
+print "*********** 3D polygons from Delaunay tesselation ***********"
+load "delaunay.dem"
+reset
+
 print "******************** hsteps demos ********************"
 load "steps.dem"
 load "hsteps.dem"
