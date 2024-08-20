@@ -2990,6 +2990,8 @@ eval_plots()
 		    }
 		    if (equals(c_token,"fc") || almost_equals(c_token,"fillc$olor")) {
 			parse_colorspec(&fillcolor, TC_VARIABLE);
+			if (fillcolor.type == TC_COLORMAP)
+			    this_plot->lp_properties.colormap = get_colormap(c_token++);
 			set_fillcolor = TRUE;
 			if (fillcolor.type == TC_VARIABLE) {
 			    this_plot->lp_properties.l_type = LT_COLORFROMCOLUMN;

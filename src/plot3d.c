@@ -2202,6 +2202,10 @@ eval_3dplots()
 			this_plot->fill_properties.border_color.type = TC_DEFAULT;
 		    if (equals(c_token,"fc") || almost_equals(c_token,"fillc$olor")) {
 			parse_colorspec(&fillcolor, TC_RGB);
+			/* FIXME: can't happen because we limited the options to TC_RGB
+			if (fillcolor.type == TC_COLORMAP)
+			    this_plot->lp_properties.colormap = get_colormap(c_token++);
+			 */
 			set_fillstyle = TRUE;
 			set_fillcolor = TRUE;
 		    }

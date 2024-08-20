@@ -975,9 +975,11 @@ parse_dashtype(struct t_dashtype *dt)
 }
 
 /*
- * destination_class tells us whether we are filling in a line style ('set style line'),
- * a persistent linetype ('set linetype') or an ad hoc set of properties for a single
- * use ('plot ... lc foo lw baz').
+ * destination_class tells the purpose of this call
+ *  LP_TYPE   - a persistent linetype ('set linetype')
+ *  LP_STYLE  - ('set style line')
+ *  LP_ADHOC  - properties for a single use ('plot ... lc foo lw baz').
+ *  LP_NOFILL - caller is expecting a line color, so ignore "fc" or "fillcolor"
  * allow_point controls whether we accept a point attribute in this lp_style.
  */
 int
@@ -1070,11 +1072,11 @@ lp_parse(struct lp_style_type *lp, lp_class destination_class, TBOOLEAN allow_po
 	 * fc colorspec as a line property.  We need to parse it later as a
 	 * _fill_ property. Also prevents "plot ... fc <col1> fs <foo> lw <baz>"
 	 * from generating an error claiming redundant line properties.
+	 * FIXME:  Why exclude "fc palette"??
 	 */
 	if ((destination_class == LP_NOFILL || destination_class == LP_ADHOC)
-	&&  (equals(c_token,"fc") || almost_equals(c_token,"fillc$olor"))
 	&&  (!almost_equals(c_token+1, "pal$ette"))
-	&&  (!almost_equals(c_token+1, "var$iable")) ) {
+	&&  (equals(c_token,"fc") || almost_equals(c_token,"fillc$olor"))) {
 	    FPRINTF((stderr, "ignoring 'fc' request\n"));
 	    break;
 	}
@@ -1090,18 +1092,11 @@ lp_parse(struct lp_style_type *lp, lp_class destination_class, TBOOLEAN allow_po
 		c_token--;
 		parse_colorspec(&(newlp.pm3d_color), TC_RGB);
 	    } else if (almost_equals(c_token, "pal$ette")) {
-		/* The next word could be any of {z|cb|frac|<colormap-name>}.
-		 * Check first for a colormap name.
-		 */
-		udvt_entry *colormap = get_colormap(c_token+1);
-		if (colormap) {
-		    newlp.pm3d_color.type = TC_COLORMAP;
-		    newlp.colormap = colormap;
+		c_token--;
+		parse_colorspec(&(newlp.pm3d_color), TC_Z);
+		if (newlp.pm3d_color.type == TC_COLORMAP) {
+		    newlp.colormap = get_colormap(c_token++);
 		    set_colormap++;
-		    c_token += 2;
-		} else {
-		    c_token--;
-		    parse_colorspec(&(newlp.pm3d_color), TC_Z);
 		}
 	    } else if (equals(c_token,"bgnd") || equals(c_token,"background")) {
 		newlp.pm3d_color.type = TC_LT;
@@ -1463,7 +1458,16 @@ parse_colorspec(struct t_colorspec *tc, int options)
 	    tc->lt = parse_color_name();
 	}
     } else if (almost_equals(c_token,"pal$ette")) {
+	/* The next word could be any of {z|cb|frac|<colormap-name>}.
+	 * Check first for a colormap name.
+	 * Caveat: we only set the type here; the caller will have to
+	 * re-read the colormap name.
+	 */
 	c_token++;
+	if (get_colormap(c_token)) {
+	    tc->type = TC_COLORMAP;
+	    return;
+	}
 	if (equals(c_token,"z")) {
 	    /* The actual z value is not yet known, fill it in later */
 	    if (options >= TC_Z) {
