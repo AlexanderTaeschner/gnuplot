@@ -1727,7 +1727,8 @@ filled_polygon(struct surface_points *from_plot, int index, gpdPoint *corners, i
 	    return;
 	if (bordercolor->type != TC_DEFAULT)
 	    apply_pm3dcolor(bordercolor);
-    } else if (from_plot &&  (from_plot->plot_style == BOXES)) {
+    } else if ((from_plot->plot_style == BOXES)
+	   ||  (from_plot->plot_style == POLYGONS)) {
 	t_colorspec *bordercolor = &(from_plot->fill_properties.border_color);
 	if (bordercolor->type == TC_LT && bordercolor->lt == LT_NODRAW)
 	    return;

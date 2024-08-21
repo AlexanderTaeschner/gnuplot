@@ -71,6 +71,7 @@ set xrange [-2:2]; set yrange [-2:2]; set zrange [-2:2]
 set view equal xyz
 set view 30,30,1.5
 unset border
+unset colorbox
 unset tics
 unset key
 unset label
@@ -94,23 +95,23 @@ set pm3d lighting spec2 0.6
 
 set title "splot icosahedron.dat with polygons"
 
-splot 'icosahedron.dat' with polygons fc "gray75"
+splot 'icosahedron.dat' with polygons fc "gray75" lw 2
 
 pause -1 "Hit return to continue"
 
-set title "splot dodecahedron.dat with polygons lc variable"
+set title "splot dodecahedron.dat with polygons fc variable"
 set view 148, 55, 2.7
 set pm3d lighting spec2 0.3
 set palette cubehelix
 set for [i=1:12] linetype 99+i lc palette frac i/12.
 
-splot 'dodecahedron.dat' using 1:2:3:(column(-1)+3) with polygons lc variable
+splot 'dodecahedron.dat' using 1:2:3:(column(-1)+3) with polygons fc variable lw 2
 
 pause -1 "Hit return to continue"
 
 set title "splot dodecahedron with polygons fc rgb variable"
 
-splot 'dodecahedron.dat' using 1:2:3:(0xffffff * rand(0)) with polygons fc rgb variable
+splot 'dodecahedron.dat' using 1:2:3:(0xffffff * rand(0)) with polygons fc rgb variable lw 2
 
 pause -1 "Hit return to continue"
 
@@ -119,7 +120,7 @@ set view 36, 60, 4.2
 set style fill transparent solid 0.75
 set pm3d nolighting border lt -1 lw 2
 
-splot 'truncated_cube.dat' using ($1-0.5):($2-0.5):($3-0.5) with polygons fc bgnd
+splot 'truncated_cube.dat' using ($1-0.5):($2-0.5):($3-0.5) with polygons fc bgnd lw 2
 
 pause -1 "Hit return to continue"
 

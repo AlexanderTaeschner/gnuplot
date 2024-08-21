@@ -655,9 +655,11 @@ D epi_data 1
 #b Blank line equivalent for binary data files, needed to support binary
 ## input for plot styles that expect a blank line to separate data items.
 ## See `binary blank`.
-#b In previous gnuplot versions all 3D polygons shared a single border color
-## and linewidth taken from "set pm3d".  Now individual 3D polygon objects take
-## their fill border and line width from "set object".
+#b In previous gnuplot versions all 3D polygons, objects, and filled areas
+## shared a single border color and linewidth taken from "set pm3d".
+## This limitation is now removed; border properties can be specified per-plot
+## or per-object. This change affects any scripts that expected "set pm3d" to
+## affect the borders of 3D polygons and boxes.
 #b splot with contourfill at base
 #b Revised implementation of local variables (faster, more well-defined scope).
 #b "linestyle variable"
@@ -6240,11 +6242,14 @@ Ffigure_points
  input file.  A blank line separates one polygon from the next. For the case
  of binary input files, see `binary blank`.
 
- The fill style and color may be specified in the splot command, otherwise the
- global fillstyle from `set style fill` is used.  Due to limitations in the
- pm3d code, a single border line style from `set pm3d border` is applied to all
- polygons from `splot with polygons`. This restriction may be relaxed in a later
- gnuplot version, that more strongly distinguishes line color from fill color.
+ Note: Previous gnuplot versions suffered from a limitation that all 3D polygons
+ shared a single set of fill border proporties taken from `set pm3d border`.
+ This limitation is no longer present.
+ Polygon fill style, border color, and border linewidth may now be specified in
+ the splot command, otherwise they are taken from the global settings of
+ `set style fill` (not from `set pm3d`).
+ The fill style, border color, and border linewidth for polygon objects are
+ specified in the `set object` command.
 
  Each polygon may be assigned a separate fill color by providing a fourth using
  specifier and the keywords `fc variable` (value is interpreted as a linetype)
@@ -6260,9 +6265,8 @@ Ffigure_polygons
       unset border
       unset tics
       set pm3d depth
-      set pm3d border lc "black" lw 1.5
-      splot 'icosahedron.dat' with polygons \
-            fs transparent solid 0.8 fc bgnd
+      splot 'icosahedron.dat' with polygons fc bgnd \
+            fs transparent solid 0.8 border lc "black" lw 2
 
 2 rgbalpha
 ?plotting styles rgbalpha

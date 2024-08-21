@@ -4229,14 +4229,15 @@ plot3d_polygons(struct surface_points *plot)
 	if (nv < 3)
 	    continue;
 
-	/* Coloring piggybacks on options for isosurface */
+	/* Coloring taken from fillstyle (which confusingly is in plot->lp_properties) */
 	if (plot->pm3d_color_from_column && !isnan(points[0].CRD_COLOR))
 	    quad[0].c = points[0].CRD_COLOR;
-	else if (plot->fill_properties.border_color.type == TC_DEFAULT) {
+	else if (plot->lp_properties.pm3d_color.type == TC_Z
+	     ||  plot->lp_properties.pm3d_color.type == TC_DEFAULT) {
 	    double z = pm3d_assign_triangle_z(points[0].z, points[1].z, points[2].z);
 	    quad[0].c = rgb_from_gray(cb2gray(z));
 	} else
-	    quad[0].c = plot->fill_properties.border_color.lt;
+	    quad[0].c = plot->lp_properties.pm3d_color.lt;
 	quad[1].c = style;
 	pm3d_add_polygon( plot, quad, nv );
     }
