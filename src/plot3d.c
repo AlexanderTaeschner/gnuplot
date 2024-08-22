@@ -1264,7 +1264,8 @@ get_3ddata(struct surface_points *this_plot)
 			color = rgb_from_colorspec( &lptmp.pm3d_color );
 			color_from_column(TRUE);
 		    }
-		    /* This allows "with polygons lc rgb variable" to set fillcolor.
+		    /* This handles "with polygons fc rgb variable".
+		     * However, it also allows "with polygons lc rgb variable" to set fillcolor.
 		     * FIXME: I'd rather that "lc" affected border color.
 		     */
 		    if (this_plot->lp_properties.pm3d_color.type == TC_RGB
@@ -1277,12 +1278,6 @@ get_3ddata(struct surface_points *this_plot)
 			struct lp_style_type lptmp;
 			load_linetype(&lptmp, (int)(v[3]));
 			color = lptmp.pm3d_color.lt;
-			color_from_column(TRUE);
-		    }
-		    /* This handles "with polygons fc rgb variable" */
-		    if (this_plot->fill_properties.border_color.type == TC_RGB
-		    &&  this_plot->fill_properties.border_color.value < 0) {
-			color = v[3];
 			color_from_column(TRUE);
 		    }
 		}
@@ -2319,11 +2314,12 @@ eval_3dplots()
 
 	    /* If this plot style uses a fillstyle and we saw an explicit
 	     * fill color, save it in lp_properties now.
-	     * FIXME: some styles still expect fillcolor to be in border_color.
+	     * FIXME: a separate fillcolor field in the plot header would
+	     *        reduce the inconsistency in where it is stored.
 	     */
-	    if (set_fillcolor) {
-		if ((this_plot->plot_style & PLOT_STYLE_HAS_FILL)
-		||  (pm3d.implicit == PM3D_IMPLICIT)) {
+	    if ((this_plot->plot_style & PLOT_STYLE_HAS_FILL)
+	    ||  (pm3d.implicit == PM3D_IMPLICIT)) {
+		if (set_fillcolor) {
 		    if (this_plot->plot_style == ZERRORFILL
 		    ||  this_plot->plot_style == FILLEDCURVES
 		    ||  this_plot->plot_style == CONTOURFILL) {
@@ -2332,6 +2328,11 @@ eval_3dplots()
 			this_plot->lp_properties.pm3d_color = fillcolor;
 		    } else if (this_plot->plot_style == BOXES) {
 			this_plot->lp_properties.pm3d_color = fillcolor;
+		    } else if (this_plot->plot_style == CIRCLES) {
+			if (fillcolor.type == TC_VARIABLE)
+			    this_plot->lp_properties.pm3d_color.type = TC_LINESTYLE;
+			else
+			    this_plot->lp_properties.pm3d_color = fillcolor;
 		    } else if (this_plot->plot_style == POLYGONS) {
 			if (set_lc && !set_fillstyle)
 			    this_plot->fill_properties.border_color

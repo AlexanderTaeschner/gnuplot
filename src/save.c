@@ -1626,6 +1626,9 @@ save_pm3dcolor(FILE *fp, const struct t_colorspec *tc)
 			fprintf(fp," rgb \"#%6.6x\" ", tc->lt);
 		      break;
 		      }
+	case TC_VARIABLE:
+		      fprintf(fp," variable ");
+		      break;
 	default:      break;
 	}
     }

@@ -2137,9 +2137,7 @@ plot3d_points(struct surface_points *plot)
 	const char *ptchar;
 
 	/* Apply constant color outside of the loop */
-	if (plot->plot_style == CIRCLES)
-	    set_rgbcolor_const( plot->fill_properties.border_color.lt );
-	else if (colortype == TC_RGB)
+	if (colortype == TC_RGB)
 	    set_rgbcolor_const( plot->lp_properties.pm3d_color.lt );
 
 	for (i = 0; i < icrvs->p_count; i++) {
@@ -2178,8 +2176,10 @@ plot3d_points(struct surface_points *plot)
 			do_arc(x, y, radius, 0., 360.,
 				style_from_fill(fillstyle), FALSE);
 			/* Retrace the border if the style requests it */
-			if (need_fill_border(fillstyle))
+			if (need_fill_border(fillstyle)) {
 			    do_arc(x, y, radius, 0., 360., 0, FALSE);
+			    set_rgbcolor_const(plot->lp_properties.pm3d_color.lt);
+			}
 			continue;
 		    }
 
