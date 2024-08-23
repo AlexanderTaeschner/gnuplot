@@ -209,7 +209,7 @@ load "binary.dem"
 load "binary_polygon.dem"
 reset
 
-print "*********** 3D polygons from Delaunay tesselation ***********"
+print "*********** 3D polygons from Delaunay tessellation ***********"
 load "delaunay.dem"
 reset
 

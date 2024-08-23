@@ -1,7 +1,7 @@
 #
 # The Delaunay triangulation filter is an adjunct to the support for
 # concave hulls.  It can be used on its own either for original use
-# in 2D plots or as a way to generate a triangular tesselation for
+# in 2D plots or as a way to generate a triangular tessellation for
 # a 3D surface defined by a scattered set of points as shown here.
 #
 

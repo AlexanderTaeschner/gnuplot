@@ -534,7 +534,7 @@ D epi_data 1
 #b `set isotropic` adjusts the axis scaling in both 2D and 3D plots such that
 ## the x, y, and z axes all have the same scale.
 #b Change: Text rotation angle is not limited to integral degrees.
-#b Special (non-numerical) linetypes `lt nodraw`, `lt black`, `lt bgnd`
+#b Special (non-numerical) linetypes `lt nodraw`, `lt black`, `lt background`
 ## See `special_linetypes`.
 #b Data-driven color assignments in histogram plots. See `histograms colors`.
 #b The position of the key box can be manually tweaked by specifying an
@@ -663,7 +663,7 @@ D epi_data 1
 #b splot with contourfill at base
 #b Revised implementation of local variables (faster, more well-defined scope).
 #b "linestyle variable"
-#b pm3d coloring for 3D polygons (e.g. Delaunay tesselation of surfaces).
+#b pm3d coloring for 3D polygons (e.g. Delaunay tessellation of surfaces).
 ## See `delaunay`.
 #b splot with contourfill at base
 #b Revised implementation of local variables (faster, more well-defined scope).
@@ -677,7 +677,7 @@ D epi_data 1
 ## start of the current gnuplot session.  See `save changes`.
 #b Revised wxt terminal driver with more robust threading and error recovery.
 #b Alternatives to gdlib for handling image files as data
-#b Iteration over array contents `array A; for [e in A] { ... }`
+#b Iteration over array contents `array A; for [e in A] { ... }` [EXPERIMENTAL]
 #b Deprecation of the "sample" keyword
 #b New category of graphical objects called "marks" that allow definition
 ## of complex symbols used in plots.  No documentation or demos yet.
@@ -3363,7 +3363,7 @@ C ... and restart the table:
  array are not limited to a single type of variable.  Arrays must be created
  explicitly before being referenced. The size of an array cannot be changed
  after creation.  Array elements are initially undefined unless they are
- provided in the array declaragion.
+ provided in the array declaration.
  In most places an array element can be used instead of a named user variable.
 
  The cardinality (number of elements) of array A is given by the expression |A|.
@@ -3830,7 +3830,7 @@ Ffigure_newsyntax
 
  `palette` and `palette z` both map the z coordinate of the plot element being
  colored onto the current palette.  If z is outside cbrange it is by default
- mapped to palette fraction 0 or palette franction 1.  If the option
+ mapped to palette fraction 0 or palette fraction 1.  If the option
  `set pm3d noclipcb` is set, then quadrangles in a pm3d plot whose z values
  are out of range will not be drawn at all.
 
@@ -3932,8 +3932,8 @@ Ffigure_newsyntax
 
  `lt black` specifies a solid black line.
 
- `lt bgnd` specifies a solid line with the background color of the current
- terminal. See `background`.
+ `lt background` or `lt bgnd` specifies a solid line with the background color
+ of the current terminal. See `background`.
 
  `lt nodraw` skips drawing the line altogether.  This is useful in conjunction
  with plot style `linespoints`.  It allows you to suppress the line component
@@ -5121,7 +5121,7 @@ Ffigure_contourfill
 
  This style can be combined with `set contours` to superimpose contour
  lines that bound the slices.  Care must be taken that the slice boundaries
- from `set contourfill` match the contour bounaries from `set cntrparam`.
+ from `set contourfill` match the contour boundaries from `set cntrparam`.
  
       # slice boundaries determined by ztics
       # coloring set by palette mapping the slice midpoint z value
@@ -5138,7 +5138,7 @@ Ffigure_contourfill
  Plotting `with contourfill at base` instead projects the colored surface onto
  the base plane.  To draw both a surface and its projected contour coloring
       set hidden3d front
-      splot f(x,y) using lines, f(x,y) using contourfill at base
+      splot f(x,y) with lines, f(x,y) with contourfill at base
 
 2 dots
 ?plotting styles dots
@@ -6148,7 +6148,7 @@ Ffigure_points
  The point type defaults to that of the corresponding linetype. See `linetypes`.
  Alternatively the plot command can specify a specific point type or size.
  The most flexible alternative is to specify `pointtype variable` or
- `pointsize variable` in the plot command and provide provide the corresponding
+ `pointsize variable` in the plot command and provide the corresponding
  per-datum point properties in additional columns of the `using` specifier.
  In this case, input data columns are interpreted implicitly in the order
  `x y pointsize pointtype color` (see `pointtype variable` below).
@@ -6187,7 +6187,7 @@ Ffigure_points
 ?variable
 ?pointtype variable
 ?pointsize variable
- Plot styles that contain a point symbol optionally accept addtional data
+ Plot styles that contain a point symbol optionally accept additional data
  columns in the `using` specifier to control the appearance of that point.
  This is indicated by modifying the keywords `pointtype`, `pointsize`, or
  `linecolor` in the plot command with the additional keyword `variable`
@@ -6265,7 +6265,7 @@ Ffigure_polygons
       unset border
       unset tics
       set pm3d depth
-      splot 'icosahedron.dat' with polygons fc bgnd \
+      splot 'icosahedron.dat' with polygons fc background \
             fs transparent solid 0.8 border lc "black" lw 2
 
 2 rgbalpha
@@ -8840,7 +8840,7 @@ Ffigure_concave_hull_2
  triangles in the format expected by plot style "with polygons".
  This filter is used as a first step in finding concave hulls using χ-shapes
  (see `concavehull`).  It may also be applied explicitly to a projection of a
- set of 3D points onto the xy plane in order to create a tesselated 3D surface.
+ set of 3D points onto the xy plane in order to create a tessellated 3D surface.
  See
 ^ <a href="http://www.gnuplot.info/demo_6.1/delaunay.html">
  delaunay.dem
@@ -10308,7 +10308,7 @@ Ffigure_smooth_path
  multiplot.  See `new multiplots`.
 
  EXPERIMENTAL: `remultiplot` is invoked implicitly from `replot` if the
- immediately preceeding plot command was part of a completed multiplot.
+ immediately preceding plot command was part of a completed multiplot.
 
 2 replot
 ?commands replot
@@ -15999,7 +15999,7 @@ Ffigure_polar_grid
  If you want no median line, set this to 0.
 
  If the using specification for a boxplot contains a fourth column, the values
- in that column will be interpreted as the discrete leveles of a factor
+ in that column will be interpreted as the discrete levels of a factor
  variable.  In this case more than one boxplots may be drawn, as many as the
  number of levels of the factor variable.  These boxplots will be drawn next to
  each other, the distance between them is 1.0 by default (in x-axis units).
@@ -16302,7 +16302,7 @@ Ffigure_polar_grid
 
  Examples:
      set style rectangle back fc rgb "white" fs solid 1.0 border lt -1
-     set style rectangle fc linsestyle 3 fs pattern 2 noborder
+     set style rectangle fc linestyle 3 fs pattern 2 noborder
 
  The default values correspond to solid fill with the background color and a
  black border.
