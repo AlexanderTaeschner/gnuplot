@@ -133,7 +133,8 @@ save_datablocks(FILE *fp)
     struct udvt_entry *udv = first_udv->next_udv;
 
     while (udv) {
-	if (udv->udv_value.type == DATABLOCK) {
+	if ((udv->udv_value.type == DATABLOCK)
+	&&  (strncmp(udv->udv_name, "$GPVAL", 6) != 0)) {
 	    char **line = udv->udv_value.v.data_array;
 	    fprintf(fp, "%s << EOD\n", udv->udv_name);
 	    while (line && *line) {
