@@ -1458,7 +1458,7 @@ do_3dplot(
 		    break;
 
 		case ISOSURFACE:
-		    apply_pm3dcolor(&this_plot->fill_properties.border_color);
+		    apply_pm3dcolor(&this_plot->lp_properties.pm3d_color);
 		    key_sample_fill(xl, yl, this_plot);
 		    break;
 
