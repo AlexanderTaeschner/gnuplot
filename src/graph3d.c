@@ -3735,34 +3735,56 @@ key_sample_fill(int xl, int yl, struct surface_points *this_plot)
     int w = key_sample_right - key_sample_left;
     int h = key_entry_height/2;
 
+    if (w <= 0)
+	return;
+
+    if (!(term->fillbox))
+	return;
+
     if (key->invert) {
 	INVERT_KEY();
 	y = yl - key_entry_height/4;
     }
 
-    if (!(term->fillbox))
+    if (this_plot->plot_style == CIRCLES) {
+	do_arc(x+w/2, yl, h/2, 0., 360., style, FALSE);
+	if (need_fill_border(fs))
+	    do_arc(x+w/2, yl, h/2, 0., 360., 0, FALSE);
+	return;
+    }
+
+    /* solid-fill rectangle in current color */
+    (term->fillbox)(style,x,y,w,h);
+
+    /* Some plot styles never want a border in the key sample */
+    if (this_plot->plot_style == ZERRORFILL || this_plot->plot_style == FILLEDCURVES)
 	return;
 
-    if (this_plot->plot_style == CIRCLES) {
-	do_arc(x+w/2, yl, key_entry_height/4, 0., 360., style, FALSE);
-	/* Retrace the border if the style requests it */
-	if (need_fill_border(fs))
-	    do_arc(x+w/2, yl, key_entry_height/4, 0., 360., 0, FALSE);
-
-    } else if (w > 0) {
-	(term->fillbox)(style,x,y,w,h);
-
-	if ((this_plot->plot_style & PLOT_STYLE_HAS_PM3DBORDER)) {
-	    if (pm3d.border.l_type != LT_NODRAW && pm3d.border.l_type != LT_DEFAULT)
-		term_apply_lp_properties(&pm3d.border);
-	    newpath();
-	    draw_clip_line( x, y, x+w, y);
-	    draw_clip_line( x+w, y, x+w, y+h);
-	    draw_clip_line( x+w, y+h, x, y+h);
-	    draw_clip_line( x, y+h, x, y);
-	    closepath();
-	}
+    /* Some fill styles keep border properties in plot->fill_properties */
+    if (this_plot->plot_style == BOXES) {
+	t_colorspec *bordercolor = &(this_plot->fill_properties.border_color);
+	if (bordercolor->type == TC_LT && bordercolor->lt == LT_NODRAW)
+	    return;
+	apply_pm3dcolor(bordercolor);
     }
+
+    /* Some plot styles keep border properties in pm3d */
+    else if ((this_plot->plot_style & PLOT_STYLE_HAS_PM3DBORDER)) {
+	if (pm3d.border.l_type != LT_NODRAW && pm3d.border.l_type != LT_DEFAULT)
+	    term_apply_lp_properties(&pm3d.border);
+    } else {
+
+    /* Should not happen */
+	return;
+    }
+
+    /* Draw a border for the key sample */
+    newpath();
+    draw_clip_line( x, y, x+w, y);
+    draw_clip_line( x+w, y, x+w, y+h);
+    draw_clip_line( x+w, y+h, x, y+h);
+    draw_clip_line( x, y+h, x, y);
+    closepath();
 }
 
 
