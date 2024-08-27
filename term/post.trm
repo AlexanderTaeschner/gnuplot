@@ -2822,7 +2822,7 @@ ENHPS_put_text(unsigned int x, unsigned int y, const char *str)
     enhanced_max_height = -1000;
     enhanced_min_height = 1000;
     enhanced_fontscale = PS_SCF;
-    safe_strncpy(enhanced_escape_format,"\\%o",sizeof(enhanced_escape_format));
+    strcpy(enhanced_escape_format,"\\%o");
 
     ENHps_opened_string = FALSE;
 
@@ -4330,8 +4330,7 @@ PS_load_glyphlist()
 
 	next++;
 	len = strchr(next,';') - next;
-	strncpy(glyph_name, next, len);
-	glyph_name[len] = '\0';
+	safe_strncpy(glyph_name, next, len);
 	FPRINTF((stderr, "%04X   %s\n", code, glyph_name));
 	if (aglist_size + sizeof(ps_glyph) > aglist_alloc) {
 	    aglist_alloc += 2048;

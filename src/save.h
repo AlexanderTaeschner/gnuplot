@@ -44,6 +44,7 @@
 
 /* Variables of save.c needed by other modules: */
 extern const char *coord_msg[];
+extern FILE *savefp;	/* tmpfile used by "save changes" */
 
 /* Prototypes of functions exported by save.c */
 void save_functions(FILE *fp);
@@ -80,7 +81,9 @@ void save_axis_format(FILE *fp, AXIS_INDEX axis);
 void save_bars(FILE *);
 void save_array_content(FILE *, struct value *);
 void save_label_style( FILE *fp, struct text_label *this_label );
+void save_keytitle(FILE *fp);
 void save_contourfill(FILE *fp);
+void save_changes(FILE *fp, TBOOLEAN ispipe);
 void save_marks(FILE *fp);
 
 #endif /* GNUPLOT_SAVE_H */

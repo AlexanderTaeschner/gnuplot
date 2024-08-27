@@ -786,12 +786,13 @@ add_edge(
 {
     edge_struct *pe_temp = NULL;
 
-#if 1
-    if (point0->type == INRANGE && point1->type == INRANGE)
-#else
-    if (point0->type != UNDEFINED && point1->type != UNDEFINED)
-#endif
-    {
+    /* version 6: now that we can do smooth clipping on z,
+     * outrange points are not such a problem.
+     * Previously the test was
+     *	if (point0->type == INRANGE && point1->type == INRANGE)
+     * If necessary, the test could be contingent on (pm3d.clip == PM3D_CLIP_Z)
+     */
+    if (point0->type != UNDEFINED && point1->type != UNDEFINED) {
 	pe_temp = gp_alloc(sizeof(edge_struct), "contour edge");
 
 	pe_temp->poly[0] = NULL;	/* clear links           */
@@ -807,7 +808,6 @@ add_edge(
 	    (*p_edge) = pe_temp;	/* start new list if empty */
 	}
 	(*pe_tail) = pe_temp;	/* continue to last record. */
-
     }
     return pe_temp;		/* returns NULL, if no edge allocated */
 }

@@ -35,6 +35,7 @@
 #include "command.h"
 #include "contour.h"
 #include "datafile.h"
+#include "datablock.h"
 #include "eval.h"
 #include "filters.h"
 #include "fit.h"
@@ -107,11 +108,22 @@ save_all(FILE *fp)
 	save_variables__sub(fp);
 	save_colormaps(fp);
 	save_pixmaps(fp);
-	if (df_filename)
-	    fprintf(fp, "## Last datafile plotted: \"%s\"\n", df_filename);
-	fprintf(fp, "%s\n", replot_line);
 	if (last_fit_command)
 	    fprintf(fp, "## Last fit command: \"%s\"\n", last_fit_command);
+	if (df_filename)
+	    fprintf(fp, "## Last datafile plotted: \"%s\"\n", df_filename);
+	if (last_plot_was_multiplot) {
+	    char **line;
+	    fprintf(fp, "## Last plot was a multiplot\n");
+	    line = get_datablock("$GPVAL_LAST_MULTIPLOT");
+	    while (line && *line) {
+		fprintf(fp, "%s\n", *line);
+		line++;
+	    }
+	} else {
+	    fprintf(fp, "## Last plot command\n");
+	    fprintf(fp, "%s\n", replot_line);
+	}
 	fputs("#    EOF\n", fp);
 }
 
@@ -121,7 +133,8 @@ save_datablocks(FILE *fp)
     struct udvt_entry *udv = first_udv->next_udv;
 
     while (udv) {
-	if (udv->udv_value.type == DATABLOCK) {
+	if ((udv->udv_value.type == DATABLOCK)
+	&&  (strncmp(udv->udv_name, "$GPVAL", 6) != 0)) {
 	    char **line = udv->udv_value.v.data_array;
 	    fprintf(fp, "%s << EOD\n", udv->udv_name);
 	    while (line && *line) {
@@ -1132,6 +1145,22 @@ save_tics(FILE *fp, struct axis *this_axis)
 
 }
 
+void
+save_keytitle(FILE *fp)
+{
+    legend_key *key = &keyT;
+
+    fprintf(fp, "\"%s\" ", conv_text(key->title.text));
+    fprintf(fp, "%s ", key->title.noenhanced ? "noenhanced" : "enhanced");
+    if (key->title.font && *(key->title.font))
+	fprintf(fp,"font \"%s\" ", key->title.font);
+    if (key->title.textcolor.type != TC_LT || key->title.textcolor.lt != LT_BLACK)
+	save_textcolor(fp, &key->title.textcolor);
+    fputs(" ", fp);
+    save_justification(key->title.pos, fp);
+    fputs("\n", fp);
+}
+
 static void
 save_key(FILE *fp)
 {
@@ -1140,11 +1169,8 @@ save_key(FILE *fp)
     if (key->title.text == NULL)
 	fprintf(fp, "set key notitle\n");
     else {
-	fprintf(fp, "set key title \"%s\"", conv_text(key->title.text));
-	if (key->title.font)
-	    fprintf(fp, " font \"%s\" ", key->title.font);
-	save_justification(key->title.pos, fp);
-	fputs("\n", fp);
+	fprintf(fp, "set key title ");
+	save_keytitle(fp);
     }
 
     fputs("set key ", fp);
@@ -1436,9 +1462,8 @@ save_prange(FILE *fp, struct axis *this_axis)
     }
 
     if (this_axis->index < PARALLEL_AXES)
-	fprintf(fp, " ] %sreverse %swriteback",
-	    ((this_axis->range_flags & RANGE_IS_REVERSED)) ? "" : "no",
-	    this_axis->range_flags & RANGE_WRITEBACK ? "" : "no");
+	fprintf(fp, " ] %sreverse",
+	    ((this_axis->range_flags & RANGE_IS_REVERSED)) ? "" : "no");
     else
 	fprintf(fp, " ] ");
 
@@ -1597,11 +1622,14 @@ save_pm3dcolor(FILE *fp, const struct t_colorspec *tc)
 		      if (tc->value < 0)
 		  	fprintf(fp," rgb variable ");
 		      else if (*color)
-	    		fprintf(fp," rgb \"%s\" ", color);
+			fprintf(fp," rgb \"%s\" ", color);
 		      else
-	    		fprintf(fp," rgb \"#%6.6x\" ", tc->lt);
+			fprintf(fp," rgb \"#%6.6x\" ", tc->lt);
 		      break;
-	    	      }
+		      }
+	case TC_VARIABLE:
+		      fprintf(fp," variable ");
+		      break;
 	default:      break;
 	}
     }
@@ -1950,7 +1978,7 @@ save_walls(FILE *fp)
     int i;
 
     for (i = 0; i < 5; i++) {
-    	this_object = &grid_wall[i];
+	this_object = &grid_wall[i];
 	if (this_object->layer == LAYER_FRONTBACK) {
 	    fprintf(fp, "set wall %s ", wall_name[i]);
 	    fprintf(fp, " fc ");
@@ -2047,6 +2075,57 @@ save_contourfill(FILE *fp)
 	fprintf(fp, "set contourfill firstlinetype %d\n", contourfill.firstlinetype);
     else
 	fprintf(fp, "set contourfill palette\n");
+}
+
+/* Internal implementation of contributed script "gpsavediff".
+ * Not supported on Windows because it shuffles output via
+ * /dev/fd/ a.k.a. /proc/self/fd
+ * to access the initial state that was saved to stream savefp=tmpfile()
+ * when the program was started and another tmpfile opened here.
+ * Also we depend on shell access to standard utilities diff and sed.
+ */
+FILE *savefp = NULL;	/* tmpfile used by "save changes" */
+
+void
+save_changes(FILE *outfp, TBOOLEAN ispipe)
+{
+#if !defined(WIN32) && !defined(OS2) && !defined(MSDOS)
+    FILE *currentfp;
+    char command[1024];
+    char *output;	/* text returned by do_system_func() */
+
+    /* Original state was saved to tmpfile savefp */
+    if (!savefp)
+	int_error(NO_CARET, "No reference file was saved at start of session");
+    rewind(savefp);
+
+    /* Save current state to tmpfile currentfp */
+    currentfp = tmpfile();
+    save_all(currentfp);
+    fflush(currentfp);
+    rewind(currentfp);
+
+    /* Compare current state to saved state */
+    if (ispipe)
+	sprintf(command,
+	    "/usr/bin/diff -w /dev/fd/%d /dev/fd/%d | "
+	    "/usr/bin/sed \"/^[^>]/d;s/^> //\"",
+	    fileno(savefp), fileno(currentfp));
+    else
+	sprintf(command,
+	    "/usr/bin/diff -w /dev/fd/%d /dev/fd/%d | "
+	    "/usr/bin/sed \"/^[^>]/d;s/^> //\" >> /dev/fd/%d",
+	    fileno(savefp), fileno(currentfp), fileno(outfp));
+    do_system_func(command, &output);
+
+    if (ispipe)
+	fputs(output, outfp);
+
+    /* Clean up */
+    fclose(currentfp);
+#else
+    int_warn(c_token, "This copy of gnuplot does not support 'save changes'");
+#endif
 }
 
 void

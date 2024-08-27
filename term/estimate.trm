@@ -129,7 +129,7 @@ ENHest_put_text(unsigned int x, unsigned int y, const char *str)
     ENHest_max_height = ENHest_fontsize;
     ENHest_min_height = 0.0;
     ENHest_total_width = 0.0;
-    strncpy(enhanced_escape_format,".",sizeof(enhanced_escape_format));
+    strcpy(enhanced_escape_format,".");
 
     /* buffer in which we will return plaintext version of enhanced text string */
     while (ENHest_plaintext_buflen <= strlen(str)) {

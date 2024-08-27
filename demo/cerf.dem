@@ -66,7 +66,7 @@ set vrange [ -3 : 3 ]
 set tics scale 0
 set cblabel "Phase Angle" 
 set cblabel  offset character -2, 0, 0 font "" textcolor lt -1 rotate by -270
-set cbrange [ -pi : pi ] noreverse nowriteback
+set cbrange [ -pi : pi ]
 
 set contour
 set cntrparam levels discrete 0.1, 0.2, 0.5,  1, 2, 5,  10, 20, 50,  100, 200, 500

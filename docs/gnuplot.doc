@@ -20,7 +20,7 @@ C
 ^  James R. Van Zandt, Alex Woo, Johannes Zellner<br>
 ^</p>
 ^<p align="center">  Copyright (C) 1986 - 1993, 1998 - 2004   Thomas Williams, Colin Kelley<br>
-^     Copyright (C) 2004 - 2023 various authors</p>
+^     Copyright (C) 2004 - 2024 various authors</p>
 ^<p align="center">   Mailing list for comments: <tt>gnuplot-info@lists.sourceforge.net</tt><br>
 ^   Gnuplot <a href="http://gnuplot.info"> home page </a><br>
 ^      Issue trackers: &nbsp;
@@ -32,7 +32,7 @@ C
 ?copyright
 ?license
      Copyright (C) 1986 - 1993, 1998, 2004, 2007  Thomas Williams, Colin Kelley
-     Copyright (C) 2004-2023  various authors
+     Copyright (C) 2004-2024  various authors
 
  Permission to use, copy, and distribute this software and its
  documentation for any purpose with or without fee is hereby granted,
@@ -534,12 +534,14 @@ D epi_data 1
 #b `set isotropic` adjusts the axis scaling in both 2D and 3D plots such that
 ## the x, y, and z axes all have the same scale.
 #b Change: Text rotation angle is not limited to integral degrees.
-#b Special (non-numerical) linetypes `lt nodraw`, `lt black`, `lt bgnd`
+#b Special (non-numerical) linetypes `lt nodraw`, `lt black`, `lt background`
 ## See `special_linetypes`.
 #b Data-driven color assignments in histogram plots. See `histograms colors`.
 #b The position of the key box can be manually tweaked by specifying an
 ## offset to be added to whatever position the program would otherwise use.
 ## See `set key offset`.
+#b `plot .. if (<expression>)` New filter for plot and splot commands to select
+## only those input lines that match a target expression.  See `filters if`.
 #end
 
 3 Brief summary of features introduced in version 5
@@ -598,7 +600,6 @@ D epi_data 1
 #end
 
 2 Differences between versions 5 and 6
-
  Some changes introduced in version 5 could cause certain scripts written
  for earlier versions of gnuplot to fail or to behave differently.
  There are very few such changes in version 6.
@@ -632,6 +633,55 @@ D epi_data 1
 
  Deprecated in version 5.0, removed in 6.0
        show palette fit2rgbformulae
+
+2 Development branch (version 6.1)
+?development
+ Version 6.0 is the most recent gnuplot stable release.  Development of new
+ features and potentially disruptive code revision is carried out in a separate
+ branch that self-identifies as version 6.1.  Since the development branch code
+ may change at any time, you should also check the "last modified" date
+ reported on startup or by `gnuplot --version`.
+
+ Here is a partial list of features under development that have not yet
+ appeared in a stable release. Items near the top of the list will probably
+ be back-ported to an incremental update to the current release (6.0.x).
+ This copy of the user manual has preliminary documentation for these.
+ Items near the bottom of the list may not appear in a stable release before
+ version 6.2.
+#start
+#b New 2D plot style `with hsteps` allows construction of step-like plots with
+## a variety of representations in addition to those offered by existing styles
+## `steps`, `histeps`, `fsteps`, and `fillsteps`.  See `hsteps`.
+#b Blank line equivalent for binary data files, needed to support binary
+## input for plot styles that expect a blank line to separate data items.
+## See `binary blank`.
+#b In previous gnuplot versions all 3D polygons, objects, and filled areas
+## shared a single border color and linewidth taken from "set pm3d".
+## This limitation is now removed; border properties can be specified per-plot
+## or per-object. This change affects any scripts that expected "set pm3d" to
+## affect the borders of 3D polygons and boxes.
+#b splot with contourfill at base
+#b Revised implementation of local variables (faster, more well-defined scope).
+#b "linestyle variable"
+#b pm3d coloring for 3D polygons (e.g. Delaunay tessellation of surfaces).
+## See `delaunay`.
+#b splot with contourfill at base
+#b Revised implementation of local variables (faster, more well-defined scope).
+#b "linestyle variable"
+#b Filter input data to plot and splot through a conditional expression outside
+## the "using" section. For example: 
+## `plot DATA using 2:3 with boxes if (stringcolumn(1) eq "ABC")`
+#b New command `save changes`  equivalent to the old contributed external script
+## `gpsavediff`.  This command saves only the program settings, variables, and
+## functions that distinguish the current state from the program state at the
+## start of the current gnuplot session.  See `save changes`.
+#b Revised wxt terminal driver with more robust threading and error recovery.
+#b Alternatives to gdlib for handling image files as data
+#b Iteration over array contents `array A; for [e in A] { ... }` [EXPERIMENTAL]
+#b Deprecation of the "sample" keyword
+#b New category of graphical objects called "marks" that allow definition
+## of complex symbols used in plots.  No documentation or demos yet.
+#end
 
 2 Demos and Online Examples
 ?demos
@@ -3313,7 +3363,7 @@ C ... and restart the table:
  array are not limited to a single type of variable.  Arrays must be created
  explicitly before being referenced. The size of an array cannot be changed
  after creation.  Array elements are initially undefined unless they are
- provided in the array declaragion.
+ provided in the array declaration.
  In most places an array element can be used instead of a named user variable.
 
  The cardinality (number of elements) of array A is given by the expression |A|.
@@ -3585,15 +3635,19 @@ Ffigure_newsyntax
  Iteration is controlled by an iteration specifier with syntax
 
       for [<var> in "string of N elements"]
-
- or
-
       for [<var> = <start> : <end> { : <increment> }]
+ or
+      for [<var> in Array]
 
  In the first case <var> is a string variable that successively evaluates to
  single-word substrings 1 to N of the string in the iteration specifier.
  In the second case <start>, <end>, and <increment> are integers or integer
  expressions.
+
+ In the third case <var> is set to successive elements of the array regardless
+ of whether the element is a number or a string. Any undefined array elements
+ are silently skipperd.  Iteration over array elements is EXPERIMENTAL
+ (details may change before it appears in a stable gnuplot release version.
 
 =scope
  The scope of the iteration variable is private to that iteration. See `scope`.
@@ -3683,7 +3737,7 @@ Ffigure_newsyntax
        palette z
        palette <colormap>      # use named colormap rather than current palette
        variable                # color index is read from input file
-       bgnd                    # background color
+       background or bgnd      # background color
        black
 
  The "<n>" is the linetype number the color of which is used, see `test`.
@@ -3719,20 +3773,21 @@ Ffigure_newsyntax
  from an extra column of data (not all 2D plot styles allow an extra column).
 =bgnd
 =black
- There are two special color specifiers: `bgnd` for background color and `black`.
+ There are two special color specifiers: `background` (short form `bgnd`)
+ for background color and `black`.
 4 background color
 ?background
 ?bgnd
  Most terminals allow you to set an explicit background color for the plot.
- The special linetype `bgnd` will draw in this color, and `bgnd` is also
- recognized as a color.
+ The special linetype `background` (short form `bgnd`) will draw in this color,
+ and is also recognized as a color name.
  Examples:
       # This will erase a section of the canvas by writing over it in the
       # background color
       set term wxt background rgb "gray75"
       set object 1 rectangle from x0,y0 to x1,y1 fillstyle solid fillcolor bgnd
       # Draw an "invisible" line at y=0, erasing whatever was underneath
-      plot 0 lt bgnd
+      plot 0 lt background
 4 linecolor variable
 ?linecolor variable
 ?linestyle variable
@@ -3775,7 +3830,7 @@ Ffigure_newsyntax
 
  `palette` and `palette z` both map the z coordinate of the plot element being
  colored onto the current palette.  If z is outside cbrange it is by default
- mapped to palette fraction 0 or palette franction 1.  If the option
+ mapped to palette fraction 0 or palette fraction 1.  If the option
  `set pm3d noclipcb` is set, then quadrangles in a pm3d plot whose z values
  are out of range will not be drawn at all.
 
@@ -3877,8 +3932,8 @@ Ffigure_newsyntax
 
  `lt black` specifies a solid black line.
 
- `lt bgnd` specifies a solid line with the background color of the current
- terminal. See `background`.
+ `lt background` or `lt bgnd` specifies a solid line with the background color
+ of the current terminal. See `background`.
 
  `lt nodraw` skips drawing the line altogether.  This is useful in conjunction
  with plot style `linespoints`.  It allows you to suppress the line component
@@ -5066,7 +5121,7 @@ Ffigure_contourfill
 
  This style can be combined with `set contours` to superimpose contour
  lines that bound the slices.  Care must be taken that the slice boundaries
- from `set contourfill` match the contour bounaries from `set cntrparam`.
+ from `set contourfill` match the contour boundaries from `set cntrparam`.
  
       # slice boundaries determined by ztics
       # coloring set by palette mapping the slice midpoint z value
@@ -5083,7 +5138,7 @@ Ffigure_contourfill
  Plotting `with contourfill at base` instead projects the colored surface onto
  the base plane.  To draw both a surface and its projected contour coloring
       set hidden3d front
-      splot f(x,y) using lines, f(x,y) using contourfill at base
+      splot f(x,y) with lines, f(x,y) with contourfill at base
 
 2 dots
 ?plotting styles dots
@@ -5163,13 +5218,16 @@ Ffigure_ellipses
 ?with filledcurves
 ?filledcurves
 Ffigure_filledcurves
- The `filledcurves` style is only used for 2D plotting. It has three variants.
- The first two variants require either a single function or two columns (x,y)
- of input data, and may be further modified by the options listed below.
+ The `filledcurves` style is available in both 2D and (since version 6.1) 3D.
 
- Syntax:
+ The 2D style has three variants.  The first two variants require either a
+ single function or two columns (x,y) of input data.
 
-     plot ... with filledcurves [option]
+ Syntax for 2D:
+
+     plot f(x) with filledcurves [option]
+     plot DATA using 1:2    with filledcurves [option]
+     plot DATA using 1:2:3  with filledcurves [option]
 
  where the option can be one of the following
 
@@ -5192,23 +5250,25 @@ Ffigure_filledcurves
      filledcurves xy=10,20 ... point 10,20 of x1,y1 axes (arc-like shape).
      filledcurves above r=1.5  the area of a polar plot outside radius 1.5
 
-Ffigure_yerrorfill
  The third variant fills the area between two curves sampled at the same set of
  x coordinates.  It requires three columns of input data (x, y1, y2).
  This is the default if there are three or more columns of input data.
+Ffigure_yerrorfill
  If you have a y value in column 2 and an associated error value in column 3
- the area of uncertainty can be represented by shading.
+ the three column variant can be used in combination with a solid line to show
+ the area of uncertainty on either side of that line.
  See also the similar 3D plot style `zerrorfill`.
-
-     3 columns:  x  y  yerror
 
      plot $DAT using 1:($2-$3):($2+$3) with filledcurves, \
           $DAT using 1:2 smooth mcs with lines
 
+3 above/below
+?filledcurves above
+?filledcurves below
  The `above` and `below` options apply both to commands of the form
-     ... filledcurves above {x1|x2|y|r}=<val>
+     plot f(x) with filledcurves {above|below} {y|r}=<val>
  and to commands of the form
-     ... using 1:2:3 with filledcurves below
+     plot DATA with filledcurves using 1:2:3 with filledcurves {above|below}
  In either case the option limits the filled area to one side of the bounding
  line or curve.
 
@@ -5218,6 +5278,27 @@ Ffigure_yerrorfill
  If the values <x>, <y>, or <a> are outside the drawing boundary they are
  moved to the graph boundary. Then the actual fill area in the case
  of option xy=<x>,<y> will depend on xrange and yrange.
+
+3 3D waterfall plots
+?filledcurves 3D
+?filledcurves waterfall
+?waterfallplots
+      set style fill solid border lc "black"
+      splot for [scan=N:1:-1] DATA index scan \
+            using x:y:z with filledcurves fc background
+
+ In gnuplot 6.1 the 3D `filledcurves` plot style is designed to display a
+ set of two-dimensional curves that are incrementally displaced along an
+ orthogonal axis.  Normally x or y is a fixed value for each curve so that
+ the lines either represent z=f(x) at sequential y values or z=f(y) at
+ sequential x values.  This is convenient for drawing waterfall plots.
+
+ In order to ensure that foreground curves occlude more distant ones it is
+ important to order the sequence of curves from back to front.
+
+ See also `fenceplots`.
+D waterfallplot 1
+
 3 fill properties
 ?filledcurves border
 =border
@@ -6067,7 +6148,7 @@ Ffigure_points
  The point type defaults to that of the corresponding linetype. See `linetypes`.
  Alternatively the plot command can specify a specific point type or size.
  The most flexible alternative is to specify `pointtype variable` or
- `pointsize variable` in the plot command and provide provide the corresponding
+ `pointsize variable` in the plot command and provide the corresponding
  per-datum point properties in additional columns of the `using` specifier.
  In this case, input data columns are interpreted implicitly in the order
  `x y pointsize pointtype color` (see `pointtype variable` below).
@@ -6106,7 +6187,7 @@ Ffigure_points
 ?variable
 ?pointtype variable
 ?pointsize variable
- Plot styles that contain a point symbol optionally accept addtional data
+ Plot styles that contain a point symbol optionally accept additional data
  columns in the `using` specifier to control the appearance of that point.
  This is indicated by modifying the keywords `pointtype`, `pointsize`, or
  `linecolor` in the plot command with the additional keyword `variable`
@@ -6158,13 +6239,17 @@ Ffigure_points
  and larger polygons in 3D.  These may be facets of a 3D surface or isolated
  shapes. The code assumes that the vertices lie in a plane.
  Vertices defining individual polygons are read from successive records of the
- input file.  A blank line separates one polygon from the next.
+ input file.  A blank line separates one polygon from the next. For the case
+ of binary input files, see `binary blank`.
 
- The fill style and color may be specified in the splot command, otherwise the
- global fillstyle from `set style fill` is used.  Due to limitations in the
- pm3d code, a single border line style from `set pm3d border` is applied to all
- 3D polygons.  This restriction may be removed in a later gnuplot version,
- which will impose a distinction between the linecolor and fillcolor properties.
+ Note: Previous gnuplot versions suffered from a limitation that all 3D polygons
+ shared a single set of fill border proporties taken from `set pm3d border`.
+ This limitation is no longer present.
+ Polygon fill style, border color, and border linewidth may now be specified in
+ the splot command, otherwise they are taken from the global settings of
+ `set style fill` (not from `set pm3d`).
+ The fill style, border color, and border linewidth for polygon objects are
+ specified in the `set object` command.
 
  Each polygon may be assigned a separate fill color by providing a fourth using
  specifier and the keywords `fc variable` (value is interpreted as a linetype)
@@ -6180,9 +6265,8 @@ Ffigure_polygons
       unset border
       unset tics
       set pm3d depth
-      set pm3d border lc "black" lw 1.5
-      splot 'icosahedron.dat' with polygons \
-            fs transparent solid 0.8 fc bgnd
+      splot 'icosahedron.dat' with polygons fc background \
+            fs transparent solid 0.8 border lc "black" lw 2
 
 2 rgbalpha
 ?plotting styles rgbalpha
@@ -6646,11 +6730,12 @@ Ffigure_zerror
 
  If there are multiple curves in the splot command each new curve may occlude
  all previous curves.  To get proper depth sorting so that curves can only be
- occluded by curves closer to the viewer, use `set pm3d depthorder base`.
- Unfortunately this causes all the filled areas to be drawn after all of the
- corresponding lines of z values.  In order to see both the lines and the
- depth-sorted fill areas you probably will need to make the fill areas
- partially transparent or use pattern fill rather than solid fill.
+ occluded by curves closer to the viewer, it is best to order the curves from
+ back to front.  Alternatively you can use `set pm3d depthorder base` to sort
+ them automatically, but unfortunately this causes all the filled areas to be
+ drawn after all of the corresponding lines of z values. In order to see both
+ the lines and the depth-sorted fill areas you probably will need to make the
+ fill areas partially transparent.
 
  The fill area in the first two examples below is the same.
 
@@ -6660,6 +6745,7 @@ Ffigure_zerror
       splot for [k=1:5] datafile[k] with zerrorfill lt black fc lt (k+1)
 
  This plot style can also be used to create fence plots. See `fenceplots`.
+ See also `waterfallplots`.
 
 2 Animation
 ?animation
@@ -7726,10 +7812,11 @@ Ffigure_zerror
  multiple times, each time re-evaluating any expressions that make use of the
  iteration control variable.  Iteration of arbitrary command sequences can be
  requested using the `do` command.
- Two forms of iteration clause are currently supported:
+ Three forms of iteration clause are currently supported:
 
        for [intvar = start:end{:increment}]
        for [stringvar in "A B C D"]
+       for [element in Array]
 
  Examples:
 
@@ -7737,6 +7824,12 @@ Ffigure_zerror
        plot for [basename in "A B C"] basename.".dat" using 1:2 with lines
        set for [i = 1:10] style line i lc rgb "blue"
        unset for [tag = 100:200] label tag
+       Array animals = ["dog", "cat", "mouse", "llama"]
+       do for [creature in animals] {
+              INFILE = creature.".dat"
+              OUTFILE = creature.".pdf"
+              plot INFILE with boxes title creature
+       }
 
  Nested iteration is supported:
 
@@ -8352,31 +8445,36 @@ Ffigure_zerror
                           {bins <options>}
                           {mask}
                           {volatile} {zsort} {noautoscale}
+                          {if (<expression>)}
 
  The modifiers `binary`, `index`, `every`, `skip`, `using`, `smooth`, `bins`,
- `mask`, `convexhull`, `concavehull`, and `zsort` are discussed separately.
- In brief
+ `mask`, `convexhull`, `concavehull`, `zsort`, and `if` are discussed
+ separately.
+ In brief:
 #start
 #b `skip N` tells the program to ignore N lines at the start of the input file
 #b `binary` indicates that the file contains binary data rather than text
-#b `index` selects which data sets in a multi-data-set file are to be plotted
-#b `every` specifies which points within a single data set are to be plotted
-#b `using` specifies which columns in the file are to be used in which order
-#b `smooth` performs simple filtering, interpolation, or curve-fitting of the
-## data prior to plotting
-#b `convexhull` either alone or in combination with `smooth` replaces the
-## points in the input data set with a new set of points that constitute the
-## vertices of a bounding polygon.
 #b `bins` sorts individual input points into equal-sized intervals along x and
 ## plots a single accumulated value per interval
+#b `every` specifies which points within a single data set are to be plotted
+#b `if (<expression>)` filters the input data to accept only lines that
+## satisfy a certain condition.
+#b `index` selects which data sets in a multi-data-set file are to be plotted
+#b `smooth` performs simple filtering, interpolation, or curve-fitting of the
+## data prior to plotting
+#b `convexhull` and `concavehull`, either alone or in combination with `smooth`,
+## replaces the points in the input data set with a new set of points that
+## constitute the vertices of a bounding polygon.
 #b `mask` filters the data through a previously defined mask to plot only a
 ## selected subset of pixels in an image or a selected region of a pm3d surface.
+#b `using` specifies which columns in the file are to be used in which order
 #b `volatile` indicates that the content of the file may not be available to
 ## reread later and therefore it should be retained internally for re-use.
+#b `zsort` sorts each block of input data on z
 #end
 
- `splot` has a similar syntax but does not support `bins` and supports only a
- few `smooth` options.
+ `splot` has a similar syntax but supports only some of the filter and smoothing
+ options.
 
  The `noautoscale` keyword means that the points making up this plot will be
  ignored when automatically determining axis range limits.
@@ -8584,7 +8682,7 @@ Ffigure_zerror
  input points with a selected subset of points, possibly modified, regrouped,
  or reordered,
  The filters currently supported are `bins`, `convexhull`, `concavehull`,
- `mask`, `sharpen`, and `zsort`.
+ `delaunay`, `if`, `mask`, `sharpen`, and `zsort`.
 5 bins
 ?commands plot datafile filters bins
 ?plot datafile filters bins
@@ -8726,6 +8824,40 @@ Ffigure_concave_hull_2
  points describing a closed curve that lies outside all of the original points.
  It can be combined with `smooth path`.
 
+5 delaunay
+?commands plot datafile filters delaunay
+?plot datafile filters delaunay
+?plot filters delaunay
+?data-file filters delaunay
+?datafile filters delaunay
+?filters delaunay
+?delaunay
+
+ Delaunay triangulation subdivides a set of 2D points into sets of three points
+ such that no other point in the original set lies within the circumcircle of
+ the triangle that these three points define.  It is implemented in gnuplot as
+ a filter operation that replaces the input set of points with a list of
+ triangles in the format expected by plot style "with polygons".
+ This filter is used as a first step in finding concave hulls using χ-shapes
+ (see `concavehull`).  It may also be applied explicitly to a projection of a
+ set of 3D points onto the xy plane in order to create a tessellated 3D surface.
+ See
+^ <a href="http://www.gnuplot.info/demo_6.1/delaunay.html">
+ delaunay.dem
+^ </a>
+
+ EXPERIMENTAL (implementation details may change in a future release).
+ Present only if your copy of gnuplot was configured --enable-chi-shapes.
+
+ 2D example
+      plot POINTS using 1:2 delaunay with polygons fillstyle empty
+
+ 3D example
+      set pm3d border lc "black" lw 2
+      splot 'hemisphere.dat' using 1:2:3 delaunay with polygons
+D concave_hull 3
+D delaunay 1
+
 5 mask
 ?commands plot datafile filters mask
 ?plot datafile filters mask
@@ -8763,6 +8895,41 @@ Ffigure_concave_hull_2
  Adding the "sharpen" keyword produces instead a correct representation of
  the function with periodic sharp minima that reach y=0.
 D sharpen 1
+
+5 if
+?commands plot datafile filters if
+?plot datafile filters if
+?plot filters if
+?data-file if
+?datafile if
+?filters if
+      plot ... if (<expression>)
+      splot ... if (<expression>)
+ For each line of input data the expression in the `if` filter is evaluated
+ and the line is accepted only if the resulting value is true (non-zero).
+ Any function or variable that would be valid inside a `using` specifier is
+ also valid in the filter expression, including data columns that are not
+ otherwise used for plotting.
+
+ Data lines for which the expression evaluates to false (zero) are treated
+ as if they were not present in the file (see `missing`). This provides a
+ more readable equivalent to the previously supported method that inserted
+ a logical test inside one of the `using` specifiers.
+
+ Old syntax (still accepted):
+      set datafile missing NaN
+      plot FOO using (strcol(1) eq "ABC" ? $2 : NaN):3 with linespoints
+      plot $DATA using 1:($2 < 999. ? $2 : NaN)
+ New syntax:
+      plot FOO using 2:3 with linespoints if (strcol(1) eq "ABC")
+      plot $DATA using 1:2 if ($2 < 999.)
+ Both the old and new examples select only the lines in input file FOO
+ that have `ABC` in the first column, and only lines in $DATA where the
+ value in column 2 is less than 999.
+
+ This filter is also accepted for splot commands, with the slight difference
+ that when the filter expression returns 0 (false) the point is treated as
+ undefined rather than missing.
 
 5 zsort
 ?commands plot datafile filters zsort
@@ -9755,6 +9922,7 @@ Ffigure_smooth_path
  Syntax:
        plot for [<variable> = <start> : <end> {:<increment>}]
        plot for [<variable> in "string of words"]
+       plot for [<variable> in Array]
 
  The scope of an iteration ends at the next comma or the end of the command,
  whichever comes first.  An exception to this is that definitions are grouped
@@ -10140,7 +10308,7 @@ Ffigure_smooth_path
  multiplot.  See `new multiplots`.
 
  EXPERIMENTAL: `remultiplot` is invoked implicitly from `replot` if the
- immediately preceeding plot command was part of a completed multiplot.
+ immediately preceding plot command was part of a completed multiplot.
 
 2 replot
 ?commands replot
@@ -10252,16 +10420,25 @@ Ffigure_smooth_path
 ?save set
 ?save
 ?save fit
+?save changes
  Syntax:
        save  {functions | variables | terminal | set | fit | datablocks}
              '<filename>' {append}
 
+       save changes '<filename>' {append}
+
  If no option is specified, `gnuplot` saves functions, user variables,
  `set` options and the most recent `plot` or `splot` command.
  The current status of `set term` and `set output` is written as a comment.
+ The saved file contains a series of gnuplot commands in plain text that
+ can be used as input to the `load` command.
 
- Saved files are written in text format and may be read by the
- `load` command.
+ `save changes "savefile.gp"` writes out only those functions, variables,
+ and settings that are different from the program state at the start of the
+ gnuplot session.  This makes for a much shorter output file that should still
+ be sufficient to allow `reset session; load "savefile.gp"` to recreate the
+ current plot and program state.  This command is not supported on all systems;
+ it may not be available in your copy of gnuplot.
 
  `save terminal` will write out just the `terminal` status, without
  the comment marker in front of it. This is mainly useful for
@@ -15822,7 +15999,7 @@ Ffigure_polar_grid
  If you want no median line, set this to 0.
 
  If the using specification for a boxplot contains a fourth column, the values
- in that column will be interpreted as the discrete leveles of a factor
+ in that column will be interpreted as the discrete levels of a factor
  variable.  In this case more than one boxplots may be drawn, as many as the
  number of levels of the factor variable.  These boxplots will be drawn next to
  each other, the distance between them is 1.0 by default (in x-axis units).
@@ -16125,7 +16302,7 @@ Ffigure_polar_grid
 
  Examples:
      set style rectangle back fc rgb "white" fs solid 1.0 border lt -1
-     set style rectangle fc linsestyle 3 fs pattern 2 noborder
+     set style rectangle fc linestyle 3 fs pattern 2 noborder
 
  The default values correspond to solid fill with the background color and a
  black border.
@@ -16357,11 +16534,8 @@ Ffigure_polar_grid
       set table "tab.csv" separator comma
       plot <foo> using 1:2:3:4 with table
 
- [EXPERIMENTAL] To select only a subset of the data points for tabulation you
- can provide an input filter condition (`if <expression>`) at the end of the
- command.  Note that the input filter may reference data columns that are not
- part of the output.  This feature may change substantially before appearing in
- a released version of gnuplot.
+ To select only a subset of the data points for tabulation you can provide an
+ input filter condition (`if <expression>`) as part of the plot command.
 
       plot <file> using 1:2:($4+$5) with table if (strcol(3) eq "Red")
       plot <file> using 1:2:($4+$5) with table if (10. < $1 && $1 < 100.)
@@ -17248,7 +17422,6 @@ Ffigure_walls
 ?set xrange
 ?show xrange
 ?set range
-?writeback
 ?restore
 ?xrange
  The `set xrange` command sets the horizontal range that will be displayed.
@@ -17256,7 +17429,7 @@ Ffigure_walls
  polar radius r and the parametric variables t, u, and v.
 
  Syntax:
-       set xrange [{{<min>}:{<max>}}] {{no}reverse} {{no}writeback} {{no}extend}
+       set xrange [{{<min>}:{<max>}}] {{no}reverse} {{no}extend}
                   | restore
        show xrange
 
@@ -17292,22 +17465,8 @@ Ffigure_walls
  a limit on the range, to clip outliers, or to guarantee a minimum range
  that will be displayed even if the data would not need such a big range.
 
- The `writeback` option essentially saves the range found by `autoscale` in
- the buffers that would be filled by `set xrange`.  This is useful if you wish
- to plot several functions together but have the range determined by only
- some of them.  The `writeback` operation is performed during the `plot`
- execution, so it must be specified before that command.  To restore,
- the last saved horizontal range use `set xrange restore`.  For example,
-
-       set xrange [-10:10]
-       set yrange [] writeback
-       plot sin(x)
-       set yrange restore
-       replot x/2
-
- results in a yrange of [-1:1] as found only from the range of sin(x); the
- [-5:5] range of x/2 is ignored.  Executing `show yrange` after each command
- in the above example should help you understand what is going on.
+ The command `set xrange restore` overwrites the current range min and max
+ with the values found during the most recent autoscaling operation.
 
  In 2D, `xrange` and `yrange` determine the extent of the axes, `trange`
  determines the range of the parametric variable in parametric mode or the
@@ -17369,6 +17528,12 @@ Ffigure_walls
 ?xrange extend
  `set xrange noextend` is the same as `set autoscale x noextend`.
  See `noextend`.
+4 writeback
+?set range writeback
+?set xrange writeback
+ The commands "set xrange writeback" and "set xrange nowriteback"
+ are retained for backward compatibility, but have had no effect
+ on plotting since gnuplot version 5.2.4.
 3 xtics
 ?commands set xtics
 ?commands unset xtics
@@ -18222,11 +18387,10 @@ Ffigure_walls
  `Splot`, like `plot`, can display from a file.
 
  Syntax:
-       splot '<file_name>' {binary <binary list>}
-                           {{nonuniform|sparse} matrix}
-                           {index <index list>}
-                           {every <every list>}
+       splot '<file_name>' {binary <binary list>} {{nonuniform|sparse} matrix}
+                           {index <index list>} {every <every list>}
                            {using <using list>}
+                           {smooth <option>} {if (<expression>)}
 
  The special filenames `""` and `"-"` are permitted, as in `plot`.
  See `special-filenames`.

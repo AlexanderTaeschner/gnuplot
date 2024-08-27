@@ -636,10 +636,22 @@ void qt_text_wrapper()
 
 	for (int i = 0; i < 4; i++)
 	{
-		qt->out << (axis_array[axis_order[i]].ticmode != NO_TICS); // Axis active or not
-		qt->out << axis_array[axis_order[i]].min;
-		double lower = double(axis_array[axis_order[i]].term_lower);
-		double scale = double(axis_array[axis_order[i]].term_scale);
+		struct axis *mousing_axis = &axis_array[axis_order[i]];
+		double log_base;
+
+		qt->out << (mousing_axis->ticmode != NO_TICS); // Axis active or not
+
+		if (mousing_axis->log)
+			log_base = mousing_axis->log_base;
+		else if (nonlinear(mousing_axis))
+			log_base = -1;
+		else
+			log_base = 0;
+		if (mousing_axis->log && mousing_axis->linked_to_primary)
+			mousing_axis = mousing_axis->linked_to_primary;
+		qt->out << mousing_axis->min;
+		double lower = mousing_axis->term_lower;
+		double scale = mousing_axis->term_scale;
 		// Reverse the y axis
 		if (i % 2)
 		{
@@ -647,7 +659,7 @@ void qt_text_wrapper()
 			scale *= -1;
 		}
 		qt->out << lower/qt_oversamplingF << scale/qt_oversamplingF;
-		qt->out << (axis_array[axis_order[i]].log ? axis_array[axis_order[i]].log_base : 0.);
+		qt->out << log_base;
 	}
 	// Flag whether this was a 3D plot (not mousable in 'persist' mode)
 	qt->out << qt_is_3Dplot;
@@ -748,7 +760,7 @@ void qt_put_text(unsigned int x, unsigned int y, const char* string)
 
 	// set up the global variables needed by enhanced_recursion()
 	enhanced_fontscale = 1.0;
-	strncpy(enhanced_escape_format, "%c", sizeof(enhanced_escape_format));
+	safe_strncpy(enhanced_escape_format, "%c", sizeof(enhanced_escape_format));
 
 	// Baseline correction
 	qt_max_pos_base = qt_max_neg_base = 0.0;

@@ -1712,13 +1712,23 @@ filled_polygon(struct surface_points *from_plot, int index, gpdPoint *corners, i
 
     term->filled_polygon(nv, icorners);
 
-    if (from_plot && (from_plot->plot_style == CONTOURFILL)) {
+    if (!from_plot) {
+	/* This is an object rather than a plot component.
+	 * Object border properties have been smuggled in via corners 1 and 2.
+	 * See graphics.c:do_polygon()
+	 */
+	if ((int)(corners[2].c) == LT_NODRAW)
+	    return;
+	term->linewidth(corners[3].c);
+	set_rgbcolor_const( (unsigned int)(corners[2].c) );
+    } else if (from_plot->plot_style == CONTOURFILL) {
 	t_colorspec *bordercolor = &(from_plot->fill_properties.border_color);
 	if (bordercolor->type == TC_LT && bordercolor->lt == LT_NODRAW)
 	    return;
 	if (bordercolor->type != TC_DEFAULT)
 	    apply_pm3dcolor(bordercolor);
-    } else if (from_plot &&  (from_plot->plot_style == BOXES)) {
+    } else if ((from_plot->plot_style == BOXES)
+	   ||  (from_plot->plot_style == POLYGONS)) {
 	t_colorspec *bordercolor = &(from_plot->fill_properties.border_color);
 	if (bordercolor->type == TC_LT && bordercolor->lt == LT_NODRAW)
 	    return;

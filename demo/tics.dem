@@ -11,7 +11,7 @@ plot sin(sqrt(x**2))/sqrt(x**2) notitle
 pause -1 "Hit return to continue"
 
 set title "Different modification of tics settings"
-set tics scale 3,2 rotate by 45
+set tics scale 3,2 rotate by 45 nomirror
 set xtics out offset 0,-1.0
 replot
 pause -1 "Hit return to continue"

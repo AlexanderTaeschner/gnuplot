@@ -1767,7 +1767,7 @@ f_sprintf(union argument *arg)
 		int int_spec_pos = strcspn(next_start, "diouxX");
 		char *newformat = gp_alloc(strlen(next_start) + strlen(PRId64) + 1, NULL);
 		char *new_int_spec;
-		strncpy(newformat, next_start, int_spec_pos);
+		strncpy(newformat, next_start, int_spec_pos);	/* NOT safe_strncpy */
 		switch (next_start[int_spec_pos]) {
 		    default:
 		    case 'd': new_int_spec = PRId64; break;

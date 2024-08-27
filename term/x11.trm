@@ -538,7 +538,7 @@ X11_options()
 	    if (END_OF_COMMAND)
 		int_error(c_token, "expecting font name");
 	    if (isstringvalue(c_token) && (s = try_to_get_string())) {
-		strncpy(X11_default_font, s, sizeof(X11_default_font)-1);
+		safe_strncpy(X11_default_font, s, sizeof(X11_default_font));
 		free(s);
 	    } else {
 		copy_str(X11_default_font, c_token, sizeof(X11_default_font));
@@ -1448,6 +1448,31 @@ X11_graphics()
     X11_INVALIDATE_CURRENT_RGB;
 }
 
+/*
+ * Send over a snapshot of the final axis scaling.
+ * Jul 2024: Special case for logscale axes (log_base = axis->log_base)
+ *           Special case for other nonlinear axes (log_base = -1)
+ */
+#ifdef USE_MOUSE
+static void X11_send_axis_state(int axis_index)
+{
+    double log_base;
+    struct axis *mousing_axis = &axis_array[axis_index];
+
+    if (mousing_axis->log)
+	log_base = mousing_axis->log_base;
+    else if (nonlinear(mousing_axis))
+	log_base = -1;
+    else
+	log_base = 0;
+    if (mousing_axis->log && mousing_axis->linked_to_primary)
+	mousing_axis = mousing_axis->linked_to_primary;
+    PRINT5("S %2d %16.6g %14d %16.6g %16.6g\n", axis_index,
+	    mousing_axis->min, mousing_axis->term_lower,
+	    mousing_axis->term_scale, log_base);
+}
+#endif
+
 TERM_PUBLIC void
 X11_text()
 {
@@ -1455,9 +1480,9 @@ X11_text()
  	return;
 
 #ifdef USE_MOUSE
-    /* EAM July 2003:  send over a snapshot of the final axis scaling
-     * so that subsequent mouse events can be transformed into plot
-     * coordinates even though the plot is no longer active.
+    /* Send over a snapshot of the final axis scaling so that subsequent
+     * mouse events can be transformed into plot coordinates even though
+     * the plot is no longer active.
      */
 #ifdef PIPE_IPC
     if (ipc_back_fd >= 0)
@@ -1467,32 +1492,17 @@ X11_text()
 	int axis_mask = 0;
 	AXIS_INDEX i;
 
-	for (i = (AXIS_INDEX)0; i < NUMBER_OF_MAIN_VISIBLE_AXES; i++) {
+	for (i = 0; i < NUMBER_OF_MAIN_VISIBLE_AXES; i++) {
 	    if (axis_array[i].ticmode != NO_TICS)
 		axis_mask |= (1 << i);
 	}
 	PRINT2("S %2d %d\n", -2, ALMOST2D);
 	PRINT2("S %2d %d\n", -1, axis_mask);
-	PRINT5("S %2d %16.6g %14d %16.6g %16.6g\n", FIRST_X_AXIS,
-		axis_array[FIRST_X_AXIS].min,
-		axis_array[FIRST_X_AXIS].term_lower,
-		axis_array[FIRST_X_AXIS].term_scale,
-		axis_array[FIRST_X_AXIS].log ? axis_array[FIRST_X_AXIS].log_base : 0);
-	PRINT5("S %2d %16.6g %14d %16.6g %16.6g\n", FIRST_Y_AXIS,
-		axis_array[FIRST_Y_AXIS].min,
-		axis_array[FIRST_Y_AXIS].term_lower,
-		axis_array[FIRST_Y_AXIS].term_scale,
-		axis_array[FIRST_Y_AXIS].log ? axis_array[FIRST_Y_AXIS].log_base : 0);
-	PRINT5("S %2d %16.6g %14d %16.6g %16.6g\n", SECOND_X_AXIS,
-		axis_array[SECOND_X_AXIS].min,
-		axis_array[SECOND_X_AXIS].term_lower,
-		axis_array[SECOND_X_AXIS].term_scale,
-		axis_array[SECOND_X_AXIS].log ? axis_array[SECOND_X_AXIS].log_base : 0);
-	PRINT5("S %2d %16.6g %14d %16.6g %16.6g\n", SECOND_Y_AXIS,
-		axis_array[SECOND_Y_AXIS].min,
-		axis_array[SECOND_Y_AXIS].term_lower,
-		axis_array[SECOND_Y_AXIS].term_scale,
-		axis_array[SECOND_Y_AXIS].log ? axis_array[SECOND_Y_AXIS].log_base : 0);
+
+	X11_send_axis_state(FIRST_X_AXIS);
+	X11_send_axis_state(FIRST_Y_AXIS);
+	X11_send_axis_state(SECOND_X_AXIS);
+	X11_send_axis_state(SECOND_Y_AXIS);
     }
 #endif
 
@@ -1629,7 +1639,7 @@ TERM_PUBLIC int
 X11_set_font(const char *fontname)
 {
     PRINT1("QF%s\n", fontname?fontname:"");
-    strncpy(X11_next_font_used,fontname?fontname:"",sizeof(X11_next_font_used)-1);
+    safe_strncpy(X11_next_font_used,fontname?fontname:"",sizeof(X11_next_font_used));
     return(TRUE);
 }
 
@@ -2066,7 +2076,7 @@ ENHX11_put_text(unsigned int x, unsigned int y, const char *str)
     /* set up the global variables needed by enhanced_recursion() */
     enhanced_fontscale = 1.25;
     ENHx11_opened_string = FALSE;
-    strncpy(enhanced_escape_format,"%c",sizeof(enhanced_escape_format));
+    strcpy(enhanced_escape_format,"%c");
 
     /* Terrible, horrible, no good, very bad hack to fix wonky rotation of
      * enhanced text. This should be done, and done better, in gnuplot_x11.

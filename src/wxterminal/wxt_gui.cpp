@@ -2077,7 +2077,8 @@ void wxt_text()
 
 #ifdef USE_MOUSE
 	/* Save a snapshot of the axis state so that we can continue
-	 * to update mouse cursor coordinates even though the plot is not active */
+	 * to update mouse cursor coordinates even though the plot is not active
+	 */
 	wxt_current_window->axis_mask = wxt_axis_mask;
 	memcpy( wxt_current_window->axis_state,
 	 	wxt_axis_state, sizeof(wxt_axis_state) );
@@ -2213,7 +2214,7 @@ void wxt_put_text(unsigned int x, unsigned int y, const char * string)
 
 		/* set up the global variables needed by enhanced_recursion() */
 		enhanced_fontscale = 1.0;
-		strncpy(enhanced_escape_format, "%c", sizeof(enhanced_escape_format));
+		safe_strncpy(enhanced_escape_format, "%c", sizeof(enhanced_escape_format));
 
 		/* Set the recursion going. We say to keep going until a
 		* closing brace, but we don't really expect to find one.
@@ -3298,6 +3299,8 @@ static double mouse_to_axis(int mouse_coord, wxt_axis_state_t *axis)
 	    return 0;
 	axis_coord = axis->min
 	           + ((double)mouse_coord - axis->term_lower) / axis->term_scale;
+	if (axis->logbase < 0)
+		axis_coord = NAN;
 	if (axis->logbase > 0)
 		axis_coord = exp(axis_coord * axis->logbase);
 

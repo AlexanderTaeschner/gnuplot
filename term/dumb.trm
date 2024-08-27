@@ -995,7 +995,7 @@ ENHdumb_put_text(unsigned int x, unsigned int y, const char *str)
     /* Set up global variables needed by enhanced_recursion() */
     enhanced_fontscale = 1.0;
     ENHdumb_opened_string = FALSE;
-    strncpy(enhanced_escape_format, "%c", sizeof(enhanced_escape_format));
+    strcpy(enhanced_escape_format, "%c");
 
     DUMB_move(x,y);
 

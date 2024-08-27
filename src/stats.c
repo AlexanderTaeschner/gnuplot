@@ -537,7 +537,7 @@ two_column_output( struct sgl_column_stats x,
     }
 
     /* Create a string of blanks of the required length */
-    strncpy( blank, "                 ", width+4 );
+    strncpy( blank, "                 ", width+4 );	/* NOT safe_strncpy */
     blank[width+4] = '\0';
 
     ensure_output();

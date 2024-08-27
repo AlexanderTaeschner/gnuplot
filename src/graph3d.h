@@ -104,8 +104,9 @@ typedef struct surface_points {
     struct udvt_entry *sample_var;	/* used by '+' if plot has private sampling range */
     struct udvt_entry *sample_var2;	/* used by '++' if plot has private sampling range */
     struct udft_entry plot_function;	/* action table and dummy variables for function plot */
-    enum PLOT_FILTER plot_filter; /* currently only "mask" */
-    enum PLOT_SMOOTH plot_smooth; /* smooth lines in 3D */
+    enum PLOT_FILTER plot_filter;	/* currently only "mask" */
+    enum PLOT_SMOOTH plot_smooth; 	/* smooth lines in 3D */
+    struct at_type *if_filter_at;   	/* plot ... if (<expression>) */
 
     /* 2D and 3D plot structure fields overlay only to this point */
 

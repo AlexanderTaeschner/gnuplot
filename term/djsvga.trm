@@ -1269,7 +1269,7 @@ DJSVGA_enhanced_put_text(unsigned int x, unsigned int y, const char *str)
     /* Set up global variables needed by enhanced_recursion() */
     enhanced_fontscale = 1.0;
     dj_enhanced_opened_string = FALSE;
-    safe_strncpy(enhanced_escape_format, "%c", sizeof(enhanced_escape_format));
+    strcpy(enhanced_escape_format, "%c");
 
     dj_x = x;
     dj_y = y;

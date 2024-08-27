@@ -88,7 +88,6 @@ static void parametric_3dfixup(struct surface_points * start_plot, int *plot_num
 static struct surface_points * sp_alloc(int num_samp_1, int num_iso_1, int num_samp_2, int num_iso_2);
 static void sp_replace(struct surface_points *sp, int num_samp_1, int num_iso_1, int num_samp_2, int num_iso_2);
 
-static struct iso_curve * iso_alloc(int num);
 static void iso_extend(struct iso_curve *ip, int num);
 static void iso_free(struct iso_curve *ip);
 
@@ -232,6 +231,7 @@ sp_free(struct surface_points *sp)
 	}
 
 	free_at(sp->plot_function.at);
+	free_at(sp->if_filter_at);
 	free(sp->zclip);
 
 	free(sp);
@@ -243,7 +243,7 @@ sp_free(struct surface_points *sp)
  * iso_alloc() allocates a iso_curve structure that can hold 'num'
  * points.
  */
-static struct iso_curve *
+struct iso_curve *
 iso_alloc(int num)
 {
     struct iso_curve *ip;
@@ -324,15 +324,6 @@ plot3drequest()
     if (splot_map) {
 	axis_init(&axis_array[SECOND_X_AXIS], FALSE);
 	axis_init(&axis_array[SECOND_Y_AXIS], FALSE);
-    }
-
-    /* Always be prepared to restore the autoscaled values on "refresh"
-     * Dima Kogan April 2018
-     */
-    for (axis = 0; axis < NUMBER_OF_MAIN_VISIBLE_AXES; axis++) {
-	AXIS *this_axis = &axis_array[axis];
-	if (this_axis->set_autoscale != AUTOSCALE_NONE)
-	    this_axis->range_flags |= RANGE_WRITEBACK;
     }
 
     /* Nonlinear mapping of x or y via linkage to a hidden primary axis. */
@@ -905,8 +896,12 @@ get_3ddata(struct surface_points *this_plot)
 		int_warn(NO_CARET, "Bad data on line %d of file %s",
 			  df_line_number, df_filename ? df_filename : ""); 
 
-	    if (j == DF_SECOND_BLANK)
+	    if (j == DF_SECOND_BLANK) {
+		if (this_plot->plot_filter == FILTER_DELAUNAY)
+		    continue;
 		break;		/* two blank lines */
+	    }
+
 	    if (j == DF_FIRST_BLANK) {
 
 		/* Images are in a sense similar to isocurves.
@@ -920,6 +915,14 @@ get_3ddata(struct surface_points *this_plot)
 		if ((this_plot->plot_style == IMAGE)
 		||  (this_plot->plot_style == RGBIMAGE)
 		||  (this_plot->plot_style == RGBA_IMAGE))
+		    continue;
+
+		/* The Delaunay triangulation filter will replace the input
+		 * list of points with a set of iso_curves, one per triangle.
+		 * It can only handle one list of input points, so ignore
+		 * any blank lines. Selecting one set by "index n" still works.
+		 */
+		if (this_plot->plot_filter == FILTER_DELAUNAY)
 		    continue;
 
 		if (this_plot->plot_style == VECTOR)
@@ -1000,13 +1003,22 @@ get_3ddata(struct surface_points *this_plot)
 		n_complex_values++;
 		goto come_here_if_undefined;
 	    }
-	    cp->type = INRANGE;	/* unless we find out different */
 
-	    /* EAM Oct 2004 - Substantially rework this section */
-	    /* now that there are many more plot types.         */
+	    /* EXPERIMENTAL "splot .. if (<expr>)" */
+	    if (this_plot->if_filter_at) {
+		struct value keep;
+		evaluate_inside_using = TRUE;
+		evaluate_at(this_plot->if_filter_at, &keep);
+		evaluate_inside_using = FALSE;
+		if (undefined || isnan(real(&keep)) || real(&keep) == 0) {
+		    cp->type = UNDEFINED;
+		    goto come_here_if_undefined;
+		}
+	    }
 
 	    x = y = z = 0.0;
 	    xtail = ytail = ztail = 0.0;
+	    cp->type = INRANGE;	/* unless we find out otherwise */
 
 	    /* The x, y, z coordinates depend on the mapping type */
 	    switch (mapping3d) {
@@ -1156,7 +1168,7 @@ get_3ddata(struct surface_points *this_plot)
 		if (j < varcol)
 		    int_error(NO_CARET, "Not enough input columns");
 		if (j == varcol)
-		    color = this_plot->fill_properties.border_color.lt;
+		    color = z;
 		else
 		    color = v[varcol];
 		color_from_column(TRUE);
@@ -1175,6 +1187,14 @@ get_3ddata(struct surface_points *this_plot)
 		    color = z;
 		    color_from_column(FALSE);
 		}
+
+	    } else if (this_plot->plot_style == FILLEDCURVES) {
+		if (j != 3)
+		    int_error(NO_CARET, "this plot style wants 3 input columns x:y:z");
+		zlow = 0.0;
+		zhigh = v[2];
+		color_from_column(FALSE);
+		track_pm3d_quadrangles = TRUE;
 
 	    } else if (this_plot->plot_style == ZERRORFILL) {
 		if (j == 4) {
@@ -1244,7 +1264,8 @@ get_3ddata(struct surface_points *this_plot)
 			color = rgb_from_colorspec( &lptmp.pm3d_color );
 			color_from_column(TRUE);
 		    }
-		    /* This allows "with polygons lc rgb variable" to set fillcolor.
+		    /* This handles "with polygons fc rgb variable".
+		     * However, it also allows "with polygons lc rgb variable" to set fillcolor.
 		     * FIXME: I'd rather that "lc" affected border color.
 		     */
 		    if (this_plot->lp_properties.pm3d_color.type == TC_RGB
@@ -1252,10 +1273,11 @@ get_3ddata(struct surface_points *this_plot)
 			color = v[3];
 			color_from_column(TRUE);
 		    }
-		    /* This handles "with polygons fc rgb variable" */
-		    if (this_plot->fill_properties.border_color.type == TC_RGB
-		    &&  this_plot->fill_properties.border_color.value < 0) {
-			color = v[3];
+		    /* This handles "with polygons fc variable" */
+		    if (this_plot->lp_properties.pm3d_color.type == TC_VARIABLE) {
+			struct lp_style_type lptmp;
+			load_linetype(&lptmp, (int)(v[3]));
+			color = lptmp.pm3d_color.lt;
 			color_from_column(TRUE);
 		    }
 		}
@@ -1313,7 +1335,8 @@ get_3ddata(struct surface_points *this_plot)
 				this_plot->noautoscale,
 				cp->z=0;goto come_here_if_undefined);
 
-		if (this_plot->plot_style == ZERRORFILL) {
+		if ((this_plot->plot_style == ZERRORFILL)
+		||  (this_plot->plot_style == FILLEDCURVES)) {
 		    STORE_AND_UPDATE_RANGE(cp->CRD_ZLOW, zlow, cp->type, z_axis,
 				this_plot->noautoscale, goto come_here_if_undefined);
 		    STORE_AND_UPDATE_RANGE(cp->CRD_ZHIGH, zhigh, cp->type, z_axis,
@@ -1667,6 +1690,7 @@ eval_3dplots()
 	    TBOOLEAN set_labelstyle = FALSE;
 	    TBOOLEAN set_fillstyle = FALSE;
 	    TBOOLEAN set_fillcolor = FALSE;
+	    TBOOLEAN set_lc = FALSE;
 	    t_colorspec fillcolor = DEFAULT_COLORSPEC;
 	    TBOOLEAN set_smooth = FALSE;
 
@@ -1891,6 +1915,15 @@ eval_3dplots()
 		if (save_token != c_token)
 		    continue;
 
+		/* filter options for splot */
+#ifdef WITH_CHI_SHAPES
+		if (equals(c_token, "delaunay")) {
+                    this_plot->plot_filter = FILTER_DELAUNAY;
+                    c_token++;
+		    continue;
+		}
+#endif
+
 		/* smoothing options for splot */
 		if (equals(c_token, "smooth")) {
 		    if (set_smooth)
@@ -2083,6 +2116,7 @@ eval_3dplots()
 		if (this_plot->plot_style != LABELPOINTS) {
 		    int stored_token = c_token;
 		    struct lp_style_type lp = DEFAULT_LP_STYLE_TYPE;
+		    t_colorspec starting_lc;
 		    int new_lt = 0;
 
 		    lp.l_type = line_num;
@@ -2090,12 +2124,15 @@ eval_3dplots()
 		    lp.d_type = line_num;
 
 		    load_linetype(&lp, line_num+1);
+		    starting_lc = lp.pm3d_color;
 
  		    new_lt = lp_parse(&lp, LP_ADHOC,
 			     this_plot->plot_style & PLOT_STYLE_HAS_POINT);
 
 		    checked_once = TRUE;
 		    if (stored_token != c_token) {
+			if (memcmp(&starting_lc, &lp.pm3d_color, sizeof(t_colorspec)))
+			    set_lc = TRUE;
 			if (set_lpstyle) {
 			    duplication=TRUE;
 			    break;
@@ -2146,37 +2183,54 @@ eval_3dplots()
 		}
 
 		/* Some plots have a fill style as well */
-		if ((this_plot->plot_style & PLOT_STYLE_HAS_FILL) && !set_fillstyle){
-		    int stored_token = c_token;
+		if (!set_fillstyle) {
+		    if ((this_plot->plot_style & PLOT_STYLE_HAS_FILL)
+		    ||  (pm3d.implicit == PM3D_IMPLICIT)) {
+			int stored_token = c_token;
 
-		    if (this_plot->plot_style == CONTOURFILL) {
-			this_plot->fill_properties.fillstyle = FS_SOLID;
-			this_plot->fill_properties.filldensity = 100;
-			if (!set_lpstyle) {
-			    /* TC_DEFAULT indicates "retrace", TC_LT would give "noborder" */
-			    this_plot->fill_properties.border_color.type = TC_DEFAULT;
-			    this_plot->fill_properties.border_color.lt = LT_NODRAW;
-			}
-		    } else {
-			this_plot->fill_properties.fillstyle = default_fillstyle.fillstyle;
-			this_plot->fill_properties.filldensity = default_fillstyle.filldensity;
-			this_plot->fill_properties.fillpattern = 1;
-			if (this_plot->fill_properties.fillstyle == FS_EMPTY)
+			if (this_plot->plot_style == CONTOURFILL) {
 			    this_plot->fill_properties.fillstyle = FS_SOLID;
+			    this_plot->fill_properties.filldensity = 100;
+			    if (!set_lpstyle) {
+				/* TC_DEFAULT indicates "retrace", TC_LT would give "noborder" */
+				this_plot->fill_properties.border_color.type = TC_DEFAULT;
+				this_plot->fill_properties.border_color.lt = LT_NODRAW;
+			    }
+			} else {
+			    this_plot->fill_properties.fillstyle = default_fillstyle.fillstyle;
+			    this_plot->fill_properties.filldensity = default_fillstyle.filldensity;
+			    this_plot->fill_properties.fillpattern = 1;
+			    if (this_plot->fill_properties.fillstyle == FS_EMPTY)
+				this_plot->fill_properties.fillstyle = FS_SOLID;
+			}
+			if (equals(c_token,"fs") || almost_equals(c_token,"fill$style")) {
+			    parse_fillstyle(&this_plot->fill_properties);
+			    set_fillstyle = TRUE;
+			}
+			if (this_plot->plot_style == PM3DSURFACE)
+			    this_plot->fill_properties.border_color.type = TC_DEFAULT;
+			if (equals(c_token,"fc") || almost_equals(c_token,"fillc$olor")) {
+			    parse_colorspec(&fillcolor, TC_VARIABLE);
+			    if (fillcolor.type == TC_COLORMAP)
+				this_plot->lp_properties.colormap = get_colormap(c_token++);
+			    set_fillcolor = TRUE;
+			}
+			if (stored_token != c_token)
+			    continue;
 		    }
-		    if (equals(c_token,"fs") || almost_equals(c_token,"fill$style")) {
-			parse_fillstyle(&this_plot->fill_properties);
-			set_fillstyle = TRUE;
+		}
+
+		/* EXPERIMENTAL filter splot ... if (<expression>) */
+		if (equals(c_token,"if")) {
+		    if (this_plot->plot_type != DATA3D)
+			int_error(c_token, "'if' restriction not possible here");
+		    if (this_plot->if_filter_at) {
+			duplication = TRUE;
+			break;
 		    }
-		    if (this_plot->plot_style == PM3DSURFACE)
-			this_plot->fill_properties.border_color.type = TC_DEFAULT;
-		    if (equals(c_token,"fc") || almost_equals(c_token,"fillc$olor")) {
-			parse_colorspec(&fillcolor, TC_RGB);
-			set_fillstyle = TRUE;
-			set_fillcolor = TRUE;
-		    }
-		    if (stored_token != c_token)
-			continue;
+		    c_token++;
+		    this_plot->if_filter_at = perm_at();
+		    continue;
 		}
 
 		break; /* unknown option */
@@ -2260,17 +2314,33 @@ eval_3dplots()
 
 	    /* If this plot style uses a fillstyle and we saw an explicit
 	     * fill color, save it in lp_properties now.
-	     * FIXME: make other plot styles work like BOXES.
-	     *        ZERRORFILL and CONTOURFILL are weird.
+	     * FIXME: a separate fillcolor field in the plot header would
+	     *        reduce the inconsistency in where it is stored.
 	     */
-	    if ((this_plot->plot_style & PLOT_STYLE_HAS_FILL) && set_fillcolor) {
-		if (this_plot->plot_style == ZERRORFILL || this_plot->plot_style == CONTOURFILL) {
-		    this_plot->fill_properties.border_color = this_plot->lp_properties.pm3d_color;
-		    this_plot->lp_properties.pm3d_color = fillcolor;
-		} else if (this_plot->plot_style == BOXES) {
-		    this_plot->lp_properties.pm3d_color = fillcolor;
-		} else {
-		    this_plot->fill_properties.border_color = fillcolor;
+	    if ((this_plot->plot_style & PLOT_STYLE_HAS_FILL)
+	    ||  (pm3d.implicit == PM3D_IMPLICIT)) {
+		if (set_fillcolor) {
+		    if (this_plot->plot_style == ZERRORFILL
+		    ||  this_plot->plot_style == FILLEDCURVES
+		    ||  this_plot->plot_style == CONTOURFILL) {
+			this_plot->fill_properties.border_color
+				    = this_plot->lp_properties.pm3d_color;
+			this_plot->lp_properties.pm3d_color = fillcolor;
+		    } else if (this_plot->plot_style == BOXES) {
+			this_plot->lp_properties.pm3d_color = fillcolor;
+		    } else if (this_plot->plot_style == CIRCLES) {
+			if (fillcolor.type == TC_VARIABLE)
+			    this_plot->lp_properties.pm3d_color.type = TC_LINESTYLE;
+			else
+			    this_plot->lp_properties.pm3d_color = fillcolor;
+		    } else if (this_plot->plot_style == POLYGONS) {
+			if (set_lc && !set_fillstyle)
+			    this_plot->fill_properties.border_color
+				    = this_plot->lp_properties.pm3d_color;
+			this_plot->lp_properties.pm3d_color = fillcolor;
+		    } else {
+			this_plot->fill_properties.border_color = fillcolor;
+		    }
 		}
 	    }
 
@@ -2418,6 +2488,16 @@ eval_3dplots()
 		} while (df_return != DF_EOF);
 
 		df_close();
+
+		/* Filter operations are performed immediately after
+                 * reading in the data, before any smoothing.
+                 */
+#ifdef WITH_CHI_SHAPES
+		if (this_plot->plot_filter == FILTER_DELAUNAY) {
+                    delaunay_triangulation( (struct curve_points *)this_plot );
+		    save3d_delaunay_triangles(this_plot);
+		}
+#endif
 
 		/* Plot-type specific range-fiddling */
 		if (!axis_array[FIRST_Z_AXIS].log

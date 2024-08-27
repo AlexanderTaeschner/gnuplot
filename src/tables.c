@@ -167,6 +167,7 @@ const struct gen_table save_tbl[] =
     { "set", SAVE_SET },
     { "ter$minal", SAVE_TERMINAL },
     { "var$iables", SAVE_VARS },
+    { "change$s", SAVE_CHANGES },
     { NULL, SAVE_INVALID }
 };
 

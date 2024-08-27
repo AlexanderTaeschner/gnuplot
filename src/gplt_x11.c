@@ -1572,10 +1572,6 @@ record()
 		    do_raise = tmp_do_raise;
 		if (UNSET != tmp_persist)
 		    persist = tmp_persist;
-/* Version 5 - always enabled
-		if (UNSET != tmp_dashed)
-		    dashedlines = tmp_dashed;
- */
 		if (UNSET != tmp_ctrlq)
 		    ctrlq = tmp_ctrlq;
 		if (UNSET != tmp_replot_on_resize)
@@ -5600,12 +5596,6 @@ pr_dashes()
     int n, j, l, ok;
     char option[20], *v;
 
-/*  Version 5 - always enabled
-    if (pr_GetR(db, ".dashed")) {
-	dashedlines = (!strncasecmp(value.addr, "on", 2) || !strncasecmp(value.addr, "true", 4));
-    }
- */
-
     for (n = 0; n < Ndashes; n++) {
 	strcpy(option, ".");
 	strcat(option, dash_keys[n]);
@@ -6634,6 +6624,10 @@ mouse_to_axis(int mouse_coord, axis_scale_t *axis)
 
     if (axis->term_scale == 0.0)
 	return 0.;
+
+    /* nonlinear axis is flagged by logbase < 0 */
+    if (axis->logbase < 0)
+	return NAN;
 
     axis_coord = ((double)(mouse_coord - axis->term_lower)) / axis->term_scale + axis->min;
     if (axis->logbase > 0.0)

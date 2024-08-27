@@ -1558,7 +1558,7 @@ ENHCANVAS_put_text(unsigned int x, unsigned int y, const char *str)
 
     /* Set up global variables needed by enhanced_recursion() */
     enhanced_fontscale = 1.0;
-    strncpy(enhanced_escape_format,"%c",sizeof(enhanced_escape_format));
+    strcpy(enhanced_escape_format,"%c");
     ENHCANVAS_opened_string = FALSE;
     ENHCANVAS_fontsize = canvas_font_size;
     if (!strcmp(canvas_justify,"Right") || !strcmp(canvas_justify,"Center"))

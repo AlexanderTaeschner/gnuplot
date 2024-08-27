@@ -9,7 +9,7 @@ set xtics axis out scale 1,8
 set xtics add  (1.00000 1, 6.28319 1)
 set ytics axis
 set title "Piecewise function sampling" font ",15"
-set xrange [ -2 : 10 ] noreverse nowriteback
+set xrange [ -2 : 10 ]
 
 plot sample [*:1] x, [1:2.*pi] cos(x), [2.*pi:10] (x-8)**2
 

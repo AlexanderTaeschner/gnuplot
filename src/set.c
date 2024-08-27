@@ -5352,7 +5352,7 @@ static void
 set_tics()
 {
     int i;
-    int save_token = c_token;
+    int save_token = c_token++;
 
     /* On a bare "set tics" command, reset the default on/off/placement/mirror
      * state of the visible axes.
@@ -5419,13 +5419,13 @@ set_ticscale()
 	for (i = 0; i < NUMBER_OF_MAIN_VISIBLE_AXES; ++i) {
 	    axis_array[i].ticscale = lticscale;
 	    axis_array[i].miniticscale = lminiticscale;
-	    /* For backward compatibility, setting tic scale has the side
-	     * effect of reenabling display of tics that had been "unset".
-	     * This allows auto-extension of axes with tic scale 0.
-	     * NB: The old code also turned on mirroring; now we don't.
+	    /* Setting tic scale has the side effect of reenabling display of
+	     * tics that had been "unset".
+	     * FIXME: IMHO this is crazy, but apparently people are used to it
+	     *        and thus do "set tics scale 0" rather than just "set tics".
 	     */
 	    if (i != SECOND_X_AXIS && i != SECOND_Y_AXIS)
-		axis_array[i].ticmode = TICS_ON_BORDER;
+		axis_array[i].ticmode |= TICS_ON_BORDER;
 	}
 	ticlevel = 2;
 	while (equals(c_token, ",")) {
@@ -5720,25 +5720,20 @@ set_range(struct axis *this_axis)
 	}
 	while (!END_OF_COMMAND) {
 	    if (almost_equals(c_token, "rev$erse")) {
-		++c_token;
 		this_axis->range_flags |= RANGE_IS_REVERSED;
 	    } else if (almost_equals(c_token, "norev$erse")) {
-		++c_token;
 		this_axis->range_flags &= ~RANGE_IS_REVERSED;
-	    } else if (almost_equals(c_token, "wr$iteback")) {
-		++c_token;
-		this_axis->range_flags |= RANGE_WRITEBACK;
-	    } else if (almost_equals(c_token, "nowri$teback")) {
-		++c_token;
-		this_axis->range_flags &= ~RANGE_WRITEBACK;
 	    } else if (almost_equals(c_token, "ext$end")) {
-		++c_token;
 		this_axis->set_autoscale &= ~(AUTOSCALE_FIXMIN | AUTOSCALE_FIXMAX);
 	    } else if (almost_equals(c_token, "noext$end")) {
-		++c_token;
 		this_axis->set_autoscale |= AUTOSCALE_FIXMIN | AUTOSCALE_FIXMAX;
+	    } else if (almost_equals(c_token, "wr$iteback")) {
+		/* ignore */
+	    } else if (almost_equals(c_token, "nowri$teback")) {
+		/* ignore */
 	    } else
 		int_error(c_token,"unrecognized option");
+	    ++c_token;
 	}
     }
 

@@ -38,6 +38,7 @@ void sharpen(struct curve_points *plot);
 #ifdef WITH_CHI_SHAPES
 void delaunay_triangulation( struct curve_points *plot );
 void save_delaunay_triangles( struct curve_points *plot );
+void save3d_delaunay_triangles( struct surface_points *plot );
 void concave_hull( struct curve_points *plot );
 void reset_hulls( TBOOLEAN reset );
 

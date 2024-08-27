@@ -1196,7 +1196,6 @@ do_3dplot(
 	    /* First draw the graph plot itself */
 	    if (!key_pass && this_plot->plot_type != KEYENTRY && this_plot->plot_type != VOXELDATA)
 	    switch (this_plot->plot_style) {
-	    case FILLEDCURVES:	/* same, but maybe we could dummy up ZERRORFILL? */
 	    case IMPULSES:
 		if (!hidden3d)
 		    plot3d_impulses(this_plot);
@@ -1249,6 +1248,7 @@ do_3dplot(
 		break;
 
 	    case ZERRORFILL:
+	    case FILLEDCURVES:
 		if (term->filled_polygon)
 		    plot3d_zerrorfill(this_plot);
 		term_apply_lp_properties(&(this_plot->lp_properties));
@@ -1362,7 +1362,6 @@ do_3dplot(
 		term_apply_lp_properties(&this_plot->lp_properties);
 
 		switch (this_plot->plot_style) {
-		case FILLEDCURVES:
 		case IMPULSES:
 		    if (!(hidden3d && draw_this_surface))
 			key_sample_line(xl, yl);
@@ -1441,6 +1440,7 @@ do_3dplot(
 		    break;
 
 		case ZERRORFILL:
+		case FILLEDCURVES:
 		    /* zerrorfill colors are weird (as in "backwards") */
 		    apply_pm3dcolor(&this_plot->lp_properties.pm3d_color);
 		    key_sample_fill(xl, yl, this_plot);
@@ -1458,7 +1458,7 @@ do_3dplot(
 		    break;
 
 		case ISOSURFACE:
-		    apply_pm3dcolor(&this_plot->fill_properties.border_color);
+		    apply_pm3dcolor(&this_plot->lp_properties.pm3d_color);
 		    key_sample_fill(xl, yl, this_plot);
 		    break;
 
@@ -2137,9 +2137,7 @@ plot3d_points(struct surface_points *plot)
 	const char *ptchar;
 
 	/* Apply constant color outside of the loop */
-	if (plot->plot_style == CIRCLES)
-	    set_rgbcolor_const( plot->fill_properties.border_color.lt );
-	else if (colortype == TC_RGB)
+	if (colortype == TC_RGB)
 	    set_rgbcolor_const( plot->lp_properties.pm3d_color.lt );
 
 	for (i = 0; i < icrvs->p_count; i++) {
@@ -2171,14 +2169,17 @@ plot3d_points(struct surface_points *plot)
 
 		    /* We could dummy up circles as a point of type 7, but this way */
 		    /* the radius can use x-axis coordinates rather than pointsize. */
-		    /* FIXME: track per-plot fillstyle */
+		    /* FIXME: if no radius given, pull it from "set style circle".  */
 		    if (plot->plot_style == CIRCLES) {
+			struct fill_style_type *fillstyle = &plot->fill_properties;
 			double radius = point->CRD_PTSIZE * radius_scaler;
 			do_arc(x, y, radius, 0., 360.,
-				style_from_fill(&default_fillstyle), FALSE);
+				style_from_fill(fillstyle), FALSE);
 			/* Retrace the border if the style requests it */
-			if (need_fill_border(&default_fillstyle))
+			if (need_fill_border(fillstyle)) {
 			    do_arc(x, y, radius, 0., 360., 0, FALSE);
+			    set_rgbcolor_const(plot->lp_properties.pm3d_color.lt);
+			}
 			continue;
 		    }
 
@@ -3120,25 +3121,29 @@ xtick_callback(
     /* Draw bottom tic mark */
     if ((this_axis->index == FIRST_X_AXIS)
     ||  (this_axis->index == SECOND_X_AXIS && (this_axis->ticmode & TICS_MIRROR))) {
-	v2.x = v1.x + tic_unitx * scale * t->v_tic ;
-	v2.y = v1.y + tic_unity * scale * t->v_tic ;
-	v2.z = v1.z + tic_unitz * scale * t->v_tic ;
-	v2.real_z = v1.real_z;
-	draw3d_line(&v1, &v2, &border_lp);
+	if (scale != 0) {
+	    v2.x = v1.x + tic_unitx * scale * t->v_tic ;
+	    v2.y = v1.y + tic_unity * scale * t->v_tic ;
+	    v2.z = v1.z + tic_unitz * scale * t->v_tic ;
+	    v2.real_z = v1.real_z;
+	    draw3d_line(&v1, &v2, &border_lp);
+	}
     }
 
     /* Draw top tic mark */
     if ((this_axis->index == SECOND_X_AXIS)
     ||  (this_axis->index == FIRST_X_AXIS && (this_axis->ticmode & TICS_MIRROR))) {
-	if (xz_projection || zx_projection) {
-	    map3d_xyz(place, 0, Z_AXIS.max, &v3);
-	} else
-	    map3d_xyz(place, other_end, base_z, &v3);
-	v4.x = v3.x - tic_unitx * scale * t->v_tic;
-	v4.y = v3.y - tic_unity * scale * t->v_tic;
-	v4.z = v3.z - tic_unitz * scale * t->v_tic;
-	v4.real_z = v3.real_z;
-	draw3d_line(&v3, &v4, &border_lp);
+	if (scale != 0) {
+	    if (xz_projection || zx_projection) {
+		map3d_xyz(place, 0, Z_AXIS.max, &v3);
+	    } else
+		map3d_xyz(place, other_end, base_z, &v3);
+	    v4.x = v3.x - tic_unitx * scale * t->v_tic;
+	    v4.y = v3.y - tic_unity * scale * t->v_tic;
+	    v4.z = v3.z - tic_unitz * scale * t->v_tic;
+	    v4.real_z = v3.real_z;
+	    draw3d_line(&v3, &v4, &border_lp);
+	}
     }
 
     /* Draw tic label */
@@ -3255,25 +3260,29 @@ ytick_callback(
     /* Draw left tic mark */
     if ((this_axis->index == FIRST_Y_AXIS)
     ||  (this_axis->index == SECOND_Y_AXIS && (this_axis->ticmode & TICS_MIRROR))) {
-	v2.x = v1.x + tic_unitx * scale * t->h_tic;
-	v2.y = v1.y + tic_unity * scale * t->h_tic;
-	v2.z = v1.z + tic_unitz * scale * t->h_tic;
-	v2.real_z = v1.real_z;
-	draw3d_line(&v1, &v2, &border_lp);
+	if (scale != 0) {
+	    v2.x = v1.x + tic_unitx * scale * t->h_tic;
+	    v2.y = v1.y + tic_unity * scale * t->h_tic;
+	    v2.z = v1.z + tic_unitz * scale * t->h_tic;
+	    v2.real_z = v1.real_z;
+	    draw3d_line(&v1, &v2, &border_lp);
+	}
     }
 
     /* Draw right tic mark */
     if ((this_axis->index == SECOND_Y_AXIS)
     ||  (this_axis->index == FIRST_Y_AXIS && (this_axis->ticmode & TICS_MIRROR))) {
-	if (yz_projection)
-	    map3d_xyz(other_end, place, Z_AXIS.min, &v3);
-	else
-	    map3d_xyz(other_end, place, base_z, &v3);
-	v4.x = v3.x - tic_unitx * scale * t->h_tic;
-	v4.y = v3.y - tic_unity * scale * t->h_tic;
-	v4.z = v3.z - tic_unitz * scale * t->h_tic;
-	v4.real_z = v3.real_z;
-	draw3d_line(&v3, &v4, &border_lp);
+	if (scale != 0) {
+	    if (yz_projection)
+		map3d_xyz(other_end, place, Z_AXIS.min, &v3);
+	    else
+		map3d_xyz(other_end, place, base_z, &v3);
+	    v4.x = v3.x - tic_unitx * scale * t->h_tic;
+	    v4.y = v3.y - tic_unity * scale * t->h_tic;
+	    v4.z = v3.z - tic_unitz * scale * t->h_tic;
+	    v4.real_z = v3.real_z;
+	    draw3d_line(&v3, &v4, &border_lp);
+	}
     }
 
     /* Draw tic label */
@@ -3432,18 +3441,20 @@ ztick_callback(
     }
 
     if (Z_AXIS.ticmode & TICS_MIRROR) {
-	if (azimuth != 0) {
-	    v2.x = v3.x + (v1.x - v3.x) * len / xyscaler;
-	    v2.y = v3.y + (v1.y - v3.y) * len / xyscaler;
-	    v2.z = v3.z + (v1.z - v3.z) * len / xyscaler;
-	    draw3d_line(&v3, &v2, &border_lp);
-	} else {
-	    map3d_xyz(right_x, right_y, place, &v1);
-	    v2.x = v1.x - len / (double)xscaler;
-	    v2.y = v1.y;
-	    v2.z = v1.z;
-	    v2.real_z = v1.real_z;
-	    draw3d_line(&v1, &v2, &border_lp);
+	if (len != 0) {
+	    if (azimuth != 0) {
+		v2.x = v3.x + (v1.x - v3.x) * len / xyscaler;
+		v2.y = v3.y + (v1.y - v3.y) * len / xyscaler;
+		v2.z = v3.z + (v1.z - v3.z) * len / xyscaler;
+		draw3d_line(&v3, &v2, &border_lp);
+	    } else {
+		map3d_xyz(right_x, right_y, place, &v1);
+		v2.x = v1.x - len / (double)xscaler;
+		v2.y = v1.y;
+		v2.z = v1.z;
+		v2.real_z = v1.real_z;
+		draw3d_line(&v1, &v2, &border_lp);
+	    }
 	}
     }
 }
@@ -3724,34 +3735,56 @@ key_sample_fill(int xl, int yl, struct surface_points *this_plot)
     int w = key_sample_right - key_sample_left;
     int h = key_entry_height/2;
 
+    if (w <= 0)
+	return;
+
+    if (!(term->fillbox))
+	return;
+
     if (key->invert) {
 	INVERT_KEY();
 	y = yl - key_entry_height/4;
     }
 
-    if (!(term->fillbox))
+    if (this_plot->plot_style == CIRCLES) {
+	do_arc(x+w/2, yl, h/2, 0., 360., style, FALSE);
+	if (need_fill_border(fs))
+	    do_arc(x+w/2, yl, h/2, 0., 360., 0, FALSE);
+	return;
+    }
+
+    /* solid-fill rectangle in current color */
+    (term->fillbox)(style,x,y,w,h);
+
+    /* Some plot styles never want a border in the key sample */
+    if (this_plot->plot_style == ZERRORFILL || this_plot->plot_style == FILLEDCURVES)
 	return;
 
-    if (this_plot->plot_style == CIRCLES) {
-	do_arc(x+w/2, yl, key_entry_height/4, 0., 360., style, FALSE);
-	/* Retrace the border if the style requests it */
-	if (need_fill_border(fs))
-	    do_arc(x+w/2, yl, key_entry_height/4, 0., 360., 0, FALSE);
-
-    } else if (w > 0) {
-	(term->fillbox)(style,x,y,w,h);
-
-	if ((this_plot->plot_style & PLOT_STYLE_HAS_PM3DBORDER)) {
-	    if (pm3d.border.l_type != LT_NODRAW && pm3d.border.l_type != LT_DEFAULT)
-		term_apply_lp_properties(&pm3d.border);
-	    newpath();
-	    draw_clip_line( x, y, x+w, y);
-	    draw_clip_line( x+w, y, x+w, y+h);
-	    draw_clip_line( x+w, y+h, x, y+h);
-	    draw_clip_line( x, y+h, x, y);
-	    closepath();
-	}
+    /* Some fill styles keep border properties in plot->fill_properties */
+    if (this_plot->plot_style == BOXES) {
+	t_colorspec *bordercolor = &(this_plot->fill_properties.border_color);
+	if (bordercolor->type == TC_LT && bordercolor->lt == LT_NODRAW)
+	    return;
+	apply_pm3dcolor(bordercolor);
     }
+
+    /* Some plot styles keep border properties in pm3d */
+    else if ((this_plot->plot_style & PLOT_STYLE_HAS_PM3DBORDER)) {
+	if (pm3d.border.l_type != LT_NODRAW && pm3d.border.l_type != LT_DEFAULT)
+	    term_apply_lp_properties(&pm3d.border);
+    } else {
+
+    /* Should not happen */
+	return;
+    }
+
+    /* Draw a border for the key sample */
+    newpath();
+    draw_clip_line( x, y, x+w, y);
+    draw_clip_line( x+w, y, x+w, y+h);
+    draw_clip_line( x+w, y+h, x, y+h);
+    draw_clip_line( x, y+h, x, y);
+    closepath();
 }
 
 
@@ -4218,14 +4251,15 @@ plot3d_polygons(struct surface_points *plot)
 	if (nv < 3)
 	    continue;
 
-	/* Coloring piggybacks on options for isosurface */
+	/* Coloring taken from fillstyle (which confusingly is in plot->lp_properties) */
 	if (plot->pm3d_color_from_column && !isnan(points[0].CRD_COLOR))
 	    quad[0].c = points[0].CRD_COLOR;
-	else if (plot->fill_properties.border_color.type == TC_DEFAULT) {
+	else if (plot->lp_properties.pm3d_color.type == TC_Z
+	     ||  plot->lp_properties.pm3d_color.type == TC_DEFAULT) {
 	    double z = pm3d_assign_triangle_z(points[0].z, points[1].z, points[2].z);
 	    quad[0].c = rgb_from_gray(cb2gray(z));
 	} else
-	    quad[0].c = plot->fill_properties.border_color.lt;
+	    quad[0].c = plot->lp_properties.pm3d_color.lt;
 	quad[1].c = style;
 	pm3d_add_polygon( plot, quad, nv );
     }
@@ -4379,6 +4413,8 @@ check3d_for_variable_color(struct surface_points *plot, struct coordinate *point
 	    set_rgbcolor_var( (unsigned int)point->CRD_COLOR );
 	break;
     case TC_Z:
+	set_color( cb2gray(point->z) );
+	break;
     case TC_DEFAULT:   /* pm3d mode assumes this is default */
 	if (plot->pm3d_color_from_column)
 	    set_color( cb2gray(point->CRD_COLOR) );

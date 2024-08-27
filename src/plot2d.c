@@ -201,6 +201,7 @@ cp_free(struct curve_points *cp)
 	    free_labels(cp->labels);
 	cp->labels = NULL;
 	free_at(cp->plot_function.at);
+	free_at(cp->if_filter_at);
 	free_watchlist(cp->watchlist);
 	cp->watchlist = NULL;
 
@@ -238,15 +239,6 @@ plotrequest()
     axis_init(&axis_array[V_AXIS], FALSE);
     axis_init(&axis_array[POLAR_AXIS], TRUE);
     axis_init(&axis_array[COLOR_AXIS], TRUE);
-
-    /* Always be prepared to restore the autoscaled values on "refresh"
-     * Dima Kogan April 2018
-     */
-    for (axis = 0; axis < NUMBER_OF_MAIN_VISIBLE_AXES; axis++) {
-	AXIS *this_axis = &axis_array[axis];
-	if (this_axis->set_autoscale != AUTOSCALE_NONE)
-	    this_axis->range_flags |= RANGE_WRITEBACK;
-    }
 
     /* Nonlinear mapping of x or y via linkage to a hidden primary axis. */
     /* The user set autoscale for the visible axis; apply it also to the hidden axis. */
@@ -756,10 +748,6 @@ get_data(struct curve_points *current_plot)
 		current_plot->points[i].type = UNDEFINED;
 		i++;
 	    }
-	    if (current_plot->plot_style == TABLESTYLE) {
-		j = df_no_use_specs;
-		break;
-	    }
 	    continue;
 
 	case DF_FIRST_BLANK:
@@ -807,12 +795,26 @@ get_data(struct curve_points *current_plot)
 	    break;	/* Not continue!! */
 	}
 
-	/* We now know that j > 0, i.e. there is some data on this input line */
+	/* We now know that j > 0, i.e. there is some data on this input line.
+	 * However it is still possible that the user wants to skip this line
+	 * because it fails to satisfy the "plot .. if (<expr>)" condition.
+	 * FIXME: This treats filtered points as if they were missing;
+	 *        alternatively we could keep them but mark as undefined.
+	 */
+	if (current_plot->if_filter_at) {
+	    struct value keep;
+	    evaluate_inside_using = TRUE;
+	    evaluate_at(current_plot->if_filter_at, &keep);
+	    evaluate_inside_using = FALSE;
+	    if (undefined || isnan(real(&keep)) || real(&keep) == 0)
+		continue;
+	}
+
 	ngood++;
 
 	/* "plot ... with table" bypasses all the column interpretation */
 	if (current_plot->plot_style == TABLESTYLE) {
-	    tabulate_one_line(v, df_strings, j);
+	    tabulate_one_line(current_plot, v, df_strings, j);
 	    continue;
 	}
 
@@ -2187,7 +2189,7 @@ store_label(
 	textlen -= 2, string++;
 
     tl->text = gp_alloc(textlen+1,"labelpoint text");
-    strncpy( tl->text, string, textlen );
+    strncpy( tl->text, string, textlen );	/* NOT safe_strncpy */
     tl->text[textlen] = '\0';
     parse_esc(tl->text);
 
@@ -2457,10 +2459,6 @@ eval_plots()
 		this_plot->plot_filter = FILTER_NONE;
 		this_plot->filledcurves_options = filledcurves_opts_data;
 		this_plot->marks_options = (struct marks_options) DEFAULT_MARKS_OPTS;
-
-		/* Only relevant to "with table" */
-		free_at(table_filter_at);
-		table_filter_at = NULL;
 
 		/* Mechanism for deferred evaluation of plot title */
 		free_at(df_plot_title_at);
@@ -2804,18 +2802,6 @@ eval_plots()
 		    continue;
 		}
 
-		if (this_plot->plot_style == TABLESTYLE) {
-		    if (equals(c_token,"if")) {
-			if (table_filter_at) {
-			    duplication = TRUE;
-			    break;
-			}
-			c_token++;
-			table_filter_at = perm_at();
-			continue;
-		    }
-		}
-
 		/* pick up line/point specs and other style-specific keywords
 		 * - point spec allowed if style uses points, ie style&2 != 0
 		 * - keywords for lt and pt are optional
@@ -3004,6 +2990,8 @@ eval_plots()
 		    }
 		    if (equals(c_token,"fc") || almost_equals(c_token,"fillc$olor")) {
 			parse_colorspec(&fillcolor, TC_VARIABLE);
+			if (fillcolor.type == TC_COLORMAP)
+			    this_plot->lp_properties.colormap = get_colormap(c_token++);
 			set_fillcolor = TRUE;
 			if (fillcolor.type == TC_VARIABLE) {
 			    this_plot->lp_properties.l_type = LT_COLORFROMCOLUMN;
@@ -3021,6 +3009,19 @@ eval_plots()
 		    continue;
 		}
 #endif
+
+		/* EXPERIMENTAL filter plot ... if (<expression>) */
+		if (equals(c_token,"if")) {
+		    if (this_plot->plot_type != DATA)
+			int_error(c_token, "'if' restriction not possible here");
+		    if (this_plot->if_filter_at) {
+			duplication = TRUE;
+			break;
+		    }
+		    c_token++;
+		    this_plot->if_filter_at = perm_at();
+		    continue;
+		}
 
 		break; /* unknown option */
 

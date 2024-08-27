@@ -1037,8 +1037,7 @@ bind_command()
 	char *first = gp_input_line + token[c_token].start_index;
 	int size = strcspn(first, " \";");
 	lhs = gp_alloc(size + 1, "bind_command->lhs");
-	strncpy(lhs, first, size);
-	lhs[size] = '\0';
+	safe_strncpy(lhs, first, size);
 	FPRINTF((stderr,"Got bind unquoted lhs = \"%s\"\n",lhs));
 	while (gp_input_line + token[c_token].start_index < first+size)
 	    c_token++;
@@ -2234,7 +2233,10 @@ print_command()
 		line = block->udv_value.v.functionblock.data_array;
 	    } else
 #endif	/* USE_FUNCTIONBLOCKS */
+	    if (block->udv_value.type == DATABLOCK)
 		line = block->udv_value.v.data_array;
+	    else
+		int_error(c_token, "%s is not printable", datablock_name);
 
 	    /* Printing a datablock into itself would cause infinite recursion */
 	    if (print_out_var && !strcmp(datablock_name, print_out_name))
@@ -2509,6 +2511,7 @@ save_command()
     FILE *fp;
     char *save_file = NULL;
     TBOOLEAN append = FALSE;
+    TBOOLEAN ispipe = FALSE;
     int what;
 
     c_token++;
@@ -2521,6 +2524,7 @@ save_command()
 	case SAVE_VARS:
 	case SAVE_FIT:
 	case SAVE_DATABLOCKS:
+	case SAVE_CHANGES:
 	case SAVE_MARKS:
 	    c_token++;
 	    break;
@@ -2539,6 +2543,7 @@ save_command()
     if (save_file[0]=='|') {
 	restrict_popen();
 	fp = popen(save_file+1,"w");
+	ispipe = TRUE;
     } else
 #endif
     {
@@ -2573,6 +2578,9 @@ save_command()
 	break;
     case SAVE_DATABLOCKS:
 	    save_datablocks(fp);
+	break;
+    case SAVE_CHANGES:
+	    save_changes(fp, ispipe);
 	break;
     case SAVE_MARKS:
 	    save_marks(fp);
@@ -3580,8 +3588,9 @@ do_shell()
     c_token++;
 
     if (user_shell) {
-	if (system(safe_strncpy(&exec[sizeof(EXEC) - 1], user_shell,
-				sizeof(exec) - sizeof(EXEC) - 1)))
+	safe_strncpy(&exec[sizeof(EXEC) - 1], user_shell,
+		     sizeof(exec) - sizeof(EXEC) - 1);
+	if (system(exec))
 	    os_error(NO_CARET, "system() failed");
     }
     (void) putc('\n', stderr);
@@ -3795,7 +3804,7 @@ expand_1level_macros()
     temp_string = gp_alloc(gp_input_line_len,"string variable");
     len = strlen(gp_input_line);
     if (len >= gp_input_line_len) len = gp_input_line_len-1;
-    strncpy(temp_string,gp_input_line,len);
+    strncpy(temp_string, gp_input_line, len);	/* NOT safe_strncpy */
     temp_string[len] = '\0';
 
     for (c=temp_string; len && c && *c; c++, len--) {

@@ -26,6 +26,7 @@ reset
 print "******************** file fillcvrs.dem ********************"
 load "fillcrvs.dem"
 load "fillbetween.dem"
+load "waterfallplot.dem"
 reset
 
 print "******************** file candlesticks.dem ********************"
@@ -206,6 +207,10 @@ reset
 print "******************** binary data ********************"
 load "binary.dem"
 load "binary_polygon.dem"
+reset
+
+print "*********** 3D polygons from Delaunay tessellation ***********"
+load "delaunay.dem"
 reset
 
 print "******************** hsteps demos ********************"

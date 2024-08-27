@@ -49,7 +49,7 @@ set ylabel "Imag(z)"
 set zlabel "Abs(E_2(z))" rotate
 set cblabel "Phase Angle"
 set cblabel  offset -1, 0, 0  rotate
-set cbrange [ -3.14159 : 3.14159 ] noreverse writeback
+set cbrange [ -3.14159 : 3.14159 ]
 set pm3d corners2color c1
 set palette color model HSV defined ( 0 0 1 1, 1 1 1 1 )
 #

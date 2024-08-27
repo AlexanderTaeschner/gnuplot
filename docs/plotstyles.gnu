@@ -172,8 +172,8 @@ set border 2
 set lmargin at screen 0.3
 unset key
 set style data boxplot
-plot 'silver.dat' using (1):2:(.25) ps 0.3, \
-     '' using (1.5):(5*$3):(.25) ps 0.3
+plot 'silver.dat' using (1):2:(.25) ps 0.3 lt black, \
+     '' using (1.5):(5*$3):(.25) ps 0.3 lt black
      
 #
 # Dots

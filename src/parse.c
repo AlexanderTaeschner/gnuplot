@@ -1621,8 +1621,16 @@ check_for_iteration()
 		iteration_start = 1;
 		iteration_end = v.v.value_array[0].v.int_val;
 		free_value(&(iteration_udv->udv_value));
-		iteration_udv->udv_value = v.v.value_array[1];
-		clone_string_value(&(iteration_udv->udv_value));
+		if (iteration_end > 0) {
+		    /* Skip to first non-empty entry slot */
+		    while ((iteration_start <= iteration_end)
+			&& (v.v.value_array[iteration_start].type == NOTDEFINED))
+			iteration_start++;
+		    if (iteration_start <= iteration_end) {
+			iteration_udv->udv_value = v.v.value_array[iteration_start];
+			clone_string_value(&(iteration_udv->udv_value));
+		    }
+		}
 	    } else {
 		int_error(c_token-1, errormsg);
 	    }
@@ -1707,8 +1715,16 @@ reevaluate_iteration_limits(t_iterator *iter)
 	    iter->iteration_array = v;
 	    iter->iteration_start = 1;
 	    iter->iteration_end = v.v.value_array[0].v.int_val;
-	    iter->iteration_udv->udv_value = v.v.value_array[1];
-	    clone_string_value(&(iter->iteration_udv->udv_value));
+	    if (iter->iteration_end > 0) {
+		/* Skip to first non-empty entry slot */
+		while ((iter->iteration_start <= iter->iteration_end)
+		    && (v.v.value_array[iter->iteration_start].type == NOTDEFINED))
+		    iter->iteration_start++;
+		if (iter->iteration_start <= iter->iteration_end) {
+		    iter->iteration_udv->udv_value = v.v.value_array[iter->iteration_start];
+		    clone_string_value(&(iter->iteration_udv->udv_value));
+		}
+	    }
 	} else {
 	    iter->iteration_start = real(&v);
 	}
@@ -1823,9 +1839,13 @@ next_iteration(t_iterator *iter)
 	Gstring(&(iter->iteration_udv->udv_value), 
 		gp_word(iter->iteration_string, iter->iteration_current));
     } else if (iter->iteration_array.type == ARRAY) {
+	struct value *array = iter->iteration_array.v.value_array;
+	/* Skip empty array entry slots */
+	while ((iter->iteration_current <= iter->iteration_end)
+		&& (array[iter->iteration_current].type == NOTDEFINED))
+	    iter->iteration_current++;
 	if (iter->iteration_current <= iter->iteration_end) {
-	    iter->iteration_udv->udv_value =
-		iter->iteration_array.v.value_array[iter->iteration_current];
+	    iter->iteration_udv->udv_value = array[iter->iteration_current];
 	    clone_string_value(&(iter->iteration_udv->udv_value));
 	}
     } else {

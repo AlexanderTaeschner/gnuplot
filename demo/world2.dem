@@ -15,8 +15,8 @@ unset ytics
 unset ztics
 set border 0
 set title "Labels colored by GeV plotted in spherical coordinate system"
-set urange [ -90.0000 : 90.0000 ] noreverse nowriteback
-set vrange [ 0.00000 : 360.000 ] noreverse nowriteback
+set urange [ -90.0000 : 90.0000 ]
+set vrange [ 0.00000 : 360.000 ]
 set cblabel "GeV"
 set cbrange [0:8]
 set colorb vert user size 0.02, 0.75

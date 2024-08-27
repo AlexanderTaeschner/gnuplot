@@ -1127,6 +1127,8 @@ double QtGnuplotScene::sceneToGraph(int axis, double coord) const
 	    return 0;
 
 	double result = m_axisMin[axis] + (coord - m_axisLower[axis])/m_axisScale[axis];
+	if (m_axisLog[axis] < 0.)
+		result = NAN;
 	if (m_axisLog[axis] > 0.)
 		result = exp(result * m_axisLog[axis]);
 

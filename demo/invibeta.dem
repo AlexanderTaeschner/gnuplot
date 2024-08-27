@@ -17,9 +17,9 @@ set style data lines
 set xyplane relative 0
 set log z
 set xlabel "a" 
-set xrange [ 0.00000 : 0.200000 ] noreverse writeback
+set xrange [ 0.00000 : 0.200000 ]
 set ylabel "b" 
-set yrange [ 0.00000 : 0.200000 ] noreverse writeback
+set yrange [ 0.00000 : 0.200000 ]
 set zlabel "Residual" 
 set zlabel  offset character -2, 0, 0 font "" textcolor lt -1 rotate
 

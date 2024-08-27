@@ -3220,7 +3220,7 @@ df_parse_string_field(char *field)
     }
 
     temp_string = malloc(length+1);
-    strncpy(temp_string, field, length);
+    strncpy(temp_string, field, length); /* NOT safe_strncpy */
     temp_string[length] = '\0';
 
     parse_esc(temp_string);
