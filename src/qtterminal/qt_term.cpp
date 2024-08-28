@@ -382,6 +382,9 @@ void qt_connectToServer()
 
 bool qt_processTermEvent(gp_event_t* event)
 {
+	// remember initial state (the original gets cleared by do_event())
+	TBOOLEAN was_paused_for_mouse = paused_for_mouse;
+
 	// Intercepts resize event
 	if (event->type == GE_fontprops)
 	{
@@ -435,9 +438,8 @@ bool qt_processTermEvent(gp_event_t* event)
 		paused_for_mouse = 0;
 		return true;
 	}
-	if (event->type == GE_reset)
+	if (event->type == GE_reset && was_paused_for_mouse)
 	{
-		paused_for_mouse = 0;
 		return true;
 	}
 
