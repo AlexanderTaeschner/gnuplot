@@ -1370,8 +1370,10 @@ void wxtPanel::OnKeyDownChar( wxKeyEvent &event )
 #ifndef DISABLE_SPACE_RAISES_CONSOLE
 		case WXK_SPACE :
 			if ((wxt_ctrl==yes && event.ControlDown())
-				|| wxt_ctrl!=yes) {
-				RaiseConsoleWindow();
+			||  (wxt_ctrl!=yes)) {
+#ifdef _WIN32
+				WinRaiseConsole();
+#endif
 				return;
 			} else {
 				gp_keycode = ' ';
@@ -1588,42 +1590,6 @@ static void wxt_check_for_anchors(unsigned int x, unsigned int y)
 }
 
 #endif /*USE_MOUSE*/
-
-#ifndef DISABLE_SPACE_RAISES_CONSOLE
-/* ====license information====
- * The following code originates from other gnuplot files,
- * and is not subject to the alternative license statement.
- */
-
-
-/* FIXME : this code should be deleted, and the feature removed or handled differently,
- * because it is highly platform-dependant, is not reliable because
- * of a lot of factors (WINDOWID not set, multiple tabs in gnome-terminal, mechanisms
- * to prevent focus stealing) and is inconsistent with global bindings mechanism ) */
-void wxtPanel::RaiseConsoleWindow()
-{
-#ifdef _WIN32
-	WinRaiseConsole();
-#endif
-
-#ifdef OS2
-	/* we assume that the console window is managed by PM, not by a X server */
-	HSWITCH hSwitch = 0;
-	SWCNTRL swGnu;
-	HWND hw;
-	/* get details of command-line window */
-	hSwitch = WinQuerySwitchHandle(0, getpid());
-	WinQuerySwitchEntry(hSwitch, &swGnu);
-	hw = WinQueryWindow(swGnu.hwnd, QW_BOTTOM);
-	WinSetFocus(HWND_DESKTOP, hw);
-	WinSwitchToProgram(hSwitch);
-#endif /* OS2 */
-}
-
-/* ====license information====
- * End of the non-relicensable portion.
- */
-#endif /* DISABLE_SPACE_RAISES_CONSOLE */
 
 
 /* ------------------------------------------------------

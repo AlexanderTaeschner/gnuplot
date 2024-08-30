@@ -2918,11 +2918,6 @@ bind_display(char *lhs)
 
 	fprintf(stderr, "\n");
 	/* keystrokes */
-#if (0)	/* Not implemented in the core code! */
-#ifndef DISABLE_SPACE_RAISES_CONSOLE
-	fprintf(stderr, " %-12s   %s\n", "Space", "raise gnuplot console window");
-#endif
-#endif
 	fprintf(stderr, " %-12s * %s\n", "q", "close this plot window");
 	fprintf(stderr, "\n");
 	for (ptr = bindings; ptr; ptr = ptr->next) {
