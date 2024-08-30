@@ -1491,7 +1491,8 @@ get_data(struct curve_points *current_plot)
 	i--;
 
     current_plot->p_count = i;
-    cp_extend(current_plot, i); /* shrink to fit */
+    if (i > 0)
+	cp_extend(current_plot, i); /* shrink to fit. FIXME: why bother? */
 
     df_close();
 
