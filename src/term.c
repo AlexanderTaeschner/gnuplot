@@ -1416,9 +1416,8 @@ term_waitforinput(int options)
 	exec_event( GE_keypress, 0, 0, nextchar, 0, 0 );
 	return '\0';
     } else {
-	nextchar = getchar();
+	read_and_return_character();
     }
-    return nextchar;
 }
 
 static void

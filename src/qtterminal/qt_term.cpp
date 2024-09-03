@@ -1057,7 +1057,7 @@ int qt_waitforinput(int options)
 		if (options == TERM_ONLY_CHECK_MOUSING)
 			return '\0';
 		else
-			return getchar();
+			read_and_return_character();
 	}
 
 	// Gnuplot event loop
@@ -1147,7 +1147,7 @@ int qt_waitforinput(int options)
 	if (options == TERM_ONLY_CHECK_MOUSING)
 		return '\0';
 
-	return getchar();
+	read_and_return_character();
 
 #else // _WIN32, Windows console and wgnuplot
 #ifdef WGP_CONSOLE

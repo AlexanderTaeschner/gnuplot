@@ -2098,7 +2098,7 @@ CACA_waitforinput(int options)
 	/* Redundant check since normally term->waitforinput should be NULL in
 	  this case. */
 	if (!CACA_windowed)
-		return getchar();
+		read_and_return_character();
 
 	while (loop == CACA_loop && (CACA_dp != NULL)) {
 #ifdef _WIN32
@@ -2128,12 +2128,12 @@ CACA_waitforinput(int options)
 		loop = CACA_process_events();
 #endif
 		if (loop == CACA_loop && gp_kbhit())
-			return getchar();
+			read_and_return_character();
 	}
 
 	/* We get here only if the window was closed previously, e.g. via pressing the 'q' key. */
 	if (CACA_dp == NULL || loop == CACA_quit)
-		return getchar();
+		read_and_return_character();
 
 	return EOF;
 }

@@ -361,7 +361,7 @@ dnl Use builtin readline or GNU readline or NetBSD editline
 AC_ARG_WITH(readline,dnl
 [  --with-readline=builtin  use the built-in readline
   --with-readline=gnu      use the GNU readline library (default if present)
-  --with-readline=bsd      use the NetBSD editline library (NB: does not handle UTF-8!)
+  --with-readline=bsd      use the NetBSD editline library
   --with-readline=DIR      specify the location of readline/editline
   --without-readline       same as --with-readline=builtin], ,
   test -z "$with_readline" && with_readline=gnu)
@@ -1414,7 +1414,6 @@ fi
     else
       AC_MSG_RESULT([  Readline library: BSD editline library])
     fi
-    AC_MSG_RESULT(  [           WARNING:     editline cannot handle multi-byte characters!])
   else if test "$with_readline" != builtin; then
     if test -n "$gp_tcap"; then
       AC_MSG_RESULT([  Readline library: GNU readline library with $gp_tcap])
