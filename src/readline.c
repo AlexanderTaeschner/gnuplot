@@ -125,6 +125,8 @@ getc_wrapper(FILE* fp)
 #else
 	if (fp && (fp != stdin))
 	    c = getc(fp);
+	else if (!interactive)
+	    c = getchar();
 	else {
 	    int ierr;
 	    wchar_t wc;

@@ -63,6 +63,7 @@
     #define read_and_return_character() {	\
 	int ierr;				\
 	wchar_t nextchar;			\
+	if (!interactive) return getchar();	\
 	ierr = el_wgetc(el, &nextchar);		\
 	return (ierr==1 ? (int)nextchar : 0);	\
     }
