@@ -319,7 +319,7 @@ html: allterm.h doc2web$(EXEEXT) $(srcdir)/gnuplot.doc svg_figures webp_figures
 	$(AM_V_at) rm -f html/Overview.html html/Plotting_Styles.html html/Commands.html html/Terminals.html
 	$(AM_V_at) rm -f html/NewFeatures.html
 	$(AM_V_GEN)./doc2web$(EXEEXT) $(srcdir)/gnuplot.doc html
-	$(AM_V_GEN) sort -k 3 html/index.hhk > html/index.html
+	$(AM_V_GEN) sort -k 3 html/index.hhk > html/gnuplot6_index.html
 
 svg_figures: $(GNUPLOT_EXE) $(srcdir)/plotstyles.gnu
 	$(AM_V_at) [ -d html ] || mkdir -p html
