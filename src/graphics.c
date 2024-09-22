@@ -4355,8 +4355,8 @@ plot_boxplot(struct curve_points *plot, TBOOLEAN only_autoscale)
 	outliers:
 	if (boxplot_opts.outliers) {
 	    int i,j,x,y;
-	    int p_width = abs(term->h_tic * plot->lp_properties.p_size);
-	    int p_height = abs(term->v_tic * plot->lp_properties.p_size)/2;
+	    int p_width = fabs(term->h_tic * plot->lp_properties.p_size);
+	    int p_height = fabs(term->v_tic * plot->lp_properties.p_size / 2.);
 
 	    if (jitter.spread > 0)
 		p_width *= jitter.spread;
