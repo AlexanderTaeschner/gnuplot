@@ -1657,10 +1657,13 @@ filled_polygon(struct surface_points *from_plot, int index, gpdPoint *corners, i
      * (pm3d at [tb]) from surface quadrangles (pm3d at s).
      * The original z values have been replaced by base_z or ceiling_z,
      * so we can identify base plane quadrangles by testing for z == base_z.
+     * FIXME:
+     * Unfortunately this test gives a false positive in the case of upright polygons that
+     * have an edge in the baseplane, as with FILLEDCURVES or BOXES.
      */
     if (pm3d.clip == PM3D_CLIP_Z) {
 	int new = 0;
-	if (corners[0].z == base_z)
+	if ((corners[0].z == base_z) && (from_plot->plot_style != FILLEDCURVES))
 	    new = 0;
 	else
 	    new = clip_filled_polygon( from_plot, index, corners, clipcorners, nv );

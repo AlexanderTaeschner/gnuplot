@@ -4034,7 +4034,8 @@ plot3d_zerrorfill(struct surface_points *plot)
     }
 
     for (i2=i1+1; i2 < curve->p_count; i2++) {
-	if (curve->points[i2].type != INRANGE)
+	/* out-of-range on z is OK because we will clip later */
+	if (!inrange_xy(&(curve->points[i2])))
 	    continue;
 	count++;	/* Found one */
 	corner[0].x = corner[1].x = curve->points[i1].x;

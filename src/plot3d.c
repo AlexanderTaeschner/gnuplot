@@ -758,12 +758,7 @@ grid_nongrid_data(struct surface_points *this_plot)
 	    points->y = y;
 
 	    /* Honor requested x and y limits */
-	    /* Historical note: This code was not in 4.0 or 4.2. It imperfectly */
-	    /* restores the clipping behaviour of version 3.7 and earlier. */
-	    if ((x < axis_array[x_axis].min && !(axis_array[x_axis].autoscale & AUTOSCALE_MIN))
-	    ||  (x > axis_array[x_axis].max && !(axis_array[x_axis].autoscale & AUTOSCALE_MAX))
-	    ||  (y < axis_array[y_axis].min && !(axis_array[y_axis].autoscale & AUTOSCALE_MIN))
-	    ||  (y > axis_array[y_axis].max && !(axis_array[y_axis].autoscale & AUTOSCALE_MAX)))
+	    if (!inrange_xy(points))
 		points->type = OUTRANGE;
 
 	    if (dgrid3d_mode != DGRID3D_SPLINES && !dgrid3d_kdensity) {

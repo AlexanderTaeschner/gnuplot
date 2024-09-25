@@ -86,6 +86,7 @@ void map3d_xy_double(double x, double y, double z, double *xt, double *yt);
 void draw3d_line(p_vertex, p_vertex, struct lp_style_type *);
 void draw3d_line_unconditional(p_vertex, p_vertex, struct lp_style_type *, t_colorspec);
 void draw3d_point(p_vertex v, struct lp_style_type *lp);
+TBOOLEAN inrange_xy(coordinate *point);
 
 
 /* HBB NEW 20031218: 3D polyline support */
