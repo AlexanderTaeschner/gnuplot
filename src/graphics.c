@@ -1302,7 +1302,7 @@ plot_impulses(struct curve_points *plot, int yaxis_x, int xaxis_y)
 	if (invalid_coordinate(x,y))
 	    continue;
 
-	check_for_variable_color(plot, &plot->varcolor[i]);
+	check_for_variable_color(plot, i);
 
 	if (polar)
 	    draw_clip_line(yaxis_x, xaxis_y, x, y);
@@ -1357,10 +1357,10 @@ plot_lines(struct curve_points *plot)
 	 *	the color has already been set to the border color.
 	 */
 	if (plot->plot_style != FILLEDCURVES && plot->plot_style != POLYGONS)
-	    check_for_variable_color(plot, &plot->varcolor[i]);
+	    check_for_variable_color(plot, i);
 
 	if (plot->plot_style == POLYGONS && i == polygon_start)
-	    check_for_variable_color(plot, &plot->varcolor[i]);
+	    check_for_variable_color(plot, i);
 
 	/* Only map and plot the point if it is well-behaved (not UNDEFINED).
 	 * Note that map_x or map_y can hit NaN during eval_link_function(),
@@ -1650,7 +1650,7 @@ plot_filledcurves(struct curve_points *plot)
 		corners[points].x = x;
 		corners[points].y = y;
 		if (points == 0)
-		    check_for_variable_color(plot, &plot->varcolor[i]);
+		    check_for_variable_color(plot, i);
 		points++;
 		break;
 	case UNDEFINED:
@@ -2037,7 +2037,7 @@ plot_hsteps (struct curve_points *plot)
 		    nodes[0].x = xl;
 		    nodes[0].y = ybase;
 		    if (varcolor)
-			check_for_variable_color(plot, &varcolor[i]);
+			check_for_variable_color(plot, i);
 		} else if (points[i].z >= 0 && (gap[i-1] & HSTEPS_GAP_POINT)) {
 		    nodes[2*k+1].x = nodes[2*k].x;	/* bottom line in pulse */
 		    nodes[2*k+1].y = ybase;
@@ -2102,7 +2102,7 @@ plot_hsteps (struct curve_points *plot)
 		    nodes[0].x = xl;
 		    nodes[0].y = (has_baseline) ? ybase : yc;
 		    if (varcolor)
-			check_for_variable_color(plot, &varcolor[i]);
+			check_for_variable_color(plot, i);
 		    if (has_border)
 			need_fill_border(&plot->fill_properties);
 		} else if (has_baseline && has_link && (gap[i-1] & HSTEPS_GAP_POINT)) {
@@ -2241,7 +2241,7 @@ plot_bars(struct curve_points *plot)
 	    if ((plot->plot_style != HISTOGRAMS)
 		&& (plot->plot_style != FILLEDCURVES)
 		) {
-		check_for_variable_color(plot, &plot->varcolor[i]);
+		check_for_variable_color(plot, i);
 	    }
 
 	    /* Error bars can now have a separate line style */
@@ -2336,8 +2336,7 @@ plot_bars(struct curve_points *plot)
 	    if (plot->points[i].xlow == -VERYLARGE)
 		xlowM = map_x(GPMIN(X_AXIS.min, X_AXIS.max));
 
-	    /* Check for variable color - June 2010 */
-	    check_for_variable_color(plot, &plot->varcolor[i]);
+	    check_for_variable_color(plot, i);
 
 	    /* Error bars can now have their own line style */
 	    if ((bar_lp.flags & LP_ERRORBAR_SET) != 0)
@@ -2552,7 +2551,7 @@ plot_boxes(struct curve_points *plot, int xaxis_y)
 		if (plot->plot_style == BOXES || plot->plot_style == BOXXYERROR
 		    || plot->plot_style == HISTOGRAMS
 		    || plot->plot_style == BOXERROR) {
-		    check_for_variable_color(plot, &plot->varcolor[i]);
+		    check_for_variable_color(plot, i);
 		}
 
 		if ((plot->fill_properties.fillstyle != FS_EMPTY) && t->fillbox) {
@@ -2745,7 +2744,7 @@ plot_points(struct curve_points *plot)
 		    (*t->pointsize)(pointsize * plot->points[i].CRD_PTSIZE);
 
 		/* rgb variable  -  color read from data column */
-		if (check_for_variable_color(plot, &plot->varcolor[i])
+		if (check_for_variable_color(plot, i)
 		&&  isnan(plot->varcolor[i]))
 		    continue;
 
@@ -2819,7 +2818,7 @@ plot_circles(struct curve_points *plot)
 	    arc_end = plot->points[i].xhigh;
 
 	    /* rgb variable  -  color read from data column */
-	    if (!check_for_variable_color(plot, &plot->varcolor[i]) && withborder)
+	    if (!check_for_variable_color(plot, i) && withborder)
 		term_apply_lp_properties(&plot->lp_properties);
 	    if (style != FS_EMPTY)
 		do_arc(x,y, radius, arc_begin, arc_end, style, FALSE);
@@ -2967,7 +2966,7 @@ plot_sectors(struct curve_points *plot)
 	arc_end   = (arc_end * theta_direction)*ang2rad + theta_origin*DEG2RAD;
 
 	/* rgb variable  -  color read from data column */
-	if (!check_for_variable_color(plot, &plot->varcolor[i]) && withborder)
+	if (!check_for_variable_color(plot, i) && withborder)
 	    term_apply_lp_properties(&plot->lp_properties);
 
 	if (style != FS_EMPTY)
@@ -3233,8 +3232,9 @@ do_mark (struct mark_data *mark,
     } else if (!plot) {
 	/* parent must be an object */
 	my_fillcolor = &parent_lp_properties->pm3d_color;
-    } else if (check_for_variable_color(plot, &varcolor)) {
-	/* this check applies the color immediately, but we may need to re-apply it later */
+    } else if (check_for_variable_color(plot, 0)) {
+	/* this check applies a color immediately, but we will need to re-apply it later */
+	apply_variable_color(plot, &varcolor);
 	has_varcolor = TRUE;
 	my_fillcolor = NULL;	/* should not be used! */
     } else {
@@ -3374,8 +3374,8 @@ do_mark (struct mark_data *mark,
 	    ||  ((draw_style == MARKS_FILLSTYLE) && (my_fillstyle->fillstyle != FS_EMPTY))) {
 	        clip_polygon(vertex, fillarea, points, &in);
 	        if (in > 1 && term->filled_polygon) {
-		    if (has_varcolor && check_for_variable_color(plot, &varcolor))
-			; /* check_for_variable_color applies the color */
+		    if (has_varcolor)
+			apply_variable_color(plot, &varcolor);
 		    else
 			apply_pm3dcolor(my_fillcolor);
 		    fillarea[0].style = style_from_fill(my_fillstyle);
@@ -3400,7 +3400,7 @@ do_mark (struct mark_data *mark,
 		if (has_bordercolor)
 		    set_rgbcolor_const(my_strokergb);
 		else if (has_varcolor)
-		    check_for_variable_color(plot, &varcolor);
+		    apply_variable_color(plot, &varcolor);
 		else
 		    set_rgbcolor_const(my_strokergb);
 		if (my_strokergb != 0xffffffff)	/* forced stroke but stroke is LT_NODRAW */
@@ -3482,7 +3482,7 @@ plot_ellipses(struct curve_points *plot)
 	    }
 
 	    /* rgb variable  -  color read from data column */
-	    if (!check_for_variable_color(plot, &plot->varcolor[i]) && withborder)
+	    if (!check_for_variable_color(plot, i) && withborder)
 		term_apply_lp_properties(&plot->lp_properties);
 	    do_ellipse(2, e, style, FALSE);
 	    if (withborder) {
@@ -3512,7 +3512,7 @@ plot_dots(struct curve_points *plot)
 	    if (invalid_coordinate(x,y))
 		continue;
 	    /* rgb variable  -  color read from data column */
-	    check_for_variable_color(plot, &plot->varcolor[i]);
+	    check_for_variable_color(plot, i);
 	    /* point type -1 is a dot */
 	    (*t->point) (x, y, -1);
 	}
@@ -3582,7 +3582,7 @@ plot_vectors(struct curve_points *plot)
 	}
 
 	/* variable color read from extra data column. */
-	check_for_variable_color(plot, &plot->varcolor[i]);
+	check_for_variable_color(plot, i);
 
 	/* draw_clip_arrow does the hard work for us */
 	draw_clip_arrow(x0, y0, x1, y1, ap.head);
@@ -3652,7 +3652,7 @@ plot_f_bars(struct curve_points *plot)
 	    continue;
 
 	/* variable color read from extra data column. June 2010 */
-	check_for_variable_color(plot, &plot->varcolor[i]);
+	check_for_variable_color(plot, i);
 
 	yopenM = map_y(yopen);
 	ycloseM = map_y(yclose);
@@ -3821,8 +3821,8 @@ plot_c_bars(struct curve_points *plot)
 		term_apply_lp_properties(&plot->lp_properties);
 	}
 
-	/* variable color read from extra data column. June 2010 */
-	check_for_variable_color(plot, &plot->varcolor[i]);
+	/* variable color read from extra data column */
+	check_for_variable_color(plot, i);
 
 	/* Boxes are always filled if an explicit non-empty fillstyle is set. */
 	/* If the fillstyle is FS_EMPTY, fill to indicate (open > close).     */
@@ -3925,7 +3925,7 @@ plot_parallel(struct curve_points *plot)
 	TBOOLEAN prev_NaN = FALSE;
 
 	/* rgb variable  -  color read from data column */
-	check_for_variable_color(plot, &plot->varcolor[i]);
+	check_for_variable_color(plot, i);
 
 	x0 = map_x(plot->points[i].x);
 	y0 = axis_map(this_axis, plot->points[i].y);
@@ -4092,7 +4092,7 @@ plot_spiderplot(struct curve_points *plot)
 	clpcorn[0].style = style_from_fill(&plot->fill_properties);
 
 	/* rgb variable  -  color read from data column */
-	if (!check_for_variable_color(plot, &plot->varcolor[i])
+	if (!check_for_variable_color(plot, i)
 	&&   plot->lp_properties.pm3d_color.type == TC_DEFAULT) {
 	    lp_style_type lptmp;
 	    load_linetype(&lptmp, i+1);
@@ -5583,11 +5583,17 @@ do_polygon( int dimensions, t_object *this_object, int style, int facing )
 }
 
 TBOOLEAN
-check_for_variable_color(struct curve_points *plot, double *colorvalue)
+check_for_variable_color(struct curve_points *plot, int datum)
 {
     if (!plot->varcolor)
 	return FALSE;
 
+    return apply_variable_color(plot, &(plot->varcolor[datum]));
+}
+
+TBOOLEAN
+apply_variable_color(struct curve_points *plot, double *colorvalue)
+{
     if ((plot->lp_properties.pm3d_color.value < 0.0)
     &&  (plot->lp_properties.pm3d_color.type == TC_RGB)) {
 	set_rgbcolor_var(*colorvalue);

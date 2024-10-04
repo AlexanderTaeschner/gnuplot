@@ -116,6 +116,9 @@ void map_position_r(struct position* pos, double* x, double* y, const char* what
 void init_histogram(struct histogram_style *hist, text_label *title);
 void free_histlist(struct histogram_style *hist);
 
+TBOOLEAN check_for_variable_color(struct curve_points *plot, int datum);
+TBOOLEAN apply_variable_color(struct curve_points *plot, double *colorvalue);
+
 typedef enum en_procimg_action {
     IMG_PLOT,
     IMG_UPDATE_AXES,
@@ -123,7 +126,6 @@ typedef enum en_procimg_action {
 } t_procimg_action;
 
 void process_image(void *plot, t_procimg_action action);
-TBOOLEAN check_for_variable_color(struct curve_points *plot, double *colorvalue);
 void autoscale_boxplot(struct curve_points *plot);
 
 void place_objects(struct object *listhead, int layer, int dimensions);

@@ -1280,7 +1280,7 @@ do_key_sample(
 
     /* Draw sample in same style and color as the corresponding plot  */
     /* The variable color case uses the color of the first data point */
-    if (!check_for_variable_color(this_plot, &var_color))
+    if (!check_for_variable_color(this_plot, 0))
 	term_apply_lp_properties(&this_plot->lp_properties);
 
     /* draw sample depending on bits set in plot_style */
