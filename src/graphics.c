@@ -2745,7 +2745,9 @@ plot_points(struct curve_points *plot)
 		    (*t->pointsize)(pointsize * plot->points[i].CRD_PTSIZE);
 
 		/* rgb variable  -  color read from data column */
-		check_for_variable_color(plot, &plot->varcolor[i]);
+		if (check_for_variable_color(plot, &plot->varcolor[i])
+		&&  isnan(plot->varcolor[i]))
+		    continue;
 
 		/* There are two conditions where we will print a character rather
 		 * than a point symbol. Otherwise ptchar = NULL;
