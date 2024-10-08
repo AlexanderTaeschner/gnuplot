@@ -134,6 +134,7 @@ static int MP_linecount = 1;
 
 /* are we in the middle of a MP path? */
 static TBOOLEAN MP_inline = FALSE;
+static TBOOLEAN MP_inpath = FALSE;
 /* colored or dashed lines? */
 static TBOOLEAN MP_color = FALSE;
 static TBOOLEAN MP_solid = FALSE;
@@ -696,6 +697,22 @@ MP_endline()
 }
 
 TERM_PUBLIC void
+MP_path(int p)
+{
+    switch (p) {
+	case 0:	/* Start new path */
+		MP_inpath = TRUE;
+		break;
+	case 1: /* Close path */
+		if (MP_inpath)
+		    fprintf(gpoutfile, "--cycle");
+		MP_endline();
+		MP_inpath = FALSE;
+		break;
+	}
+}
+
+TERM_PUBLIC void
 MP_arrow(unsigned int sx, unsigned int sy, unsigned int ex, unsigned int ey, int head)
 {
     MP_move(sx, sy);
@@ -1044,7 +1061,8 @@ TERM_TABLE_START(mp_driver)
     MP_previous_palette,	/* write grestore */
     MP_set_color,
     MP_filled_polygon,
-    .dashtype = MP_dashtype
+    .dashtype = MP_dashtype,
+    .path = MP_path
 TERM_TABLE_END(mp_driver)
 #undef LAST_TERM
 #define LAST_TERM mp_driver
