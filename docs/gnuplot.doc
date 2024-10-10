@@ -3606,6 +3606,9 @@ C ... and restart the table:
  other types of persistent variables.  The end-of-data delimiter (EOD in the
  example) may be any sequence of alphanumeric characters.
 
+ A data block definition cannot be placed inside the bracketed clause of an
+ iteration or an if/else/while condition.
+
  For a parallel mechanism that stores executable commands rather than data in
  a named block, see `function blocks`.
 

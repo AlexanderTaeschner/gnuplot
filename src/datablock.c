@@ -136,7 +136,8 @@ new_block( enum DATA_TYPES type )
 	int_error(c_token, "illegal block name");
 
     if (!equals(num_tokens-2, "<<") || !isletter(num_tokens-1))
-	int_error(c_token, "block definition line must end with << EODmarker");
+	int_error(c_token, "block definition line must end with << EODmarker"
+		"\n\t\t and must not occur inside a bracketed clause");
 
     /* Cannot define a block inside another block */
     filter_multiplot_playback();
