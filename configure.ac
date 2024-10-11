@@ -924,6 +924,7 @@ AC_ARG_WITH(metapost,dnl
 AS_IF([test "x${with_metapost}" = "xyes"],
   AC_DEFINE(HAVE_METAPOST,1,
           [ Define to include support for metapost terminal ],))
+AM_CONDITIONAL(DOC_METAPOST, test "x${with_metapost}" = "xyes")
 
 dnl ReGIS terminal
 AC_ARG_WITH(regis,dnl

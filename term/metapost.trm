@@ -120,7 +120,7 @@ static double MP_ysize = MP_YSIZE;
 static int MP_posx;
 static int MP_posy;
 static char MP_fontname[MAX_ID_LEN + 1];
-static char *MP_templatecont=NULL;
+static char *MP_template = NULL;
 static double MP_fontsize;
 static double MP_textmag;
 static enum JUSTIFY MP_justify = LEFT;
@@ -160,8 +160,6 @@ static int MP_amstex = 0;
 static int MP_a4paper = 0;
 /* write a prologues line */
 static int MP_prologues = -1;
-/* write a template line */
-static int MP_template=-1;
 
 /* has color changed? */
 static int MP_color_changed = 0;
@@ -234,7 +232,8 @@ MP_options()
 	MP_fontsize = 10.0;
 	MP_textmag = 1.0;
 	MP_prologues = -1;
-	MP_template=-1;
+	free(MP_template);
+	MP_template = NULL;
 	strcpy(MP_fontname, "cmr10");
 	term->flags |= TERM_IS_LATEX;
     }
@@ -298,14 +297,14 @@ MP_options()
 	    break;
 	case MP_OPT_TEMPLATE:
 	    c_token++;
-	    if (MP_templatecont=try_to_get_string()) MP_template=1;
-	    else int_warn(NO_CARET,"No valid template found; will revert to default.");
+	    free(MP_template);
+	    if (!(MP_template = try_to_get_string()))
+		int_warn(NO_CARET,"No valid filename template found; will revert to default.");
 	    break;
 	case MP_OPT_PROLOGUES:
 	    c_token++;
 	    if (!(END_OF_COMMAND)) {
 		int dummy_for_prologues;
-
 		if (sscanf(gp_input_line + token[c_token].start_index,
 			   "%d", &dummy_for_prologues) == 1) {
 		    MP_prologues = dummy_for_prologues;
@@ -394,7 +393,8 @@ MP_init()
     time(&now);
     MP_posx = MP_posy = 0;
     fprintf(gpoutfile, "%%GNUPLOT Metapost output: %s",asctime(localtime(&now)));
-    if (MP_template>-1) fprintf(gpoutfile,"outputtemplate:=\"%s\";\n",MP_templatecont);
+    if (MP_template)
+	fprintf(gpoutfile,"outputtemplate:=\"%s\";\n",MP_template);
     if (MP_prologues > -1) {
 	fprintf(gpoutfile, "prologues:=%d;\n", MP_prologues);
     }
@@ -1084,9 +1084,11 @@ START_HELP(mp)
 "",
 " Note: legacy terminal (not built by default).",
 " The `mp` driver produces output intended to be input to the Metapost program.",
-" Running Metapost on the file creates EPS files containing the plots. By",
-" default, Metapost passes all text through TeX.  This has the advantage of",
-" allowing essentially  any TeX symbols in titles and labels.",
+" Running Metapost on the output file creates EPS files containing the plots.",
+" By default, Metapost passes all text through TeX.  This has the advantage of",
+" allowing essentially any TeX symbols in titles and labels.",
+" This terminal not been substantially updated since gnuplot version 4 and",
+" accordingly lacks support for many features added since then.",
 "",
 " Syntax:",
 "    set term mp {color | colour | monochrome}",
@@ -1118,7 +1120,7 @@ START_HELP(mp)
 " LaTeX. This allows things like \\frac for fractions which LaTeX knows about",
 " but TeX does not.  Note that you must set the environment variable TEX to the",
 " name of your LaTeX executable (normally latex) if you use this option or use",
-" `mpost --tex=<name of LaTeX executable> ...`. Otherwise metapost will try and",
+" `mpost --tex=<name of LaTeX executable> ...`. Otherwise metapost will try to",
 " use TeX to process the text and it won't work.",
 "",
 " Changing font sizes in TeX has no effect on the size of mathematics, and there",
@@ -1195,13 +1197,6 @@ START_HELP(mp)
 " The remainder require some TeX work-arounds.  Any good book on TeX will give",
 " some guidance.",
 "",
-" If you type your labels inside double quotes, backslashes in TeX code need to",
-" be escaped (doubled). Using single quotes will avoid having to do this, but",
-" then you cannot use `\\n` for line breaks.  As of this writing, version 3.7 of",
-" gnuplot processes titles given in a `plot` command differently than in other",
-" places, and backslashes in TeX commands need to be doubled regardless of the",
-" style of quotes.",
-"",
 " Metapost pictures are typically used in TeX documents.  Metapost deals with",
 " fonts pretty much the same way TeX does, which is different from most other",
 " document preparation programs.  If the picture is included in a LaTeX document",
@@ -1218,7 +1213,7 @@ START_HELP(mp)
 "?metapost detailed",
 "",
 " - Set your terminal to Metapost, e.g.:",
-"    set terminal mp mono \"cmtt12\" 12",
+"    set terminal mp \"cmtt12\" 12",
 "",
 " - Select an output-file, e.g.:",
 "    set output \"figure.mp\"",
