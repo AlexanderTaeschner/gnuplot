@@ -74,8 +74,8 @@ pgf.DEFAULT_FONT_V_CHAR = 308
 
 pgf.STYLE_FILE_BASENAME = "gnuplot-lua-tikz"  -- \usepackage{gnuplot-lua-tikz}
 
-pgf.REVISION = "119"
-pgf.REVISION_DATE = "2024/05/06 13:23:00"
+pgf.REVISION = "120"
+pgf.REVISION_DATE = "2024/10/14 16:17:00"
 
 pgf.styles = {}
 
@@ -1945,7 +1945,7 @@ term.options = function(opt_str, initial, t_count)
       gfx.opt.full_doc = true
     elseif almost_equals(o_next, "nofull$doc") or almost_equals(o_next, "nostand$alone") then
       -- produce full tex document
-      gfx.opt.full_doc = true
+      gfx.opt.full_doc = false 
     elseif almost_equals(o_next, "create$style") then
       -- creates the corresponding LaTeX style from the script
       pgf.create_style()
