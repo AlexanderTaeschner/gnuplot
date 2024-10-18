@@ -50,6 +50,9 @@
  * Adapted to metapost by:
  * 		Daniel H. Luecking <luecking@comp.uark.edu> and
  * 	 	L Srinivasa Mohan <mohan@chemeng.iisc.ernet.in>
+ *
+ * Updated 2024
+ *		Edgar Olthof
  */
 
 #include "driver.h"
@@ -117,6 +120,7 @@ static double MP_ysize = MP_YSIZE;
 static int MP_posx;
 static int MP_posy;
 static char MP_fontname[MAX_ID_LEN + 1];
+static char *MP_templatecont=NULL;
 static double MP_fontsize;
 static double MP_textmag;
 static enum JUSTIFY MP_justify = LEFT;
@@ -156,6 +160,8 @@ static int MP_amstex = 0;
 static int MP_a4paper = 0;
 /* write a prologues line */
 static int MP_prologues = -1;
+/* write a template line */
+static int MP_template=-1;
 
 /* has color changed? */
 static int MP_color_changed = 0;
@@ -187,7 +193,8 @@ enum MP_id {
     MP_OPT_AMSTEX,
     MP_OPT_FONT, MP_OPT_FONTSIZE,
     MP_OPT_PROLOGUES, MP_OPT_NOPROLOGUES,
-    MP_OPT_MAGNIFICATION, MP_OPT_OTHER
+    MP_OPT_MAGNIFICATION, MP_OPT_TEMPLATE,
+    MP_OPT_OTHER
 };
 
 static struct gen_table MP_opts[] = {
@@ -207,6 +214,7 @@ static struct gen_table MP_opts[] = {
     { "pro$logues", MP_OPT_PROLOGUES },
     { "nopro$logues", MP_OPT_NOPROLOGUES },
     { "ma$gnification", MP_OPT_MAGNIFICATION },
+    { "tem$plate", MP_OPT_TEMPLATE },
     { "fo$nt", MP_OPT_FONT },
     { NULL, MP_OPT_OTHER }
 };
@@ -226,6 +234,7 @@ MP_options()
 	MP_fontsize = 10.0;
 	MP_textmag = 1.0;
 	MP_prologues = -1;
+	MP_template=-1;
 	strcpy(MP_fontname, "cmr10");
 	term->flags |= TERM_IS_LATEX;
     }
@@ -286,6 +295,11 @@ MP_options()
 	case MP_OPT_NOPSNFSS:
 	    MP_psnfss = MP_PSNFSS_NONE;
 	    c_token++;
+	    break;
+	case MP_OPT_TEMPLATE:
+	    c_token++;
+	    if (MP_templatecont=try_to_get_string()) MP_template=1;
+	    else int_warn(NO_CARET,"No valid template found; will revert to default.");
 	    break;
 	case MP_OPT_PROLOGUES:
 	    c_token++;
@@ -379,13 +393,14 @@ MP_init()
     time_t now;
     time(&now);
     MP_posx = MP_posy = 0;
-    fprintf(gpoutfile, "%%GNUPLOT Metapost output: %s\n", asctime(localtime(&now)));
+    fprintf(gpoutfile, "%%GNUPLOT Metapost output: %s",asctime(localtime(&now)));
+    if (MP_template>-1) fprintf(gpoutfile,"outputtemplate:=\"%s\";\n",MP_templatecont);
     if (MP_prologues > -1) {
 	fprintf(gpoutfile, "prologues:=%d;\n", MP_prologues);
     }
     if (MP_tex == MP_LATEX) {
 	fputs("\n\
-%% Add \\documentclass and \\begin{dcoument} for latex\n\
+%% Add \\documentclass and \\begin{document} for latex\n\
 %% NB you should set the environment variable TEX to the name of your\n\
 %% latex executable (normally latex) inorder for metapost to work\n\
 %% or run\n\
@@ -769,34 +784,20 @@ MP_put_text(unsigned int x, unsigned int y, const char str[])
 	j = 3;
 	break;
     }
-    if (MP_tex == MP_NO_TEX) {
-	for (i = 0; i < strlen(text); i++)
-	    if (text[i] == '"')
-		text[i] = '\'';	/* Replace " with ' */
-	if (MP_fontchanged) {
-	    fprintf(gpoutfile, "\
-put_text(\"%s\" infontsize(\"%s\",%5.2f), %.1fa, %.1fb, %d, %d);\n",
-		    text, MP_fontname, MP_fontsize,
-		    x / 10.0, y / 10.0, MP_ang, j);
-	} else {
-	    fprintf(gpoutfile, "put_text(\"%s\", %.1fa, %.1fb, %d, %d);\n",
-		    text, x / 10.0, y / 10.0, MP_ang, j);
-	}
-    } else if (MP_fontchanged) {
-	if (MP_tex != MP_LATEX) {
-	    fprintf(gpoutfile, "\
-put_text( btex \\setfont{%s}{%5.2f} %s etex, %.1fa, %.1fb, %d, %d);\n",
-		    MP_fontname, MP_fontsize, text,
-		    x / 10.0, y / 10.0, MP_ang, j);
-	} else {
-	    fprintf(gpoutfile, "put_text( btex %s etex, %.1fa, %.1fb, %d, %d);\n",
-		    text, x / 10.0, y / 10.0, MP_ang, j);
-	}
+    fprintf(gpoutfile,"put_text(");
+    if (MP_tex==MP_NO_TEX) {
+        for (i=0;i<strlen(text);i++)
+            if (text[i]=='"') text[i]='\''; /* Replace " with ' */
+        fprintf(gpoutfile,"\"%s\"",text);
+        if (MP_fontchanged) 
+            fprintf(gpoutfile," infontsize(\"%s\",%5.2f)",MP_fontname,MP_fontsize);
     } else {
-	fprintf(gpoutfile, "put_text( btex %s etex, %.1fa, %.1fb, %d, %d);\n",
-		text, x / 10.0, y / 10.0, MP_ang, j);
+        fprintf(gpoutfile,"btex ");
+        if (MP_fontchanged && MP_tex != MP_LATEX) 
+            fprintf(gpoutfile,"\\setfont{%s}{%5.2f} ",MP_fontname,MP_fontsize);
+        fprintf(gpoutfile,"%s etex",text);
     }
-
+    fprintf(gpoutfile,",%.1fa,%.1fb,%d,%d);\n",x/10.0,y/10.0,MP_ang,j);
     free(text);
 }
 
@@ -820,7 +821,7 @@ MP_set_font(const char *font)
 {
     if (*font) {
 	size_t sep = strcspn(font, ",");
-	if (sep < sizeof(MP_fontname))
+	if (sep && sep < sizeof(MP_fontname)) // Only overwrite MP_fontname when an explicit font was specified.
 	    strncpy(MP_fontname, font, sizeof(MP_fontname)-1);
 	sscanf(&(font[sep + 1]), "%lf", &MP_fontsize);
 	if (MP_fontsize < 5)
@@ -1096,6 +1097,7 @@ START_HELP(mp)
 "                {prologues <value>}",
 "                {a4paper}",
 "                {amstex}",
+"                {template \"<outputtemplate>\"}",
 "                {\"<fontname> {,<fontsize>}\"} ",
 "",
 " The option `color` causes lines to be drawn in color (on a printer or display",
@@ -1158,6 +1160,13 @@ START_HELP(mp)
 " The option `amstex` automatically selects the `latex` option and includes the following",
 " LaTeX packages: amsfonts, amsmath(intlimits). By default these packages are not",
 " included.",
+"",
+" The option `template` adds a line `outputtemplate:=\"<outputtemplate>\";`",
+" after the header line, where \"<outputtemplate>\" is a mandatory argument.",
+" The effect is that it determines the output filename of the Metapost-file, e.g., ",
+" \"%j.mps\" will yield files with extension `.mps` instead of the default `.0`,",
+" `.1`, etc.  Make sure to include \"%c\" in the template when multiple output files",
+" are generated.  Not specifying a template is equivalent to specifying \"%j.%c\".",
 "",
 " A name in quotes selects the font that will be used when no explicit font is",
 " given in a `set label` or `set title`.  A name recognized by TeX (a TFM file",
@@ -1235,8 +1244,9 @@ START_HELP(mp)
 " may need to add the following line in your LaTeX document:",
 "    \\DeclareGraphicsRule{*}{eps}{*}{}",
 " Each picture you made is in a separate file.  The first picture is in, e.g.,",
-" figure.0, the second in figure.1, and so on....  To place the third picture in",
-" your document, for example, all you have to do is:",
+" figure.0, the second in figure.1, and so on (unless you specified a different",
+" template than \"%j.%c\" for the output).  To place, for example, the third",
+" picture in your document, all you have to do is:",
 "    \\includegraphics{figure.2} % LaTeX",
 "    \\epsfbox{figure.2}         % plainTeX",
 "",
@@ -1247,7 +1257,7 @@ START_HELP(mp)
 " The choice of solid vs dashed lines, and color vs black lines can be change by",
 " changing the values assigned to the booleans `dashedlines` and `colorlines`.",
 " If the default `tex` option was in effect, global changes to the text of",
-" labels can be achieved by editing the `vebatimtex...etex` block.  In",
+" labels can be achieved by editing the `verbatimtex...etex` block.  In",
 " particular, a LaTeX preamble can be added if desired, and then LaTeX's",
 " built-in size changing commands can be used for maximum flexibility. Be sure",
 " to set the appropriate MP configuration variable to force Metapost to run",
