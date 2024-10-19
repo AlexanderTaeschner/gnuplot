@@ -3046,6 +3046,9 @@ eval_plots()
 	    if (this_plot->plot_style == TABLESTYLE) {
 		if (!table_mode)
 		    int_error(NO_CARET, "'with table' requires a previous 'set table'");
+		if (this_plot->plot_smooth != SMOOTH_NONE
+		||  this_plot->plot_filter != FILTER_NONE)
+		    int_warn(NO_CARET, "'with table' ignores filter and smoothing options");
 		expect_string( -1 );
 		some_tables = TRUE;
 	    }
