@@ -3863,9 +3863,11 @@ void wxt_atexit()
 	/* fork */
 	pid_t pid;
 
-	if (openwindows > 0)
+	if (openwindows > 0) {
+		/* per-thread font memory structures must be released before a fork */
+		pango_cairo_font_map_set_default(NULL);
 		pid = fork();
-	else
+	} else
 		pid = -1;
 
 	/* the parent just exits, the child keeps going */
