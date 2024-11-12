@@ -4899,54 +4899,77 @@ Ffigure_3Dboxes
 ?style boxplot
 ?with boxplot
 ?boxplot
-Ffigure_boxplot
  Boxplots are a common way to represent a statistical distribution of values.
- Quartile boundaries are determined such that 1/4 of the points have a value
- equal or less than the first quartile boundary, 1/2 of the points have a value
+ Gnuplot boxplots are always vertical, showing a distribution of values along y.
+ Quartile boundaries are determined such that 1/4 of the points have a y value
+ equal or less than the first quartile boundary, 1/2 of the points have y value
  equal or less than the second quartile (median) value, etc.  A box is drawn
- around the region between the first and third quartiles, with a horizontal line
+ around the region between the first and third quartiles with a horizontal line
  at the median value.  Whiskers extend from the box to user-specified limits.
- Points that lie outside these limits are drawn individually.  The horizontal
- spread of outliers with overlapping y value may be adjusted by `set jitter`.
+ Points that lie outside these limits (outliers) are drawn individually.
+ The width of the boxplot can be controlled either by `set boxwidth` or by
+ providing it in a third field of the `using` specifier in the plot command.
+
+ Syntax
+
+      2 columns:   x-position        y-value
+      3 columns:   x-position        y-value  boxwidth
+      4 columns:   first-x-position  y-value  boxwidth  category
+
+Ffigure_boxplot
+ The horizontal position of a boxplot is usually given as a constant value
+ in the first field (x-position) of the `using` specifier in the plot command.
+ You can place an identifying label at this position under the boxplot by adding
+ an `xticlabel` specifier in the plot command (two or three column syntax) or
+ by providing it as a string in a separate data column (four column syntax).
+ Both examples below should produce a plot with layout similar to the one
+ in the boxplot example figure.
 
  Examples
 
-     # Place a boxplot at x coordinate 1.0 representing the y values in column 5
-     plot 'data' using (1.0):5
+      #
+      # Compare distribution of y-values from two different files.
+      set border 2                    # left-hand border only
+      set xtics nomirror scale 0      # no tickmarks; only labels
+      set ytics rangelimited nomirror
+      plot 'dataset_A' using (1.):2:xticlabel('A') with boxplot, \
+           'dataset_B' using (2.):2:xticlabel('B') with boxplot
+       
+      #
+      # Compare y-values from two categories of data in the same file.
+      # Each line contains a category string ("A" or "B") in column 1 and
+      # a data value in column 2.  Labels auto-generated from category string.
+      start_x = 1.0
+      boxwidth = 0.5
+      plot 'mixeddata' using (start_x):2:(boxwidth):1 with boxplot
 
-     # Same plot but suppress outliers and force the width of the boxplot to 0.3
-     set style boxplot nooutliers
-     plot 'data' using (1.0):5:(0.3)
+ By default a single boxplot is produced from all y values found in the column
+ specified by the second field of the using specification.
+ If a fourth field is given in the `using` specification the content of that
+ input column will be used as a string that identifies a discrete category.
+ A separate boxplot will be drawn for each category found in the input.
+ The horizontal separation between these boxplots is 1.0 by default;, it can be
+ changed by `set style boxplot separation`.  By default the category identifier
+ is shown as a tic label below each boxplot.  Note that if category column
+ contains numerical values they are nevertheless treated as strings and thus
+ do not usually correspond to the x coordinate of the boxplot.
 
- By default only one boxplot is produced that represents all y values from the
- second column of the using specification. However, an additional (fourth)
- column can be added to the specification. If present, the values of that
- column will be interpreted as the discrete levels of a factor variable.
- As many boxplots will be drawn as there are levels in the factor variable.
- The separation between these boxplots is 1.0 by default, but it can be changed
- by `set style boxplot separation`. By default, the value of the factor variable
- is shown as a tic label below (or above) each boxplot.
+ The order of data points in the input file is not important. If there are
+ multiple blocks of data in the input file separated by two blank lines,
+ individual blocks may be selected with the `index` keyword or by using the
+ the data block number (`column(-2)`) as a level value in the fourth column.
+ See `pseudocolumns`, `index`.
 
- Example
-
-     # Suppose that column 2 of 'data' contains either "control" or "treatment"
-     # The following example produces two boxplots, one for each level of the
-     # factor
-     plot 'data' using (1.0):5:(0):2
-
- The default width of the box can be set via `set boxwidth <width>` or may be
- specified as an optional 3rd column in the `using` clause of the plot command.
- The first and third columns (x coordinate and width) are normally provided as
- constants rather than as data columns.
-
- By default the whiskers extend from the ends of the box to the most distant
- point whose y value lies within 1.5 times the interquartile range. By default
- outliers are drawn as circles (point type 7).  The width of the bars at the
- end of the whiskers may be controlled using `set bars` or `set errorbars`.
+ By default the whiskers extend vertically from the ends of the box to the most
+ distant point whose y value lies within 1.5 times the interquartile range.
+ By default outliers are drawn as circles (point type 7).  The width of bars at
+ the end of the whiskers may be controlled using `set bars` or `set errorbars`.
+ Multiple outliers with the same y value are displaced horizontally by one
+ character width.  This spacing can be controlled by `set jitter`.
 
  These default properties may be changed using the `set style boxplot` command.
  See `set style boxplot`, `bars`, `boxwidth`, `fillstyle`, `candlesticks`.
-
+#TeX \newpage
 2 boxxyerror
 ?plotting styles boxxyerror
 ?style boxxyerror
@@ -5109,10 +5132,10 @@ Ffigure_piechart
 ?style contourfill
 ?with contourfill
 ?contourfill
-Ffigure_contourfill
  Syntax:
       splot f(x,y) with contourfill {at base} {fillstyle <style>}
 
+Ffigure_contourfill
  Contourfill is a 3D plotting style used to color a pm3d surface in slices
  along the z axis.  It can be used in 2D projection (`set view map` or
  `with contourfill at base`) to create 2D contour plots with solid color
@@ -16002,25 +16025,25 @@ Ffigure_polar_grid
  If you want no median line, set this to 0.
 
  If the using specification for a boxplot contains a fourth column, the values
- in that column will be interpreted as the discrete levels of a factor
- variable.  In this case more than one boxplots may be drawn, as many as the
- number of levels of the factor variable.  These boxplots will be drawn next to
- each other, the distance between them is 1.0 by default (in x-axis units).
- This distance can be changed by the option `separation`.
+ in that column will be interpreted as a discrete category to which this data
+ point belongs.  In this case one boxplot is drawn for each category found in
+ the input.  These boxplots will be drawn next to each other spaced by 1.0
+ along x (in x-axis units).  This spacing can be changed by the option
+ `set style boxplot separation`.
 
  The `labels` option governs how and where these boxplots (each representing a
- part of the dataset) are labeled.  By default the value of the factor is put
+ part of the dataset) are labeled.  By default the category identifier is used
  as a tick label on the horizontal axis -- x or x2, depending on which one is
  used for the plot itself.  This setting corresponds to option `labels auto`.
  The labels can be forced to use either of the x or x2 axes -- options
  `labels x` and `labels x2`, respectively --, or they can be turned off
  altogether with the option `labels off`.
 
- By default the boxplots corresponding to different levels of the factor
- variable are not sorted; they will be drawn in the same order the levels are
- encountered in the data file. This behavior corresponds to the `unsorted`
- option. If the `sorted` option is active, the levels are first sorted
- alphabetically, and the boxplots are drawn in the sorted order.
+ By default the boxplots corresponding to different categories will be drawn
+ in the same order the levels are encountered in the data file. This behavior
+ corresponds to the `unsorted` option. If the `sorted` option is active, the
+ category identifiers are first sorted alphabetically, and the boxplots are
+ drawn in the sorted order.
 
  The `separation`, `labels`, `sorted` and `unsorted` option only have an effect
  if a fourth column is given the plot specification.
