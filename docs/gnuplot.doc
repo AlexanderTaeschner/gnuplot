@@ -5376,6 +5376,8 @@ Ffigure_steps
  baseline.  Note that in moving from one data point to the next, both `steps`
  and `fillsteps` first trace the change in x coordinate and then the change
  in y coordinate.  See `steps`.
+    1 column:   y     # implicit x from line number (column 0)
+    2 columns:  x y
 2 fsteps
 ?plotting styles fsteps
 ?style fsteps
@@ -5393,6 +5395,8 @@ Ffigure_fsteps
 ^ <a href="http://www.gnuplot.info/demo/steps.html">
  steps demo.
 ^ </a>
+    1 column:   y     # implicit x from line number (column 0)
+    2 columns:  x y
 2 histeps
 ?plotting styles histeps
 ?style histeps
@@ -5413,6 +5417,8 @@ Ffigure_histeps
 ^ <a href="http://www.gnuplot.info/demo/steps.html">
  steps demo.
 ^ </a>
+    1 column:   y     # implicit x from line number (column 0)
+    2 columns:  x y
 
 #TeX \newpage
 2 heatmaps
@@ -6418,6 +6424,7 @@ Ffigure_spiderplot
       # Two polygons with 5 vertices
       plot for [i=1:5] 'A' using i, newspiderplot, for [j=1:5] 'B' using j
 
+#TeX \newpage
 2 steps
 ?plotting styles steps
 ?style steps
@@ -6435,6 +6442,8 @@ Ffigure_steps
 ^ <a href="http://www.gnuplot.info/demo/steps.html">
  steps demo.
 ^ </a>
+    1 column:   y     # implicit x from line number (column 0)
+    2 columns:  x y
 
 2 surface
 ?plotting styles surface
@@ -6495,7 +6504,6 @@ Ffigure_vectors
  See also the 2D plot style `with arrows` that is identical to `with vectors`
  except that each arrow is specified using x:y:length:angle.
 
-#TeX \newpage
 2 xerrorbars
 ?plotting styles xerrorbars
 ?style xerrorbars
@@ -6594,6 +6602,7 @@ Ffigure_xyerrorlines
  An additional input column (5th or 7th) may be used to provide variable color.
  This style does not permit variable point properties.
 
+#TeX \newpage
 2 yerrorbars
 ?plotting styles yerrorbars
 ?plotting styles errorbars
