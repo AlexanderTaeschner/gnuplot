@@ -8092,7 +8092,10 @@ Ffigure_zerror
  was defined previously, or extracted from an array.  Multiple datafiles,
  data blocks, arrays, and/or functions may be plotted in a single plot command
  separated by commas.
- See `data`, `inline data`, `functions`.
+
+ Many additional keywords are specific to data plots.
+ See `plot datafile`.
+ See alse `data`, `inline data`, `functions`.
 
  A plot-element that contains the definition of a function or variable does not
  create any visible output, see third example below.
@@ -8122,7 +8125,7 @@ Ffigure_zerror
 ?binary
 ?data binary
 ?datafile binary
-?plot data binary
+?plot datafile binary
  BINARY DATA FILES:
 
  It is necessary to provide the keyword `binary` after the filename.
@@ -8903,8 +8906,8 @@ D delaunay 1
 ?mask
       plot FOO using 1:2:3 mask with {pm3d|image}
 
- Once a mask has been defined, you can use it as a filter to select a
- subset of points from an image or pm3d plot.
+ Once a mask has been defined, you can use it as a filter to select only the
+ region inside it from an image, pm3d, or contourfill plot.
  See `masking`.
 
 5 sharpen

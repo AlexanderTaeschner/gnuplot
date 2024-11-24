@@ -130,31 +130,37 @@ set bars 4
 plot 'candlesticks.dat' using 1:3:2:6:5 title 'with financebars' with financebars
 set bars 1
 #
-set output out . 'figure_yerrorbars' . ext
-plot 'candlesticks.dat' using 1:4:3:5 with yerrorbars title 'with yerrorbars'
-#
-set output out . 'figure_yerrorlines' . ext
-plot 'candlesticks.dat' using 1:4:3:5 with yerrorlines title 'with yerrorlines'
-#
 set output out . 'figure_boxxyerror' . ext
 plot 'candlesticks.dat' using 1:4:($1-sin($1)/2.):($1+sin($1)/2.):3:5 \
      with boxxyerror title 'with boxxyerror' fs empty
 #
+set pointsize 0.4
+set pointintervalbox 2.5
 set output out . 'figure_xyerrorbars' . ext
 plot 'candlesticks.dat' using 1:4:($1-sin($1)/2.):($1+sin($1)/2.):3:5 \
-     with xyerrorbars title 'with xyerrorbars'
-#
-set output out . 'figure_xyerrorlines' . ext
-plot 'candlesticks.dat' using 1:4:($1-sin($1)/2.):($1+sin($1)/2.):3:5 \
-     with xyerrorlines title 'with xyerrorlines'
+     with xyerrorbars pt 7 title 'with xyerrorbars'
 #
 set output out . 'figure_xerrorbars' . ext
 plot 'candlesticks.dat' using 1:4:($1-sin($1)/2.):($1+sin($1)/2.) \
-     with xerrorbars title 'with xerrorbars'
+     with xerrorbars pt 7 title 'with xerrorbars'
 #
+set output out . 'figure_yerrorbars' . ext
+plot 'candlesticks.dat' using 1:4:3:5 \
+     with yerrorbars pt 7 title 'with yerrorbars'
+#
+set pointintervalbox 1.0
+set pointsize 0.5
 set output out . 'figure_xerrorlines' . ext
 plot 'candlesticks.dat' using 1:4:($1-sin($1)/2.):($1+sin($1)/2.) \
-     with xerrorlines title 'with xerrorlines'
+     with xerrorlines pt 6 title 'with xerrorlines'
+#
+set output out . 'figure_xyerrorlines' . ext
+plot 'candlesticks.dat' using 1:4:($1-sin($1)/2.):($1+sin($1)/2.):3:5 \
+     with xyerrorlines pt 6 title 'with xyerrorlines'
+#
+set output out . 'figure_yerrorlines' . ext
+plot 'candlesticks.dat' using 1:4:3:5 \
+     with yerrorlines pt 6 title 'with yerrorlines'
 
 # 
 #
