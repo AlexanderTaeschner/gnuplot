@@ -215,6 +215,11 @@ static TBOOLEAN setting_zoom_region = FALSE;
  * coordinate system */
 static int setting_zoom_x, setting_zoom_y;
 
+/* flag to indicate that in-line axis ranges should be ignored
+ * and zoom/pan range limits take precedence over auto-scaling
+ */
+static TBOOLEAN inside_zoom_flag;
+
 
 /* variables for changing the 3D view:
 */
@@ -269,6 +274,7 @@ static char *GetAnnotateString(char *s, double x, double y, int mode, char *fmt)
 static char *xDateTimeFormat(double x, char *b, int mode);
 static void GetRulerString(char *p, double x, double y);
 static void apply_zoom(struct t_zoom * z);
+static void restore_saved_axis_structures(void);
 static void do_zoom(double xmin, double ymin, double x2min,
 		    double y2min, double xmax, double ymax, double x2max, double y2max);
 static void ZoomNext(void);
@@ -746,8 +752,8 @@ static struct t_zoom *zoom_head = NULL, *zoom_now = NULL;
 static AXIS *axis_array_copy = NULL;
 
 /* Applies the zoom rectangle of  z  by sending the appropriate command
-   to gnuplot
-*/
+ * to gnuplot
+ */
 
 static void
 apply_zoom(struct t_zoom *z)
@@ -813,24 +819,7 @@ apply_zoom(struct t_zoom *z)
      * Apr 2015 - The same is now true (dynamic storage) for ticfmt, formatstring.
      */
     if (zoom_now == zoom_head) {
-	int i;
-	for (i=0; i<AXIS_ARRAY_SIZE; i++) {
-	    axis_array_copy[i].label = axis_array[i].label;
-	    axis_array_copy[i].ticdef.def.user = axis_array[i].ticdef.def.user;
-	    axis_array_copy[i].ticdef.font = axis_array[i].ticdef.font;
-	    axis_array_copy[i].ticfmt = axis_array[i].ticfmt;
-	    axis_array_copy[i].formatstring = axis_array[i].formatstring;
-	}
-	memcpy(axis_array, axis_array_copy, sizeof(axis_array));
-
-	/* The shadowed primary axis, if any, is not restored by the memcpy.	*/
-	/* We choose to recalculate the limits, but alternatively we could find	*/
-	/* some place to save/restore the unzoomed limits.			*/
-	if (nonlinear(&axis_array[FIRST_X_AXIS]))
-	    clone_linked_axes(&axis_array[FIRST_X_AXIS], axis_array[FIRST_X_AXIS].linked_to_primary);
-	if (nonlinear(&axis_array[FIRST_Y_AXIS]))
-	    clone_linked_axes(&axis_array[FIRST_Y_AXIS], axis_array[FIRST_Y_AXIS].linked_to_primary);
-
+	restore_saved_axis_structures();
 	/* Falling through to do_string_replot() does not work! */
 	if (volatile_data) {
 	    if (refresh_ok == E_REFRESH_OK_2D) {
@@ -842,23 +831,59 @@ apply_zoom(struct t_zoom *z)
 		return;
 	    }
 	}
-
     } else {
-	inside_zoom = TRUE;
+	inside_zoom_flag = TRUE;
     }
 
     do_string_replot("");
-    inside_zoom = FALSE;
+    inside_zoom_flag = FALSE;
+}
+
+/*
+ * helper routine called from apply_zoomi() and apply_saved_zoom()
+ */
+static void
+restore_saved_axis_structures()
+{
+    int i;
+    for (i=0; i<AXIS_ARRAY_SIZE; i++) {
+	axis_array_copy[i].label = axis_array[i].label;
+	axis_array_copy[i].ticdef.def.user = axis_array[i].ticdef.def.user;
+	axis_array_copy[i].ticdef.font = axis_array[i].ticdef.font;
+	axis_array_copy[i].ticfmt = axis_array[i].ticfmt;
+	axis_array_copy[i].formatstring = axis_array[i].formatstring;
+    }
+    memcpy(axis_array, axis_array_copy, sizeof(axis_array));
+
+    /* The shadowed primary axis, if any, is not restored by the memcpy.
+     * We choose to recalculate the limits, but alternatively we could find
+     * some place to save/restore the unzoomed limits.
+     */
+    if (nonlinear(&axis_array[FIRST_X_AXIS]))
+	clone_linked_axes(&axis_array[FIRST_X_AXIS],
+				axis_array[FIRST_X_AXIS].linked_to_primary);
+    if (nonlinear(&axis_array[FIRST_Y_AXIS]))
+	clone_linked_axes(&axis_array[FIRST_Y_AXIS],
+				axis_array[FIRST_Y_AXIS].linked_to_primary);
 }
 
 
-/* makes a zoom: update zoom history, call gnuplot to set ranges + replot
-*/
+/* Execute zoom or pan:
+ * update zoom history, then call gnuplot to set ranges + replot
+ */
 
 static void
 do_zoom(double xmin, double ymin, double x2min, double y2min, double xmax, double ymax, double x2max, double y2max)
 {
     struct t_zoom *z;
+
+    /* Only one panel of a multiplot can be active for pan/zoom */
+    if (last_plot_was_multiplot && mouse_outside_active_region()) {
+	if (display_ipc_commands())
+	    fprintf(stderr, "(ignored) ");
+	return;
+    }
+
     if (zoom_head == NULL) {	/* queue not yet created, thus make its head */
 	zoom_head = gp_alloc(sizeof(struct t_zoom), "mouse zoom history head");
 	zoom_head->prev = NULL;
@@ -3317,8 +3342,50 @@ void get_last_mouse_xy( double *x, double *y )
 void
 zoom_reset_after_error()
 {
-    inside_zoom = FALSE;
+    inside_zoom_flag = FALSE;
     setting_zoom_region = FALSE;
+}
+
+TBOOLEAN
+inside_zoom()
+{
+    if (!inside_zoom_flag)
+	return FALSE;
+    if (multiplot
+    &&  multiplot_current_panel() > 0
+    &&  multiplot_current_panel() != multiplot_last_panel)
+	return FALSE;
+
+    return TRUE;
+}
+
+/* When replotting a multiplot interactively, the final (mouse is active) panel
+ * may have been zoomed but the previous panels overwrote the zoom state.
+ */
+void
+apply_saved_zoom()
+{
+    if (!zoom_now)
+	return;
+    if (1+multiplot_current_panel() != multiplot_last_panel)
+	return;
+
+    if (zoom_now == zoom_head) {
+	restore_saved_axis_structures();
+	return;
+    }
+
+    /* New range on primary axes */
+    set_explicit_range(&axis_array[FIRST_X_AXIS], zoom_now->xmin, zoom_now->xmax);
+    set_explicit_range(&axis_array[FIRST_Y_AXIS], zoom_now->ymin, zoom_now->ymax);
+
+    /* Do not mistake autoscaling initial state as an actual limit value. */
+    if (!is_3d_plot
+    && (zoom_now->x2min < VERYLARGE && zoom_now->x2max > -VERYLARGE))
+	set_explicit_range(&axis_array[SECOND_X_AXIS], zoom_now->x2min, zoom_now->x2max);
+    if (!is_3d_plot
+    && (zoom_now->y2min < VERYLARGE && zoom_now->y2max > -VERYLARGE))
+	set_explicit_range(&axis_array[SECOND_Y_AXIS], zoom_now->y2min, zoom_now->y2max);
 }
 
 #endif /* USE_MOUSE */

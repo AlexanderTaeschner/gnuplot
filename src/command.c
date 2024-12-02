@@ -2074,6 +2074,10 @@ plot_command()
     add_udv_by_name("MOUSE_SHIFT")->udv_value.type = NOTDEFINED;
     add_udv_by_name("MOUSE_ALT")->udv_value.type = NOTDEFINED;
     add_udv_by_name("MOUSE_CTRL")->udv_value.type = NOTDEFINED;
+    if (multiplot_playback) {
+	/* This will only get applied to a multiplot panel with active mousing */
+	apply_saved_zoom();
+    }
 #endif
     if (evaluate_inside_functionblock && inside_plot_command)
 	int_error(NO_CARET, "plot command not available in this context");

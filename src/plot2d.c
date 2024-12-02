@@ -46,6 +46,7 @@
 #include "graphics.h"
 #include "interpol.h"
 #include "misc.h"
+#include "mouse.h"	/* for inside_zoom() */
 #include "parse.h"
 #include "pm3d.h"	/* for is_plot_with_palette */
 #include "setshow.h"
@@ -257,7 +258,7 @@ plotrequest()
     /* If we are called from a mouse zoom operation we should ignore
      * any range limits because otherwise the zoom won't zoom.
      */
-    if (inside_zoom) {
+    if (inside_zoom()) {
 	while (equals(c_token,"[") && (parse_skip_range() == TRUE))
 	    /* consume multiple range specifiers */
 	    ;
@@ -4066,7 +4067,7 @@ eval_plots()
 	 * to a region with no data points causes y autoscaling to become undefined
 	 * on refresh.  In this case we use the range requested by zoom.
 	 */
-	if (inside_zoom) {
+	if (inside_zoom()) {
 	    axis_array[FIRST_Y_AXIS].min = axis_array[FIRST_Y_AXIS].set_min;
 	    axis_array[FIRST_Y_AXIS].max = axis_array[FIRST_Y_AXIS].set_max;
 	}
@@ -4080,7 +4081,7 @@ eval_plots()
 	}
     }
     if (uses_axis[SECOND_Y_AXIS]) {
-	if (inside_zoom) {
+	if (inside_zoom()) {
 	    axis_array[SECOND_Y_AXIS].min = axis_array[SECOND_Y_AXIS].set_min;
 	    axis_array[SECOND_Y_AXIS].max = axis_array[SECOND_Y_AXIS].set_max;
 	}

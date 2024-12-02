@@ -45,6 +45,7 @@
 #include "axis.h"
 #include "command.h"
 #include "misc.h"
+#include "mouse.h"	/* for inside_zoom() */
 #include "gadgets.h"
 #include "jitter.h"
 #include "plot2d.h"		/* for boxwidth */
@@ -910,7 +911,7 @@ do_plot(struct curve_points *plots, int pcount)
 	 * whether their points are INRANGE or not.  The same is true if the
 	 * plots are being redrawn as part of an interactive pan or zoom.
 	 */
-	if ((this_plot->noautoscale || inside_zoom)  &&  !key_pass)
+	if ((this_plot->noautoscale || inside_zoom())  &&  !key_pass)
 	    recheck_ranges(this_plot);
 
 	/* and now the curves, plus any special key requirements */

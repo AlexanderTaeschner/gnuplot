@@ -48,6 +48,7 @@
 #include "hidden3d.h"
 #include "interpol.h"
 #include "misc.h"
+#include "mouse.h"	/* for inside_zoom() */
 #include "parse.h"
 #include "pm3d.h"
 #include "setshow.h"
@@ -2863,7 +2864,7 @@ eval_3dplots()
      * In either case apply_zoom() has loaded the requested plot limits
      * into (axis)-> set_min and set_max.
      */
-    if (inside_zoom) {
+    if (inside_zoom()) {
 	axis_array[FIRST_X_AXIS].min = axis_array[FIRST_X_AXIS].set_min;
 	axis_array[FIRST_X_AXIS].max = axis_array[FIRST_X_AXIS].set_max;
 	axis_array[FIRST_Y_AXIS].min = axis_array[FIRST_Y_AXIS].set_min;
