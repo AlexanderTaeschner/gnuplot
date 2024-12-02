@@ -3276,29 +3276,17 @@ static void wxt_update_mousecoords_in_window(int number, int mx, int my)
 	if ((window = wxt_findwindowbyid(number))) {
 
 		/* TODO: rescale mx and my using stored per-plot scale info */
-		char mouse_format[66];
+		char mouse_format[67]; // %10g may use at most 13 chars
 		char *m = mouse_format;
-		double x, y, x2, y2;
-
-		if (window->axis_mask & (1<<0)) {
-			x = mouse_to_axis(mx, &window->axis_state[0]);
-			sprintf(m, "x=  %10g   %c", x, '\0');
-			m += 17;
-		}
-		if (window->axis_mask & (1<<1)) {
-			y = mouse_to_axis(my, &window->axis_state[1]);
-			sprintf(m, "y=  %10g   %c", y, '\0');
-			m += 17;
-		}
-		if (window->axis_mask & (1<<2)) {
-			x2 = mouse_to_axis(mx, &window->axis_state[2]);
-			sprintf(m, "x2=  %10g   %c", x2, '\0');
-			m += 17;
-		}
-		if (window->axis_mask & (1<<3)) {
-			y2 = mouse_to_axis(my, &window->axis_state[3]);
-			sprintf(m, "y2=  %10g %c", y2, '\0');
-			m += 15;
+		int left = sizeof(mouse_format);
+		const char *name[4] = { "x", "y", "x2", "y2" };
+		for (int i=0; i<4 && left > 0; ++i) {
+			if (window->axis_mask & (1<<i)) {
+				int n = snprintf(m, left, "%s=% -10g ", name[i],
+							mouse_to_axis(mx, &window->axis_state[i]));
+				m += n;
+				left -= n;      // left<=0 if truncated (should not happen)
+			}
 		}
 
 		FPRINTF((stderr,"wxt : update mouse coords in window %d\n",number));
