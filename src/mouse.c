@@ -750,6 +750,7 @@ GetRulerString(char *p, double x, double y)
 
 static struct t_zoom *zoom_head = NULL, *zoom_now = NULL;
 static AXIS *axis_array_copy = NULL;
+static AXIS *shadow_axis_array_copy = NULL;
 
 /* Applies the zoom rectangle of  z  by sending the appropriate command
  * to gnuplot
@@ -773,10 +774,19 @@ apply_zoom(struct t_zoom *z)
 
     /* The autoscale save/restore was too complicated, and broke refresh.
      * Just save the complete axis state and have done with it.
+     * FIXME: Can there be a memory leak if a non-linear axis was declared
+     *        inside the multiplot and not freed here before restoring the
+     *        original shadow axis structure?
      */
     if (zoom_now == zoom_head && z != zoom_head) {
 	axis_array_copy = gp_realloc( axis_array_copy, sizeof(axis_array), "axis_array copy");
 	memcpy(axis_array_copy, axis_array, sizeof(axis_array));
+	if (shadow_axis_array) {
+	    size_t shadowsize = NUMBER_OF_MAIN_VISIBLE_AXES * sizeof(AXIS);
+	    shadow_axis_array_copy =
+		gp_realloc( shadow_axis_array_copy, shadowsize, "shadow_array copy");
+	    memcpy(shadow_axis_array_copy, shadow_axis_array, shadowsize);
+	}
     }
 
     /* If we are zooming, we don't want to autoscale the range.
@@ -854,17 +864,10 @@ restore_saved_axis_structures()
 	axis_array_copy[i].formatstring = axis_array[i].formatstring;
     }
     memcpy(axis_array, axis_array_copy, sizeof(axis_array));
-
-    /* The shadowed primary axis, if any, is not restored by the memcpy.
-     * We choose to recalculate the limits, but alternatively we could find
-     * some place to save/restore the unzoomed limits.
-     */
-    if (nonlinear(&axis_array[FIRST_X_AXIS]))
-	clone_linked_axes(&axis_array[FIRST_X_AXIS],
-				axis_array[FIRST_X_AXIS].linked_to_primary);
-    if (nonlinear(&axis_array[FIRST_Y_AXIS]))
-	clone_linked_axes(&axis_array[FIRST_Y_AXIS],
-				axis_array[FIRST_Y_AXIS].linked_to_primary);
+    if (shadow_axis_array && shadow_axis_array_copy) {
+	size_t shadowsize = NUMBER_OF_MAIN_VISIBLE_AXES * sizeof(AXIS);
+	memcpy(shadow_axis_array, shadow_axis_array_copy, shadowsize);
+    }
 }
 
 
