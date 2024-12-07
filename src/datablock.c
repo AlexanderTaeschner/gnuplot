@@ -408,7 +408,9 @@ f_eval(union argument *arg)
     if (functionblock->udv_value.type != FUNCTIONBLOCK)
 	int_error(NO_CARET, "attempt to execute something other than a function block");
 
-    /* Clear any previous return value */
+    /* Clear any previous return value. This is what we will see if the functionblock
+     * has no "return" statement
+     */
     gpfree_string(&eval_return_value);
     eval_return_value.type = NOTDEFINED;
 
@@ -422,6 +424,12 @@ f_eval(union argument *arg)
 
     load_file( NULL, (void *)(functionblock), 8);
     push(&eval_return_value);
+
+    /* Clear staged return value after "push" so that it cannot be mistakenly accessed
+     * a second time if a functionblock without a "return" statement is called.
+     */
+    gpfree_string(&eval_return_value);
+    eval_return_value.type = NOTDEFINED;
 }
 #else	/* USE_FUNCTIONBLOCKS */
 void f_eval(union argument *arg)
