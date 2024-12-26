@@ -487,7 +487,8 @@ do_line()
 	     */
 	    int_error(NO_CARET, "Syntax error: missing block terminator }");
 	}
-	else if (interactive || noinputfiles) {
+
+	if (interactive || noinputfiles || reading_from_dash) {
 	    /* If we are really in interactive mode and there are unterminated blocks,
 	     * then we want to display a "more>" prompt to get the rest of the block.
 	     * However, there are two more cases that must be dealt here:
@@ -495,7 +496,8 @@ do_line()
 	     * the other is when commands are piped to gnuplot which is opened
 	     * as a slave process. The test for noinputfiles is for the latter case.
 	     * If we didn't have that test here, unterminated blocks sent via a pipe
-	     * would trigger the error message in the else branch below. */
+	     * would trigger the error message in the else branch below.
+	     */
 	    int retval;
 	    strcat(gp_input_line,";");
 	    retval = read_line("more> ", strlen(gp_input_line));
@@ -507,12 +509,13 @@ do_line()
 	    num_tokens = scanner(&gp_input_line, &gp_input_line_len);
 	    if (gp_input_line[token[num_tokens].start_index] == '#')
 		gp_input_line[token[num_tokens].start_index] = NUL;
-	}
-	else {
+
+	} else {
 	    /* Non-interactive mode here means that we got a string from -e.
 	     * Having curly_brace_count > 0 means that there are at least one
 	     * unterminated blocks in the string.
-	     * Likely user error, so we die with an error message. */
+	     * Likely user error, so we die with an error message.
+	     */
 	    int_error(NO_CARET, "Syntax error: missing block terminator }");
 	}
     }
