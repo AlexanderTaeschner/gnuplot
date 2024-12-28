@@ -429,6 +429,10 @@ com_line()
     screen_ok = interactive;
     return_value = do_line();
 
+    /* If this line is part of a multiplot, save it for later replay */
+    if (multiplot && !multiplot_playback)
+	append_multiplot_line(gp_input_line);
+
     return return_value;
 }
 
@@ -773,28 +777,9 @@ undefine_command()
 static void
 command()
 {
-    /* Support for multiplot record/replay.
-     * Isolate the next command in the input line.
-     * Remember the command as given, then save it to $GPVAL_LAST_MULTIPLOT
-     * only after it is successfully executed.
-     * However we discard commands read inside a "load" or "call" invocation.
-     */
-    static char *one_command = NULL;
-    char *command_start = &gp_input_line[token[c_token].start_index];
-    if (!lf_head || !lf_head->inside_multiplot) {
-	/* step through tokens to find a real (not quoted) semicolon */
-	size_t len = strlen(command_start);
-	for (int semicolon = c_token; semicolon <= num_tokens; semicolon++) {
-	    if (equals(semicolon,";")) {
-		len = &gp_input_line[token[semicolon].start_index] - command_start;
-		break;
-	    }
-	}
-	free(one_command);
-	one_command = strndup(command_start, len);
-    }
+    int i;
 
-    for (int i = 0; i < MAX_NUM_VAR; i++)
+    for (i = 0; i < MAX_NUM_VAR; i++)
 	c_dummy_var[i][0] = NUL;	/* no dummy variables */
 
     if (is_definition(c_token))
@@ -802,14 +787,7 @@ command()
     else if (is_array_assignment())
 	;
     else
-	/* Execute the command that begins the line */
 	(*lookup_ftable(&command_ftbl[0],c_token))();
-
-    /* If this is part of a multiplot, save it for later replay */
-    if (multiplot && !multiplot_playback) {
-	if (!lf_head || !lf_head->inside_multiplot)
-	    append_multiplot_line(one_command);
-    }
 
     return;
 }

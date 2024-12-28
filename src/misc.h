@@ -97,7 +97,6 @@ typedef struct lf_state_struct {
     char *cmdline;              /* content of command string for do_string() */
     /* last recursion level: */
     TBOOLEAN interactive;	/* value of interactive flag on entry */
-    TBOOLEAN inside_multiplot;	/* value of multiplot flag on entry */
     int inline_num;		/* inline_num on entry */
     int depth;			/* recursion depth */
     TBOOLEAN if_open_for_else;	/* used by _new_ if/else syntax */

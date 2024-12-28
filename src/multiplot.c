@@ -693,17 +693,16 @@ init_multiplot_datablock()
 }
 
 /* Append one line to the multiplot history.
- * Here documents (inline data) must not be saved.
- * The content of "load" and "call" commands has been filtered out by the caller,
- * so we only see the "load" or "call" command itself.
+ * Called from two places:
+ *	command.c:com_line() catches direct input from stdin
+ *	misc.c:load_file() catches lines from load/call
  * When the multiplot is exited via multiplot_end(), all lines will be
  * copied to the user-visible datblock $GPVAL_LAST_MULTIPLOT.
  */
 void
 append_multiplot_line(char *line)
 {
-    if (line && *line && !(*line == '$' && strstr(line,"<<")))
-	append_to_datablock(&multiplot_udv, strdup(line));
+    append_to_datablock(&multiplot_udv, strdup(line));
 }
 
 /* This is the implementation of "remultiplot".
