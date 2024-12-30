@@ -432,9 +432,18 @@ com_line()
     return return_value;
 }
 
-
+/* Dec 2024 - split do_line() into two sequential steps */
 int
 do_line()
+{
+    if (preprocess_line() < 0)
+	return 0;
+
+    return step_through_line();
+}
+
+int
+preprocess_line()
 {
     /* Line continuation has already been handled by read_line().
      * Expand any string variables in the current input line.
@@ -460,7 +469,7 @@ do_line()
 	if (evaluate_inside_functionblock)
 	    int_error(NO_CARET, "bare shell commands not accepted in a function block");
 	do_system(gp_input_line + 1);
-	return (0);
+	return (-1);
     }
 
     /* Strip off trailing comment */
@@ -519,7 +528,12 @@ do_line()
 	    int_error(NO_CARET, "Syntax error: missing block terminator }");
 	}
     }
+    return 0;
+}
 
+int
+step_through_line()
+{
     c_token = 0;
     while (c_token < num_tokens) {
 	command();

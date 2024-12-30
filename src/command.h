@@ -194,6 +194,8 @@ void extend_input_line(void);
 void extend_token_table(void);
 int com_line(void);
 int do_line(void);
+int preprocess_line(void);
+int step_through_line(void);
 void do_string(const char* s);
 void do_string_and_free(char* s);
 TBOOLEAN iteration_early_exit(void);
