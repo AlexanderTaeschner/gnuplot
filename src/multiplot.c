@@ -211,7 +211,7 @@ multiplot_start()
     c_token++;
 
     /* Only a few options are possible if we are already in multiplot mode */
-    if (multiplot) {
+    if (in_multiplot) {
 	if (equals(c_token, "next")) {
 	    c_token++;
 	    if (!mp_layout.auto_layout)
@@ -424,7 +424,7 @@ multiplot_start()
      * ignoring subsequent TERM_LAYER_RESET requests. 
      */
     term_start_plot();
-    multiplot = TRUE;
+    in_multiplot = lf_head ? lf_head->depth + 1 : 1;
     multiplot_count = 0;
     fill_gpval_integer("GPVAL_MULTIPLOT", 1);
     init_multiplot_datablock();
@@ -465,7 +465,7 @@ multiplot_start()
 void
 multiplot_end()
 {
-    multiplot = FALSE;
+    in_multiplot = 0;
     multiplot_count = 0;
     fill_gpval_integer("GPVAL_MULTIPLOT", 0);
     /* reset plot size, origin and margins to values before 'set

@@ -397,7 +397,7 @@ load_file(FILE *fp, char *name, int calltype)
 	/* If this line is part of a multiplot, save it for later replay.
 	 * Note that the line has already been accepted and executed without error.
 	 */
-	if (multiplot && !multiplot_playback & !evaluate_inside_functionblock) {
+	if (in_multiplot && !multiplot_playback & !evaluate_inside_functionblock) {
 	    /* Replay would filter out datablock definitions anyway,
 	     * but saving the first line with no actual data would leave an
 	     * invalid command sequence in GPVAL_LAST_MULTIPLOT.

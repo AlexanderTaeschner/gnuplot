@@ -388,7 +388,7 @@ com_line()
 {
     int return_value = 0;
 
-    if (multiplot) {
+    if (in_multiplot) {
 	/* calls int_error() if it is not happy */
 	term_check_multiplot_okay(interactive);
 
@@ -430,7 +430,7 @@ com_line()
     return_value = do_line();
 
     /* If this line is part of a multiplot, save it for later replay */
-    if (multiplot && !multiplot_playback)
+    if (in_multiplot && !multiplot_playback)
 	append_multiplot_line(gp_input_line);
 
     return return_value;
@@ -627,7 +627,7 @@ do_string_replot(const char *s)
     do_string(s);
 
     /* EXPERIMENTAL */
-    if (last_plot_was_multiplot && !multiplot && !replot_disabled) {
+    if (last_plot_was_multiplot && !in_multiplot && !replot_disabled) {
 	replay_multiplot();
 	return;
     }
@@ -1148,7 +1148,7 @@ clear_command()
 
     term_start_plot();
 
-    if (multiplot && term->fillbox) {
+    if (in_multiplot && term->fillbox) {
 	int xx1 = xoffset * term->xmax;
 	int yy1 = yoffset * term->ymax;
 	unsigned int width = xsize * term->xmax;
@@ -2476,7 +2476,7 @@ replot_command()
 	term->init();
 
     /* EXPERIMENTAL */
-    if (last_plot_was_multiplot && !multiplot)
+    if (last_plot_was_multiplot && !in_multiplot)
 	replay_multiplot();
     else
 	replotrequest();

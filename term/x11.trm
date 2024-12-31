@@ -2171,7 +2171,7 @@ X11_layer(t_termlayer syncpoint)
 	{
 	case TERM_LAYER_RESET:
 	case TERM_LAYER_RESET_PLOTNO:
-		if (multiplot)
+		if (in_multiplot)
 			break;
 	case TERM_LAYER_BEFORE_PLOT:
 	case TERM_LAYER_AFTER_PLOT:

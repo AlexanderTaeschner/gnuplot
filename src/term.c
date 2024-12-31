@@ -137,8 +137,8 @@ void *term_interlock = NULL;
 /* true if "set monochrome" */
 TBOOLEAN monochrome = FALSE;
 
-/* true if in multiplot mode */
-TBOOLEAN multiplot = FALSE;
+/* 1 + stack depth at which "set multiplot" occurred" */
+int in_multiplot = 0;
 int multiplot_count = 0;
 
 /* text output encoding, for terminals that support it */
@@ -347,7 +347,7 @@ term_set_output(char *dest)
     FPRINTF((stderr, "term_set_output\n"));
     assert(dest == NULL || dest != outstr);
 
-    if (multiplot) {
+    if (in_multiplot > 0) {
 	fputs("In multiplot mode you can't change the output\n", stderr);
 	return;
     }
@@ -514,7 +514,7 @@ term_start_plot()
     if (!term_graphics) {
 	(*term->graphics) ();
 	term_graphics = TRUE;
-    } else if (multiplot && term_suspended) {
+    } else if (in_multiplot && term_suspended) {
 	if (term->resume)
 	    (*term->resume) ();
 	term_suspended = FALSE;
@@ -522,7 +522,7 @@ term_start_plot()
 
     sanity_check_font_size();
 
-    if (multiplot)
+    if (in_multiplot)
 	multiplot_count++;
 
     /* Sync point for epslatex text positioning */
@@ -552,7 +552,7 @@ term_end_plot()
     /* Sync point for epslatex text positioning */
     (*term->layer)(TERM_LAYER_END_TEXT);
 
-    if (!multiplot) {
+    if (in_multiplot == 0) {
 	FPRINTF((stderr, "- calling term->text()\n"));
 	(*term->text) ();
 	term_graphics = FALSE;
@@ -711,7 +711,7 @@ void
 term_end_multiplot()
 {
     FPRINTF((stderr, "term_end_multiplot()\n"));
-    if (!multiplot)
+    if (in_multiplot == 0)
 	return;
 
     if (term_suspended) {

@@ -2547,7 +2547,7 @@ void wxt_layer(t_termlayer layer)
 		return;
 	}
 	if (layer == TERM_LAYER_RESET || layer == TERM_LAYER_RESET_PLOTNO) {
-		if (multiplot)
+		if (in_multiplot > 0)
 			return;
 	}
 

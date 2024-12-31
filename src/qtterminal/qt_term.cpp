@@ -1656,7 +1656,7 @@ void qt_layer( t_termlayer syncpoint )
 		// by resetting plotno to that of the 1st plot in the current panel.
 		// For the non-multiplot case that's 0, so we can just fall through.
 	case TERM_LAYER_RESET:
-		if (!multiplot) {
+		if (!in_multiplot) {
 			current_plotno = 0;
 			qt->out << GEPlotNumber << 0;
 		}

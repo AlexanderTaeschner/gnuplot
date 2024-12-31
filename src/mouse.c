@@ -2600,7 +2600,7 @@ do_event(struct gp_event_t *ge)
 	    break;
 	if (!strncmp(replot_line,"test",4))
 	    break;
-	if (multiplot)
+	if (in_multiplot)
 	    break;
 	do_string_replot("");
 	break;
@@ -3354,7 +3354,7 @@ inside_zoom()
 {
     if (!inside_zoom_flag)
 	return FALSE;
-    if (multiplot
+    if (in_multiplot
     &&  multiplot_current_panel() > 0
     &&  multiplot_current_panel() != multiplot_last_panel)
 	return FALSE;
