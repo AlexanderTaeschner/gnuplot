@@ -154,6 +154,8 @@ static void load_or_call_command( TBOOLEAN call );
 static int expand_1level_macros(void);
 static void timed_pause(double sleep_time);
 
+static void check_for_multiplot_save(TBOOLEAN *interlock);
+
 struct lexical_unit *token;
 int token_table_size;
 
@@ -429,10 +431,6 @@ com_line()
     screen_ok = interactive;
     return_value = do_line();
 
-    /* If this line is part of a multiplot, save it for later replay */
-    if (in_multiplot && !multiplot_playback)
-	append_multiplot_line(gp_input_line);
-
     return return_value;
 }
 
@@ -538,9 +536,21 @@ preprocess_line()
 int
 step_through_line()
 {
+    TBOOLEAN interlock = FALSE;	/* protect against recursion via command() */
+
     c_token = 0;
     while (c_token < num_tokens) {
+
+	/* Commands in multiplot mode are saved for use in replot or mousing */
+	if (in_multiplot)
+	    check_for_multiplot_save(&interlock);
+
+	/* Execute the next command, advancing c_token as it is parsed */
 	command();
+
+	if (interlock)
+	    suppress_multiplot_save = FALSE;
+
 	if (command_exit_requested) {
 	    command_exit_requested = 0;	/* yes this is necessary */
 	    return 1;
@@ -567,6 +577,40 @@ step_through_line()
     return (0);
 }
 
+static void
+check_for_multiplot_save(TBOOLEAN *interlock)
+{
+    /* When saving commands for multiplot replay we choose to save an
+     * entire for/while/do loop rather than the sequence of individual
+     * commands that result from executing it.  Suppress redundant
+     * saving of the individual component commands while it executes.
+     * Suppression lasts until both suppress_multiplot_save and interlock
+     * are reset.
+     */
+    TBOOLEAN unnested = !lf_head || (lf_head && lf_head->depth < in_multiplot);
+    if (!multiplot_playback && unnested) {
+	if (equals(c_token, "do") || equals(c_token, "while")
+	||  equals(c_token, "if") || equals(c_token, "else")) {
+	    /* Only save up to an embedded "end multiplot", if there is one */
+	    char *truncated = NULL;
+	    for (int unset_token = c_token; unset_token < num_tokens; unset_token++) {
+		if (almost_equals(unset_token, "un$set")
+		&&  almost_equals(unset_token+1, "multi$plot")) {
+		    size_t len = token[unset_token].start_index - token[c_token].start_index;
+		    truncated = strndup(&(gp_input_line[token[c_token].start_index]), len);
+		    append_multiplot_line(truncated);
+		    free(truncated);
+		    break;
+		}
+	    }
+	    if (!truncated)
+		append_multiplot_line(&(gp_input_line[token[c_token].start_index]));
+
+	    suppress_multiplot_save = TRUE;
+	    *interlock = TRUE;
+	}
+    }
+}
 
 void
 do_string(const char *s)
@@ -626,7 +670,6 @@ do_string_replot(const char *s)
 {
     do_string(s);
 
-    /* EXPERIMENTAL */
     if (last_plot_was_multiplot && !in_multiplot && !replot_disabled) {
 	replay_multiplot();
 	return;
@@ -777,9 +820,31 @@ undefine_command()
 static void
 command()
 {
-    int i;
+    /* Support for multiplot replay */
+    /* The basic goal is to save the commands used to create a multiplot.
+     * - Simple commands can be saved one command at a time after execution.
+     * - Complex commands (if/else/while/do for) are read in until the final }
+     *   is encounted and then saved as a single line by step_through_line().
+     *   In this case the flag suppress_multiplot_save has been set so that the
+     *   constituent commands are not redundantly saved again here.
+     * - load/call commands are treated analogously to if/while/do, except that
+     *   save is suppressed by the test (lf_head->depth < in_multiplot).
+     */
+    char *one_command = NULL;
+    if (!suppress_multiplot_save)
+    if (!multiplot_playback && !evaluate_inside_functionblock) {
+	    char *command_start = &gp_input_line[token[c_token].start_index];
+	    size_t len = strlen(command_start);
+	    for (int semicolon = c_token; semicolon <= num_tokens; semicolon++) {
+		if (equals(semicolon, ";")) {
+		    len = &gp_input_line[token[semicolon].start_index] - command_start;
+		    break;
+		}
+	    }
+	    one_command = strndup(command_start, len);
+    }
 
-    for (i = 0; i < MAX_NUM_VAR; i++)
+    for (int i = 0; i < MAX_NUM_VAR; i++)
 	c_dummy_var[i][0] = NUL;	/* no dummy variables */
 
     if (is_definition(c_token))
@@ -788,6 +853,15 @@ command()
 	;
     else
 	(*lookup_ftable(&command_ftbl[0],c_token))();
+
+    /* Support for multiplot replay */
+    if (in_multiplot && !multiplot_playback && !suppress_multiplot_save
+    &&  !evaluate_inside_functionblock) {
+	/* NB: should we also allow (lf_head->name == NULL)? */
+	if (!lf_head || lf_head->depth < in_multiplot)
+	    append_multiplot_line(one_command); 
+    }
+    free(one_command);
 
     return;
 }
@@ -2475,7 +2549,6 @@ replot_command()
     if (term->flags & TERM_INIT_ON_REPLOT)
 	term->init();
 
-    /* EXPERIMENTAL */
     if (last_plot_was_multiplot && !in_multiplot)
 	replay_multiplot();
     else
