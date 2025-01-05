@@ -1328,9 +1328,9 @@ do_key_sample(
 	       &&  (style == FS_EMPTY || (! this_plot->hsteps_options.baseline))
 	       &&  w > 0) {
 	    draw_clip_line(xl + key_sample_left, yl, xl + key_sample_right, yl);
-        } else if (this_plot->plot_style == MARKS) {
+	} else if (this_plot->plot_style == MARKS) {
 	    /* Handle the mark itself later in do_key_sample_point() */
-        } else if (this_plot->plot_style == LINESMARKS) {
+	} else if (this_plot->plot_style == LINESMARKS) {
 	    draw_clip_line(xl + key_sample_left, yl, xl + key_sample_right, yl);
 	    /* Handle the mark itself later in do_key_sample_point() */
 	} else if (w > 0) {    /* All other plot types with fill */

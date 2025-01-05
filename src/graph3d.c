@@ -1222,7 +1222,7 @@ do_3dplot(
 	    case BOXERROR:
 	    case ARROWS:
 	    case CIRCLES:
-            case MARKS:
+	    case MARKS:
 	    case ELLIPSES:
 	    case POINTSTYLE:
 	    case DOTS:

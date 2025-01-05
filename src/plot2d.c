@@ -613,10 +613,10 @@ get_data(struct curve_points *current_plot)
 
     case MARKS:	/* 2 + possible variable color, or 4 + possible variable color */
     case LINESMARKS:
-        /* 2 column: x y */
-        /* 3 column: x y scale */
-        /* 4 column: x y xscale yscale */
-        /* 5 column: x y xscale yscale angle */
+	/* 2 column: x y */
+	/* 3 column: x y scale */
+	/* 4 column: x y xscale yscale */
+	/* 5 column: x y xscale yscale angle */
 	/* Allow 1 extra column because of 'pointsize variable'    */
 	/* Allow 1 extra column because of 'marktype variable' */
 	/* Allow 1 extra column because of 'lc rgb variable'    */
@@ -1438,7 +1438,7 @@ get_data(struct curve_points *current_plot)
 	{   /*  x y
 	     *	x y scale
 	     *	x y xscale yscale
-             *  x y xscale yscale angle
+	     *  x y xscale yscale angle
 	     */
 	    int var = j; /* column number */
 	    coordval x      = v[0]; /* x */
@@ -1446,13 +1446,13 @@ get_data(struct curve_points *current_plot)
 	    coordval xlow   = 1;    /* CRD_PTSIZE */
 	    coordval xhigh;         /* xscale */
 	    coordval ylow;          /* yscale */
-            coordval yhigh;         /* angle */
-            coordval tag    = current_plot->marks_options.tag;
+	    coordval yhigh;         /* angle */
+	    coordval tag    = current_plot->marks_options.tag;
 	    if (current_plot->lp_properties.p_size == PTSZ_VARIABLE)
-                xlow = v[--var];
+	        xlow = v[--var];
 	    if (tag == MARK_TYPE_VARIABLE) /* mt variable */
 		tag = v[--var];
-            xhigh = (var >= 3) ? v[2] : 1.0;
+	    xhigh = (var >= 3) ? v[2] : 1.0;
 	    ylow  = (var >= 4) ? v[3] : xhigh;
 	    yhigh = (var >= 5) ? v[4] : 0.0;
 	    store2d_point(current_plot, i++, x, y,
@@ -1556,7 +1556,7 @@ store2d_point(
 	/* Some plot styles use xhigh and yhigh for other quantities, */
 	/* which polar mode transforms would break		      */
 	if (current_plot->plot_style == MARKS || current_plot->plot_style == LINESMARKS)
-           ;
+	   ;
 	else if (current_plot->plot_style == CIRCLES) {
 	    double radius = (xhigh - xlow)/2.0;
 	    xlow = x - radius;
@@ -1565,7 +1565,7 @@ store2d_point(
 		|| current_plot->plot_style == LABELPOINTS
 		|| current_plot->plot_style == LINESPOINTS
 		|| current_plot->plot_style == SECTORS) {
-            ;
+	    ;
 	} else {
 	    /* Jan 2017 - now skipping range check on rhigh, rlow */
 	    (void) polar_to_xy(xhigh, yhigh, &xhigh, &yhigh, FALSE);
@@ -1644,17 +1644,17 @@ store2d_point(
 	    cp->type = UNDEFINED;
 	break;
     case SECTORS:
-        cp->xlow  = xlow;
-        cp->xhigh = xhigh;
-        cp->ylow  = ylow;
-        cp->yhigh = yhigh;
+	cp->xlow  = xlow;
+	cp->xhigh = xhigh;
+	cp->ylow  = ylow;
+	cp->yhigh = yhigh;
 	break;
     case MARKS:
     case LINESMARKS:
-        cp->xlow  = xlow;
-        cp->xhigh = xhigh;
-        cp->ylow  = ylow;
-        cp->yhigh = yhigh;
+	cp->xlow  = xlow;
+	cp->xhigh = xhigh;
+	cp->ylow  = ylow;
+	cp->yhigh = yhigh;
 	break;
     case ELLIPSES:
 	/* We want to pass the parameters to the ellipse drawing routine as they are, 

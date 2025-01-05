@@ -136,17 +136,6 @@ void do_sector(double cx, double cy, double rin, double rout, double arc_begin, 
 void do_key_sample_mark(struct curve_points *this_plot,
 	int xl, int yl, int tag);
 
-struct mark_data *push_mark(struct mark_data *first, struct mark_data *mark);
-
-void do_mark (struct mark_data *mark,
-         double x, double y, double xscale, double yscale, double angle, 
-         int units, 
-         TBOOLEAN clip,
-         struct fill_style_type *fill_properties,
-         struct lp_style_type *lp_properties, 
-         struct curve_points *plot, double varcolor,
-         int max_vertices, gpiPoint *vertex, gpiPoint *fillarea);
-
 void place_pixmaps(int layer, int dimensions);
 
 int filter_boxplot(struct curve_points *);
@@ -157,13 +146,5 @@ void attach_title_to_plot(struct curve_points *this_plot, legend_key *key);
 #define HSTEPS_DIR_BOTHSIDES	0
 #define HSTEPS_DIR_FORWARD	  1
 #define HSTEPS_DIR_BACKWARD	  2
-
-/* Only used in marks style */
-
-#define MARKS_FILLSTYLE 	0
-#define MARKS_STROKE		1
-#define MARKS_FILL		2
-#define MARKS_FILL_STROKE	3
-#define MARKS_FILL_BACKGROUND	4
 
 #endif /* GNUPLOT_GRAPHICS_H */
