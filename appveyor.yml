@@ -6,11 +6,13 @@ branches:
 image: Visual Studio 2022
 install:
   - cd C:\Tools\vcpkg
+#  - git clean -f -d -x
   - git pull
   - .\bootstrap-vcpkg.bat
-#  - del /S /Q c:\tools\vcpkg\installed
-#  - del /S /Q C:\Users\appveyor\AppData\Local\vcpkg\archives
   - .\vcpkg.exe install --recurse fontconfig:%PLATFORM%-windows
+  - .\vcpkg.exe install --recurse harfbuzz[core,freetype]:%PLATFORM%-windows
+  - .\vcpkg.exe install --recurse gettext[core,tools]:x64-windows
+  - .\vcpkg.exe install --recurse cairo[core,fontconfig,freetype,gobject]:%PLATFORM%-windows
   - .\vcpkg.exe install --recurse pango:%PLATFORM%-windows
   - .\vcpkg.exe install --recurse libgd:%PLATFORM%-windows
   - .\vcpkg.exe install --recurse wxwidgets:%PLATFORM%-windows
@@ -18,6 +20,7 @@ install:
   - .\vcpkg.exe integrate install
 cache:
   - c:\tools\vcpkg\installed\
+  - C:\Tools\vcpkg\downloads\
   - C:\Users\appveyor\AppData\Local\vcpkg\archives\
 environment:
   APPVEYOR_SAVE_CACHE_ON_ERROR: true
@@ -41,3 +44,5 @@ deploy:
     secure: ZtmXQDde09xZodH/vnmq1egEAoBMWX8aSM0HP65R2nh3xVkaZi0CLNTV98LRh5TI
   on:
     branch: main
+#on_failure:
+#  - ps: $blockRdp = $true; iex ((new-object net.webclient).DownloadString('https://raw.githubusercontent.com/appveyor/ci/master/scripts/enable-rdp.ps1'))
