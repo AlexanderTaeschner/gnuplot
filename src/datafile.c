@@ -635,7 +635,7 @@ df_gets()
     if (df_array)
 	return df_generate_ascii_array_entry();
 
-    if (mixed_data_fp && multiplot) {
+    if (mixed_data_fp && in_multiplot) {
 	/* Version 6: in-line data for '-' is not saved to $GPVAL_LAST_MULTIPLOT
 	 * so multiplot playback or mousing would fail badly.
 	 * Warn when the multiplot is first constructed; error out on playback.

@@ -46,6 +46,7 @@
 #include "graphics.h"
 #include "interpol.h"
 #include "misc.h"
+#include "mouse.h"	/* for inside_zoom() */
 #include "parse.h"
 #include "pm3d.h"	/* for is_plot_with_palette */
 #include "setshow.h"
@@ -257,7 +258,7 @@ plotrequest()
     /* If we are called from a mouse zoom operation we should ignore
      * any range limits because otherwise the zoom won't zoom.
      */
-    if (inside_zoom) {
+    if (inside_zoom()) {
 	while (equals(c_token,"[") && (parse_skip_range() == TRUE))
 	    /* consume multiple range specifiers */
 	    ;
@@ -1491,7 +1492,8 @@ get_data(struct curve_points *current_plot)
 	i--;
 
     current_plot->p_count = i;
-    cp_extend(current_plot, i); /* shrink to fit */
+    if (i > 0)
+	cp_extend(current_plot, i); /* shrink to fit. FIXME: why bother? */
 
     df_close();
 
@@ -1613,10 +1615,13 @@ store2d_point(
     case YERRORLINES:		/* auto-scale ylow yhigh */
 	cp->xlow = xlow;	/* really theta if polar; CRD_PTSIZE otherwise */
 	cp->xhigh = xhigh;	/* really theta if polar; CRD_PTTYPE otherwise */
+	/* autoscale to ymin and ymax but do not mark point itself as outrange */
+	dummy_type = cp->type;
 	STORE_AND_UPDATE_RANGE(cp->ylow, ylow, cp->type, current_plot->y_axis,
 				current_plot->noautoscale, cp->ylow = -VERYLARGE);
 	STORE_AND_UPDATE_RANGE(cp->yhigh, yhigh, cp->type, current_plot->y_axis,
 				current_plot->noautoscale, cp->yhigh = -VERYLARGE);
+	cp->type = dummy_type;
 	break;
     case BOXES:			/* auto-scale to xlow xhigh */
     case BOXPLOT:		/* auto-scale to xlow xhigh, factor is already in z */
@@ -3045,6 +3050,9 @@ eval_plots()
 	    if (this_plot->plot_style == TABLESTYLE) {
 		if (!table_mode)
 		    int_error(NO_CARET, "'with table' requires a previous 'set table'");
+		if (this_plot->plot_smooth != SMOOTH_NONE
+		||  this_plot->plot_filter != FILTER_NONE)
+		    int_warn(NO_CARET, "'with table' ignores filter and smoothing options");
 		expect_string( -1 );
 		some_tables = TRUE;
 	    }
@@ -4062,7 +4070,7 @@ eval_plots()
 	 * to a region with no data points causes y autoscaling to become undefined
 	 * on refresh.  In this case we use the range requested by zoom.
 	 */
-	if (inside_zoom) {
+	if (inside_zoom()) {
 	    axis_array[FIRST_Y_AXIS].min = axis_array[FIRST_Y_AXIS].set_min;
 	    axis_array[FIRST_Y_AXIS].max = axis_array[FIRST_Y_AXIS].set_max;
 	}
@@ -4076,7 +4084,7 @@ eval_plots()
 	}
     }
     if (uses_axis[SECOND_Y_AXIS]) {
-	if (inside_zoom) {
+	if (inside_zoom()) {
 	    axis_array[SECOND_Y_AXIS].min = axis_array[SECOND_Y_AXIS].set_min;
 	    axis_array[SECOND_Y_AXIS].max = axis_array[SECOND_Y_AXIS].set_max;
 	}

@@ -137,6 +137,10 @@ extern "C" {
 #ifdef HAVE_SYS_SELECT_H
 # include <sys/select.h>
 #endif
+#ifdef HAVE_WORKING_FORK
+# include <pango/pangocairo.h> // for pango_cairo_font_map_set_default()
+#endif
+
 }
 
 /* Interactive toggle control variables
@@ -1381,8 +1385,10 @@ void wxtPanel::OnKeyDownChar( wxKeyEvent &event )
 #ifndef DISABLE_SPACE_RAISES_CONSOLE
 		case WXK_SPACE :
 			if ((wxt_ctrl==yes && event.ControlDown())
-				|| wxt_ctrl!=yes) {
-				RaiseConsoleWindow();
+			||  (wxt_ctrl!=yes)) {
+#ifdef _WIN32
+				WinRaiseConsole();
+#endif
 				return;
 			} else {
 				gp_keycode = ' ';
@@ -1599,42 +1605,6 @@ static void wxt_check_for_anchors(unsigned int x, unsigned int y)
 }
 
 #endif /*USE_MOUSE*/
-
-#ifndef DISABLE_SPACE_RAISES_CONSOLE
-/* ====license information====
- * The following code originates from other gnuplot files,
- * and is not subject to the alternative license statement.
- */
-
-
-/* FIXME : this code should be deleted, and the feature removed or handled differently,
- * because it is highly platform-dependant, is not reliable because
- * of a lot of factors (WINDOWID not set, multiple tabs in gnome-terminal, mechanisms
- * to prevent focus stealing) and is inconsistent with global bindings mechanism ) */
-void wxtPanel::RaiseConsoleWindow()
-{
-#ifdef _WIN32
-	WinRaiseConsole();
-#endif
-
-#ifdef OS2
-	/* we assume that the console window is managed by PM, not by a X server */
-	HSWITCH hSwitch = 0;
-	SWCNTRL swGnu;
-	HWND hw;
-	/* get details of command-line window */
-	hSwitch = WinQuerySwitchHandle(0, getpid());
-	WinQuerySwitchEntry(hSwitch, &swGnu);
-	hw = WinQueryWindow(swGnu.hwnd, QW_BOTTOM);
-	WinSetFocus(HWND_DESKTOP, hw);
-	WinSwitchToProgram(hSwitch);
-#endif /* OS2 */
-}
-
-/* ====license information====
- * End of the non-relicensable portion.
- */
-#endif /* DISABLE_SPACE_RAISES_CONSOLE */
 
 
 /* ------------------------------------------------------
@@ -2588,7 +2558,7 @@ void wxt_layer(t_termlayer layer)
 		return;
 	}
 	if (layer == TERM_LAYER_RESET || layer == TERM_LAYER_RESET_PLOTNO) {
-		if (multiplot)
+		if (in_multiplot > 0)
 			return;
 	}
 
@@ -3317,29 +3287,17 @@ static void wxt_update_mousecoords_in_window(int number, int mx, int my)
 	if ((window = wxt_findwindowbyid(number))) {
 
 		/* TODO: rescale mx and my using stored per-plot scale info */
-		char mouse_format[66];
+		char mouse_format[67]; // %10g may use at most 13 chars
 		char *m = mouse_format;
-		double x, y, x2, y2;
-
-		if (window->axis_mask & (1<<0)) {
-			x = mouse_to_axis(mx, &window->axis_state[0]);
-			sprintf(m, "x=  %10g   %c", x, '\0');
-			m += 17;
-		}
-		if (window->axis_mask & (1<<1)) {
-			y = mouse_to_axis(my, &window->axis_state[1]);
-			sprintf(m, "y=  %10g   %c", y, '\0');
-			m += 17;
-		}
-		if (window->axis_mask & (1<<2)) {
-			x2 = mouse_to_axis(mx, &window->axis_state[2]);
-			sprintf(m, "x2=  %10g   %c", x2, '\0');
-			m += 17;
-		}
-		if (window->axis_mask & (1<<3)) {
-			y2 = mouse_to_axis(my, &window->axis_state[3]);
-			sprintf(m, "y2=  %10g %c", y2, '\0');
-			m += 15;
+		int left = sizeof(mouse_format);
+		const char *name[4] = { "x", "y", "x2", "y2" };
+		for (int i=0; i<4 && left > 0; ++i) {
+			if (window->axis_mask & (1<<i)) {
+				int n = snprintf(m, left, "%s=% -10g ", name[i],
+							mouse_to_axis(mx, &window->axis_state[i]));
+				m += n;
+				left -= n;      // left<=0 if truncated (should not happen)
+			}
 		}
 
 		FPRINTF((stderr,"wxt : update mouse coords in window %d\n",number));
@@ -3717,7 +3675,8 @@ bool wxt_exec_event(int type, int mx, int my, int par1, int par2, wxWindowID id)
 }
 
 /* Implements waitforinput used in wxt.trm
- * the terminal events are directly processed when they are received */
+ * the terminal events are directly processed when they are received
+ */
 int wxt_waitforinput(int options)
 {
 #ifdef _WIN32
@@ -3742,6 +3701,7 @@ int wxt_waitforinput(int options)
 		return getch();
 
 #else /* !_WIN32 */
+
 	/* Generic hybrid GUI & console message loop */
 	if (wxt_yield)
 		return '\0';
@@ -3786,9 +3746,11 @@ int wxt_waitforinput(int options)
 			usleep(50000);
 		else if (retval)
 			/* select indicated something to read on stdin */
-			return getchar();
+			read_and_return_character();
 	}
-	return getchar();
+
+	read_and_return_character();
+
 #endif /* _WIN32 */
 }
 
@@ -3904,9 +3866,11 @@ void wxt_atexit()
 	/* fork */
 	pid_t pid;
 
-	if (openwindows > 0)
+	if (openwindows > 0) {
+		/* per-thread font memory structures must be released before a fork */
+		pango_cairo_font_map_set_default(NULL);
 		pid = fork();
-	else
+	} else
 		pid = -1;
 
 	/* the parent just exits, the child keeps going */

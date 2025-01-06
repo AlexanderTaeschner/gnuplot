@@ -1603,7 +1603,7 @@ unset_origin()
 static void
 unset_output()
 {
-    if (multiplot) {
+    if (in_multiplot) {
 	int_error(c_token, "you can't change the output in multiplot mode");
 	return;
     }
@@ -1908,7 +1908,7 @@ unset_terminal()
 {
     struct udvt_entry *original_terminal = get_udv_by_name("GNUTERM");
 
-    if (multiplot)
+    if (in_multiplot)
 	term_end_multiplot();
 
     term_reset();
@@ -2317,7 +2317,7 @@ reset_command()
 #endif
 
     /* restore previous multiplot offset and margins */
-    if (multiplot)
+    if (in_multiplot)
 	multiplot_reset();
 
     /* reset everything to do with "set datafile" */

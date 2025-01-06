@@ -336,12 +336,10 @@ Mac OSX
 
   Readline: As I understand the situation, OSX ships with a "fake" libreadline
   shared library. The file /usr/lib/libreadline.dylib is really a symlink to a
-  compatibility layer over the BSD libedit library.  But the compatibility isn't
-  complete, and in particular it is missing some routines used for readline
-  support by gnuplot. The ./configure script should be able to cope with this.
-  But you will still be left without some of the functionality of the "real"
-  libreadline.  For one thing, libedit doesn't handle UTF-8 input.
-  You have several options:
+  compatibility layer over the BSD libedit library.  But the compatibility is not
+  complete. The ./configure script should be able to cope with this, but you
+  may be left without some of the functionality of the "real" libreadline.
+  If you find that libedit does not work for you, there are several options:
 
   1) Delete the fake libreadline libraries from OSX and install
   the real gnu libreadline as a system library.

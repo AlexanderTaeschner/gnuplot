@@ -65,11 +65,15 @@
 #include <sys/termio.h>
 #endif
 
+#if defined(HAVE_LIBEDITLINE)
+EditLine *el = NULL;
+#endif
+
 /*
  * adaptor routine for gnu libreadline
  * to allow multiplexing terminal and mouse input
  */
-#if defined(HAVE_LIBREADLINE) || defined(HAVE_LIBEDITLINE)
+#if defined(HAVE_LIBREADLINE)
 int
 getc_wrapper(FILE* fp)
 {
@@ -78,32 +82,67 @@ getc_wrapper(FILE* fp)
     while (1) {
 	errno = 0;
 #ifdef USE_MOUSE
-	/* EAM June 2020:
-	 * For 20 years this was conditional on interactive.
-	 *    if (term && term->waitforinput && interactive)
-	 * Now I am suspicious that this was the cause of dropped
-	 * characters when mixing piped input with mousing,
-	 * e.g. Bugs 2134, 2279
-	 */
-	if (term && term->waitforinput) {
+	if (term && term->waitforinput)
 	    c = term->waitforinput(0);
-	}
 	else
 #endif
+
 #if defined(WGP_CONSOLE)
-	    c = ConsoleGetch();
+	    return ConsoleGetch();
 #else
-	if (fp)
+	if (fp && (fp != stdin))
 	    c = getc(fp);
 	else
-	    c = getchar(); /* HAVE_LIBEDITLINE */
+	    c = getchar();
 	if (c == EOF && errno == EINTR)
 	    continue;
-#endif
 	return c;
+#endif
     }
 }
-#endif /* HAVE_LIBREADLINE || HAVE_LIBEDITLINE */
+#endif /* HAVE_LIBREADLINE */
+
+/*
+ * adaptor routine for BSD editline
+ * to allow multiplexing terminal and mouse input
+ */
+#if defined(HAVE_LIBEDITLINE)
+int
+getc_wrapper(FILE* fp)
+{
+    int c;
+
+    while (1) {
+	errno = 0;
+#ifdef USE_MOUSE
+	if (term && term->waitforinput)
+	    c = term->waitforinput(0);
+	else
+#endif
+
+#if defined(WGP_CONSOLE)
+	    return ConsoleGetch();
+#else
+	if (fp && (fp != stdin))
+	    c = getc(fp);
+	else if (!interactive)
+	    c = getchar();
+	else {
+	    int ierr;
+	    wchar_t wc;
+	    ierr = el_wgetc(el, &wc);
+	    c = (ierr == 1) ? (int)wc : EOF ;
+	}
+	if (c == EOF && errno == EINTR)
+	    continue;
+	return c;
+#endif
+    }
+}
+#endif /* HAVE_LIBEDITLINE */
+
+
+
 
 #if defined(HAVE_LIBREADLINE) && defined(HAVE_READLINE_SIGNAL_HANDLER)
 /*

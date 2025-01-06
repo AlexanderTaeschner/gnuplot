@@ -678,7 +678,7 @@ show_command()
 	break;
 
     case S_MULTIPLOT:
-	fprintf(stderr,"multiplot mode is %s\n", multiplot ? "on" : "off");
+	fprintf(stderr,"multiplot mode is %s\n", (in_multiplot > 0) ? "on" : "off");
 	break;
 
     case S_TERMOPTIONS:

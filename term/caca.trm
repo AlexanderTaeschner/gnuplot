@@ -1990,21 +1990,14 @@ CACA_process_events(void)
 							CACA_close_display();
 							loop = CACA_quit;
 							break;
+#ifndef DISABLE_SPACE_RAISES_CONSOLE
 						case ' ':
 							if (CACA_windowed) {
-#ifdef DISABLE_SPACE_RAISES_CONSOLE
-								if (exec_event(GE_keypress, mx, my, key, 0, 0))
-									loop = CACA_endpause;
-#else
-# ifdef _WIN32
-								/* raise console */
+#ifdef _WIN32
 								WinRaiseConsole();
-# else
-								/* FIXME: raising terminal window not implemented */
-								/* gp_raise_console(); */
+#else
 								if (exec_event(GE_keypress, mx, my, key, 0, 0))
 									loop = CACA_endpause;
-# endif
 #endif
 							} else {
 								/* preserve canvas, close window */
@@ -2012,6 +2005,7 @@ CACA_process_events(void)
 								loop = CACA_quit;
 							}
 							break;
+#endif /* DISABLE_SPACE_RAISES_CONSOLE */
 						case GP_Return:
 						case GP_Escape:
 						case GP_BackSpace:
@@ -2104,7 +2098,7 @@ CACA_waitforinput(int options)
 	/* Redundant check since normally term->waitforinput should be NULL in
 	  this case. */
 	if (!CACA_windowed)
-		return getchar();
+		read_and_return_character();
 
 	while (loop == CACA_loop && (CACA_dp != NULL)) {
 #ifdef _WIN32
@@ -2134,12 +2128,12 @@ CACA_waitforinput(int options)
 		loop = CACA_process_events();
 #endif
 		if (loop == CACA_loop && gp_kbhit())
-			return getchar();
+			read_and_return_character();
 	}
 
 	/* We get here only if the window was closed previously, e.g. via pressing the 'q' key. */
 	if (CACA_dp == NULL || loop == CACA_quit)
-		return getchar();
+		read_and_return_character();
 
 	return EOF;
 }

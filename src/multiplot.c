@@ -50,11 +50,13 @@
 #include "util.h"
 
 /* Support for multiplot playback */
-TBOOLEAN multiplot_playback = FALSE;	/* TRUE while inside "remultiplot" playback */
+TBOOLEAN multiplot_playback = FALSE;	  /* TRUE while inside "remultiplot" playback */
+TBOOLEAN suppress_multiplot_save = FALSE; /* TRUE inside a for/while loop */
 static t_value multiplot_udv = {
 	.type = DATABLOCK,
 	.v.data_array = NULL
 };
+int multiplot_last_panel = 0;
 
 /* Local prototypes */
 static void mp_layout_size_and_offset(void);
@@ -210,7 +212,7 @@ multiplot_start()
     c_token++;
 
     /* Only a few options are possible if we are already in multiplot mode */
-    if (multiplot) {
+    if (in_multiplot > 0) {
 	if (equals(c_token, "next")) {
 	    c_token++;
 	    if (!mp_layout.auto_layout)
@@ -423,7 +425,7 @@ multiplot_start()
      * ignoring subsequent TERM_LAYER_RESET requests. 
      */
     term_start_plot();
-    multiplot = TRUE;
+    in_multiplot = lf_head ? lf_head->depth + 1 : 1;
     multiplot_count = 0;
     fill_gpval_integer("GPVAL_MULTIPLOT", 1);
     init_multiplot_datablock();
@@ -464,7 +466,7 @@ multiplot_start()
 void
 multiplot_end()
 {
-    multiplot = FALSE;
+    in_multiplot = 0;
     multiplot_count = 0;
     fill_gpval_integer("GPVAL_MULTIPLOT", 0);
     /* reset plot size, origin and margins to values before 'set
@@ -497,48 +499,18 @@ multiplot_end()
     }
 
     if (!multiplot_playback) {
-	char *save_start = NULL;
-	char *save_end = NULL;
-
 	/* Create or recycle a user-visible datablock for replay */
 	struct udvt_entry *datablock = add_udv_by_name("$GPVAL_LAST_MULTIPLOT");
 	free_value(&datablock->udv_value);
 
-	/* For the simple case of line-by-line input either from the keyboard or from
-	 * a script file, the individual commands have already been saved and all that
-	 * is needed here is to save the "unset multiplot" command.
-	 * However if the current context is inside a bracketed clause the
-	 * entire bracketed clause is held in gp_input_line and the set ... unset
-	 * multiplot sequence of commands is embedded somewhere in that string.
-	 *
-	 * FIXME: There should be some way to detect being inside a bracketed clause.
-	 */
-	if (c_token <= 2) /* the simple case */
-	    ;
-	else {
-	    if ( (save_start = strstr(gp_input_line, "set multi"))
-	    ||   (save_start = strstr(gp_input_line, "se multi"))) {
-		/* make sure this isn't the 'unset multiplot' itself */
-		int offset = save_start - gp_input_line;
-		if ((offset > 1) && gp_input_line[offset-1] != 'n') {
-		    char *save_clause = strdup(save_start);
-		    if ( (save_end = strstr(save_clause, "unset multi"))
-		    ||   (save_end = strstr(save_clause, "uns multi"))) {
-			*save_end = '\0';
-		    } else {
-			int_warn(c_token,"multiplot_end: cannot find 'unset multiplot'");
-		    }
-		    append_to_datablock(&multiplot_udv, save_clause);
-		}
-	    }
-	}
-
-	/* Add the closing "unset multiplot" command
-	 * before saving the command list to $GPVAL_LAST_MULTIPLOT
-	 */
+	/* Add the closing "unset multiplot" command before saving */
 	append_to_datablock(&multiplot_udv, strdup("unset multiplot"));
+
 	datablock->udv_value = multiplot_udv;
 	multiplot_udv.v.data_array = NULL;
+
+	/* Save panel number of last-drawn plot */
+	multiplot_last_panel = mp_layout.current_panel;
     }
     last_plot_was_multiplot = TRUE;
 }
@@ -698,6 +670,13 @@ init_multiplot_datablock()
 void
 append_multiplot_line(char *line)
 {
+    if (line == NULL || *line == '\0')
+	return;
+    if (*line == '$' && strstr(line,"<<"))
+	return;
+    if (suppress_multiplot_save)
+	return;
+
     append_to_datablock(&multiplot_udv, strdup(line));
 }
 
@@ -721,4 +700,5 @@ multiplot_reset_after_error()
 	return;
     multiplot_end();
     multiplot_playback = FALSE;
+    suppress_multiplot_save = FALSE;
 }

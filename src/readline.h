@@ -33,14 +33,7 @@
 #ifndef GNUPLOT_READLINE_H
 # define GNUPLOT_READLINE_H
 
-/* #if... / #include / #define collection: */
-
 #include "syscfg.h"
-/* Type definitions */
-
-/* Variables of readline.c needed by other modules: */
-
-/* Prototypes of functions exported by readline.c */
 
 #if defined(HAVE_LIBREADLINE)
 # include "stdfn.h"	/* <readline/readline.h> needs stdio.h... */
@@ -48,7 +41,39 @@
 
 #elif defined(HAVE_LIBEDITLINE)
 # include <editline/readline.h>
+# include <histedit.h>
 #endif
+
+/* Variables of readline.c needed by other modules: */
+
+#if defined (HAVE_LIBEDITLINE)
+    /* In order to multiplex terminal and mouse input via term->waitforinput()
+     * we need to be able to dive into libedit's internals to read a UTF-8
+     * byte sequence into an int which libedit holds as a wchar and/or some
+     * complicated internal structure.  The waitforinput() routines will call
+     *		el_wgetc(el, &nextchar)
+     * instead of
+     *		nextchar = getchar()
+     */
+    extern EditLine *el;
+#endif
+
+/* Work-around for editline's use of wchar_t rather than UTF-8 */
+#if defined (HAVE_LIBEDITLINE)
+    #define read_and_return_character() {	\
+	int ierr;				\
+	wchar_t nextchar;			\
+	if (!interactive) return getchar();	\
+	ierr = el_wgetc(el, &nextchar);		\
+	return (ierr==1 ? (int)nextchar : 0);	\
+    }
+#else
+    #define read_and_return_character() 	\
+	return getchar()
+#endif
+
+
+/* Prototypes of functions exported by readline.c */
 
 #if defined(READLINE)
 char *readline(const char *);

@@ -48,6 +48,7 @@
 #include "hidden3d.h"
 #include "interpol.h"
 #include "misc.h"
+#include "mouse.h"	/* for inside_zoom() */
 #include "parse.h"
 #include "pm3d.h"
 #include "setshow.h"
@@ -758,12 +759,7 @@ grid_nongrid_data(struct surface_points *this_plot)
 	    points->y = y;
 
 	    /* Honor requested x and y limits */
-	    /* Historical note: This code was not in 4.0 or 4.2. It imperfectly */
-	    /* restores the clipping behaviour of version 3.7 and earlier. */
-	    if ((x < axis_array[x_axis].min && !(axis_array[x_axis].autoscale & AUTOSCALE_MIN))
-	    ||  (x > axis_array[x_axis].max && !(axis_array[x_axis].autoscale & AUTOSCALE_MAX))
-	    ||  (y < axis_array[y_axis].min && !(axis_array[y_axis].autoscale & AUTOSCALE_MIN))
-	    ||  (y > axis_array[y_axis].max && !(axis_array[y_axis].autoscale & AUTOSCALE_MAX)))
+	    if (!inrange_xy(points))
 		points->type = OUTRANGE;
 
 	    if (dgrid3d_mode != DGRID3D_SPLINES && !dgrid3d_kdensity) {
@@ -2868,7 +2864,7 @@ eval_3dplots()
      * In either case apply_zoom() has loaded the requested plot limits
      * into (axis)-> set_min and set_max.
      */
-    if (inside_zoom) {
+    if (inside_zoom()) {
 	axis_array[FIRST_X_AXIS].min = axis_array[FIRST_X_AXIS].set_min;
 	axis_array[FIRST_X_AXIS].max = axis_array[FIRST_X_AXIS].set_max;
 	axis_array[FIRST_Y_AXIS].min = axis_array[FIRST_Y_AXIS].set_min;

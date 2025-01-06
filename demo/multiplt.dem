@@ -32,12 +32,20 @@ set style function lines
 set size 1.0, 1.0
 set origin 0.0, 0.0
 set multiplot
+
 set size 0.5,0.5
 set origin 0.0,0.5
 set grid
 unset key
 set angles radians
 set samples 250
+
+# EAM Dec 2024 - reset to defaults so that "remultiplot" reproduces the original
+set xtics auto
+set mxtics default
+set ytics auto
+set mytics default
+#
 #  Plot Magnitude Response
 set title "Second Order System Transfer Function - Magnitude"
 mag(w) = -10*log10( (1-w**2)**2 + 4*(zeta*w)**2)
@@ -57,6 +65,7 @@ plot \
   zeta=.707,mag(w), \
   zeta=1.0,mag(w), \
   zeta=2.0,mag(w),-6
+#
 #  Plot Phase Response
 set size 0.5,0.5
 set origin 0.0,0.0
@@ -79,6 +88,7 @@ plot \
   zeta=1,phi(w), \
   zeta=2.0,phi(w), \
   -90
+#
 #  Plot Step Response
 set size 0.5,0.5
 set origin 0.5,0.5

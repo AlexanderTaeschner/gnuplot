@@ -38,10 +38,19 @@ noinst_PROGRAMS = checkdoc doc2ipf doc2tex doc2gih doc2hlp \
 AM_CPPFLAGS = -I$(top_srcdir)/src -I$(top_srcdir)/term \
               -I./ja/term
 
+
+T = $(top_srcdir)/term/
+
+# Documentation for metapost will be included only for ./configure --with-metapost
+if DOC_METAPOST
+MP = $(T)metapost.trm
+else
+MP =
+endif
+
 # Documentation will be prepared for all terminals in CORETERM
 # even if the terminal itself is not included in the build.
 
-T = $(top_srcdir)/term/
 CORETERM = $(T)ai.trm $(T)aquaterm.trm $(T)be.trm $(T)block.trm $(T)caca.trm \
 $(T)cairo.trm $(T)canvas.trm $(T)cgm.trm $(T)context.trm \
 $(T)debug.trm $(T)djsvga.trm $(T)dumb.trm $(T)dxf.trm \
@@ -49,7 +58,7 @@ $(T)emf.trm $(T)epson.trm \
 $(T)estimate.trm $(T)fig.trm $(T)gd.trm \
 $(T)gpic.trm $(T)grass.trm $(T)hpgeneric.h $(T)hpgl.trm $(T)imagen.trm \
 $(T)linux-vgagl.trm $(T)latex_old.h \
-$(T)lua.trm $(T)pbm.trm $(T)pict2e.trm \
+$(T)lua.trm $(MP) $(T)pbm.trm $(T)pict2e.trm \
 $(T)pm.trm $(T)post.trm $(T)pslatex.trm \
 $(T)pstricks.trm $(T)qt.trm $(T)regis.trm \
 $(T)svg.trm $(T)t410x.trm $(T)tek.trm $(T)texdraw.trm $(T)tgif.trm \
@@ -319,7 +328,7 @@ html: allterm.h doc2web$(EXEEXT) $(srcdir)/gnuplot.doc svg_figures webp_figures
 	$(AM_V_at) rm -f html/Overview.html html/Plotting_Styles.html html/Commands.html html/Terminals.html
 	$(AM_V_at) rm -f html/NewFeatures.html
 	$(AM_V_GEN)./doc2web$(EXEEXT) $(srcdir)/gnuplot.doc html
-	$(AM_V_GEN) sort -k 3 html/index.hhk > html/index.html
+	$(AM_V_GEN) sort -k 3 html/index.hhk > html/gnuplot6_index.html
 
 svg_figures: $(GNUPLOT_EXE) $(srcdir)/plotstyles.gnu
 	$(AM_V_at) [ -d html ] || mkdir -p html

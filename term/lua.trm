@@ -343,7 +343,7 @@ LUA_GP_term_out(lua_State *L) {
 */
 static int
 LUA_GP_is_multiplot(lua_State *L) {
-  lua_pushboolean(L, multiplot);
+  lua_pushboolean(L, (in_multiplot > 0));
   return(1);
 }
 

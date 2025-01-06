@@ -4269,8 +4269,8 @@ is_meta(KeySym mod)
 }
 
 #ifndef DISABLE_SPACE_RAISES_CONSOLE
-/* It returns NULL if we are not running in any known (=implemented) multitab
- * console.
+
+/* Returns NULL if we are not running in any known (=implemented) multitab console.
  * Otherwise it returns a command to be executed in order to switch to the
  * appropriate tab of a multitab console.
  * In addition, it may return non-zero newGnuplotXID in order to overwrite zero
@@ -4285,6 +4285,7 @@ getMultiTabConsoleSwitchCommand(unsigned long *newGnuplotXID)
 {
 /* NOTE: This code uses the DCOP mechanism from KDE3, which went away in KDE4 */
 #ifdef USE_KDE3_DCOP
+
     char *cmd = NULL; /* result */
     char *ptr = getenv("KONSOLE_DCOP_SESSION"); /* Try KDE's Konsole first. */
     *newGnuplotXID = 0;
@@ -4356,11 +4357,8 @@ getMultiTabConsoleSwitchCommand(unsigned long *newGnuplotXID)
 	free(cmd);
 	return NULL;
     }
-    /* now test for GNOME multitab console */
-    /* ... if somebody bothers to implement it ... */
 
-#endif /* USE_KDE3_DCOP */
-
+#endif  /* USE_KDE3_DCOP */
     /* we are not running in any known (implemented) multitab console */
     return NULL;
 }

@@ -86,7 +86,7 @@
 	int_error(NO_CARET, "%s: error present on entry (errno %d %s)", who, errno, strerror(errno));
 #endif
 
-#ifdef HAVE_FENV_H
+#if defined (HAVE_FENV_H) && defined (FE_UNDERFLOW)
 #define handle_underflow( who, var ) \
     if (errno) { \
 	if (fetestexcept(FE_UNDERFLOW)) { \

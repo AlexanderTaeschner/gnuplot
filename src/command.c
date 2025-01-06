@@ -154,6 +154,8 @@ static void load_or_call_command( TBOOLEAN call );
 static int expand_1level_macros(void);
 static void timed_pause(double sleep_time);
 
+static void check_for_multiplot_save(TBOOLEAN *interlock);
+
 struct lexical_unit *token;
 int token_table_size;
 
@@ -388,7 +390,7 @@ com_line()
 {
     int return_value = 0;
 
-    if (multiplot) {
+    if (in_multiplot) {
 	/* calls int_error() if it is not happy */
 	term_check_multiplot_okay(interactive);
 
@@ -429,16 +431,21 @@ com_line()
     screen_ok = interactive;
     return_value = do_line();
 
-    /* If this line is part of a multiplot, save it for later replay */
-    if (multiplot && !multiplot_playback)
-	append_multiplot_line(gp_input_line);
-
     return return_value;
 }
 
-
+/* Dec 2024 - split do_line() into two sequential steps */
 int
 do_line()
+{
+    if (preprocess_line() < 0)
+	return 0;
+
+    return step_through_line();
+}
+
+int
+preprocess_line()
 {
     /* Line continuation has already been handled by read_line().
      * Expand any string variables in the current input line.
@@ -464,7 +471,7 @@ do_line()
 	if (evaluate_inside_functionblock)
 	    int_error(NO_CARET, "bare shell commands not accepted in a function block");
 	do_system(gp_input_line + 1);
-	return (0);
+	return (-1);
     }
 
     /* Strip off trailing comment */
@@ -491,7 +498,8 @@ do_line()
 	     */
 	    int_error(NO_CARET, "Syntax error: missing block terminator }");
 	}
-	else if (interactive || noinputfiles) {
+
+	if (interactive || noinputfiles || reading_from_dash) {
 	    /* If we are really in interactive mode and there are unterminated blocks,
 	     * then we want to display a "more>" prompt to get the rest of the block.
 	     * However, there are two more cases that must be dealt here:
@@ -499,7 +507,8 @@ do_line()
 	     * the other is when commands are piped to gnuplot which is opened
 	     * as a slave process. The test for noinputfiles is for the latter case.
 	     * If we didn't have that test here, unterminated blocks sent via a pipe
-	     * would trigger the error message in the else branch below. */
+	     * would trigger the error message in the else branch below.
+	     */
 	    int retval;
 	    strcat(gp_input_line,";");
 	    retval = read_line("more> ", strlen(gp_input_line));
@@ -511,19 +520,37 @@ do_line()
 	    num_tokens = scanner(&gp_input_line, &gp_input_line_len);
 	    if (gp_input_line[token[num_tokens].start_index] == '#')
 		gp_input_line[token[num_tokens].start_index] = NUL;
-	}
-	else {
+
+	} else {
 	    /* Non-interactive mode here means that we got a string from -e.
 	     * Having curly_brace_count > 0 means that there are at least one
 	     * unterminated blocks in the string.
-	     * Likely user error, so we die with an error message. */
+	     * Likely user error, so we die with an error message.
+	     */
 	    int_error(NO_CARET, "Syntax error: missing block terminator }");
 	}
     }
+    return 0;
+}
+
+int
+step_through_line()
+{
+    TBOOLEAN interlock = FALSE;	/* protect against recursion via command() */
 
     c_token = 0;
     while (c_token < num_tokens) {
+
+	/* Commands in multiplot mode are saved for use in replot or mousing */
+	if (in_multiplot)
+	    check_for_multiplot_save(&interlock);
+
+	/* Execute the next command, advancing c_token as it is parsed */
 	command();
+
+	if (interlock)
+	    suppress_multiplot_save = FALSE;
+
 	if (command_exit_requested) {
 	    command_exit_requested = 0;	/* yes this is necessary */
 	    return 1;
@@ -550,6 +577,40 @@ do_line()
     return (0);
 }
 
+static void
+check_for_multiplot_save(TBOOLEAN *interlock)
+{
+    /* When saving commands for multiplot replay we choose to save an
+     * entire for/while/do loop rather than the sequence of individual
+     * commands that result from executing it.  Suppress redundant
+     * saving of the individual component commands while it executes.
+     * Suppression lasts until both suppress_multiplot_save and interlock
+     * are reset.
+     */
+    TBOOLEAN unnested = !lf_head || (lf_head && lf_head->depth < in_multiplot);
+    if (!multiplot_playback && unnested) {
+	if (equals(c_token, "do") || equals(c_token, "while")
+	||  equals(c_token, "if") || equals(c_token, "else")) {
+	    /* Only save up to an embedded "end multiplot", if there is one */
+	    char *truncated = NULL;
+	    for (int unset_token = c_token; unset_token < num_tokens; unset_token++) {
+		if (almost_equals(unset_token, "un$set")
+		&&  almost_equals(unset_token+1, "multi$plot")) {
+		    size_t len = token[unset_token].start_index - token[c_token].start_index;
+		    truncated = strndup(&(gp_input_line[token[c_token].start_index]), len);
+		    append_multiplot_line(truncated);
+		    free(truncated);
+		    break;
+		}
+	    }
+	    if (!truncated)
+		append_multiplot_line(&(gp_input_line[token[c_token].start_index]));
+
+	    suppress_multiplot_save = TRUE;
+	    *interlock = TRUE;
+	}
+    }
+}
 
 void
 do_string(const char *s)
@@ -609,8 +670,7 @@ do_string_replot(const char *s)
 {
     do_string(s);
 
-    /* EXPERIMENTAL */
-    if (last_plot_was_multiplot && !multiplot && !replot_disabled) {
+    if (last_plot_was_multiplot && !in_multiplot && !replot_disabled) {
 	replay_multiplot();
 	return;
     }
@@ -760,9 +820,31 @@ undefine_command()
 static void
 command()
 {
-    int i;
+    /* Support for multiplot replay */
+    /* The basic goal is to save the commands used to create a multiplot.
+     * - Simple commands can be saved one command at a time after execution.
+     * - Complex commands (if/else/while/do for) are read in until the final }
+     *   is encounted and then saved as a single line by step_through_line().
+     *   In this case the flag suppress_multiplot_save has been set so that the
+     *   constituent commands are not redundantly saved again here.
+     * - load/call commands are treated analogously to if/while/do, except that
+     *   save is suppressed by the test (lf_head->depth < in_multiplot).
+     */
+    char *one_command = NULL;
+    if (!suppress_multiplot_save)
+    if (!multiplot_playback && !evaluate_inside_functionblock) {
+	    char *command_start = &gp_input_line[token[c_token].start_index];
+	    size_t len = strlen(command_start);
+	    for (int semicolon = c_token; semicolon <= num_tokens; semicolon++) {
+		if (equals(semicolon, ";")) {
+		    len = &gp_input_line[token[semicolon].start_index] - command_start;
+		    break;
+		}
+	    }
+	    one_command = strndup(command_start, len);
+    }
 
-    for (i = 0; i < MAX_NUM_VAR; i++)
+    for (int i = 0; i < MAX_NUM_VAR; i++)
 	c_dummy_var[i][0] = NUL;	/* no dummy variables */
 
     if (is_definition(c_token))
@@ -771,6 +853,15 @@ command()
 	;
     else
 	(*lookup_ftable(&command_ftbl[0],c_token))();
+
+    /* Support for multiplot replay */
+    if (in_multiplot && !multiplot_playback && !suppress_multiplot_save
+    &&  !evaluate_inside_functionblock) {
+	/* NB: should we also allow (lf_head->name == NULL)? */
+	if (!lf_head || lf_head->depth < in_multiplot)
+	    append_multiplot_line(one_command); 
+    }
+    free(one_command);
 
     return;
 }
@@ -1131,7 +1222,7 @@ clear_command()
 
     term_start_plot();
 
-    if (multiplot && term->fillbox) {
+    if (in_multiplot && term->fillbox) {
 	int xx1 = xoffset * term->xmax;
 	int yy1 = yoffset * term->ymax;
 	unsigned int width = xsize * term->xmax;
@@ -2074,6 +2165,10 @@ plot_command()
     add_udv_by_name("MOUSE_SHIFT")->udv_value.type = NOTDEFINED;
     add_udv_by_name("MOUSE_ALT")->udv_value.type = NOTDEFINED;
     add_udv_by_name("MOUSE_CTRL")->udv_value.type = NOTDEFINED;
+    if (multiplot_playback) {
+	/* This will only get applied to a multiplot panel with active mousing */
+	apply_saved_zoom();
+    }
 #endif
     if (evaluate_inside_functionblock && inside_plot_command)
 	int_error(NO_CARET, "plot command not available in this context");
@@ -2454,8 +2549,7 @@ replot_command()
     if (term->flags & TERM_INIT_ON_REPLOT)
 	term->init();
 
-    /* EXPERIMENTAL */
-    if (last_plot_was_multiplot && !multiplot)
+    if (last_plot_was_multiplot && !in_multiplot)
 	replay_multiplot();
     else
 	replotrequest();

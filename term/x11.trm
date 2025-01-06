@@ -927,7 +927,7 @@ X11_waitforinput(int options)
 	     */
             return 0;
         }
-        return getc(stdin);
+        read_and_return_character();
     }
 
     /* XXX:  if the input device it not a tty (e.g. /dev/null)
@@ -994,8 +994,10 @@ X11_waitforinput(int options)
         }
         l += n;
         if (l == sizeof(ge)) {
-            /* note: do_event() may not return (if an
-             * error occurs), so need to reset l first */
+            /* do_event() may not return (if an error occurs), so reset l first.
+	     * do_event() may clear paused_for_mouse, so save initial state.
+	     */
+	    TBOOLEAN was_paused_for_mouse = paused_for_mouse;
             l = 0;
             do_event(&ge);
 
@@ -1025,16 +1027,15 @@ X11_waitforinput(int options)
                     return '\0';
                 }
             }
-            if (ge.type == GE_reset) {
+            if (ge.type == GE_reset && was_paused_for_mouse) {
                 /* Error or window close */
-                paused_for_mouse = 0;
-                return '\0';
+		return '\n';
             }
         }
 
     } while(blocking_loop_reading_ipc_back_fd || have_any_ipc_back_fd_data);
 
-    return getc(stdin);
+    read_and_return_character();
 
 #endif /* PIPE_IPC */
 }
@@ -2170,7 +2171,7 @@ X11_layer(t_termlayer syncpoint)
 	{
 	case TERM_LAYER_RESET:
 	case TERM_LAYER_RESET_PLOTNO:
-		if (multiplot)
+		if (in_multiplot)
 			break;
 	case TERM_LAYER_BEFORE_PLOT:
 	case TERM_LAYER_AFTER_PLOT:

@@ -1,5 +1,5 @@
-C RCS $Id: gnuplot-ja.doc,v 1.815 2024-08-23 14:05:54+09 shige Exp $
-C corresponding original gnuplot.doc at 2024-08-22
+C RCS $Id: gnuplot-ja.doc,v 1.819 2024-12-02 17:33:41+09 shige Exp $
+C corresponding original gnuplot.doc at 2024-12-02
 C
 C Copyright (C) 1986 - 1993, 1998, 1999, 2000, 2001, 2004   Thomas Williams, Colin Kelley et al.
 C
@@ -601,8 +601,8 @@ D epi_data 1
 #b `set isotropic` は、2 次元グラフと 3 次元グラフの両方で、x, y, z 軸
 ## のすべてのスケールが同じになるようにスケールを合わせます。
 #b 変更: 文字の回転角が整数という制限はなくなりました。
-#b 特別な (非数値の) 線種 (linetype) `lt nodraw`, `lt black`, `lt bgnd`
-## 以下参照: `special_linetypes`。
+#b 特別な (非数値の) 線種 (linetype) `lt nodraw`, `lt black`,
+## `lt background`, 以下参照: `special_linetypes`。
 #b データ駆動型の histogram グラフの色割り当て。以下参照:
 ## `histograms colors`。
 #b 凡例 (key) の箱の位置は、gnuplot が他に行う仕組みによるどんな位置決
@@ -717,21 +717,32 @@ D epi_data 1
  れらに対する説明の予備を持っています。一覧の下の方にある項目は、バージ
  ョン 6.2 までは安定リリース版には導入しないかもしれません。
 #start
-#b 新しい描画モード "with hsteps"
-#b 局所変数の実装の改良
+#b 新しい 2 次元描画スタイル `with hsteps` は、階段関数型のグラフとして
+## 既にあるスタイル `steps`, `histeps`, `fsteps`, `fillsteps` が提供し
+## ていたものに、さらに色々な表現を追加することができる。以下
+## 参照: `hsteps`。
 #b バイナリデータファイルに対する空行の同等品。データ項目を分離するのに
 ## 空行を必要とするような描画スタイルに対するバイナリ入力をサポートする
-## のに必要。
-#b "linestyle variable"
-#b 3 次元面体に対する pm3d 色付け (例えば Delaunay モザイク曲面)
+## のに必要。以下参照: `binary blank`。
+#b 以前の版の gnuplot では、3 次元多角形 (polygon)、部品 (object)、塗り
+## 潰しの領域などは、すべて "set pm3d" から取られる一つの境界色と線幅を
+## 共有していました。この制限は、現在では取り除かれています。境界の属性
+## はグラフ毎、部品毎に指定できます。この変更は "set pm3d" が 3 次元多
+## 角形と箱の境界に影響すると期待するすべてのスクリプトに影響を与えます。
 #b splot with contourfill at base
-#b plot と splot に条件式を与える入力データフィルタ。例えば
-## `plot DATA using 2:3 if (stringcolumn(1) eq "ABC")`
+#b 局所変数の実装の改良 (より速く、よりよく定義される通用範囲で)
+#b "linestyle variable"
+#b 3 次元面体に対する pm3d 色付け (例えば Delaunay モザイク曲面)。以下
+## 参照: `delaunay`。
+#b plot と splot に "using" の外で条件式を与える入力データフィルタ。例:
+## `plot DATA using 2:3 with boxes if (stringcolumn(1) eq "ABC")`
 #b 以前外部スクリプト `gpsavediff` として配布してたものと同等の新しいコ
-## マンド `save changes`
-#b より頑健なスレッドによる wxt 出力ドライバの改良
+## マンド `save changes`。このコマンドは、今の gnuplot セッションの開始
+## 時のプログラムの状態から、現在の状況を特徴付けるようなプログラムの設
+## 定、変数、関数のみを保存します。以下参照: `save changes`。
+#b より頑健なスレッド、エラー復帰による wxt 出力ドライバの改良
 #b 画像ファイルのデータ処理での gdlib の代用品
-#b 配列要素に渡る繰り返し `array A; for [e in A] { ... }`
+#b 配列要素に渡る繰り返し `array A; for [e in A] { ... }` [試験段階]
 #b キーワード "sample" の非推奨
 #b "marks" と呼ぶ新しいグラフィカルな物体のカテゴリ。これは、複雑な記号
 ## を定義し、plot で利用できます。説明やデモはまだありません。
@@ -1022,12 +1033,12 @@ D epi_data 1
    plot 'datafile' using 1:2:4 with labels
    splot 'datafile' using 1:2:3:4 with labels
 
- テキスト部分の列データは 1 つ、または複数の描画軸の目盛りのラベルとし
- て使用できます。次の例は、入力データの 3 列目と 4 列目を (X,Y) 座標と
- して取り出し、それらの点の列を結ぶ線分を描画します。しかしこの場合
- gnuplot は、x 軸に沿って標準的に間の空いた数字ラベルのついた目盛り刻み
- をつけるのではなく、入力データファイルの 1 行目の X 座標の位置に、目盛
- り刻みと文字列を x 軸に沿ってつけて行きます。
+ テキスト列データは、1 つ以上のグラフ軸の目盛り刻みラベルとしても使用で
+ きます。次の例は、入力データの 3 列目と 4 列目を (X,Y) 座標として取り
+ 出し、それらの点の列を結ぶ線を描画します。しかしこの場合、x 軸に沿って
+ 数字のラベルを持つ標準的な間隔の刻みをつけるのではなく、gnuplot は x
+ 軸上の各点の x 座標の場所に刻みを置き、入力データファイルの 1 列目のテ
+ キストをその刻みのラベルとしてつけていきます。
 
    set xtics
    plot 'datafile' using 3:4:xticlabels(1) with linespoints
@@ -3665,6 +3676,9 @@ C ... and restart the table:
  要があります。データの終わりの区切り (上の例では EOD) は、任意のアルフ
  ァベット、数字からなる文字列で構いません。
 
+ データブロック定義は、繰り返しや if/else/while 条件のかっこの内部には
+ 置くことはできません。
+
  データを名前付きブロックに保存するかわりに、実行可能コマンドを保存する
  同様の仕組みについては、以下参照: `function blocks`。
 
@@ -3797,7 +3811,7 @@ Ffigure_newsyntax
        palette z
        palette <colormap>      # 名前付きカラーマップを使用
        variable                # 入力ファイルから色番号を読み込む
-       bgnd                    # 背景色
+       background または bgnd  # 背景色
        black
 
  <n> は、その線種 (linetype) 番号が使う色を意味します。以下参照:
@@ -3835,19 +3849,20 @@ Ffigure_newsyntax
  ての 2 次元描画スタイルがこの追加列を認識するわけではありません)。
 =bgnd
 =black
- 特殊な色指定が 2 つあります。背景色の `bgnd` と、`black` です。
+ 特殊な色指定が 2 つあります。背景色の `background` (省略形 `bgnd`) と
+ `black` です。
 4 background color
 ?background
 ?bgnd
  多くの出力形式でグラフの背景色を明示的に設定できます。特別な線種
- (linetype) `bgnd` はその色で描画しますが、その `bgnd` は色としても認識
- されます。
+ (linetype) `background` (省略形 `bgnd`) はその色で描画しますが、それは
+ 色名としても認識されます。
  例:
       # 以下はキャンバスの一部分を背景色で上書きすることで消去します。
       set term wxt background rgb "gray75"
       set object 1 rectangle from x0,y0 to x1,y1 fillstyle solid fillcolor bgnd
       # y=0 に「見えない」線を描き、その下のものをすべて消します。
-      plot 0 lt bgnd
+      plot 0 lt background
 4 linecolor variable
 ?linecolor variable
 ?linestyle variable
@@ -3995,8 +4010,8 @@ Ffigure_newsyntax
 
  `lt black` は、黒い実線を意味します。
 
- `lt bgnd` は、現在の出力形式の背景色の実線を意味します。以下参照:
- `background`。
+ `lt background` や `lt bgnd`は、現在の出力形式の背景色の実線を意味しま
+ す。以下参照: `background`。
 
  `lt nodraw` は、その曲線全体の描画をスキップします。これは、描画スタイ
  ル `linespoints` と組み合わせて使うと便利です。すなわち、この描画スタ
@@ -4973,51 +4988,75 @@ Ffigure_3Dboxes
 ?style boxplot
 ?with boxplot
 ?boxplot
+ boxplot は、値の統計的な分布を表現する一般的な方法です。gnuplot の
+ boxplot は常に鉛直向きで、値の分布は y 軸に沿って表示します。四分位境
+ 界は、1/4 の点が第一四分位境界以下の y の値を持つように、1/2 の点が第
+ 二四分位境界 (メジアン) 以下の y の値を持つように、等と決定されます。
+ 第一四分位と第三四分位の間の領域を囲むように箱を描画し、メジアン値のと
+ ころには水平線を描きます。箱ひげは、箱からユーザ指定限界まで延長します。
+ それらの限界の外にある点 (外れ値) は、ひとつひとつ描画します。boxplot
+ の幅は、`set boxwidth` か plot コマンドの `using` 指定の 3 列目を与え
+ ることで制御できます。
+
+ 書式
+
+      2 列:   x-position        y-value
+      3 列:   x-position        y-value  boxwidth
+      4 列:   first-x-position  y-value  boxwidth  category
+
 Ffigure_boxplot
- boxplot は、値の統計的な分布を表現する一般的な方法です。四分位境界は、
- 1/4 の点が第一四分位境界以下の値を持つように、1/2 の点が第二四分位境界
- (メジアン) 以下の値を持つように、等と決定されます。第一四分位と第三四
- 分位の間の領域を囲むように箱を描画し、メジアン値のところには水平線を描
- きます。箱ひげは、箱からユーザ指定限界まで延長されます。それらの限界の
- 外にある点は、ひとつひとつ描画されます。y の値が重なる範囲外の点の水平
- の広がりは、`set jitter` で調整できます。
-
- 例:
-
-     # x 座標は 1.0、y は 5 列目の値のところに boxplot を配置
-     plot 'data' using (1.0):5
-
-     # 上と同じだが、範囲外の点は隠し、boxplot の幅を 0.3 にする
-     set style boxplot nooutliers
-     plot 'data' using (1.0):5:(0.3)
-
- デフォルトでは、using 指定による 2 列目の y のすべての値に対する
- boxplot を 1 つだけ生成します。しかし、追加の (4 つ目の) 列を指定する
- と、その列の値をある因子変数の離散的なレベル値であると見なし、その離散
- 値のレベルの値の数だけの boxplot を描画します。それらの boxplot の間隔
- はデフォルトでは 1.0 ですが、これは `set style boxplot separation` で
- 変更できます。デフォルトでは、因子変数の値は、各 boxplot の下 (または
- 上) の目盛りのラベルに表示します。
+ boxplot の水平位置は、通常 plot コマンドの `using` 指定の最初の列に定
+ 数値 (x-position) として与えたものになります。その boxplot の位置の下
+ に特定のラベルを置くことができますが、それには、plot コマンドに
+ `xticlabel` 指定を追加するか (2 列、または 3 列書式)、または独立したデ
+ ータ列内の文字列を与えるか (4 列書式)、の方法があります。以下の例は、
+ 両方とも boxplot サンプル図のレイアウトと同様のグラフを生成します。
 
  例
 
-     # 'data' の 2 列目は "control" か "treatment" のいずれかの文字列で
-     # 以下の例は、その因子毎の 2 つの boxplot を生成する
-     plot 'data' using (1.0):5:(0):2
+      #
+      # 2 つの異なるファイルからの y 値の分布の比較
+      set border 2                    # 左境界線のみ
+      set xtics nomirror scale 0      # 目盛り刻み無し、ラベルのみ
+      set ytics rangelimited nomirror
+      plot 'dataset_A' using (1.):2:xticlabel('A') with boxplot, \
+           'dataset_B' using (2.):2:xticlabel('B') with boxplot
 
- その箱のデフォルトの幅は `set boxwidth <width>` で設定できますが、plot
- コマンドの `using` による 3 番目のオプション列でも指定できます。1 番目
- と 3 番目の列 (x 座標と幅) は通常データ列ではなく定数として与えます。
+      #
+      # 同じファイル内の 2 つのデータカテゴリの y 値の比較
+      # 各行の 1 列目にはカテゴリを示す文字列 ("A" か "B")、2 列目にデ
+      # ータ値が含まれ、ラベルはカテゴリ文字列から自動生成する
+      start_x = 1.0
+      boxwidth = 0.5
+      plot 'mixeddata' using (start_x):2:(boxwidth):1 with boxplot
 
- デフォルトでは、箱ひげは箱の端から、y の値が四分位範囲の 1.5 倍の中に
- 収まっていて最も離れているような点まで延長します。デフォルトでは、範囲
- 外の点 (outlier) は円 (pointtype 7) で描きます。箱ひげの端の棒の幅は
- `set bars` または `set errorbars` を使って制御できます。
+ デフォルトでは、using で第 2 フィールドに指定した列のすべての y の値か
+ ら、ただ 1 つの boxplot を生成します。もし `using` で第 4 フィールドを
+ 指定した場合は、その入力列の内容は個別のカテゴリを識別するための文字列
+ として使います。入力列にある個々のカテゴリに対して、別な boxplot を描
+ 画します。それらの boxplot 間の水平間隔は、デフォルトでは 1.0 ですが、
+ それは `set style boxplot separation` で変更できます。デフォルトでは、
+ カテゴリ識別子は、各 boxplot の下の目盛りラベルとして書きます。
+ もしカテゴリ列に数値が含まれていても、それはやはりあくまで文字列として
+ 扱われるので、boxplot x 座標には通常は対応しません。
+
+ 入力ファイル内のデータ点の順序は重要ではありません。データ点が入力ファ
+ イル内で 2 行の空行で分離される複数のブロックになっている場合は、個々
+ のブロックはキーワード `index` で選択するか、またはデータブロック番号
+ (`column(-2)`) を第 4 列のレベル値として使用することができます。以下
+ 参照: `pseudocolumns`, `index`。
+
+ デフォルトでは箱ひげは、箱の端から、y の値が四分位範囲の 1.5 倍以内で
+ 最も離れているような点まで延長します。外れ値は、デフォルトでは円
+ (point type 7) で描きます。箱ひげの端の棒の幅は、`set bars` か
+ `set errorbars` で制御できます。複数の外れ値が同じ y の値を持つ場合、
+ 水平方向に 1 文字幅分ずらしますが、その間隔は、`set jitter` で制御でき
+ ます。
 
  これらのデフォルトの性質は `set style boxplot` コマンドで変更できます。
  以下参照: `set style boxplot`, `bars`, `boxwidth`, `fillstyle`,
  `candlesticks`。
-
+#TeX \newpage
 2 boxxyerror
 ?plotting styles boxxyerror
 ?style boxxyerror
@@ -5180,10 +5219,10 @@ Ffigure_piechart
 ?style contourfill
 ?with contourfill
 ?contourfill
-Ffigure_contourfill
  書式:
       splot f(x,y) with contourfill {at base} {fillstyle <style>}
 
+Ffigure_contourfill
  contourfill は、3 次元描画スタイルで、pm3d 曲面を z の等高線に沿って切
  った断片の色付けに使います。これは、2 次元射影 (`set view map` か
  `with contourfill at base`) で、等高線の間を単色で塗り潰した 2 次元の
@@ -5212,7 +5251,7 @@ Ffigure_contourfill
  `with contourfill at base` で描画すると、代わりに色付き曲面を底面に投
  影します。曲面とその色付き等高線の投影の両方を描くには
       set hidden3d front
-      splot f(x,y) using lines, f(x,y) using contourfill at base
+      splot f(x,y) with lines, f(x,y) with contourfill at base
 
 2 dots
 ?plotting styles dots
@@ -5290,14 +5329,17 @@ Ffigure_ellipses
 ?with filledcurves
 ?filledcurves
 Ffigure_filledcurves
- スタイル `filledcurves` は 2 次元描画でのみ利用します。これは 3 種類の
- 異なる指定が可能です。最初の 2 種類は 1 つの関数描画、あるいは (x,y) 2
- 列の入力データ用のもので、後で紹介するようにオプションで更なる指定がで
- きます。
+ スタイル `filledcurves` は、2 次元描画と 3 次元描画 (バージョン 6.1 よ
+ り) の両方で利用できます。
 
- 書式:
+ 2 次元描画スタイルは、3 種類の異なる指定が可能です。最初の 2 種類は、
+ 1 つの関数描画、あるいは (x,y) 2 列の入力データ用のものです。
 
-     plot ... with filledcurves [option]
+ 2 次元描画用の書式:
+
+     plot f(x) with filledcurves [option]
+     plot DATA using 1:2    with filledcurves [option]
+     plot DATA using 1:2:3  with filledcurves [option]
 
  ここで、オプションは以下のうちのいずれかです:
 
@@ -5320,22 +5362,25 @@ Ffigure_filledcurves
      filledcurves xy=10,20 ... x1,y1 軸での点 10,20 (扇型のような形状)
      filledcurves above r=1.5  極座標での動径軸の 1.5 の外側の領域
 
-Ffigure_yerrorfill
  3 種類目は、x 座標の集合が同じである 2 つの曲線の間の領域を塗り潰しま
  す。これは、(x, y1, y2) の 3 列の入力データが必要です。入力データが 3
- 列以上の場合にはこれがデフォルトです。2 列目が y の値で、3 列目がその
- 誤差データである場合は、不確定領域を陰影で表現することができます。
+ 列以上の場合にはこれがデフォルトです。
+Ffigure_yerrorfill
+ 2 列目が y の値で、3 列目がその誤差データである場合は、この 3 列データ
+ 列指定を、不確定領域をその片側に持つことを示す実線と組み合わせて利用す
+ ることができます。
  これに似た 3 次元描画スタイル `zerrorfill` も参照してください。
-
-     3 列:  x  y  yerror
 
      plot $DAT using 1:($2-$3):($2+$3) with filledcurves, \
           $DAT using 1:2 smooth mcs with lines
 
+3 above/below
+?filledcurves above
+?filledcurves below
  `above` と `below` オプションは
-     ... filledcurves above {x1|x2|y|r}=<val>
+     plot f(x) with filledcurves {above|below} {y|r}=<val>
  および
-     ... using 1:2:3 with filledcurves below
+     plot DATA with filledcurves using 1:2:3 with filledcurves {above|below}
  の形のコマンドに適用可能です。どちらの場合でも、これらのオプションは
  塗りつぶし領域を、境界線、または境界曲線の片側に制限します。
 
@@ -5346,6 +5391,28 @@ Ffigure_yerrorfill
  <x>, <y>, <a> が描画領域の外にある場合、それらはグラフの境界へ移動され
  ます。よって、オプション xy=<x>,<y> を指定した場合の実際の塗りつぶし領
  域は、xrange や yrange に依存します。
+
+3 3 次元滝グラフ (3D waterfall plots)
+?filledcurves 3D
+?filledcurves waterfall
+?waterfallplots
+      set style fill solid border lc "black"
+      splot for [scan=N:1:-1] DATA index scan \
+            using x:y:z with filledcurves fc background
+
+ gnuplot 6.1 では、2 次元曲線の集合を直交軸に沿って順番に上書きしていく
+ ように表示するように、3 次元の `filledcurves` グラフスタイルを設計して
+ います。通常各曲線に対して x あるいは y の一方は固定値で、それぞれの曲
+ 線を順番に増えていく y の場所に z=f(x) として表示する、あるいは順番に
+ 増えていく x の場所に z=f(y) として表示するようにします。これは、「滝
+ グラフ」を描くのに便利です。
+
+ 前面の曲線が遠い曲線を覆い隠すことを保証するためには、後ろから前への曲
+ 線の列の順番付けが重要です。
+
+ 以下も参照: `fenceplots`。
+D waterfallplot 1
+
 3 塗り潰しの属性 (fill properties)
 ?filledcurves border
 =border
@@ -5398,6 +5465,8 @@ Ffigure_steps
  ら次の点への移動の際に、`steps` と `fillsteps` はいずれもまず x 座標の
  変化の線を引き、その後 y 座標の変化の線を引くことに注意してください。
  以下参照: `steps`。
+    1 列:   y     # 行番号 (0 列目) による暗黙の x
+    2 列:   x y
 2 fsteps
 ?plotting styles fsteps
 ?style fsteps
@@ -5415,6 +5484,8 @@ Ffigure_fsteps
 ^ <a href="http://www.gnuplot.info/demo/steps.html">
  steps デモ。
 ^ </a>
+    1 列:   y     # 行番号 (0 列目) による暗黙の x
+    2 列:   x y
 2 histeps
 ?plotting styles histeps
 ?style histeps
@@ -5436,6 +5507,8 @@ Ffigure_histeps
 ^ <a href="http://www.gnuplot.info/demo/steps.html">
  steps デモ。
 ^ </a>
+    1 列:   y     # 行番号 (0 列目) による暗黙の x
+    2 列:   x y
 
 #TeX \newpage
 2 温度分布図 (heatmaps)
@@ -6301,15 +6374,18 @@ Ffigure_points
  面や単独の形状となり得ます。このルーチンは、頂点が一つの平面に乗ってい
  なければいけません。
  個々の多角形を定義する頂点は、入力ファイルの連続する行から読み込みます。
- 空行は多角形同士を分離します。
+ 空行は多角形同士を分離します。入力ファイルがバイナリデータの場合は、
+ 以下参照: `binary blank`。
 
- 塗り潰しスタイルと色は、splot コマンド上で指定できますが、そうでなけれ
- ば大域的な塗り潰しスタイルの `set style fill` の設定を使用します。pm3d
- ルーチンの制限のため、`set pm3d border` による一つの境界線スタイルが、
- すべての 3 次元多角形に適用されますが、この制限は将来の版の gnuplot で
- は取り除かれ、線色と塗り潰し色の属性の区別を課すようになるでしょう。
+ 注意: 以前の版の gnuplot では、すべての 3D 多角形が `set pm3d border`
+ で設定される 1 つの塗り潰し境界属性を共有する、という制限がありました。
+ この制限は今はありません。
+ 多角形の塗り潰しスタイル、境界色、境界線幅は、splot コマンド上で指定で
+ き、そうしない場合はそれらは `set style fill` (`set pm3d` ではない) で
+ の大域的な設定から取ります。
+ 多角形オブジェクトの塗り潰しスタイル、境界色、境界線幅は、コマンド
+ `set object` で指定します。
 
-  Only the color value from the first vertex of the polygon is used.
  各多角形には、4 列目の値を与え、キーワード `fc variable` を指定する
  (その値を linetype と解釈) か、`fc rgb variable` を指定する (その値を
  24 ビット RGB 色と解釈) ことで、個別の塗り潰し色を割り当てることができ
@@ -6324,9 +6400,8 @@ Ffigure_polygons
       unset border
       unset tics
       set pm3d depth
-      set pm3d border lc "black" lw 1.5
-      splot 'icosahedron.dat' with polygons \
-            fs transparent solid 0.8 fc bgnd
+      splot 'icosahedron.dat' with polygons fc background \
+            fs transparent solid 0.8 border lc "black" lw 2
 
 2 rgbalpha
 ?plotting styles rgbalpha
@@ -6452,6 +6527,7 @@ Ffigure_spiderplot
       # 以下は 5 個の頂点を持つ 2 つの多角形
       plot for [i=1:5] 'A' using i, newspiderplot, for [j=1:5] 'B' using j
 
+#TeX \newpage
 2 steps
 ?plotting styles steps
 ?style steps
@@ -6469,6 +6545,8 @@ Ffigure_steps
 ^ <a href="http://www.gnuplot.info/demo/steps.html">
  steps デモ。
 ^ </a>
+    1 列:   y     # 行番号 (0 列目) による暗黙の x
+    2 列:   x y
 
 2 surface
 ?plotting styles surface
@@ -6531,7 +6609,6 @@ Ffigure_vectors
  2 次元描画スタイルの以下も参照: `with arrows`。これは、各矢印を
  x:y:length:angle の形式で指定する以外は `with vectors` と同じです。
 
-#TeX \newpage
 2 xerrorbars
 ?plotting styles xerrorbars
 ?style xerrorbars
@@ -6633,6 +6710,7 @@ Ffigure_xyerrorlines
  入力列を追加 (5,7 列目) するとそれらを variable color として使います。
  このスタイルでは、variable point 属性は使えません。
 
+#TeX \newpage
 2 yerrorbars
 ?plotting styles yerrorbars
 ?plotting styles errorbars
@@ -6798,12 +6876,12 @@ Ffigure_zerror
 
  splot コマンドに複数の曲線を指定した場合は、後に描いた曲線が、前のすべ
  ての曲線を隠してしまう可能性があります。見る人側の手前の曲線のみが隠す
- ように適切な深さ順の並べかえを行うには、`set pm3d depthorder base` を
- 使用してください。残念ながら、これは z の値に対応するすべての折れ線を
- 描いた後に、すべての領域の塗り潰しを行います。よって、折れ線を見えるよ
- うにして、かつ領域の塗り潰しの深さ順の並べかえを行うには、領域の塗り潰
- しは部分的に透過 (transparent) させるか、単色塗り (solid fill) の代わ
- りにパターン塗り (pattern fill) を使用するといいかもしれません。
+ ように適切な深さ順の並べかえを行うには、後ろから前への順番付けが最良で
+ す。他には、`set pm3d depthorder base` を用いて自動的に並べかえること
+ ができますが、残念ながら、これは z の値に対応するすべての折れ線を描い
+ た後に、すべての領域の塗り潰しを行います。よって、折れ線を見えるように
+ して、かつ領域の塗り潰しの深さ順の並べかえを行うには、領域の塗り潰しは
+ 部分的に透過 (transparent) させるといいかもしれません。
 
  以下の最初の 2 つの例の塗り潰し領域は、同じものになります。
 
@@ -6813,7 +6891,7 @@ Ffigure_zerror
       splot for [k=1:5] datafile[k] with zerrorfill lt black fc lt (k+1)
 
  この描画スタイルは、柵グラフ (fence plot) を作成するのにも使えます。
- 以下参照: `fenceplots`。
+ 以下参照: `fenceplots`。以下も参照: `waterfallplots`。
 
 2 アニメーション (Animation)
 ?animation
@@ -7446,8 +7524,8 @@ Ffigure_zerror
  の試験方法がいくつかあります。
 
  補正χ自乗が 1 よりはるかに大きくなったら、それは不正なデータ誤差評価、
- 正規分布しないデータ誤差、システム上の測定誤差、孤立した標本値
- (outliers)、または良くないモデル関数などのためでしょう。例えば
+ 正規分布しないデータ誤差、システム上の測定誤差、外れ値 (outliers)、ま
+ たは良くないモデル関数などのためでしょう。例えば
  `plot 'datafile' using 1:($2-f($1))` などとして残差を描画することは、
  それらのシステム的な傾向を知るための手がかりとなります。データ点と関数
  の両者を描画することは、他のモデルを考えための手がかりとなるでしょう。
@@ -7477,8 +7555,8 @@ Ffigure_zerror
  `fit` は、大抵の非線形最小自乗法の実装では共通して、距離の自乗
  (y-f(x))**2 の重み付きの和を最小化しようとすることに注意してください。
  それは、x の値の "誤差" を計算に関してはどんな方法も与えてはおらず、単
- に y に関する評価のみです。また、"孤立点" (正規分布のモデルのから外れ
- ているデータ点) は常に解を悪化させる可能性があります。
+ に y に関する評価のみです。また、"外れ値" (正規分布のモデルから外れて
+ いるデータ点) は常に解を悪化させる可能性があります。
 3 制御 (control)
 ?commands fit control
 ?fit control
@@ -8121,8 +8199,10 @@ Ffigure_zerror
  込まれるもの、または事前に定義された名前付きデータブロックから読み込ま
  れるもの、または配列から抜き出したもの、のいずれかです。コンマで区切る
  ことで、複数のデータファイル、データブロック、配列、関数などを 1 つの
- plot コマンドで描画できます。以下参照: `data`, `inline data`,
- `functions`。
+ plot コマンドで描画できます。
+
+ データ描画に特有の多くの追加キーワードがあります。以下参照:
+ `plot datafile`。以下も参照: `data`, `inline data`, `functions`。
 
  関数、変数の定義の描画要素は、画像出力を生成しません。下の 3 つ目の例
  を参照してください。
@@ -8151,7 +8231,7 @@ Ffigure_zerror
 ?binary
 ?data binary
 ?datafile binary
-?plot data binary
+?plot datafile binary
  バイナリデータファイル:
 
  ファイル名の後ろに `binary` のキーワードを与えなければいけません。ファ
@@ -8760,7 +8840,7 @@ Ffigure_zerror
  にフィルターの目的は、元々の入力点集合全体を、多分変形や再グループ化、
  再整列化を行い、そこから抜き出した部分集合に置き換えます。
  現在サポートしているフィルターは `bins`, `convexhull`, `concavehull`,
- `if`, `mask`, `sharpen`, `zsort` です。
+ `delaunay`, `if`, `mask`, `sharpen`, `zsort` です。
 5 度数分布 (bins)
 ?commands plot datafile filters bins
 ?plot datafile filters bins
@@ -8901,6 +8981,39 @@ Ffigure_concave_hull_2
  閉曲線を構成する、新たな点集合を生成します。それは、`smooth path` と組
  み合わせることが可能です。
 
+5 ドロネー図 (delaunay)
+?commands plot datafile filters delaunay
+?plot datafile filters delaunay
+?plot filters delaunay
+?data-file filters delaunay
+?datafile filters delaunay
+?filters delaunay
+?delaunay
+
+ ドロネー (delaunay) 三角形は、2 次元の点集合を 3 点ずつの組に再分し、
+ その 3 点が作る三角形の外接円内には元の集合の点が入らないようにします。
+ gnuplot では、フィルタ動作として実装していて、点集合の入力を、描画スタ
+ イル "with polygons" の形式の 3 角形のリストに置き換えます。
+ このフィルタは、χ-形状を用いた凹包を見つける最初の段階で使用されます
+ (以下参照: `concavehull`)。これは、モザイク状の曲面を生成する目的で、
+ 3 次元点集合を xy 平面へ射影したものにも明示的に適用できます。
+^ <a href="http://www.gnuplot.info/demo_6.1/delaunay.html">
+ delaunay.dem
+^ </a>
+ も参照。
+
+ これは試験段階 です (実装の詳細は将来の版で変更の可能性あり)。あなたの
+ gnuplot が --enable-chi-shapes で configure した場合のみ利用できます。
+
+ 2 次元の例
+      plot POINTS using 1:2 delaunay with polygons fillstyle empty
+
+ 3 次元の例
+      set pm3d border lc "black" lw 2
+      splot 'hemisphere.dat' using 1:2:3 delaunay with polygons
+D concave_hull 3
+D delaunay 1
+
 5 マスキング (mask)
 ?commands plot datafile filters mask
 ?plot datafile filters mask
@@ -8911,8 +9024,8 @@ Ffigure_concave_hull_2
 ?mask
       plot FOO using 1:2:3 mask with {pm3d|image}
 
- マスクを一度定義すると、image 描画、または pm3d 描画から点の部分集合を
- 選択するのにそれを利用できます。
+ マスクを一度定義すると、image 描画や pm3d 描画や contourfill 描画から
+ その領域のみを選択するフィルタとしてそれを利用できます。
  以下参照: `masking`。
 
 5 先鋭化 (shapen)
@@ -10500,6 +10613,7 @@ C using の書式 (format)
 ?save set
 ?save
 ?save fit
+?save changes
  書式:
        save  {functions | variables | terminal | set | fit | datablocks}
              '<filename>' {append}
@@ -16116,10 +16230,10 @@ Ffigure_polar_grid
  以下のようにします。
        set style boxplot fraction 0.95
 
- 箱ひげの範囲の外にある任意の点は、outliers (孤立した標本値) と見なされ
- ます。デフォルトではそれらをひとつひとつ円 (pointtype 7) で描きますが、
- オプション `nooutliers` はこれを無効にします。
- 描画されない outliers は、autoscaling には影響を与えません。
+ 箱ひげの範囲の外にある任意の点は、外れ値 (outliers) と見なされます。デ
+ フォルトではそれらをひとつひとつ円 (pointtype 7) で描きますが、オプシ
+ ョン `nooutliers` はこれを無効にします。
+ 描かれない外れ値は、自動縮尺機能には影響を与えません。
 
  デフォルトでは boxplot は candlesticks と似たスタイルで描画しますが、
  financebars と似たスタイルで描画するためのオプションもあります。
@@ -16129,24 +16243,24 @@ Ffigure_polar_grid
        set style boxplot medianlinewidth 2.0
  メジアン線が必要なければ、それを 0 にセットしてください。
 
- boxplot の using 指定が 4 列目を持つ場合、その列の値はある因子変数の離
- 散的なレベル値であると見なします。この場合、その因子変数のレベルの数と
- 同じだけの複数の boxplot が描かれます。それらの boxplot の隣り合うもの
- 同士の距離はデフォルトでは 1.0 (x 軸の単位で) ですが、この間隔はオプシ
- ョン `separation` で変更できます。
+ boxplot の using 指定が 4 列目を持つ場合、その列の値は、このデータ点が
+ 所属する個々のカテゴリであると見なします。この場合、入力に存在するカテ
+ ゴリそれぞれに対して一つずつの boxplot を描きます。これらの boxplot は
+ x 軸方向に (x 軸の単位で) 1 の距離だけ間隔を空けて描画しますが、その間
+ 隔は、オプション `set style boxplot separation` で変更できます。
 
  オプション `labels` は、これらの boxplot (それぞれデータ集合のある部分
  に対応する) のどこに、どのようにラベルをつけるかを決定します。デフォル
- トでは因子の値を水平軸 (x か x2 のいずれか plot で使われている方) の目
- 盛ラベルに出力します。これはオプションの `labels auto` に対応します。
- オプション `labels x`, `labels x2` によって、強制的に x 軸、x2 軸にそ
- れぞれ出力させることもできますし、`labels off` でオフにすることもでき
- ます。
+ トではカテゴリ識別子を水平軸 (x か x2 のいずれか plot で使われている方)
+ の目盛ラベルとして使います。これはオプションの `labels auto` に対応し
+ ます。オプション `labels x`, `labels x2` によって、強制的に x 軸、x2
+ 軸にそれぞれ出力させることもできますし、`labels off` でオフにすること
+ もできます。
 
- デフォルトでは、因子変数の異なるレベルに対応する boxplot は整列化はせ
- ず、データファイルにそのレベルが現れる順番に描画します。この挙動はオプ
- ションの `unsorted` に対応しますが、オプション `sorted` を使用すると、
- まずレベルを辞書順にソートし、その順に boxplot を描画します。
+ デフォルトでは、異なるカテゴリに対する boxplot は、データファイルにそ
+ のカテゴリが現れる順番に描画します。この挙動はオプション `unsorted` に
+ 対応しますが、オプション `sorted` が有効な場合は、まずカテゴリ指定子を
+ 辞書順 (アルファベット順) にソートし、その順に boxplot を描画します。
 
  オプション `separation`, `labels`, `sorted`, `unsorted` は、plot に 4
  列目の指定を与えた場合のみ効力を持ちます。
@@ -16438,7 +16552,7 @@ Ffigure_polar_grid
 
  例:
      set style rectangle back fc rgb "white" fs solid 1.0 border lt -1
-     set style rectangle fc linsestyle 3 fs pattern 2 noborder
+     set style rectangle fc linestyle 3 fs pattern 2 noborder
 
  デフォルトの設定は、背景色での単色塗り (solid fill) で、境界は黒になっ
  ています。

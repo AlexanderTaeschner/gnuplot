@@ -1059,3 +1059,16 @@ map_z3d(double z)
 
     return ((z - floor_z1)*zscale3d + zcenter3d - 1.0);
 }
+
+TBOOLEAN
+inrange_xy(coordinate *p)
+{
+    if (p->type == UNDEFINED)
+	return FALSE;
+    if ((p->x < axis_array[x_axis].min && !(axis_array[x_axis].autoscale & AUTOSCALE_MIN))
+    ||  (p->x > axis_array[x_axis].max && !(axis_array[x_axis].autoscale & AUTOSCALE_MAX))
+    ||  (p->y < axis_array[y_axis].min && !(axis_array[y_axis].autoscale & AUTOSCALE_MIN))
+    ||  (p->y > axis_array[y_axis].max && !(axis_array[y_axis].autoscale & AUTOSCALE_MAX)))
+	return FALSE;
+    return TRUE;
+}

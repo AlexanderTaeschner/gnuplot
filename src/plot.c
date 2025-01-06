@@ -83,9 +83,7 @@
 */
 #ifdef HAVE_LIBEDITLINE
 #  include <editline/readline.h>
-#  ifdef GNUPLOT_HISTORY
-#    include <histedit.h>
-#  endif
+#  include <histedit.h>
 #endif
 
 /* enable gnuplot history with readline */
@@ -290,38 +288,39 @@ main(int argc_orig, char **argv)
     }
 #endif /* MSDOS || OS2 */
 
-#if (defined(PIPE_IPC) || defined(_WIN32)) && (defined(HAVE_LIBREADLINE) || (defined(HAVE_LIBEDITLINE) && defined(X11)))
+#if (defined(PIPE_IPC) || defined(_WIN32)) && (defined(HAVE_LIBREADLINE) || (defined(HAVE_LIBEDITLINE)))
     /* Editline needs this to be set before the very first call to readline(). */
-    /* Support for rl_getc_function is broken for utf-8 in editline. Since it is only
-       really required for X11, disable this section when building without X11. */
     rl_getc_function = getc_wrapper;
 #endif
 
-#if defined(HAVE_LIBREADLINE) || defined(HAVE_LIBEDITLINE)
+#if defined(HAVE_LIBREADLINE)
     /* T.Walter 1999-06-24: 'rl_readline_name' must be this fix name.
      * It is used to parse a 'gnuplot' specific section in '~/.inputrc'
      * or gnuplot specific commands in '.editrc' (when using editline
      * instead of readline) */
     rl_readline_name = "Gnuplot";
     rl_terminal_name = getenv("TERM");
-#if defined(HAVE_LIBREADLINE)
     using_history();
-#else
-    history_init();
-#endif
-#endif
 
-#if defined(HAVE_LIBREADLINE) && defined(RL_VERSION_MAJOR)
+    #if !defined(MISSING_RL_TILDE_EXPANSION)
+    rl_complete_with_tilde_expansion = 1;
+    #endif
+
+    #if defined(RL_VERSION_MAJOR)
     /* Starting with readline v8.1 bracketed paste mode is on by default.
      * This breaks multi-line pasted input to gnuplot because it looks like
      * one long run-on line.
      */
     if (RL_VERSION_MAJOR >= 8)
 	rl_variable_bind ("enable-bracketed-paste", "off");
+    #endif
 #endif
 
-#if defined(HAVE_LIBREADLINE) && !defined(MISSING_RL_TILDE_EXPANSION)
-    rl_complete_with_tilde_expansion = 1;
+#if defined(HAVE_LIBEDITLINE)
+    rl_readline_name = "Gnuplot";
+    rl_terminal_name = getenv("TERM");
+    el = el_init("gnuplot", stdin, stdout, stderr);
+    history_init();
 #endif
 
     for (i = 1; i < argc; i++) {

@@ -1657,10 +1657,13 @@ filled_polygon(struct surface_points *from_plot, int index, gpdPoint *corners, i
      * (pm3d at [tb]) from surface quadrangles (pm3d at s).
      * The original z values have been replaced by base_z or ceiling_z,
      * so we can identify base plane quadrangles by testing for z == base_z.
+     * FIXME:
+     * Unfortunately this test gives a false positive in the case of upright polygons that
+     * have an edge in the baseplane, as with FILLEDCURVES or BOXES.
      */
     if (pm3d.clip == PM3D_CLIP_Z) {
 	int new = 0;
-	if (corners[0].z == base_z)
+	if ((corners[0].z == base_z) && (from_plot->plot_style != FILLEDCURVES))
 	    new = 0;
 	else
 	    new = clip_filled_polygon( from_plot, index, corners, clipcorners, nv );
@@ -2018,11 +2021,11 @@ split_intersecting_surface_tiles()
     quadrangle *q1, *q2, *qnew;
     int iq1, iq2;
     int s0, s1, s2, s3;		/* -1 = bottom surface; 0 = intersection; 1 = top surface */
-    int nv1, nv2;		/* number of vertices in piece1, piece2 */
+    int nv1, nv2, nv3;		/* number of vertices in piece1, piece2, piece3 */
     gpdPoint *ptlist[8];	/* list of 4 vertices of q1 plus possible intersections */
     int side[8];		/* top/bottom/intersection status of points in ptlist */
-    gpdPoint intersection[2];	/* We know there are only two intersections */
-    gpdPoint piece1[5], piece2[5];
+    gpdPoint intersection[4];	/* usually 0 or 2, pathological case from bent tile gives 4 */
+    gpdPoint piece1[8], piece2[8], piece3[8];
     int pass;
 
     /* These calculations all assume a simple grid shared by all plots in the superposition */
@@ -2068,15 +2071,15 @@ split_intersecting_surface_tiles()
 	    /* Found a pair of intersecting quadrangles!
 	     * Make sure the list is long enough to hold new pieces.
 	     */
-	    if (reserve_quadrangles(4, 4*samples_1)) {
+	    if (reserve_quadrangles(6, 4*samples_1)) {
 		q1 = &(quadrangles[iq1]);
 		q2 = &(quadrangles[iq2]);
 	    }
 
 	    /* Construct a list of pointers to the 4 original vertices of q1
-	     * and to the 2 intersection points.  We don't yet know which sides
-	     * the intersections lie on, so we leave room for 2 NULL pointers
-	     * corresponding to the sides with no intersection.
+	     * and up to 4 intersection points.  We don't yet know which sides
+	     * contain intersections, so we initialize them to NULL and replace
+	     * with actual intersections as we go.
 	     */
 	    ptlist[1] = ptlist[3] = ptlist[5] = ptlist[7] = NULL;
 	    side[1] = side[3] = side[5] = side[7] = 0;
@@ -2119,18 +2122,58 @@ split_intersecting_surface_tiles()
 				      &intersection[next_int]);
 		    ptlist[7] = &intersection[next_int++];
 		}
-		/* Should never happen */
-		if (next_int != 2)
-		    int_error(NO_CARET, "calculation of surface intersection failed n=%d", next_int);
 
-		/* Copy the "top" vertices to piece1, "bottom" to piece2 */
-		nv1 = nv2 = 0;
-		for (i=0; i<8; i++) {
-		    if (ptlist[i] != NULL && side[i] >= 0)
-			piece1[nv1++] = *ptlist[i];
-		    if (ptlist[i] != NULL && side[i] <= 0)
-			piece2[nv2++] = *ptlist[i];
+		/* Normal case: 2 intersections
+		 * Copy the "top" vertices to piece1, "bottom" to piece2
+		 */
+		if (next_int == 2) {
+		    nv1 = nv2 = nv3 = 0;
+		    for (i=0; i<8; i++) {
+			if (ptlist[i] != NULL && side[i] >= 0)
+			    piece1[nv1++] = *ptlist[i];
+			if (ptlist[i] != NULL && side[i] <= 0)
+			    piece2[nv2++] = *ptlist[i];
+		    }
 		}
+
+		/* Pathological case of a bent quadrangle, two diagonal corners on one side
+		 * and two diagonal corners on the other.  Each quadrangle will be replaced
+		 * by two disconnected triangles and a hexagon.
+		 */
+		else if (next_int == 4) {
+		    nv1 = nv2 = nv3 = 0;
+		    if (side[0] > 0) {
+			piece1[nv1++] = *ptlist[0];
+			piece1[nv1++] = *ptlist[1];
+			piece1[nv1++] = *ptlist[7];
+			piece2[nv2++] = *ptlist[1];
+			piece2[nv2++] = *ptlist[2];
+			piece2[nv2++] = *ptlist[3];
+			piece2[nv2++] = *ptlist[5];
+			piece2[nv2++] = *ptlist[6];
+			piece2[nv2++] = *ptlist[7];
+			piece3[nv3++] = *ptlist[3];
+			piece3[nv3++] = *ptlist[4];
+			piece3[nv3++] = *ptlist[5];
+		    } else {
+			piece1[nv1++] = *ptlist[0];
+			piece1[nv1++] = *ptlist[1];
+			piece1[nv1++] = *ptlist[3];
+			piece1[nv2++] = *ptlist[4];
+			piece1[nv2++] = *ptlist[5];
+			piece1[nv2++] = *ptlist[7];
+			piece2[nv2++] = *ptlist[2];
+			piece2[nv2++] = *ptlist[3];
+			piece2[nv2++] = *ptlist[4];
+			piece3[nv3++] = *ptlist[5];
+			piece3[nv3++] = *ptlist[6];
+			piece3[nv3++] = *ptlist[7];
+		    }
+		}
+
+		/* Should never happen */
+		else
+		    int_error(NO_CARET, "calculation of surface intersection failed n=%d", next_int);
 
 		/* Add piece1 as a new quadrangle at the end of the list */
 		if (nv1 > 2) {
@@ -2142,7 +2185,6 @@ split_intersecting_surface_tiles()
 #ifdef WITH_2ND_SORTKEY
 		    qnew->sequence = qt->sequence;
 #endif
-
 		    qnew->vertex.corners[0] = piece1[0];
 		    qnew->vertex.corners[1] = piece1[1];
 		    qnew->vertex.corners[2] = piece1[2];
@@ -2152,7 +2194,7 @@ split_intersecting_surface_tiles()
 			qnew->vertex.corners[3] = piece1[2];
 			qnew->type = QUAD_TYPE_TRIANGLE;
 		    }
-		    if (nv1 == 5) {
+		    if (nv1 > 4) {
 			gpdPoint *save_corners = get_polygon(nv1);
 			qnew->vertex.array_index = current_polygon;
 			memcpy(save_corners, piece1, nv1 * sizeof(gpdPoint));
@@ -2171,7 +2213,6 @@ split_intersecting_surface_tiles()
 #ifdef WITH_2ND_SORTKEY
 		    qnew->sequence = qt->sequence;
 #endif
-
 		    qnew->vertex.corners[0] = piece2[0];
 		    qnew->vertex.corners[1] = piece2[1];
 		    qnew->vertex.corners[2] = piece2[2];
@@ -2181,7 +2222,7 @@ split_intersecting_surface_tiles()
 			qnew->vertex.corners[3] = piece2[2];
 			qnew->type = QUAD_TYPE_TRIANGLE;
 		    }
-		    if (nv2 == 5) {
+		    if (nv2 > 4) {
 			gpdPoint *save_corners = get_polygon(nv2);
 			qnew->vertex.array_index = current_polygon;
 			qnew->type = QUAD_TYPE_LARGEPOLYGON;
@@ -2189,6 +2230,24 @@ split_intersecting_surface_tiles()
 			save_corners[2].c = nv2;
 		    }
 		}
+
+		/* Add piece3 as a new triangle at the end of the list */
+		if (nv3 > 2) {
+		    qnew = &quadrangles[current_quadrangle++];
+		    qnew->from_plot = qt->from_plot;
+		    qnew->gray = qt->gray;
+		    qnew->index = qt->index;
+		    qnew->qcolor = qt->qcolor;
+#ifdef WITH_2ND_SORTKEY
+		    qnew->sequence = qt->sequence;
+#endif
+		    qnew->vertex.corners[0] = piece3[0];
+		    qnew->vertex.corners[1] = piece3[1];
+		    qnew->vertex.corners[2] = piece3[2];
+		    qnew->vertex.corners[3] = piece3[2];
+		    qnew->type = QUAD_TYPE_TRIANGLE;
+		}
+
 	    }
 
 	    /* Mark original q1 and q2 as not to be drawn */

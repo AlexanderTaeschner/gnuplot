@@ -40,6 +40,7 @@
 #include "gp_time.h"
 #include "term_api.h"
 #include "gplocale.h"
+#include "mouse.h"	/* for inside_zoom() */
 
 /* HBB 20000725: gather all per-axis variables into a struct, and set
  * up a single large array of such structs. Next step might be to use
@@ -166,11 +167,6 @@ int widest_tic_strlen;
 
 /* Number of axis tics actually placed, set by tic_count_callback() */
 static int axis_tic_count;
-
-/* flag to indicate that in-line axis ranges should be ignored
- * and zoom/pan range limits take precedence over auto-scaling
- */
-TBOOLEAN inside_zoom;
 
 /* axes being used by the current plot */
 /* These are mainly convenience variables, replacing separate copies of
@@ -430,7 +426,7 @@ axis_checked_extend_empty_range(AXIS_INDEX axis, const char *mesg)
 
     if (dmax - dmin == 0.0) {
 	/* empty range */
-	if (this_axis->autoscale || inside_zoom) {
+	if (this_axis->autoscale || inside_zoom()) {
 	    /* range came from autoscaling ==> widen it */
 	    double widen = (dmax == 0.0) ?
 		FIXUP_RANGE__WIDEN_ZERO_ABS
@@ -439,9 +435,9 @@ axis_checked_extend_empty_range(AXIS_INDEX axis, const char *mesg)
 		fprintf(stderr, "Warning: empty %s range [%g:%g], ",
 		    axis_name(axis), dmin, dmax);
 	    /* HBB 20010525: correctly handle single-ended autoscaling */
-	    if ((this_axis->autoscale & AUTOSCALE_MIN) || inside_zoom)
+	    if ((this_axis->autoscale & AUTOSCALE_MIN) || inside_zoom())
 		this_axis->min -= widen;
-	    if ((this_axis->autoscale & AUTOSCALE_MAX) || inside_zoom)
+	    if ((this_axis->autoscale & AUTOSCALE_MAX) || inside_zoom())
 		this_axis->max += widen;
 	    if (!(axis == FIRST_Z_AXIS && !mesg)) /* set view map */
 		fprintf(stderr, "adjusting to [%g:%g]\n",
@@ -952,7 +948,7 @@ setup_tics(struct axis *this, int max)
     }
 
     /* It is disconcerting when the response to pan or zoom is asymmetric */
-    if (inside_zoom)
+    if (inside_zoom())
 	autoextend_min = autoextend_max = FALSE;
 
     /* If an explicit stepsize was set, axis->timelevel wasn't defined,

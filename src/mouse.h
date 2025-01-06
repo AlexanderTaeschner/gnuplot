@@ -114,7 +114,14 @@ const char* GE_evt_name(int type);
 void bind_process(char* lhs, char* rhs, TBOOLEAN allwindows);
 void bind_remove_all(void);
 
-/* mechanism for the core code to query the last-known mouse coordinates */
-extern void get_last_mouse_xy( double *x, double *y );
+#ifdef USE_MOUSE
+    /* mechanism for the core code to query the last-known mouse coordinates */
+    extern void get_last_mouse_xy( double *x, double *y );
+    /* expose zoom state to plot routines */
+    TBOOLEAN inside_zoom(void);
+    void apply_saved_zoom(void);
+#else
+    #define inside_zoom() FALSE
+#endif
 
 #endif /* !_HAVE_MOUSE_H */

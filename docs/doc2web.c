@@ -175,7 +175,7 @@ sidebar(FILE *a, int start)
 	fputs(
 "<table><tr><td width=20%>\n"
 "    <h1>Index</h1>\n"
-"    <object type=\"text/html\" class=\"sidebar\" data=\"index.html\">\n"
+"    <object type=\"text/html\" class=\"sidebar\" data=\"gnuplot6_index.html\">\n"
 "</td><td width=80%>\n", a);
     else
 	fprintf(a, "</td></tr></table>\n");
@@ -185,7 +185,7 @@ sidebar(FILE *a, int start)
 /*
  * a is input (normally gnuplot.doc)
  * b is output (the html fragment we are working on)
- * d is index.html (unsorted at this point)
+ * d is gnuplot6_index.html (unsorted at this point)
  */
 void
 convert(FILE *a, FILE *b, FILE *d)

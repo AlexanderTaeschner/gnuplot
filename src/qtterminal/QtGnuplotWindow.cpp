@@ -341,13 +341,12 @@ void QtGnuplotWindow::keyPressEvent(QKeyEvent* event)
 		close();
 
 #ifdef _WIN32
-#if !defined(DISABLE_SPACE_RAISES_CONSOLE)
+	/* Space in plot window raises console */
 	if ((event->key() == Qt::Key_Space) && ( !m_ctrl || (QApplication::keyboardModifiers() & Qt::ControlModifier) ))
 	{
 		AllowSetForegroundWindow(m_pid);
 		m_eventHandler->postTermEvent(GE_raise, 0, 0, 0, 0, m_widget);
 	}
-#endif
 #endif
 
 	QMainWindow::keyPressEvent(event);

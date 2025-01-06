@@ -322,7 +322,6 @@ public :
 	void OnKeyDownChar( wxKeyEvent& event );
 
 	void UpdateModifiers( wxMouseEvent& event );
-	void RaiseConsoleWindow();
 	void DrawToDC( wxDC& dc, wxRegion& region );
 	void Draw();
 

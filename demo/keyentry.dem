@@ -14,6 +14,7 @@ plot keyentry with points pt '¶' title "points", \
      keyentry with circles fs solid fc "dark-red" title "circles", \
      keyentry with ellipses title "ellipses", \
 sin(x)/x lc "grey" dt '.-' lw 3 title "normal plot", \
+     keyentry "Secondary Title" font ":Bold", \
      keyentry with boxerrorbars title "boxerrorbars", \
      keyentry with boxplot fs pattern 1 title "boxplot", \
      keyentry "{/*0.75 αβγδε}" left boxed title "labels", \
@@ -34,6 +35,7 @@ splot keyentry with points pt '¶' title "points", \
      keyentry with zerrorfill title "zerrorfill", \
      keyentry with circles fs solid fc "grey" title "circles", \
 (1.-(x**2+y**2)/100.) title "normal plot" lc "grey", \
+     keyentry "Secondary Title" font ":Bold", \
      keyentry with boxes title "boxes", \
      keyentry "{/:Italic attn:}" title "labels", \
      keyentry with vectors title "vectors", \
