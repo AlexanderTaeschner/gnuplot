@@ -1117,8 +1117,7 @@ WIN_layer(t_termlayer syncpoint)
 
 	/* ignore LAYER_RESET in multiplot mode */
 	if (((syncpoint == TERM_LAYER_RESET) ||
-	     (syncpoint == TERM_LAYER_RESET_PLOTNO)) &&
-		multiplot)
+	     (syncpoint == TERM_LAYER_RESET_PLOTNO)) && in_multiplot)
 		return;
 	GraphOp(graphwin, W_layer, syncpoint, 0, NULL);
 }

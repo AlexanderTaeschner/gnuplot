@@ -441,7 +441,7 @@ TERM_PUBLIC void
 TGIF_init()
 {
 
-    if (multiplot) {
+    if (in_multiplot) {
 	/* uActResolution= TgifPortrait ? (unsigned int)100 : (unsigned int)145 ; */
 	uActResolution = (unsigned int) 100;
 
@@ -475,7 +475,7 @@ TGIF_graphics()
 
     TGIF_flush_poly();
 
-    if (multiplot) {
+    if (in_multiplot) {
 
 	term->xmax = (TgifPortrait) ? TGIF_XTOT : TGIF_YTOT;
 	term->ymax = (TgifPortrait) ? TGIF_YTOT : TGIF_XTOT;

@@ -254,7 +254,7 @@ AI_linetype(int linetype)
 	fputs("U\n", gpoutfile);
 	ai_subgroup_level--;
     }
-    if (linetype == LT_BLACK && multiplot) {
+    if (linetype == LT_BLACK && in_multiplot) {
 	/* for each new plot, line_type gets called twice with a value of LT_BLACK.
 	   It gets called once for the border and again for the tics.
 	   This code will need to be changed if gnuplot's behavior changes.
@@ -274,7 +274,7 @@ AI_linetype(int linetype)
 	    break;
 	}
     }
-    if (linetype == LT_BLACK && !multiplot) {
+    if (linetype == LT_BLACK && !in_multiplot) {
 	if (ai_multiplot_group) {
 	    fputs("U\n", gpoutfile);
 	    ai_subgroup_level--;
