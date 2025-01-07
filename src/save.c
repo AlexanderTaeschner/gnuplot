@@ -1483,6 +1483,15 @@ save_prange(FILE *fp, struct axis *this_axis)
     } else
 	putc('\n', fp);
 
+    if (fp == stderr && this_axis->index < PARALLEL_AXES) {
+	fprintf(stderr,"\t\t\t\t\t# data [ ");
+	save_num_or_time_input(stderr, this_axis->data_min, this_axis);
+	putc(':', stderr);
+	fputs(" : ", stderr);
+	save_num_or_time_input(stderr, this_axis->data_max, this_axis);
+	fputs(" ]\n", stderr);
+    }
+
     if (!noextend && (fp != stderr)) {
 	if (this_axis->set_autoscale & (AUTOSCALE_FIXMIN))
 	    fprintf(fp, "set autoscale %sfixmin\n", axis_name(this_axis->index));
