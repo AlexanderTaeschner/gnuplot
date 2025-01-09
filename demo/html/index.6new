@@ -80,6 +80,15 @@
     <li><a href="transparent_solids.html">transparent solids</a></li>
     </ul>
 
+    <h4>Marks (new plot style)</h4>
+    <ul>
+    <li>٭<a href="windbarb.html">windbarb plots</a></li>
+    <li>٭<a href="mark_labels.html">displaced labels</a></li>
+    <li>٭<a href="mark_grouping.html">label grouping</a></li>
+    <li>٭<a href="extra_points.html">new point types</a></li>
+    <li>٭<a href="mark_formulas.html">mark examples</a></li>
+    </ul>
+
 </td>
 
 <td rowspan=2>
@@ -190,11 +199,12 @@
     <li><a href="solar_path.html">solar path diagram</a></li>
     <li><a href="map_projection.html">map projections</a></li>
     <li><a href="violinplot.html">violin plot</a></li>
-    <li>٭<a href="windrose.html">wind rose</a></li>
     <li>٭<a href="iris.html">overlapping categories</a></li>
     <li>٭<a href="logic_timing.html">logic timing diagram</a></li>
     <li>٭<a href="rank_sequence.html">sequential ranking</a></li>
     <li>٭<a href="waterfallplot.html">waterfall plot</a></li>
+    <li>٭<a href="windbarb.html">windbarb plots</a></li>
+    <li>٭<a href="windrose.html">wind rose</a></li>
     </ul>
 
     <h4>Text options</h4>

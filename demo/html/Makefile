@@ -44,7 +44,8 @@ html: airfoil.html animation.html approximate.html armillary.html array.html arr
       unicode.html using.html \
       varcolor.html vector.html violinplot.html viridis.html voxel.html vplot.html \
       walls.html waterfallplot.html windrose.html world.html zerror.html \
-      isosurface.html azimuth.html boxes3d.html
+      isosurface.html azimuth.html boxes3d.html \
+      mark_labels.html extra_points.html mark_grouping.html windbarb.html
 
 index.html: index.save
 	cp index.save index.html
