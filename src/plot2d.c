@@ -1901,6 +1901,7 @@ static void
 histogram_range_fiddling(struct curve_points *plot)
 {
     double xlow, xhigh;
+    double ylow, yhigh;
     int i;
     /*
      * EAM FIXME - HT_STACKED_IN_TOWERS forcibly resets xmin, which is only
@@ -1908,7 +1909,6 @@ histogram_range_fiddling(struct curve_points *plot)
      */
     switch (histogram_opts.type) {
 	case HT_STACKED_IN_LAYERS:
-	    if (axis_array[plot->y_axis].autoscale & AUTOSCALE_MAX) {
 		if (plot->histogram_sequence == 0) {
 		    if (stackheight)
 			free(stackheight);
@@ -1934,14 +1934,18 @@ histogram_range_fiddling(struct curve_points *plot)
 			stackheight[i].yhigh += plot->points[i].y;
 		    else
 			stackheight[i].ylow += plot->points[i].y;
-
-		    if (axis_array[plot->y_axis].max < stackheight[i].yhigh)
-			axis_array[plot->y_axis].max = stackheight[i].yhigh;
-		    if (axis_array[plot->y_axis].min > stackheight[i].ylow)
-			axis_array[plot->y_axis].min = stackheight[i].ylow;
+		    if (axis_array[plot->y_axis].data_max < stackheight[i].yhigh)
+			axis_array[plot->y_axis].data_max = stackheight[i].yhigh;
+		    if (axis_array[plot->y_axis].data_min > stackheight[i].ylow)
+			axis_array[plot->y_axis].data_min = stackheight[i].ylow;
+		    if (axis_array[plot->y_axis].autoscale & AUTOSCALE_MAX) {
+			if (axis_array[plot->y_axis].max < stackheight[i].yhigh)
+			    axis_array[plot->y_axis].max = stackheight[i].yhigh;
+			if (axis_array[plot->y_axis].min > stackheight[i].ylow)
+			    axis_array[plot->y_axis].min = stackheight[i].ylow;
+		    }
 
 		}
-	    }
 		/* fall through to checks on x range */
 	case HT_CLUSTERED:
 	case HT_ERRORBARS:
@@ -1980,15 +1984,19 @@ histogram_range_fiddling(struct curve_points *plot)
 		    if (axis_array[FIRST_X_AXIS].max != xhigh)
 			axis_array[FIRST_X_AXIS].max  = xhigh;
 		}
+		/* stack height contributes to data range even if not autoscaled */
+		for (i=0, yhigh=ylow=0.0; i<plot->p_count; i++)
+		    if (plot->points[i].type != UNDEFINED) {
+			if (plot->points[i].y >= 0)
+			    yhigh += plot->points[i].y;
+			else
+			    ylow += plot->points[i].y;
+		    }
+		if (axis_array[plot->y_axis].data_max < yhigh)
+		    axis_array[plot->y_axis].data_max = yhigh;
+		if (axis_array[plot->y_axis].data_min > ylow)
+		    axis_array[plot->y_axis].data_min = ylow;
 		if (axis_array[FIRST_Y_AXIS].set_autoscale) {
-		    double ylow, yhigh;
-		    for (i=0, yhigh=ylow=0.0; i<plot->p_count; i++)
-			if (plot->points[i].type != UNDEFINED) {
-			    if (plot->points[i].y >= 0)
-				yhigh += plot->points[i].y;
-			    else
-				ylow += plot->points[i].y;
-			}
 		    if (axis_array[FIRST_Y_AXIS].set_autoscale & AUTOSCALE_MAX)
 			if (axis_array[plot->y_axis].max < yhigh)
 			    axis_array[plot->y_axis].max = yhigh;
