@@ -830,9 +830,11 @@ demo_plugin.dll: $(M)plugin/demo_plugin.c
 
 # convert gnuplot.doc to windows/wgnuplot.html
 $(BUILDHELPFILE): doc2html.exe $(D)gnuplot.doc $(D)windows/wgnuplot.hhp $(D)windows/wgnuplot.hhk \
-                  $(D)windows/wgnuplot.stp $(D)plotstyles.gnu $(CORETERM) $(TARGET)
+                  $(D)windows/wgnuplot.stp $(D)plotstyles.gnu $(D)morefigures.gnu \
+                  $(CORETERM) $(TARGET)
 	./doc2html $(D)gnuplot.doc $(D)windows/
 	-./$(TARGET) -d -e "winhelp=1; cd '$(D)'" plotstyles.gnu
+	-./$(TARGET) -d -e "winhelp=1; cd '$(D)'" morefigures.gnu
 	-$(HHC) $(D)windows/wgnuplot.hhp
 
 $(HELPFILE): $(BUILDHELPFILE)
@@ -875,6 +877,7 @@ $(JASRC): $(D)gnuplot-ja.doc $(D)term-ja.diff $(CORETERM)
 wgnuplot-ja.chm: $(JASRC) doc2html-ja.exe \
                   $(D)windows/wgnuplot.hhp $(D)windows/wgnuplot.hhk \
                   $(D)windows/wgnuplot.stp $(D)plotstyles.gnu \
+                  $(D)morefigures.gnu \
                   $(TARGET)
 	# FIXME: some files always end up read-only...
 	chmod +w $(JADW)*
@@ -891,6 +894,7 @@ wgnuplot-ja.chm: $(JASRC) doc2html-ja.exe \
 	sed -i -e "s/Language=0x409 Englisch (USA)/Language=0x411 Japanisch (Japan)/" $(JADW)/wgnuplot.hhp
 	# Build help file
 	-./$(TARGET) -d -e "winhelp=1; cd '$(JAD)'" plotstyles.gnu
+	-./$(TARGET) -d -e "winhelp=1; cd '$(JAD)'" morefigures.gnu
 	-$(HHC) $(JADW)wgnuplot.hhp
 	cp $(JADW)wgnuplot.chm $(HELPFILEJA)
 
@@ -986,10 +990,12 @@ gnuplot.tex: $(D)gnuplot.doc doc2tex.exe
 
 gnuplot-figures.tex: $(D)gnuplot.doc doc2tex.exe $(TARGET)
 	GNUPLOT_LIB=$(M) ./$(TARGET) -d $(D)plotstyles.gnu
+	GNUPLOT_LIB=$(M) ./$(TARGET) -d $(D)morefigures.gnu
 	./doc2tex -figures $(D)gnuplot.doc gnuplot-figures.tex
 
 gnuplot-figures-ja.tex: $(D)gnuplot.doc doc2tex-ja.exe $(TARGET)
 	GNUPLOT_LIB=$(M) ./$(TARGET) -d $(D)plotstyles.gnu
+	GNUPLOT_LIB=$(M) ./$(TARGET) -d $(D)morefigures.gnu
 	iconv -f EUC-JP -t UTF-8 $(D)gnuplot-ja.doc > ja.doc
 	./doc2tex-ja -figures ja.doc | sed 's/titlepag.tex/title-ja.tex/' > gnuplot-figures-ja.tex
 	rm ja.doc

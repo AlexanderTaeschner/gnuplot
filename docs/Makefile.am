@@ -99,7 +99,7 @@ DOCHEADERS = doc2x.h xref.h
 EXTRA_DIST = Makefile.in doc2texi.el gnuplot.doc \
 titlepag.ipf titlepag.tex title-ja.tex \
 toc_entr.sty psdoc gnuplot-ja.doc README.ja \
-term-ja.diff plotstyles.gnu gnuplot.pdf webp_figures.gnu \
+term-ja.diff plotstyles.gnu morefigures.gnu gnuplot.pdf webp_figures.gnu \
 windows/wgnuplot.hhk windows/wgnuplot.hhp windows/wgnuplot.stp windows/doc2html.c \
 html/gnuplot_docs.css
 
@@ -150,8 +150,9 @@ allterm.h: $(CORETERM) $(LUA_HELP)
 
 
 ### PDF documentation can inset figures using either tikz+wrapfig or pdf+picins
-pdf_figures: $(GNUPLOT_EXE) $(srcdir)/plotstyles.gnu
+pdf_figures: $(GNUPLOT_EXE) $(srcdir)/plotstyles.gnu $(srcdir)/morefigures.gnu
 	$(AM_V_at)GNUPLOT_LIB=$(top_srcdir)/demo $(GNUPLOT_EXE) $(srcdir)/plotstyles.gnu
+	$(AM_V_at)GNUPLOT_LIB=$(top_srcdir)/demo $(GNUPLOT_EXE) $(srcdir)/morefigures.gnu
 	rm -f gpinsetfigure.tex
 	printf '%s\n' '\usepackage{graphicx}' \
 		'\usepackage{picins}' \
@@ -161,8 +162,9 @@ pdf_figures: $(GNUPLOT_EXE) $(srcdir)/plotstyles.gnu
 	$(AM_V_GEN)touch $@
 	$(AM_V_at)touch figurestyle
 
-tikz_figures: $(GNUPLOT_EXE) $(srcdir)/plotstyles.gnu
+tikz_figures: $(GNUPLOT_EXE) $(srcdir)/plotstyles.gnu $(srcdir)/morefigures.gnu
 	$(AM_V_at)GNUPLOT_LIB=$(top_srcdir)/demo GNUTERM=tikz $(GNUPLOT_EXE) $(srcdir)/plotstyles.gnu
+	$(AM_V_at)GNUPLOT_LIB=$(top_srcdir)/demo GNUTERM=tikz $(GNUPLOT_EXE) $(srcdir)/morefigures.gnu
 	rm -f gpinsetfigure.tex
 	printf '%s\n' '\usepackage{gnuplot-lua-tikz}' \
 		'\usepackage{wrapfig}' \
@@ -312,9 +314,10 @@ wxhelp/wgnuplot.html: doc2wxhtml$(EXEEXT) $(srcdir)/gnuplot.doc
 doc2wxhtml_SOURCES = windows/doc2html.c termdoc.c xref.c allterm.h
 doc2wxhtml_CPPFLAGS = -DALL_TERM_DOC -DWXHELP -I../src $(AM_CPPFLAGS)
 
-wxhelp_figures: $(GNUPLOT_EXE) $(srcdir)/plotstyles.gnu
+wxhelp_figures: $(GNUPLOT_EXE) $(srcdir)/plotstyles.gnu $(srcdir)/morefigures.gnu
 	$(AM_V_at) [ -d windows ] || mkdir -p windows
 	$(AM_V_at) GNUPLOT_LIB=$(top_srcdir)/demo $(GNUPLOT_EXE) -e "winhelp=1;" $(srcdir)/plotstyles.gnu
+	$(AM_V_at) GNUPLOT_LIB=$(top_srcdir)/demo $(GNUPLOT_EXE) -e "winhelp=1;" $(srcdir)/morefigures.gnu
 	$(AM_V_GEN)touch $@
 
 ### HTML documentation for web site
@@ -330,9 +333,10 @@ html: allterm.h doc2web$(EXEEXT) $(srcdir)/gnuplot.doc svg_figures webp_figures
 	$(AM_V_GEN)./doc2web$(EXEEXT) $(srcdir)/gnuplot.doc html
 	$(AM_V_GEN) sort -k 3 html/index.hhk > html/gnuplot6_index.html
 
-svg_figures: $(GNUPLOT_EXE) $(srcdir)/plotstyles.gnu
+svg_figures: $(GNUPLOT_EXE) $(srcdir)/plotstyles.gnu $(srcdir)/morefigures.gnu
 	$(AM_V_at) [ -d html ] || mkdir -p html
 	$(AM_V_at) GNUPLOT_LIB=$(top_srcdir)/demo GNUTERM=svg $(GNUPLOT_EXE) $(srcdir)/plotstyles.gnu
+	$(AM_V_at) GNUPLOT_LIB=$(top_srcdir)/demo GNUTERM=svg $(GNUPLOT_EXE) $(srcdir)/morefigures.gnu
 	$(AM_V_GEN)touch $@
 
 webp_figures: $(GNUPLOT_EXE) $(srcdir)/webp_figures.gnu
