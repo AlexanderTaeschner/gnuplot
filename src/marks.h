@@ -30,6 +30,7 @@ void do_mark (struct mark_data *mark,
 /* exported variables */
 
 extern struct mark_data *first_mark;
+extern struct udvt_entry *mark_sample_var;	/* used by '+' if mark has sampling range */
 
 /* Data structure for 'set mark' */
 struct mark_data {

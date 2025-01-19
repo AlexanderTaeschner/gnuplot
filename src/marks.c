@@ -45,6 +45,8 @@
 /* Pointer to first mark instance in linked list */
 struct mark_data *first_mark = NULL;
 
+/* used by df_generate_pseudodata() if mark has sampling range */
+struct udvt_entry *mark_sample_var = NULL;
 
 /* Local prototypes */
 static struct mark_data * read_mark_data(void);
@@ -456,6 +458,8 @@ push_mark(struct mark_data *first, struct mark_data *mark)
 static struct mark_data *
 read_mark_data()
 {
+    int sample_range_token;
+    t_value original_value_sample_var;
     struct mark_data *mark;
     t_position *vertex;
     double v[4];
@@ -464,9 +468,15 @@ read_mark_data()
     int j;
 
     /* Check for a sampling range. */
+    mark_sample_var = NULL;
     init_sample_range(axis_array + FIRST_X_AXIS, DATA);
-    if (parse_range(SAMPLE_AXIS) != 0)
+    sample_range_token = parse_range(SAMPLE_AXIS);
+    if (sample_range_token != 0)
 	axis_array[SAMPLE_AXIS].range_flags |= RANGE_SAMPLED;
+    if (sample_range_token > 0) {
+	mark_sample_var = add_udv(sample_range_token);
+	original_value_sample_var = mark_sample_var->udv_value;
+    }
 
     if ( ! (name_str = string_or_express(NULL)) ) /* WARNING: do NOT free name_str */
 	int_error(c_token, "unrecognized data source for mark");
@@ -534,6 +544,12 @@ read_mark_data()
     mark_update_limits(mark);
 
     inside_plot_command = FALSE;
+
+    /* restore original value of sampling variable */
+    if (sample_range_token > 0) {
+	mark_sample_var->udv_value = original_value_sample_var;
+	mark_sample_var = NULL;
+    }
 
     return mark;
 }
