@@ -2874,11 +2874,17 @@ eval_plots()
 			continue;
 		    }
 		    
-		    if (almost_equals(c_token,"unit$s")) {
+		    if (almost_equals(c_token, "unit$s")) {
 			mark_units_id units = lookup_table(mark_units_tbl, ++c_token);
 			if (units < 0)
 			    int_error(c_token, "expecting 'xy', 'xx', 'yy', 'gxy', 'gxx', 'gyy', or 'ps'" );
 			this_plot->marks_options.units = units;
+			c_token++;
+			continue;
+		    }
+
+		    if (equals(c_token, "noclip")) {
+			this_plot->marks_options.noclip = TRUE;
 			c_token++;
 			continue;
 		    }

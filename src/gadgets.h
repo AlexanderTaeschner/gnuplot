@@ -196,11 +196,12 @@ typedef struct object {
 typedef struct marks_options {
     int tag;
     enum mark_units_id units;
+    TBOOLEAN noclip;
 } marks_opts;
 
 #define MARK_TYPE_VARIABLE -1	/* tag value indicating "marktype variable" */
 #define MARK_MAX_VERTICES 1024	/* admittedly arbitrary */
-#define DEFAULT_MARKS_OPTS { 1, MARK_UNITS_PS }
+#define DEFAULT_MARKS_OPTS { 1, MARK_UNITS_PS, FALSE }
 
 /* Datastructure implementing 'set dashtype' */
 struct custom_dashtype_def {

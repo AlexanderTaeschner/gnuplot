@@ -3006,8 +3006,11 @@ plot_marks(struct curve_points *plot)
     gpiPoint *fillarea;
     BoundingBox *clip_save = clip_area;
 
-    /* Clip witn graph border */
-    clip_area = &plot_bounds;
+    /* Clip against graph border unless "noclip" keyword was given */
+    if (plot->marks_options.noclip)
+	clip_area = &canvas;
+    else
+	clip_area = &plot_bounds;
 
     /* The "pointnumber" property limits the total number of points drawn for this curve */
     if (number) {
