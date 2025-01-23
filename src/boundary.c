@@ -1513,6 +1513,13 @@ draw_key(legend_key *key, TBOOLEAN key_pass)
 
     (t->layer)(TERM_LAYER_KEYBOX);
 
+    /* FIXME  I do not understand this at all (Bug 2761)	*/
+    /* The qt terminal mis-numbers the final plot without this.	*/
+    if (key_pass && !strncmp("qt", term->name, 2)) {
+	term->layer(TERM_LAYER_BEFORE_PLOT);
+	term->layer(TERM_LAYER_AFTER_PLOT);
+    }
+
     /* In two-pass mode (set key opaque) we blank out the key box after	*/
     /* the graph is drawn and then redo the key in the blank area.	*/
     if (key_pass && t->fillbox && !(t->flags & TERM_NULL_SET_COLOR)) {
