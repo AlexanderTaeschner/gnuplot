@@ -343,6 +343,15 @@ DEBUG_image (unsigned m, unsigned n, coordval *image, gpiPoint *corner, t_imagec
 {
     fprintf(gpoutfile, "image size = %d x %d\n", m, n);
 }
+
+TERM_PUBLIC int
+DEBUG_make_palette(t_sm_palette *palette)
+{
+    /* Pretend we can do continuous colors */
+    fprintf(gpoutfile, "make palette\n");
+    return 0;
+}
+
 #endif /* TERM_BODY */
 
 #ifdef TERM_TABLE
@@ -360,7 +369,7 @@ TERM_TABLE_START(debug_driver)
 #ifdef USE_MOUSE
     0, 0, 0, 0, 0, /* no mouse support */
 #endif
-    0, 0, /* no palette */
+    DEBUG_make_palette, 0, /* no palette */
     DEBUG_set_color,
     DEBUG_filled_polygon,
     DEBUG_image,
