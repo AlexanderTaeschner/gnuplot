@@ -72,7 +72,6 @@
     <li><a href="varcolor.html">data-dependent coloring</a></li>
     <li><a href="rgb_variable.html">RGB coloring</a></li>
     <li><a href="rgba_lines.html">RGB + alpha channel</a></li>
-    <li><a href="pm3dcolors.html">pm3d colors</a></li>
     <li><a href="named_palettes.html">named palettes</a></li>
     </ul>
 
@@ -97,14 +96,10 @@
     <li><a href="contourfill.html">filled contours</a></li>
     <li><a href="singulr.html">singularities</a></li>
     <li><a href="hidden.html">hidden surfaces</a></li>
-    <li><a href="pm3d.html">pm3d coloring</a></li>
-    <li><a href="hidden2.html">pm3d hidden surfaces</a></li>
     <li><a href="pm3d_clip.html">pm3d clipping</a></li>
-    <li><a href="projection.html">2D projection of 3D surface</a></li>
     <li><a href="zerror.html">shaded error region</a></li>
     <li><a href="azimuth.html">azimuth</a></li>
     <li><a href="boxes3d.html">boxes</a></li>
-    <li><a href="armillary.html">circle and polygon 3D objects</a></li>
     <li><a href="polygons.html">pm3d polygons</a></li>
     <li><a href="pm3d_lighting.html">lighting model</a></li>
     </ul>
@@ -120,6 +115,15 @@
     <li><a href="convex_hull.html">convex hulls</a></li>
     <li><a href="mask_pm3d.html">masked pm3d surface</a></li>
     <li><a href="chi_shapes.html">concave hulls (χ-shapes)</a></li>
+    </ul>
+
+    <h4>Marks (new plot style)</h4>
+    <ul>
+    <li><a href="windbarb.html">windbarb plots</a></li>
+    <li><a href="mark_labels.html">displaced labels</a></li>
+    <li><a href="mark_grouping.html">label grouping</a></li>
+    <li><a href="extra_points.html">new point types</a></li>
+    <li><a href="mark_formulas.html">mark examples</a></li>
     </ul>
 
     <h4>Coordinate and<br> axis transforms</h4>
