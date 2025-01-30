@@ -1271,9 +1271,7 @@ do_3dplot(
 		if (draw_this_surface) {
 		    if (can_pm3d && pm3d.implicit != PM3D_IMPLICIT) {
 			pm3d_draw_one(this_plot);
-			/* Conditions under which we draw the surface immediately */
-			if (!pm3d_order_depth
-			||  ((draw_contour == CONTOUR_SRF) && !(this_plot->zclip)))
+			if (!pm3d_order_depth)
 			    pm3d_depth_queue_flush();
 		    }
 		}
