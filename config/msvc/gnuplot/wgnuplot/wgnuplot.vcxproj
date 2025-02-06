@@ -201,6 +201,7 @@
     <ClCompile Include="..\..\..\..\src\jitter.c" />
     <ClCompile Include="..\..\..\..\src\libcerf.c" />
     <ClCompile Include="..\..\..\..\src\loadpath.c" />
+    <ClCompile Include="..\..\..\..\src\marks.c" />
     <ClCompile Include="..\..\..\..\src\matrix.c" />
     <ClCompile Include="..\..\..\..\src\misc.c" />
     <ClCompile Include="..\..\..\..\src\mouse.c" />
