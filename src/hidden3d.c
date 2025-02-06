@@ -414,7 +414,7 @@ save_hidden3doptions(FILE *fp)
 	return;
     }
     fprintf(fp, "set hidden3d %s offset %d trianglepattern %ld undefined %d %saltdiagonal %sbentover\n",
-	    hidden3d_layer == LAYER_BACK ? "back" : "front",
+	    hidden3d_layer == LAYER_FRONT ? "front" : "back",
 	    hiddenBacksideLinetypeOffset,
 	    hiddenTriangleLinesdrawnPattern,
 	    hiddenHandleUndefinedPoints,
