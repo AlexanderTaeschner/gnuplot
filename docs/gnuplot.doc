@@ -644,17 +644,16 @@ D epi_data 1
 
  Here is a partial list of features under development that have not yet
  appeared in a stable release. Items near the top of the list will probably
- be back-ported to an incremental update to the current release (6.0.x).
- This copy of the user manual has preliminary documentation for these.
+ be back-ported to an incremental update of the stable version (6.0.x).
  Items near the bottom of the list may not appear in a stable release before
  version 6.2.
 #start
 #b New 2D plot style `with hsteps` allows construction of step-like plots with
 ## a variety of representations in addition to those offered by existing styles
-## `steps`, `histeps`, `fsteps`, and `fillsteps`.  See `hsteps`.
+## `steps`, `histeps`, `fsteps`, and `fillsteps`.  See `hsteps`. (in 6.0.2)
 #b Blank line equivalent for binary data files, needed to support binary
 ## input for plot styles that expect a blank line to separate data items.
-## See `binary blank`.
+## See `binary blank`. (in 6.0.2)
 #b In previous gnuplot versions all 3D polygons, objects, and filled areas
 ## shared a single border color and linewidth taken from "set pm3d".
 ## This limitation is now removed; border properties can be specified per-plot
@@ -662,12 +661,10 @@ D epi_data 1
 ## affect the borders of 3D polygons and boxes.
 #b splot with contourfill at base
 #b Revised implementation of local variables (faster, more well-defined scope).
+## (in 6.0.2)
 #b "linestyle variable"
 #b pm3d coloring for 3D polygons (e.g. Delaunay tessellation of surfaces).
 ## See `delaunay`.
-#b splot with contourfill at base
-#b Revised implementation of local variables (faster, more well-defined scope).
-#b "linestyle variable"
 #b Filter input data to plot and splot through a conditional expression outside
 ## the "using" section. For example: 
 ## `plot DATA using 2:3 with boxes if (stringcolumn(1) eq "ABC")`
@@ -680,7 +677,7 @@ D epi_data 1
 #b Iteration over array contents `array A; for [e in A] { ... }` [EXPERIMENTAL]
 #b Deprecation of the "sample" keyword
 #b New category of graphical objects called "marks" that allow definition
-## of complex symbols used in plots.  No documentation or demos yet.
+## of complex symbols used in plots.  See `marks`.
 #end
 
 2 Demos and Online Examples
@@ -3981,6 +3978,376 @@ Ffigure_newsyntax
  yield the final figure. In general this leaves each text element either
  completely behind or completely in front of the graphics.
 
+#TeX \newpage
+2 marks
+?marks
+ Version 6.1 introduces a new class of objects called `marks`. These are
+ user-defined shapes composed of lines and polygons.  Marks can be placed
+ individually by `set object mark`, analogous to existing object types such
+ as rectangles and circles.  Marks can also used as elements of a plot by
+ new 2D plot styles `with marks` and `with linesmarks`, which are analogous
+ to existing plot styles `with points` and `with linespoints`.
+
+ Individual marks are defined and managed by new commands `set mark`,
+ `unset mark`, `show mark`, `save marks`.  These commands are analogous
+ to existing commands that define and manage arrow styles and labels.
+ Each mark definition is assigned a numeric identifying tag used to select
+ it in subsequent plot commands or object definitions.
+
+ Once defined, a mark can be further modified by translation, rotation,
+ aspect ratio deformation, and application of color or fill properties.
+
+ If a mark is given a fillcolor and fillstyle when it is defined by `set mark`,
+ these take precedence over any fill properties in a plot or object that the
+ mark appears in.  If no fillstyle is given in `set mark` the mark will be
+ rendered with the style given in the plot command or `set object` command if
+ there is one, otherwise it will use the global setting from `set style fill`.
+
+ The syntax used to define a mark is fairly complex. Furthermore the mark
+ definition may require reading coordinate data from a file or datablock.
+ For these reasons marks are typically defined in a separate file and
+ loaded before use in plotting.  See `set mark`.
+
+3 Mark data
+?marks data
+ The data structure for each mark holds an identifying numeric tag,
+ a title that will be reported by "show mark", a fill style, and a fill color.
+ These properties are all controlled using the `set mark` command.
+
+      set mark <tab> {<data>} {<properties>}
+
+ The mark also holds an array of data describing the vertices of polygons
+ and lines. This section describes the format and interpretation of mark data.
+
+ The vertices of mark elements are read sequentially, with an empty record
+ separating one polygon or line segment from the next.  This is similar to the
+ input format used for `plot with polygons`.  If you add vertices using
+ `set mark N append <data>` the empty record is added automatically.
+
+ Each vertex has three values [x y mode].  The mode values are
+      0  (default) use whatever stroke and fill the fillstyle implies
+      1  always stroke, never fill
+      2  always fill, never stroke
+      3  always stroke and fill
+      4  fill with background color
+ If the mode value is 0 or not present, each group of vertices will be treated
+ as a filled polygon if the active fillstyle is not "fs empty", and will be
+ stroked if the active fillstyle is not "fs noborder".  This is the default.
+
+ Here is an example of defining three triangular marks.
+ One will always be drawn as an empty triangle (mode 1).
+ The second will always be drawn as a filled triangle with no border (mode 2).
+ The third will default to whatever fillstyle is active when the mark is used.
+ This would typically be the filstyle given in a command `plot with marks mt 3`
+ or in a command `set object mark mt 3`.
+ 
+      array t = [ {-0.5, 0}, {0, 0.7}, {0.5, 0}, {-0.5, 0} ]
+      set mark 1 t using 2:3:(1) title "empty triangle"
+      set mark 2 t using 2:3:(2) title "filled triangle"
+      set mark 3 t using 2:3     title "generic triangle"
+
+ For an example of the format as provided in a file or datablock see
+ `marks examples annotation` or `marks examples windbarbs`.
+#TeX \newpage
+3 Marks examples
+?marks examples
+ The examples below illustrate a variety of ways that marks can be used.
+
+4 Example: custom point shapes
+?marks examples custom_point_shapes
+?examples custom_point_shapes
+ The line segments and closed areas making up a mark definition may either be
+ provided as [x,y] coordinates or as a pair of parametric functions x(t),y(t).
+ One way of looking at the `set mark` command is that it acts like a simple
+ `plot` command, plotting either data or a parametric function.  In fact the
+ `set mark` command uses the same input code layer as the `plot` command.
+ It can even have an associated title to identify it.
+ For more detail on how this works, see `set mark`.
+
+ This example defines four marks. Each is a background-filled shape that can
+ be used to supplement the shapes available as default point types.
+ Two of these marks are defined by arrays of coordinates.  The other two are
+ defined parametrically.
+
+      FILLSTROKE = 3     # indicates the mark has both lines and fill properties
+      array Square = [{-1,-1}, { 1,-1}, { 1, 1}, {-1, 1}, {-1,-1}]
+      array Triangle = [{0,1.2}, {1.04,-0.6}, {-1.04,-0.6}, {0,1.2}]
+      set mark 1 Square   using 2:3:(FILLSTROKE) fc bgnd title "square"
+      set mark 2 Triangle using 2:3:(FILLSTROKE) fc bgnd title "triangle"
+      set angle degrees
+      set mark 3 [0:360:10] '+' using (sin($1)):(cos($1)):(FILLSTROKE) \
+                             title "circle"  fc bgnd
+      set mark 4 [0:360:72] '+' using (sin($1)):(cos($1)):(FILLSTROKE) \
+                             title "pentagon" fc bgnd
+      unset angle
+
+Ffigure_markpoints
+ Just as you could use the existing default point types in a plot request
+ "with linespoints pt N", you can now use the new custom shapes in a plot
+ request "with linesmarks marktype N".  Although not shown here, it is also
+ possible to request `marktype variable` if the choice of shape is determined
+ by an additional column of input data. 
+ The demo collection contains an expanded version of this example in
+^ <a href="http://www.gnuplot.info/demo/extra_points.html">
+ extra_points.dem
+^ </a>
+
+      set title "Custom point shapes defined as marks"
+      plot for [M=1:4] -sin(x/M) with linesmarks marktype M
+
+#TeX \newpage
+4 Example: scatterplots
+?examples scatterplots
+?marks examples scatterplots
+ The previous example illustrated use of background-filled marks where the
+ mark polygon inherits the color of the line it is part of.  This example
+ shows how the fill color and border color of such a mark can be varied
+ separately. Note that
+#start
+#b Mark coordinates can be provided in either an array, a datablock,
+## or a file (not shown).
+#b Data can be transformed by the `using` specifier in the `set mark` command.
+## In this example mark 3 is an upside-down mark 2.
+#b Further transformation can be applied in the plot command.
+## In this example marks are scaled by `pointsize`.
+#end
+
+ The data plotted in these examples is taken from
+^ <a href="http://www.gnuplot.info/demo/iris.html">
+ iris.dem 
+^ </a>
+ For simplicity, data preprocessing to generate separate datablocks
+ $setosa, $versicolor, $virginicana is not shown here.
+
+      array Square = [{-0.5,-0.5}, { 0.5,-0.5}, { 0.5, 0.5}, {-0.5, 0.5}, {-0.5,-0.5}]
+      $Triangle << EOD
+       0  0.5  
+       0.433013 -0.25  
+      -0.433013 -0.25  
+       0  0.5  
+      EOD
+
+      set mark 1 Square using 2:3
+      set mark 2 $Triangle using 1:2
+      set mark 3 $Triangle using 1:(-$2)
+
+Ffigure_markscatter1
+ The first plot shows that if no fillstyle is provided in either the mark
+ definition or the plot command, it is inherited from the global properties
+ in `set style fill`.  If no fillcolor is provided, it follows the default
+ sequence of plot colors.
+
+      set object 1 rectangle from graph 0,0 to graph 1,1
+      set object 1 fillstyle solid fc "gray" behind
+
+      set title "White outline with solid color fill"
+      set style fill solid border lc 'white'
+
+      plot $setosa     with marks mt 1 ps 1.5 title "setosa", \
+           $versicolor with marks mt 2 ps 2   title "versicolor", \
+           $virginica  with marks mt 3 ps 2   title "virginica"
+
+Ffigure_markscatter2
+ The second plot provides both a fillcolor and a stroke color in the plot
+ command.  The key entries then need a different fill color.
+
+      set style fill solid
+      plot $setosa     with marks mt 1 ps 1.5 lw 2 notitle \
+                            fc "gray" fs border lc '#1f77b4', \
+           $versicolor with marks mt 2 ps 2   lw 2 notitle \
+                            fc "gray" fs border lc '#ff7f0e', \
+           $virginica  with marks mt 3 ps 2   lw 2 notitle \
+                            fc "gray" fs border lc '#2ca02c', \
+           keyentry    with marks mt 1 ps 1.5 lw 2 \
+                            fc bgnd fs border lc '#1f77b4' \
+                            title "setosa", \
+           keyentry    with marks mt 2 ps 2   lw 2 \
+                            fc bgnd fs border lc '#ff7f0e' \
+                            title "versicolor", \
+           keyentry    with marks mt 3 ps 2   lw 2 \
+                            fc bgnd fs border lc '#2ca02c' \
+                            title "virginica"
+
+#TeX \newpage
+4 Example: annotation
+?examples annotation
+?marks examples annotation
+ The fact that marks are deformable means that a single mark definition can be
+ used as a template to draw appropriately scaled marks as mark-up elements to
+ annotate plot ranges or groups of plot elements. This example show definition
+ of a single mark that will be positioned and stretched horizontally to
+ highlight and label selected groups within a bar chart.
+ This example is a simplified version of 
+^ <a href="http://www.gnuplot.info/demo/mark_grouping.html">
+ mark_grouping.dem 
+^ </a>
+ In the full demo the left-most x value and horizontal extent for each group
+ are calculated from an input data set.  Here we assume these values have been
+ pre-calculated and stored in $markup.
+
+ It is convenient to dissociate the annotation markup from the specific yrange
+ of the data by plotting the marks and labels against the y2 axis rather than
+ against the y axis.  This is not necessary, however.  An alternative would be
+ to plot the marks against the y axis but add the keywords "noclip noautoscale"
+ so that the marks neither contribute to the y axis range nor are they clipped
+ against it.
+
+Ffigure_marksannotate
+
+      $Group_mark << EOD
+      # x  y   1=stroke
+        0 -0.5  1
+        0  0    1
+        1  0    1
+        1 -0.5  1
+      
+      0.5  0.0  1
+      0.5  0.5  1
+      EOD
+
+      set mark 1 $Group_mark
+
+      $markup << EOD
+      # label   width  left_edge 
+      "Group 1"     4       1
+      "Group 2"     3       6
+      "Group 3"     4      10
+      "Group 4"     2      15
+      EOD
+      TOP = 9   # y value of the grouping marks
+
+      set link y2
+      set ytics nomirror rangelimited
+      set border 3
+
+      plot $bar_data using ($0+$3):2:(0.8):3:xtic(1) with boxes lc variable, \
+           $markup using ($3-0.5):(TOP):2:(1)   axes x1y2 with marks mt 1 units xy lt -1 lw 1, \
+           $markup using ($3-0.5+$2/2):(TOP):1  axes x1y2 with labels center offset 0,1.7
+
+ A complementary example of using a vertically displaced and stretched mark for
+ annotation is given in
+^ <a href="http://www.gnuplot.info/demo/mark_labels.html">
+ mark_labels.dem 
+^ </a>
+D mark_labels 1
+
+#TeX \newpage
+4 Example: windbarbs
+?examples windbarbs
+?marks examples windbarbs
+
+Ffigure_windbarbs
+ This example shows how the 5-column form of "plot with marks" can be used
+ to control the position, scale, and rotation of marks.  Each barb is made
+ up of several line segments. Some also contain a solid-fill triangular flag.
+ Coordinates in the range [0:1] are provided in data blocks (see `marks data`).
+ The plot command then applies a uniform scale and variable rotation.
+ 
+ The three windbarb marks shown here are extracted from the full set used by
+^ <a href="http://www.gnuplot.info/demo/windbarbs.html">
+ windbarbs.dem 
+^ </a>
+D windbarbs 1
+
+      #
+      # Windbarbs representing 5, 25, and 50 knot wind speed
+      # rotated and uniformly scaled by the 5-column form of the plot command
+      #     plot with marks using x:y:scale:scale:angle units gxx
+      
+      $MARK_5 <<EOM
+      0        0        1
+      0        1        1
+      
+      0        0.870    1
+      0.235    0.956    1
+      EOM
+      
+      $MARK_25 <<EOM
+      0        0        1
+      0        1        1
+      
+      0        1        1
+      0.470    1.171    1
+      
+      0        0.870    1
+      0.470    1.041    1
+      
+      0        0.740    1
+      0.235    0.826    1
+      EOM
+      
+      $MARK_50 <<EOM
+      0        0        1
+      0        1.100    1
+      
+      0        0.900    3
+      0.470    1.071    3
+      0        1.100    3
+      0        0.900    3
+      EOM
+      
+      set mark  5 $MARK_5   title " 5 knots" fill solid
+      set mark 25 $MARK_25  title "25 knots" fill solid
+      set mark 50 $MARK_50  title "50 knots" fill solid
+      
+      unset border; unset tics
+      set key horizontal reverse Left samplen 1 height 3
+      set xrange [0:10]
+      set yrange [0:8]
+      SIZE = 0.05     # barb size will be 5% of graph width (units gxx)
+      
+      plot [t=1:9:2] '+' using (t):(6):(SIZE):(SIZE):(36*t) notitle with marks mt 5 units gxx, \
+           [t=1:9:2] '+' using (t):(4):(SIZE):(SIZE):(15*t) notitle with marks mt 25 units gxx, \
+           [t=1:9:2] '+' using (t):(2):(SIZE):(SIZE):(25*t) notitle with marks mt 50 units gxx, \
+           keyentry with marks mt  5 ps 4 lc "black" title "5 knots", \
+           keyentry with marks mt 25 ps 4 lc "black" title "25 knots", \
+           keyentry with marks mt 50 ps 4 lc "black" title "50 knots"
+
+#TeX \newpage
+4 Example: parametric marks
+?examples parametric
+?marks examples parametric
+ Syntax:
+      set mark <tag> [start:end:increment] '+' using (f($1)):(g($1))
+
+Ffigure_parametric_marks
+ The syntax for the `set mark` command follows that of a `plot` command.
+ Thus as an alternative to reading x/y coordinates from a file, array, or
+ data block, a mark can be defined by a pair of parametric equations
+ operating on a sampled implicit variable indicated by the pseudofile '+'.
+ See `special_filenames`.
+ 
+ This example defines a set of parametric marks and shows how they can be
+ combined with stroke and fill styles to produce a family of plot symbols.
+ This example is a subset of
+^ <a href="http://www.gnuplot.info/demo/mark_formulas.html">
+ mark_formulas.dem 
+^ </a>
+
+      set angle degrees
+      set mark 1 [t=0:360:10]  '+' using (sin(t)):(cos(t)) ### circle
+      set mark 2 [t=0:360:120] '+' using (sin(t)):(cos(t)) ### triangle
+      set mark 3 [t=0:360:90]  '+' using (sin(t)):(cos(t)) ### diamond
+      set mark 4 [t=0:360:72]  '+' using (sin(t)):(cos(t)) ### pentagon
+      set mark 5 [t=0:360:60]  '+' using (sin(t)):(cos(t)) ### hexagon
+      set mark 6 [t=0:360:10]  '+' using (cos(t)):(0.8*(sqrt(abs(cos(t)))+sin(t)))          ### heart
+      set mark 7 [t=0:360:10]  '+' using (r=0.5*abs(cos(3/2.0*t))+0.5, r*sin(t)):(r*cos(t)) ### 3 petals
+      set mark 8 [t=0:360:72/2]  '+' using (r=0.4*(cos(5*t)+2), r*sin(t)):(r*cos(t))        ### star
+      set mark 9 [t=0:360:72/20] '+' using (r=0.18*(cos(5*t)+5), r*sin(t)):(r*cos(t))       ### 5 petals
+      unset angle
+      
+      array dummy[1]
+      S = 1.25       # scale factor
+
+      plot \
+        for [k=1:9] dummy using (k):(11):(sprintf("%i",k)) with labels center,                 \
+        for [k=1:9] dummy using (k):(9) with marks mt k ps S fill solid 0.5 border lc 'black', \
+        for [k=1:9] dummy using (k):(7) with marks mt k ps S fill solid (1./k)     fc 'black', \
+        for [k=1:9] dummy using (k):(5) with marks mt k ps S fill solid 0.0 border lc 'black', \
+        for [k=1:9] dummy using (k):(3) with marks mt k ps S fill solid 1.0 noborder fc 'red', \
+        for [k=1:9] dummy using (k):(1) with marks mt k ps S fill solid 1.0 border lc 'blue',  \
+
+#TeX \newpage
 2 mouse input
 ?mouse input
  Many terminals allow interaction with the current plot using the mouse. Some
@@ -6063,6 +6430,88 @@ Ffigure_linespoints
  spaced over the data set.  As with `pi`, a negative value for N will erase the
  portion of line segment that passes underneath the symbol.
 
+2 marks
+?plotting styles marks
+?style marks
+?with marks
+ The 2D plotting style `with marks` places a mark composed of lines and polygons
+ at each data point. This style is only relevant for 2D plotting. It is designed
+ for drawing a scatter plot with custom marks (symbols).  It can also be used to
+ compose annotation or non-textual labeling for other plot styles.
+ For a general description of how marks are defined see `marks`, in particular
+ the examples given there.
+
+ Syntax:
+      plot <data> with marks marktype {<tag>|variable}
+                                      {units {ps|xy|xx|yy|gxy|gxx|gyy}}
+                                      {noclip}
+
+ The `plot with marks` command requires 2 to 5 columns of basic data.
+ Each mark is positioned in accordance with its center, xscale, yscale, and
+ rotation angle in degrees.  The direction and origin of the rotation angle
+ obeys the setting by `set theta`.  This sequence of input data is similar to
+ the ellipses plot style (see `with ellipses`). Additional input columns can be
+ used to provide variable line colors, fill colors, or marktype
+ (see `rgbcolor variable`).
+
+ Using specifier:
+      2 column: x y
+      3 column: x y scale
+      4 column: x y xscale yscale
+      5 column: x y xscale yscale angle
+
+ The "marktype" keyword (abbreviated form "mt") is used to specify the
+ tag number of a mark previously defined by a `set mark` command.
+ If the keyword "variable" is given instead of a numerical tag, the marktype at
+ each point is taken from an additional column of input data.
+
+ The "units" options specifies what coordinate system is used to interpret
+ [x,y] values stored in the mark definition by `set mark`.
+
+      ps  : both of x and y in units close to pointsize (default)
+      xy  : x in units of the x axis and y in units of the y axis
+      xx  : both of x and y in units of the x axis
+      yy  : both of x and y in units of the y axis
+      gxy : x and y in % of the horizontal and vertical graph range
+      gxx : both of x and y in % of the horizontal graph range
+      gyy : both of x and y in % of the vertical graph range
+
+ The "noclip" option permits drawing marks outside of graph area.
+ Otherwise marks that cross the graph boundary are clipped so that only the
+ part interior to the graph area is drawn.  This is useful when the marks
+ are used for annotation or plot markup rather than representing data point.
+ See `marks examples annotation`.
+2 linesmarks
+?plotting styles linesmarks
+?style linesmarks
+?with linesmarks
+ The linesmarks style connects adjacent points with straight line segments
+ and then goes back to draw a mark composed of lines and polygons at each point.
+ This style is only relevant for 2D plotting.
+ Syntax:
+      plot <data> with linesmarks marktype {<tag>|variable}
+      {units {ps|xy|xx|yy|gxy|gxx|gyy}}
+      {pointnumber N}
+      {pointinterval M}
+
+Ffigure_markpoints
+ The `plot with linesmarks` command requires 3 to 5 columns of basic data.
+ Additional input columns can be used to provide variable line color,
+ fill color, or marktype.  Handling of the marktype, scale, angle, and units
+ options are exactly the same as for `plot with marks`.
+
+ Using specifier:
+      2 column: x y
+      3 column: x y scale
+      4 column: x y xscale yscale
+      5 column: x y xscale yscale angle
+
+ The spacing of marks along the line can be modified by two additional options.
+ "pointinterval" (short form "pi") N tells gnuplot to only place a mark on
+ every Nth point.
+ "pointnumber" (short form "pn") N or tells gnuplot to mark only N of the data
+ points, evenly spaced over the data set.
+      
 2 masking
 ?plotting styles mask
 ?plot with mask
@@ -10132,7 +10581,7 @@ Ffigure_smooth_path
       boxes         boxplot        ellipses       histograms  rgbalpha
       boxerrorbars  candlesticks   filledcurves   image       rgbimage
       boxxyerror    circles        fillsteps      pm3d        polygons
-      isosurface    zerrorfill
+      marks         isosurface     zerrorfill
  or
       table         mask
 
@@ -10459,14 +10908,18 @@ Ffigure_smooth_path
 ?save
 ?save fit
 ?save changes
+?save datablocks
+?save marks
+?save terminal
  Syntax:
-       save  {functions | variables | terminal | set | fit | datablocks}
+       save  {functions | variables | terminal | set | fit | datablocks | marks}
              '<filename>' {append}
 
        save changes '<filename>' {append}
 
  If no option is specified, `gnuplot` saves functions, user variables,
  `set` options and the most recent `plot` or `splot` command.
+ It does not save the content of datablocks.
  The current status of `set term` and `set output` is written as a comment.
  The saved file contains a series of gnuplot commands in plain text that
  can be used as input to the `load` command.
@@ -10486,12 +10939,14 @@ Ffigure_smooth_path
  rather use the other method of saving and restoring current terminal
  by the commands `set term push` and `set term pop`, see `set term`.
 
- `save variables` writes all user variables but not datablocks and
- not internal variables GPVAL_* GPFUN_* MOUSE_* ARG*.
+ `save variables` writes all user variables but not datablocks, not marks,
+ and not internal variables GPVAL_* GPFUN_* MOUSE_* ARG*.
 
  `save fit` saves only the variables used in the most recent `fit` command.
  The saved file may be used as a parameter file to initialize future fit
  commands using the `via` keyword.
+
+ `save marks` saves only mark definitions and associated mark data.
 
  The filename must be enclosed in quotes.
 
@@ -13681,6 +14136,56 @@ Ffigure_multiple_keys
  labels will be included in either the margin calculation or the calculation
  of the positions of other text to be written in the margin.  This can lead
  to tic labels overwriting other text if the axis is very close to the border.
+
+3 mark
+?commands set mark
+?set mark
+ The "set mark" command defines a mark identified by a tag value N that is
+ an integer >= 0.  Once defined, the mark can either be used by plot style
+ "with marks" or placed on subsequent plots by defining an object using
+ "set object mark marktype N".   The "plot" or "set object" command  may
+ resize, rotate, or recolor the mark so that a single mark definition can
+ provide a family of symbols when rendered.  See for example
+ `marks examples parametric`.
+
+ Syntax:
+      
+      set mark N empty                creates an empty mark with default properties
+      set mark N empty {properties}   creates an empty mark with the requested properties
+      set mark N <data> {properties}  replaces the vertices and properties of mark N if it exists,
+                                      otherwise creates a new mark N with the requested vertices
+                                      and properties
+      set mark N append <data>        adds new vertices to those already present in mark N
+
+ Mark properties may be set individually or provided in the same command as
+ the mark data. 
+      
+      set mark N title "XXX"                  associate a title string with mark N
+      set mark N fillcolor <colorspec>        associate a fillcolor with mark N
+      set mark N fillstyle <fillstyle>        associate a fillstyle with mark N
+
+ The <data> portion of a `set mark` command is very similar to the <data>
+ portion of a `plot` command.  Coordinates may be read from a file, a datablock,
+ an array, or generated parametrically by sampling from pseudofile '+'.
+ Details are described elsewhere.  See `marks data`.
+
+ Example:
+
+      array Square = [{-1,-1}, { 1,-1}, { 1, 1}, {-1, 1}, {-1,-1}]
+      set mark 101 Square title "Gray Box" fillcolor "gray" fillstyle solid noborder
+      set mark 102 Square title "Empty Blue Box" fillstyle empty border lc "blue"
+
+ If a mark is given a fillcolor and fillstyle when it is defined by `set mark`,
+ these take precedence over any fill properties in a plot or object that the
+ mark appears in.  If no fillstyle is given in `set mark` the mark will be
+ rendered with the style given in the plot command or `set object` if there
+ is one, otherwise it will use the global setting from `set style fill`.
+
+ Lines in the marks are drawn with the same color as the fillstyle border,
+ if there is one.
+ CAVEAT: If the mark is stroked but the active fillstyle is "noborder",
+ the line color may not be what you intended. It wili probably be black.
+
 3 micro
 ?commands set micro
 ?commands show micro
@@ -14292,7 +14797,7 @@ Ffigure_multiple_keys
          {default} {lw|linewidth <width>} {dt|dashtype <dashtype>}
      unset object <index>
 
- <object-type> is either `rectangle`, `ellipse`, `circle`, or `polygon`.
+ <object-type> is either `rectangle`, `ellipse`, `circle`, `polygon`, or `mark`.
  Each object type has its own set of characteristic properties.
 
  The options `front`, `back`, `behind` control whether the object is drawn
@@ -14419,6 +14924,40 @@ Ffigure_multiple_keys
 
  See also `set style circle`, `set object ellipse`.
 
+4 mark
+?commands set object mark
+?commands show object mark
+?set object mark
+?show object mark
+ Syntax:
+      set object <index> mark marktype <tag> at <position>
+          {scale <s>|<sx>,<sy>} {angle <a>}
+          {units ps|xy|xx|yy|gxy|gxx|gyy}
+          {<other-object-properties>}
+
+ The marktype is used to specify the tag number of a mark defined using the
+ ’set mark’ command.  The "marktype" keyword may be shortened to "mt".
+ "at <position>" specifies the center of the mark. The center position may be
+ given in axis, graph, or screen coordinates. See ‘coordinates‘.
+ "scale" is a multiplier applied to x and y coordinates in the body of the mark.
+ "angle" applies a rotation in degrees about the center position.
+
+ The "units" option specifies what coordinate system is used to interpret
+ [x,y] values stored in the mark definition by `set mark`.
+ It does _not_ affect the center position given by "at".
+      ps : both of x and y in units close to pointsize (default)
+      xy : x in units of the x axis and y in units of the y axis
+      xx : both of x and y in units of the x axis
+      yy : both of x and y in units of the y axis
+      gxy : x and y in % of the horizontal and vertical graph range
+      gxx : both of x and y in % of the horizontal graph range
+      gyy : both of x and y in % of the vertical graph range
+
+ As with other object types, a mark object may have additional properties
+ for front/back/behind, fill color and style, and line attributes.
+ Note that the fill color and style of the object may be different from
+ those of the mark it contains.  See `marks data`.
+ 
 4 polygon
 ?polygon
 ?commands set object polygon
@@ -14426,9 +14965,10 @@ Ffigure_multiple_keys
 ?set object polygon
 ?show object polygon
  Syntax:
-     set object <index> polygon
+     
+      set object <index> polygon
          from <position> to <position> ... {to <position>}
- or
+      or
          from <position> rto <position> ... {rto <position>}
 
  The position of the polygon may be specified by giving the position of a
@@ -14440,6 +14980,7 @@ Ffigure_multiple_keys
  Example:
      set object 1 polygon from 0,0 to 1,1 to 2,0
      set object 1 fc rgb "cyan" fillstyle solid 1.0 border lt -1
+
 5 depthorder
 ?polygon depthorder
 ?set object depthorder
@@ -18290,6 +18831,20 @@ Ffigure_walls
 ^ <a href="http://www.gnuplot.info/demo/airfoil.html">
  use of functions and complex variables for airfoils (airfoil.dem).
 ^ </a>
+3 show marks
+?commands show marks
+?show marks
+ Syntax:
+      show marks
+      show mark <tag>
+
+ The `show mark` command reports the title, fillcolor, and fillstyle
+ properties of currently defined marks.  It does not dump the array
+ of vertices.
+
+ If you want to see the array of vertices from an interactive session, use
+      save marks "-"
+
 3 show palette
 ?commands show palette
 ?show palette

@@ -235,6 +235,7 @@ const struct gen_table set_tbl[] =
     { "map$ping", S_MAPPING },
     { "map$ping3d", S_MAPPING },
     { "mark", S_MARK },
+    { "marks", S_MARKS },
 
     { "mar$gins", S_MARGIN },
     { "lmar$gin", S_LMARGIN },
@@ -798,8 +799,8 @@ const struct gen_table mark_units_tbl[] =
     { "yy", MARK_UNITS_YY },
     { "xy", MARK_UNITS_XY },
     { "gxy", MARK_UNITS_GXY },
-    { "gxy", MARK_UNITS_GXY },
-    { "gxy", MARK_UNITS_GXY },
+    { "gxx", MARK_UNITS_GXX },
+    { "gyy", MARK_UNITS_GYY },
     { "ps", MARK_UNITS_PS },
     { NULL, -1 }
 };

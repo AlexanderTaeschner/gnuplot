@@ -541,6 +541,7 @@ gnuplot-tikz.help: $(T)/lua/gnuplot-tikz.lua
 $(HELPFILE): doc2html.exe $(D)gnuplot.doc gnuplot.exe
 	doc2html $(D)gnuplot.doc $(D)windows\\ 
 	-.\gnuplot -e "winhelp=1; cd '$(D)'" plotstyles.gnu
+	-.\gnuplot -e "winhelp=1; cd '$(D)'" morefigures.gnu
 	cmd /c "cd $(D) & $(HHC) windows\wgnuplot.hhp & exit /b 0"
 	if exist $(D)windows\wgnuplot.chm copy $(D)windows\wgnuplot.chm .
 

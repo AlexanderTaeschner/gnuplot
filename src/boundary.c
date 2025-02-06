@@ -1328,9 +1328,9 @@ do_key_sample(
 	       &&  (style == FS_EMPTY || (! this_plot->hsteps_options.baseline))
 	       &&  w > 0) {
 	    draw_clip_line(xl + key_sample_left, yl, xl + key_sample_right, yl);
-        } else if (this_plot->plot_style == MARKS) {
+	} else if (this_plot->plot_style == MARKS) {
 	    /* Handle the mark itself later in do_key_sample_point() */
-        } else if (this_plot->plot_style == LINESMARKS) {
+	} else if (this_plot->plot_style == LINESMARKS) {
 	    draw_clip_line(xl + key_sample_left, yl, xl + key_sample_right, yl);
 	    /* Handle the mark itself later in do_key_sample_point() */
 	} else if (w > 0) {    /* All other plot types with fill */
@@ -1512,6 +1512,13 @@ draw_key(legend_key *key, TBOOLEAN key_pass)
     struct termentry *t = term;
 
     (t->layer)(TERM_LAYER_KEYBOX);
+
+    /* FIXME  I do not understand this at all (Bug 2761)	*/
+    /* The qt terminal mis-numbers the final plot without this.	*/
+    if (key_pass && !strncmp("qt", term->name, 2)) {
+	term->layer(TERM_LAYER_BEFORE_PLOT);
+	term->layer(TERM_LAYER_AFTER_PLOT);
+    }
 
     /* In two-pass mode (set key opaque) we blank out the key box after	*/
     /* the graph is drawn and then redo the key in the blank area.	*/

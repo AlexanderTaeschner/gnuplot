@@ -192,35 +192,16 @@ typedef struct object {
 #define OBJ_POLYGON (4)
 #define OBJ_MARK (5)
 
-/* Datastructure for 'set mark' */
-struct mark_data {
-    struct mark_data *next;
-    int tag;
-    double xmin, xmax;
-    double ymin, ymax;
-    int vertices;
-    int asize; /* number of allocated size of polygon.vertex and color array */
-    t_polygon polygon;
-    char *title;	/* will be reported by "show mark" */
-    struct fill_style_type mark_fillstyle;
-    struct t_colorspec mark_fillcolor;
-};
-
-typedef enum mark_units_id {
-    MARK_UNITS_XY=0, MARK_UNITS_XX, MARK_UNITS_YY,
-    MARK_UNITS_GXY, MARK_UNITS_GXX, MARK_UNITS_GYY,
-    MARK_UNITS_PS
-} mark_units_id;
-
 /* Structure used in plot header */
 typedef struct marks_options {
     int tag;
     enum mark_units_id units;
+    TBOOLEAN noclip;
 } marks_opts;
 
 #define MARK_TYPE_VARIABLE -1	/* tag value indicating "marktype variable" */
 #define MARK_MAX_VERTICES 1024	/* admittedly arbitrary */
-#define DEFAULT_MARKS_OPTS { 1, MARK_UNITS_PS }
+#define DEFAULT_MARKS_OPTS { 1, MARK_UNITS_PS, FALSE }
 
 /* Datastructure implementing 'set dashtype' */
 struct custom_dashtype_def {
@@ -763,9 +744,6 @@ extern struct iso_curve *mask_3Dpolygon_set;
 extern void construct_2D_mask_set(struct coordinate *points, int p_count);
 extern TBOOLEAN masked(double x, double y, struct iso_curve *mask_polygon_set);
 
-void free_mark (struct mark_data *mark);
-extern struct mark_data *first_mark;
-struct mark_data *get_mark(struct mark_data *first, int tag);
 
 
 #endif /* GNUPLOT_GADGETS_H */

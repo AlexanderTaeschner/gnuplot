@@ -122,9 +122,6 @@ struct object *first_object = NULL;
 /* Pointer to array of grid walls */
 struct object grid_wall[5] = {WALL_Y0, WALL_X0, WALL_Y1, WALL_X1, WALL_Z0};
 
-/* Pointer to first mark instance in linked list */
-struct mark_data *first_mark = NULL;
-
 /* 'set title' status */
 text_label title = EMPTY_LABELSTRUCT;
 
@@ -1284,21 +1281,5 @@ update_active_region(void)
     FPRINTF((stderr, "active region: %d %d %d %d\n",
 	    active_bounds.xleft, active_bounds.xright,
 	    active_bounds.ybot, active_bounds.ytop));
-}
-
-/*
- * Utility routine to search through list to find a mark
- * with the requested tag.
- */
-struct mark_data *
-get_mark(struct mark_data *first, int tag)
-{
-    struct mark_data *this;
-
-    for (this=first; this!=NULL; this=this->next) {
-        if (tag == this->tag)
-            return this;
-    }
-    return NULL;
 }
 

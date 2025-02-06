@@ -58,11 +58,6 @@ set xrange [-10:-5]
 set yrange [.3 : 1.1]
 set border 3 front
 unset tics
-
-set xrange [-10:-5]
-set yrange [.3 : 1.1]
-set border 3 front
-unset tics
 set key outside spacing 1.5
 set key title "{/:Bold Marktype}\n"
 

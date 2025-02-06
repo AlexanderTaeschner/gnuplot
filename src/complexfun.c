@@ -97,7 +97,9 @@
 	} \
     }
 #else
-#define handle_underflow( who, var ) int_error(NO_CARET, "%s: errno = %d", who, errno);
+#define handle_underflow( who, var ) \
+    if (errno) \
+	int_error(NO_CARET, "%s: errno = %d", who, errno)
 #endif
 
 /* internal prototypes */

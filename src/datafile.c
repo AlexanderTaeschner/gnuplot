@@ -113,6 +113,7 @@
 #include "gp_time.h"
 #include "gplocale.h"
 #include "graphics.h"
+#include "marks.h"
 #include "misc.h"
 #include "multiplot.h"
 #include "parse.h"
@@ -2794,6 +2795,7 @@ void
 df_reset_after_error()
 {
     evaluate_inside_using = FALSE;
+    mark_sample_var = NULL;
 }
 
 void
@@ -5715,6 +5717,12 @@ df_generate_pseudodata()
 	 */
 	if (df_current_plot && df_current_plot->sample_var)
 	    Gcomplex(&(df_current_plot->sample_var->udv_value), t, 0.0);
+
+	/* This allows commands of the form
+	 *   set mark N [t=0:360:10] '+' using (sin(t)):(cos(t))
+	 */
+	if (mark_sample_var)
+	    Gcomplex(&(mark_sample_var->udv_value), t, 0.0);
 
 	df_pseudovalue_0 = t;
 	sprintf(df_line,"%g",t);

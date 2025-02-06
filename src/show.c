@@ -51,6 +51,7 @@
 #include "help.h"
 #include "hidden3d.h"
 #include "jitter.h"
+#include "marks.h"
 #include "misc.h"
 #include "gp_hist.h"
 #include "gplocale.h"
@@ -179,9 +180,6 @@ static void show_ticdefp(struct axis *);
        void show_position(struct position * pos, int ndim);
 static void show_functions(void);
 static void show_warnings(void);
-
-static void show_one_mark(struct mark_data *mark);
-static void show_mark(void);
 
 static int var_show_all = 0;
 
@@ -462,6 +460,7 @@ show_command()
 	show_jitter();
 	break;
     case S_MARK:
+    case S_MARKS:
 	show_mark();
 	break;
     case S_VIEW:
@@ -3675,44 +3674,3 @@ conv_text(const char *t)
     *s = NUL;
     return r;
 }
-
-static void
-show_one_mark(struct mark_data *mark)
-{
-    fprintf(stderr, "\tmarktype %i ", mark->tag);
-    if (mark->title)
-	fprintf(stderr, " title \"%s\" ", mark->title);
-    fprintf(stderr, "polygon vertices %i ", mark->vertices);
-    if (mark->mark_fillcolor.type != TC_DEFAULT) {
-	fprintf(stderr, "fillcolor ");
-	save_pm3dcolor(stderr, &mark->mark_fillcolor);
-    }
-    fprintf(stderr, " fillstyle ");
-    save_fillstyle(stderr, &mark->mark_fillstyle);
-}
-
-static void
-show_mark()
-{
-    int tag = -1;
-    struct mark_data *this;
-
-    if (!END_OF_COMMAND)
-	tag = int_expression();
-
-    if (tag < 0) {
-        for (this = first_mark; this != NULL; this = this->next) {
-	    show_one_mark(this);
-	    fprintf(stderr,"\n");
-        }
-        return;
-    }
-
-    this = get_mark(first_mark, tag);
-    if (!this)
-	return;
-
-    show_one_mark(this);
-    fprintf(stderr, "\n"); 
-}
-

@@ -299,6 +299,14 @@ print "********************** file pm3d_clip.dem *********************"
 load "pm3d_clip.dem"
 reset
 
+print "********************** file Marks Demos ******************"
+load "extra_points.dem"
+load "mark_formulas.dem"
+load "mark_grouping.dem"
+load "mark_labels.dem"
+load "windbarb.dem"
+reset
+
 print "********************** file complex_trig.dem *********************"
 load "complex_trig.dem"
 reset
@@ -461,10 +469,6 @@ reset
 
 print "********************** file pointsize.dem *********************"
 load "pointsize.dem"
-reset
-
-print "********************** file extra_points.dem ******************"
-load "extra_points.dem"
 reset
 
 print "********************** file circles.dem *********************"

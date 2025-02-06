@@ -613,10 +613,10 @@ get_data(struct curve_points *current_plot)
 
     case MARKS:	/* 2 + possible variable color, or 4 + possible variable color */
     case LINESMARKS:
-        /* 2 column: x y */
-        /* 3 column: x y scale */
-        /* 4 column: x y xscale yscale */
-        /* 5 column: x y xscale yscale angle */
+	/* 2 column: x y */
+	/* 3 column: x y scale */
+	/* 4 column: x y xscale yscale */
+	/* 5 column: x y xscale yscale angle */
 	/* Allow 1 extra column because of 'pointsize variable'    */
 	/* Allow 1 extra column because of 'marktype variable' */
 	/* Allow 1 extra column because of 'lc rgb variable'    */
@@ -1438,7 +1438,7 @@ get_data(struct curve_points *current_plot)
 	{   /*  x y
 	     *	x y scale
 	     *	x y xscale yscale
-             *  x y xscale yscale angle
+	     *  x y xscale yscale angle
 	     */
 	    int var = j; /* column number */
 	    coordval x      = v[0]; /* x */
@@ -1446,13 +1446,13 @@ get_data(struct curve_points *current_plot)
 	    coordval xlow   = 1;    /* CRD_PTSIZE */
 	    coordval xhigh;         /* xscale */
 	    coordval ylow;          /* yscale */
-            coordval yhigh;         /* angle */
-            coordval tag    = current_plot->marks_options.tag;
+	    coordval yhigh;         /* angle */
+	    coordval tag    = current_plot->marks_options.tag;
 	    if (current_plot->lp_properties.p_size == PTSZ_VARIABLE)
-                xlow = v[--var];
+	        xlow = v[--var];
 	    if (tag == MARK_TYPE_VARIABLE) /* mt variable */
 		tag = v[--var];
-            xhigh = (var >= 3) ? v[2] : 1.0;
+	    xhigh = (var >= 3) ? v[2] : 1.0;
 	    ylow  = (var >= 4) ? v[3] : xhigh;
 	    yhigh = (var >= 5) ? v[4] : 0.0;
 	    store2d_point(current_plot, i++, x, y,
@@ -1556,7 +1556,7 @@ store2d_point(
 	/* Some plot styles use xhigh and yhigh for other quantities, */
 	/* which polar mode transforms would break		      */
 	if (current_plot->plot_style == MARKS || current_plot->plot_style == LINESMARKS)
-           ;
+	   ;
 	else if (current_plot->plot_style == CIRCLES) {
 	    double radius = (xhigh - xlow)/2.0;
 	    xlow = x - radius;
@@ -1565,7 +1565,7 @@ store2d_point(
 		|| current_plot->plot_style == LABELPOINTS
 		|| current_plot->plot_style == LINESPOINTS
 		|| current_plot->plot_style == SECTORS) {
-            ;
+	    ;
 	} else {
 	    /* Jan 2017 - now skipping range check on rhigh, rlow */
 	    (void) polar_to_xy(xhigh, yhigh, &xhigh, &yhigh, FALSE);
@@ -1644,17 +1644,17 @@ store2d_point(
 	    cp->type = UNDEFINED;
 	break;
     case SECTORS:
-        cp->xlow  = xlow;
-        cp->xhigh = xhigh;
-        cp->ylow  = ylow;
-        cp->yhigh = yhigh;
+	cp->xlow  = xlow;
+	cp->xhigh = xhigh;
+	cp->ylow  = ylow;
+	cp->yhigh = yhigh;
 	break;
     case MARKS:
     case LINESMARKS:
-        cp->xlow  = xlow;
-        cp->xhigh = xhigh;
-        cp->ylow  = ylow;
-        cp->yhigh = yhigh;
+	cp->xlow  = xlow;
+	cp->xhigh = xhigh;
+	cp->ylow  = ylow;
+	cp->yhigh = yhigh;
 	break;
     case ELLIPSES:
 	/* We want to pass the parameters to the ellipse drawing routine as they are, 
@@ -1901,6 +1901,7 @@ static void
 histogram_range_fiddling(struct curve_points *plot)
 {
     double xlow, xhigh;
+    double ylow, yhigh;
     int i;
     /*
      * EAM FIXME - HT_STACKED_IN_TOWERS forcibly resets xmin, which is only
@@ -1908,7 +1909,6 @@ histogram_range_fiddling(struct curve_points *plot)
      */
     switch (histogram_opts.type) {
 	case HT_STACKED_IN_LAYERS:
-	    if (axis_array[plot->y_axis].autoscale & AUTOSCALE_MAX) {
 		if (plot->histogram_sequence == 0) {
 		    if (stackheight)
 			free(stackheight);
@@ -1934,14 +1934,18 @@ histogram_range_fiddling(struct curve_points *plot)
 			stackheight[i].yhigh += plot->points[i].y;
 		    else
 			stackheight[i].ylow += plot->points[i].y;
-
-		    if (axis_array[plot->y_axis].max < stackheight[i].yhigh)
-			axis_array[plot->y_axis].max = stackheight[i].yhigh;
-		    if (axis_array[plot->y_axis].min > stackheight[i].ylow)
-			axis_array[plot->y_axis].min = stackheight[i].ylow;
+		    if (axis_array[plot->y_axis].data_max < stackheight[i].yhigh)
+			axis_array[plot->y_axis].data_max = stackheight[i].yhigh;
+		    if (axis_array[plot->y_axis].data_min > stackheight[i].ylow)
+			axis_array[plot->y_axis].data_min = stackheight[i].ylow;
+		    if (axis_array[plot->y_axis].autoscale & AUTOSCALE_MAX) {
+			if (axis_array[plot->y_axis].max < stackheight[i].yhigh)
+			    axis_array[plot->y_axis].max = stackheight[i].yhigh;
+			if (axis_array[plot->y_axis].min > stackheight[i].ylow)
+			    axis_array[plot->y_axis].min = stackheight[i].ylow;
+		    }
 
 		}
-	    }
 		/* fall through to checks on x range */
 	case HT_CLUSTERED:
 	case HT_ERRORBARS:
@@ -1980,15 +1984,19 @@ histogram_range_fiddling(struct curve_points *plot)
 		    if (axis_array[FIRST_X_AXIS].max != xhigh)
 			axis_array[FIRST_X_AXIS].max  = xhigh;
 		}
+		/* stack height contributes to data range even if not autoscaled */
+		for (i=0, yhigh=ylow=0.0; i<plot->p_count; i++)
+		    if (plot->points[i].type != UNDEFINED) {
+			if (plot->points[i].y >= 0)
+			    yhigh += plot->points[i].y;
+			else
+			    ylow += plot->points[i].y;
+		    }
+		if (axis_array[plot->y_axis].data_max < yhigh)
+		    axis_array[plot->y_axis].data_max = yhigh;
+		if (axis_array[plot->y_axis].data_min > ylow)
+		    axis_array[plot->y_axis].data_min = ylow;
 		if (axis_array[FIRST_Y_AXIS].set_autoscale) {
-		    double ylow, yhigh;
-		    for (i=0, yhigh=ylow=0.0; i<plot->p_count; i++)
-			if (plot->points[i].type != UNDEFINED) {
-			    if (plot->points[i].y >= 0)
-				yhigh += plot->points[i].y;
-			    else
-				ylow += plot->points[i].y;
-			}
 		    if (axis_array[FIRST_Y_AXIS].set_autoscale & AUTOSCALE_MAX)
 			if (axis_array[plot->y_axis].max < yhigh)
 			    axis_array[plot->y_axis].max = yhigh;
@@ -2866,11 +2874,17 @@ eval_plots()
 			continue;
 		    }
 		    
-		    if (almost_equals(c_token,"unit$s")) {
+		    if (almost_equals(c_token, "unit$s")) {
 			mark_units_id units = lookup_table(mark_units_tbl, ++c_token);
 			if (units < 0)
 			    int_error(c_token, "expecting 'xy', 'xx', 'yy', 'gxy', 'gxx', 'gyy', or 'ps'" );
 			this_plot->marks_options.units = units;
+			c_token++;
+			continue;
+		    }
+
+		    if (equals(c_token, "noclip")) {
+			this_plot->marks_options.noclip = TRUE;
 			c_token++;
 			continue;
 		    }

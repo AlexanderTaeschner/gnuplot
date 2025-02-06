@@ -16,7 +16,7 @@ AC_DEFUN([GP_APPLE],[
                 [  --with-aquaterm         include support for AquaTerm on OSX],
                 [if test "$withval" == yes; then
                     GP_HAVE_FRAMEWORK(AquaTerm,[#import <AquaTerm/AQTAdapter.h>],[],
-                                      [CFLAGS="$CFLAGS -ObjC"; LDFLAGS="$LDFLAGS -framework Foundation -framework AquaTerm"],[])
+                                      [CFLAGS="$CFLAGS -ObjC"; LDFLAGS="$LDFLAGS -framework Foundation -framework AquaTerm -F/Library/Frameworks"],[])
                 fi])
   ],[
     AC_MSG_RESULT([no])

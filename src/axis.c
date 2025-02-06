@@ -2544,7 +2544,14 @@ clone_linked_axes(AXIS *axis1, AXIS *axis2)
     double testmin, testmax, scale;
     TBOOLEAN suspect = FALSE;
 
+    double save_data_min = axis2->data_min;
+    double save_data_max = axis2->data_max;
+
     memcpy(axis2, axis1, AXIS_CLONE_SIZE);
+
+    axis2->data_min = save_data_min;
+    axis2->data_max = save_data_max;
+
     if (axis2->link_udf == NULL || axis2->link_udf->at == NULL)
 	return;
 
@@ -2740,8 +2747,6 @@ update_primary_axis_range(struct axis *secondary)
 	/* nonlinear axis (secondary is visible; primary is hidden) */
 	primary->min = eval_link_function(primary, secondary->min);
 	primary->max = eval_link_function(primary, secondary->max);
-	primary->data_min = eval_link_function(primary, secondary->data_min);
-	primary->data_max = eval_link_function(primary, secondary->data_max);
     }
 }
 
@@ -2757,8 +2762,6 @@ update_secondary_axis_range(struct axis *primary)
     if (secondary != NULL) {
        secondary->min = eval_link_function(secondary, primary->min);
        secondary->max = eval_link_function(secondary, primary->max);
-       secondary->data_min = eval_link_function(secondary, primary->data_min);
-       secondary->data_max = eval_link_function(secondary, primary->data_max);
     }
 }
 
@@ -2777,31 +2780,29 @@ extend_autoscaled_log_axis(AXIS *primary)
 }
 
 /*
- * We track the x1 and x2 axis data limits separately.
- * However if x1 and x2 are linked to each other we must reconcile
- * their data limits before plotting.
+ * We track the x1/x2 and y1/y2 axis data limits separately.
+ * However if either pair is linked ("set link x2") both data ranges
+ * contribute to autoscaling the full plot.
  */
 void
 reconcile_linked_axes(AXIS *primary, AXIS *secondary)
 {
-    double dummy;
-    coord_type inrange = INRANGE;
     if ((primary->autoscale & AUTOSCALE_BOTH) != AUTOSCALE_NONE
     &&  primary->linked_to_secondary) {
-	double min_2_into_1 = eval_link_function(primary, secondary->data_min);
-	double max_2_into_1 = eval_link_function(primary, secondary->data_max);
-
-	/* Merge secondary min/max into primary data range */
-	store_and_update_range(&dummy, min_2_into_1, &inrange, primary, FALSE);
-	store_and_update_range(&dummy, max_2_into_1, &inrange, primary, FALSE);
-	(void)dummy;	/* Otherwise the compiler complains about an unused variable */
-
-	/* Take the result back the other way to update secondary */
-	secondary->min = eval_link_function(secondary, primary->min);
-	secondary->max = eval_link_function(secondary, primary->max);
+	double min_2 = eval_link_function(primary, secondary->data_min);
+	double max_2 = eval_link_function(primary, secondary->data_max);
+	double min_1 = eval_link_function(secondary, primary->data_min);
+	double max_1 = eval_link_function(secondary, primary->data_max);
+	if (primary->min > min_2)
+	    primary->min = min_2;
+	if (primary->max < max_2)
+	    primary->max = max_2;
+	if (secondary->min > min_1)
+	    secondary->min = min_1;
+	if (secondary->max < max_1)
+	    secondary->max = max_1;
     }
 }
-
 
 /*
  * Check for linked-axis coordinate transformation given by command

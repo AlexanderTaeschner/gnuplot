@@ -45,6 +45,7 @@
 #include "hidden3d.h"
 #include "jitter.h"
 #include "loadpath.h"
+#include "marks.h"
 #include "misc.h"
 #include "plot2d.h"
 #include "plot3d.h"
@@ -1483,6 +1484,15 @@ save_prange(FILE *fp, struct axis *this_axis)
     } else
 	putc('\n', fp);
 
+    if (fp == stderr && this_axis->index < PARALLEL_AXES) {
+	fprintf(stderr,"\t\t\t\t\t# data [ ");
+	save_num_or_time_input(stderr, this_axis->data_min, this_axis);
+	putc(':', stderr);
+	fputs(" : ", stderr);
+	save_num_or_time_input(stderr, this_axis->data_max, this_axis);
+	fputs(" ]\n", stderr);
+    }
+
     if (!noextend && (fp != stderr)) {
 	if (this_axis->set_autoscale & (AUTOSCALE_FIXMIN))
 	    fprintf(fp, "set autoscale %sfixmin\n", axis_name(this_axis->index));
@@ -1891,6 +1901,7 @@ save_object(FILE *fp, int tag)
 	    }
 	}
 
+#if (1)
 	else if ((this_object->object_type == OBJ_MARK)
 	    && (tag == 0 || tag == this_object->tag)) {
 	    t_mark *this_mark = &this_object->o.mark;
@@ -1900,7 +1911,7 @@ save_object(FILE *fp, int tag)
 	    fprintf(fp, "center ");
 	    save_position(fp, &this_mark->center, 3, FALSE);
 	}
-
+#else
 	else if ((this_object->object_type == OBJ_MARK)
 	    && (tag == 0 || tag == this_object->tag)) {
 	    t_mark *this_mark = &this_object->o.mark;
@@ -1937,6 +1948,7 @@ save_object(FILE *fp, int tag)
 		    break;
 	    }
 	}
+#endif
 
 	/* Properties common to all objects */
 	if (tag == 0 || tag == this_object->tag) {
@@ -2128,40 +2140,3 @@ save_changes(FILE *outfp, TBOOLEAN ispipe)
 #endif
 }
 
-void
-save_marks(FILE *fp)
-{
-    struct mark_data *this;
-    int i, tag;
-    double x, y, z;
-    for (this=first_mark; this != NULL; this=this->next) {
-        tag = this->tag;
-        fprintf(fp, "$MARK_%i <<EOM\n", tag);
-        for (i=0; i<this->vertices; i++) {
-            x = this->polygon.vertex[i].x;
-            y = this->polygon.vertex[i].y;
-            z = this->polygon.vertex[i].z;
-            if (isnan(x) || isnan(y))
-		fprintf(fp, "\n");
-            else
-		fprintf(fp, "%g\t%g\t%i\n", x, y, (int) round(z));
-        }
-        fprintf(fp, "EOM\n");
-        fprintf(fp, "set mark %i $MARK_%i ", tag, tag);
-	if (this->title)
-	    fprintf(fp, "title \"%s\" ", this->title);
-	if (this->mark_fillcolor.type != TC_DEFAULT) {
-	    fprintf(fp, "fillcolor ");
-	    save_pm3dcolor(fp, &this->mark_fillcolor);
-	}
-	if (this->mark_fillstyle.fillstyle == FS_DEFAULT
-	&&  this->mark_fillstyle.border_color.type == TC_DEFAULT) {
-	    fprintf(fp, "\n");
-	} else {
-	    fprintf(fp, " fillstyle ");
-	    save_fillstyle(fp, &this->mark_fillstyle);
-	}
-        fprintf(fp, "undefine $MARK_%i\n", tag);
-        fprintf(fp, "\n");
-    }
-}
