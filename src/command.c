@@ -2945,7 +2945,10 @@ toggle_command()
 	}
 	free(plottitle);
 	if (!foundit) {
-	    int_warn(NO_CARET,"Did not find a plot with that title");
+	    if (last_plot_was_multiplot)
+		int_warn(NO_CARET,"Multiplot components can be toggled by number but not by name");
+	    else
+		int_warn(NO_CARET,"Did not find a plot with that title");
 	    return;
 	}
 
