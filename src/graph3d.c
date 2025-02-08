@@ -3931,7 +3931,11 @@ key_sample_point_pm3d(
     while (i <= steps) {
 	/* if (i>0) set_color( i==steps ? gray_to : (i-0.5)/steps ); ... range [0:1] */
 	gray = (i==steps) ? gray_to : gray_from+i*gray_step;
-	set_color(gray);
+	if (plot->lp_properties.colormap) {
+	    double colormap_gray = map2gray(gray, plot->lp_properties.colormap);
+	    set_rgbcolor_var( rgb_from_colormap(colormap_gray, plot->lp_properties.colormap) );
+	} else
+	    set_color(gray);
 	x2 = i==0 ? x1 : (i==steps ? x_to : x1 + (int)(i*step+0.5));
 	/* x2 += key_point_offset; ... that's if there is only 1 point */
 	if (!clip_point(x2, yl))
