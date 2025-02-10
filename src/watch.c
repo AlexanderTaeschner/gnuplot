@@ -144,7 +144,8 @@ struct text_label watchpoint_labelstyle;
  * Local prototypes
  */
 
-static struct text_label *mouse_hit_label(struct curve_points *plot, watch_t *target, double x, double y);
+static struct text_label *mouse_hit_label(struct curve_points *plot,
+			watch_t *target, double x, double y, double z);
 static char *apply_tic_format( struct axis *axis, double hit );
 
 /*
@@ -176,22 +177,24 @@ static struct text_label default_labelstyle = {
 void
 watch_line(struct curve_points *plot, double x1, double y1, double z1, double x2, double y2, double z2)
 {
-    double hit_x, hit_y;
+    double hit_x, hit_y, hit_z;
     struct udvt_entry *array;
     static char array_name[12];
-    watch_t *t;
-    struct value z;
+    watch_t *watch;
+    struct value f;
+    double f1, f2;
+    struct value *v;
 
     if (polar)	/* Watchpoints not yet supported for polar plots */
 	return;
 
-    for (t = plot->watchlist; t != NULL; t = t->next) {
+    for (watch = plot->watchlist; watch != NULL; watch = watch->next) {
 
-	switch (t->type) {
+	switch (watch->type) {
 #ifdef USE_MOUSE
 	case MOUSE_PROXY_AXIS:
 		{
-		/* Replace t->target with current mouse x position */
+		/* Replace watch->target with current mouse x position */
 		double mouse_x, mouse_y;
 		get_last_mouse_xy(&mouse_x, &mouse_y);
 		if (!inrange(mouse_x, axis_array[x_axis].min, axis_array[x_axis].max))
@@ -201,17 +204,18 @@ watch_line(struct curve_points *plot, double x1, double y1, double z1, double x2
 		/* No bisection, because function parameters may have changed
 		 * between when the plot was drawn and the time of mouse interaction
 		 */
-		t->target = mouse_x;
+		watch->target = mouse_x;
 		hit_x = mouse_x;
 		hit_y = y1 + (y2 - y1) * (hit_x - x1)/(x2 - x1);
+		hit_z = z1 + (z2 - z1) * (hit_x - x1)/(x2 - x1);
 		break;
 		}
 #endif
 	case FIRST_X_AXIS:
 		/* outrange line segment does not trigger a watch event */
-		if (!inrange(t->target, x1, x2))
+		if (!inrange(watch->target, x1, x2))
 		    continue;
-		hit_x = t->target;
+		hit_x = watch->target;
 		if (plot->plot_type == FUNC && !parametric) {
 		    /* Evaluate function exactly at target x */
 		    struct value a;
@@ -220,46 +224,50 @@ watch_line(struct curve_points *plot, double x1, double y1, double z1, double x2
 		    hit_y = real(&a);
 		} else {
 		    /* Interpolate y at intersection with target x value */
-		    hit_y = y1 + (y2 - y1) * (t->target - x1)/(x2 - x1);
+		    hit_y = y1 + (y2 - y1) * (watch->target - x1)/(x2 - x1);
 		}
+		hit_z = z1 + (z2 - z1) * (watch->target - x1)/(x2 - x1);
 		break;
 	case FIRST_Y_AXIS:
 		/* outrange line segment does not trigger a watch event */
-		if (!inrange(t->target, y1, y2))
+		if (!inrange(watch->target, y1, y2))
 		    continue;
 		/* Interpolate x at intersection with target y value */
-		hit_y = t->target;
-		hit_x = x1 + (x2 - x1) * (t->target - y1)/(y2 - y1);
+		hit_y = watch->target;
+		hit_x = x1 + (x2 - x1) * (watch->target - y1)/(y2 - y1);
 		if (plot->plot_type == FUNC && !parametric) {
 		    /* Improve x value by successive approximation */
 		    bisect_hit(plot, BISECT_MATCH, &hit_x, &hit_y, x1, x2);
 		}
+		hit_z = z1 + (z2 - z1) * (watch->target - y1)/(y2 - y1);
 		break;
 	case FIRST_Z_AXIS:
-		if (!inrange(t->target, z1, z2))
+		if (!inrange(watch->target, z1, z2))
 		    continue;
 		/* interpolate [x,y] at intersection with z target */
-		hit_x = x1 + (x2 - x1) * (t->target - z1)/(z2 - z1);
-		hit_y = y1 + (y2 - y1) * (t->target - z1)/(z2 - z1);
+		hit_x = x1 + (x2 - x1) * (watch->target - z1)/(z2 - z1);
+		hit_y = y1 + (y2 - y1) * (watch->target - z1)/(z2 - z1);
+		hit_z = watch->target;
 		break;
 	case SAMPLE_AXIS:
 		/* the test is actually for f(x,y)*/
-		Gcomplex(&t->func->dummy_values[0], x1, 0.0);
-		Gcomplex(&t->func->dummy_values[1], y1, 0.0);
-		evaluate_at(t->func->at, &z);
-		z1 = real(&z);
-		Gcomplex(&t->func->dummy_values[0], x2, 0.0);
-		Gcomplex(&t->func->dummy_values[1], y2, 0.0);
-		evaluate_at(t->func->at, &z);
-		z2 = real(&z);
+		Gcomplex(&watch->func->dummy_values[0], x1, 0.0);
+		Gcomplex(&watch->func->dummy_values[1], y1, 0.0);
+		evaluate_at(watch->func->at, &f);
+		f1 = real(&f);
+		Gcomplex(&watch->func->dummy_values[0], x2, 0.0);
+		Gcomplex(&watch->func->dummy_values[1], y2, 0.0);
+		evaluate_at(watch->func->at, &f);
+		f2 = real(&f);
 		/* outrange line segment does not trigger a watch event */
-		if (!inrange(t->target, z1, z2))
+		if (!inrange(watch->target, f1, f2))
 		    continue;
 
-		/* interpolate [x,y] at intersection with z target */
+		/* interpolate [x,y] at intersection with target f(x,y) */
 		/* FIXME: could do better by bisection with reevaluation */
-		hit_x = x1 + (x2 - x1) * (t->target - z1)/(z2 - z1);
-		hit_y = y1 + (y2 - y1) * (t->target - z1)/(z2 - z1);
+		hit_x = x1 + (x2 - x1) * (watch->target - f1)/(f2 - f1);
+		hit_y = y1 + (y2 - y1) * (watch->target - f1)/(f2 - f1);
+		hit_z = z1 + (z2 - z1) * (watch->target - f1)/(f2 - f1);
 		break;
 	default:
 		continue;
@@ -279,16 +287,16 @@ watch_line(struct curve_points *plot, double x1, double y1, double z1, double x2
 	 * We accummulate hits in a list of labels and print them afterwards.
 	 * No WATCH variables are set.
 	 */
-	if (t->type == MOUSE_PROXY_AXIS) {
+	if (watch->type == MOUSE_PROXY_AXIS) {
 	    struct text_label *label;
-	    label = mouse_hit_label(plot, t, hit_x, hit_y);
+	    label = mouse_hit_label(plot, watch, hit_x, hit_y, hit_z);
 	    label->next = plot->labels;
 	    plot->labels = label;
 	    continue;
 	}
 
 	/* For all other watch target types we update the list of hits */
-	sprintf(array_name, "WATCH_%d", t->watchno);
+	sprintf(array_name, "WATCH_%d", watch->watchno);
 	array = get_udv_by_name(array_name);
 	if (array->udv_value.type != ARRAY)
 	    int_error(NO_CARET, "%s is not an array", array_name);
@@ -296,33 +304,37 @@ watch_line(struct curve_points *plot, double x1, double y1, double z1, double x2
 	/* If a hit falls exactly on a line segment endpoint it can trigger on
 	 * both of the successive segments. In that case ignore the second hit.
 	 */
-	if (t->hits > 0 && array->udv_value.v.value_array[0].v.int_val > 0) {
-	    if ((fabs(hit_x - array->udv_value.v.value_array[t->hits].v.cmplx_val.real) < EPS)
-	    &&  (fabs(hit_y - array->udv_value.v.value_array[t->hits].v.cmplx_val.imag) < EPS))
+	v = array->udv_value.v.value_array;
+	if (watch->hits > 0 && v[0].v.int_val > 0) {
+	    if ((fabs(hit_x - v[watch->hits].v.cmplx_val.real) < EPS)
+	    &&  (fabs(hit_y - v[watch->hits].v.cmplx_val.imag) < EPS))
 		continue;
 	}
 
-	/* Keep a label list for non-mouse targets also but
-	 * only display it if "set style watchpoints label" is selected.
+	/* Keep a label list for non-mouse targets also but labels are displayed
+	 * only if "set style watchpoints label" or requested in the plot command.
 	 */
 	if (TRUE) {
 	    struct text_label *label;
-	    label = mouse_hit_label(plot, t, hit_x, hit_y);
+	    label = mouse_hit_label(plot, watch, hit_x, hit_y, hit_z);
 	    label->next = plot->labels;
 	    plot->labels = label;
 	    label->hidden = watchpoint_labelstyle.hidden;
+	    if (watch->label_at != NULL)
+		label->hidden = FALSE;
 	}
 
 	/* Load hit in array WATCH_n */
-	t->hits++;
+	watch->hits++;
 
 	array->udv_value.v.value_array
-	    = gp_realloc(array->udv_value.v.value_array, (t->hits+1) * sizeof(t_value), NULL);
-	array->udv_value.v.value_array[0].v.int_val = t->hits;
-	Gcomplex(&array->udv_value.v.value_array[t->hits], hit_x, hit_y);
+	    = gp_realloc(array->udv_value.v.value_array,
+			    (watch->hits+1) * sizeof(t_value), NULL);
+	array->udv_value.v.value_array[0].v.int_val = watch->hits;
+	Gcomplex(&array->udv_value.v.value_array[watch->hits], hit_x, hit_y);
 
 	/* Not always wanted; should be configurable */
-	FPRINTF((stderr, "watch %d hit %d at %g %g\n", t->watchno, t->hits, hit_x, hit_y));
+	FPRINTF((stderr, "watch %d hit %d at %g %g\n", watch->watchno, watch->hits, hit_x, hit_y));
 
     } /* End loop over active watchs */
 
@@ -386,6 +398,12 @@ parse_watch(struct curve_points *plot)
     } else
 	int_error(NO_CARET, "unrecognized watch request");
 
+    /* label can be generated at the time of a hit by a string-valued function */
+    if (equals(c_token, "label")) {
+	c_token++;
+	new_watch->label_at = perm_at();
+    }
+
     /* Watchpoints not yet supported for polar plots */
     if (polar) {
 	int_warn(NO_CARET, "watchpoints ignored in polar mode");
@@ -418,6 +436,8 @@ free_watchlist(struct watch_t *watchlist)
     while (watchlist) {
 	temp = watchlist;
 	watchlist = watchlist->next;
+	if (temp->label_at)
+	    free_at(temp->label_at);
 	free(temp);
     }
 }
@@ -433,6 +453,7 @@ free_watchlist(struct watch_t *watchlist)
 void
 unset_watchpoint_style()
 {
+    free(watchpoint_labelstyle.font);
     memcpy(&watchpoint_labelstyle, &default_labelstyle, sizeof(struct text_label));
     watch_mouse_active = FALSE;
 }
@@ -465,7 +486,8 @@ init_watch(struct curve_points *plot)
  * in plot->labels and print them all afterwards.
  */
 static struct text_label *
-mouse_hit_label(struct curve_points *plot, watch_t *target, double x, double y)
+mouse_hit_label(struct curve_points *plot, watch_t *target,
+		double x, double y, double z)
 {
     char *xlabel, *ylabel;
     static char buffer[256];
@@ -492,12 +514,43 @@ mouse_hit_label(struct curve_points *plot, watch_t *target, double x, double y)
     new_label->lp_properties.flags = LP_SHOW_POINTS;
     new_label->place.x = x;
     new_label->place.y = y;
-    xlabel = strdup( apply_tic_format( &axis_array[x_axis], x));
-    ylabel = strdup( apply_tic_format( &axis_array[y_axis], y));
-    sprintf(buffer, "%s : %s", xlabel, ylabel);
-    new_label->text = strdup(buffer);
-    free(xlabel);
-    free(ylabel);
+
+    if (target->label_at) {
+	/* save current user variables x,y,z
+	 * load hit coordinates as x,y,z
+	 * generate label from a function that may use x,y,z
+	 * restore original values.
+	 */
+	struct value a;
+	struct udvt_entry *x_udv = add_udv_by_name("x");
+	struct udvt_entry *y_udv = add_udv_by_name("y");
+	struct udvt_entry *z_udv = add_udv_by_name("z");
+	t_value original_x = x_udv->udv_value;
+	t_value original_y = y_udv->udv_value;
+	t_value original_z = z_udv->udv_value;
+	Gcomplex(&x_udv->udv_value, x, 0);
+	Gcomplex(&y_udv->udv_value, y, 0);
+	Gcomplex(&z_udv->udv_value, z, 0);
+
+	evaluate_at(target->label_at, &a);
+
+	x_udv->udv_value = original_x;
+	y_udv->udv_value = original_y;
+	z_udv->udv_value = original_z;
+
+	if (a.type == STRING)
+	    new_label->text = strdup(a.v.string_val);
+	else
+	    new_label->text = strdup("⬚");
+	free_value(&a);
+    } else {
+	xlabel = strdup( apply_tic_format( &axis_array[x_axis], x));
+	ylabel = strdup( apply_tic_format( &axis_array[y_axis], y));
+	sprintf(buffer, "%s : %s", xlabel, ylabel);
+	new_label->text = strdup(buffer);
+	free(xlabel);
+	free(ylabel);
+    }
 
     return new_label;
 }
