@@ -54,6 +54,7 @@
 #include "util.h"
 #include "pm3d.h"
 #include "getcolor.h"
+#include "watch.h"
 
 static void save_functions__sub(FILE *);
 static void save_variables__sub(FILE *);
@@ -578,6 +579,8 @@ save_set_all(FILE *fp)
     save_walls(fp);
 
     save_style_textbox(fp);
+
+    save_style_watchpoint(fp);
 
     save_offsets(fp, "set offsets");
 

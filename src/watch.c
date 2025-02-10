@@ -303,7 +303,7 @@ watch_line(struct curve_points *plot, double x1, double y1, double z1, double x2
 	}
 
 	/* Keep a label list for non-mouse targets also but
-	 * only display it if "set style watchpoints lagel" is selected.
+	 * only display it if "set style watchpoints label" is selected.
 	 */
 	if (TRUE) {
 	    struct text_label *label;
@@ -555,6 +555,9 @@ set_style_watchpoint()
 	    c_token++;
 	} else {
 	    parse_label_options(&watchpoint_labelstyle, 0);
+	    watchpoint_labelstyle.layer = LAYER_PLOTLABELS;
+	    if ((watchpoint_labelstyle.lp_properties.flags & LP_SHOW_POINTS) == 0)
+		watchpoint_labelstyle.lp_properties.p_type = -1;
 	}
 
     } else {
@@ -563,14 +566,22 @@ set_style_watchpoint()
 }
 
 void
-show_style_watchpoint()
+save_style_watchpoint(FILE *fp)
 {
     if (watchpoint_labelstyle.hidden)
-	fprintf(stderr, "\tset style watchpoint nolabels\n");    
+	fprintf(fp, "set style watchpoint nolabels\n");
     else {
-	fprintf(stderr, "\tset style watchpoint label ");
-	save_label_style(stderr, &watchpoint_labelstyle);
+	fprintf(fp, "set style watchpoint label ");
+	save_label_style(fp, &watchpoint_labelstyle);
+	fprintf(fp, "\n");
     }
+}
+
+void
+show_style_watchpoint()
+{
+    fputs("\t",stderr);
+    save_style_watchpoint(stderr);
 }
 
 /*
