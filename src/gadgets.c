@@ -35,6 +35,7 @@
 #include "command.h"
 #include "graph3d.h" /* for map3d_position_r() */
 #include "graphics.h"
+#include "multiplot.h" /* for multiplot_auto() */
 #include "plot3d.h" /* For is_plot_with_palette() */
 #include "axis.h" /* For CB_AXIS */
 
@@ -1274,10 +1275,17 @@ construct_2D_mask_set( struct coordinate *points, int p_count )
 void
 update_active_region(void)
 {
-    active_bounds.xleft = term->xmax * xoffset;
-    active_bounds.xright = term->xmax * (xoffset + xsize);
-    active_bounds.ybot = term->ymax * yoffset;
-    active_bounds.ytop = term->ymax * (yoffset + ysize);
+    if (in_multiplot && multiplot_auto()) {
+	active_bounds.xleft = plot_bounds.xleft;
+	active_bounds.xright = plot_bounds.xright;
+	active_bounds.ybot = plot_bounds.ybot;
+	active_bounds.ytop = plot_bounds.ytop;
+    } else {
+	active_bounds.xleft = term->xmax * xoffset;
+	active_bounds.xright = term->xmax * (xoffset + xsize);
+	active_bounds.ybot = term->ymax * yoffset;
+	active_bounds.ytop = term->ymax * (yoffset + ysize);
+    }
     FPRINTF((stderr, "active region: %d %d %d %d\n",
 	    active_bounds.xleft, active_bounds.xright,
 	    active_bounds.ybot, active_bounds.ytop));

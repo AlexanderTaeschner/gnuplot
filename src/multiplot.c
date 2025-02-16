@@ -515,7 +515,12 @@ multiplot_end()
     last_plot_was_multiplot = TRUE;
 }
 
-/* Helper function for multiplot auto layout to issue size and offset cmds */
+/* Helper functions for multiplot auto layout to issue size and offset cmds */
+TBOOLEAN multiplot_auto()
+{
+    return mp_layout.auto_layout_margins;
+}
+
 void
 multiplot_reset()
 {
