@@ -709,7 +709,7 @@ SVG_options ()
 	    continue;
 	}
 
-	/* Not used in version 5 */
+	/* ignored since version 5 */
 	if (equals(c_token, "solid") || almost_equals(c_token, "dash$ed")) {
 	    c_token++;
 	    continue;

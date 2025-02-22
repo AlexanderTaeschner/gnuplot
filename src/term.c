@@ -2892,7 +2892,7 @@ recycle:
 	    lp->d_type = this->lp_properties.d_type;
 	    lp->custom_dash_pattern = this->lp_properties.custom_dash_pattern;
 
-	    /* Needed in version 5.0 to handle old terminals (pbm hpgl ...) */
+	    /* Needed by some legacy terminals (pbm hpgl ...) */
 	    /* with no support for user-specified colors */
 	    if (term && term->set_color == null_set_color)
 		lp->l_type = tag;
