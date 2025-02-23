@@ -84,6 +84,7 @@ extern mouse_setting_t default_mouse_setting;
 extern mouse_setting_t mouse_setting;
 extern char mouse_fmt_default[];
 extern udft_entry mouse_readout_function;
+extern TBOOLEAN reset_since_last_plot;
 
 enum {
     MOUSE_COORDINATES_REAL = 0,

@@ -311,6 +311,7 @@ plot3drequest()
     AXIS_INDEX axis, u_axis, v_axis;
 
     is_3d_plot = TRUE;
+    reset_since_last_plot = FALSE;
 
     if (parametric && strcmp(set_dummy_var[0], "t") == 0) {
 	strcpy(set_dummy_var[0], "u");

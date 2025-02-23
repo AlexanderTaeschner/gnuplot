@@ -230,6 +230,7 @@ plotrequest()
 	int_error(c_token, "use 'set term' to set terminal type first");
 
     is_3d_plot = FALSE;
+    reset_since_last_plot = FALSE;
 
     if (parametric && strcmp(set_dummy_var[0], "u") == 0)
 	strcpy(set_dummy_var[0], "t");

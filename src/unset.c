@@ -2010,7 +2010,8 @@ unset_axislabel(AXIS_INDEX axis)
 
 /*
  * Free dynamic fields in an axis structure so that it can be safely deleted
- * or reinitialized.  Doesn't free the axis structure itself.
+ * or reinitialized.  The axis structure itself will be freed by the caller
+ * (or in principle re-initialized but in fact all callers free it).
  * SAMPLE_AXIS is an exception because its link pointers are only copies of
  * those in the real axis being sampled.
  */
@@ -2075,6 +2076,7 @@ reset_command()
 	init_constants();
 	init_session();
 	reset_mouse();
+	reset_since_last_plot = TRUE;
 	return;
     }
 
@@ -2121,6 +2123,7 @@ reset_command()
      * suppress some of the commentary output by the individual
      * unset_...() routines. */
     interactive = FALSE;
+    reset_since_last_plot = TRUE;
 
     unset_samples();
     unset_isosamples();

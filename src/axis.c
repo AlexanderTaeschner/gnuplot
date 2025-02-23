@@ -73,6 +73,18 @@ const AXIS_DEFAULTS axis_defaults[AXIS_ARRAY_SIZE] = {
 
 const AXIS default_axis_state = DEFAULT_AXIS_STRUCT;
 
+/* These are loaded by update_active_region(),
+ * consumed by mouse.c:MousePosToGraphPosReal,
+ * and potentially saved for multiplot and off-line mousing.
+ */
+axis_mapping x_mapping = {};
+axis_mapping x2_mapping = {};
+axis_mapping y_mapping = {};
+axis_mapping y2_mapping = {};
+axis_mapping r_mapping = {};
+axis_mapping theta_mapping = {};
+
+
 /* Parallel axis structures are held in an array that is dynamically
  * allocated on demand.
  */
@@ -2674,6 +2686,7 @@ eval_link_function(struct axis *axis, double raw_coord)
      * v4.6 (old-style logscale)	42.7 u 42.7 total
      * v5.1 (generic nonlinear) 	57.5 u 66.2 total
      * v5.1 (optimized nonlinear)	42.1 u 42.2 total
+     * v6.1 microbenchmark - 25% cpu penalty for not precalculating log(base)
      */
     if (axis->log) {
 	if (axis->linked_to_secondary) {
