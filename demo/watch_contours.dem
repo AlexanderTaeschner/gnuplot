@@ -24,17 +24,25 @@ unset table
 #
 # 2D version with constrained label placement
 set margin 6,6,3,3
-set title "Constrained label placement (2D)"
+set title "Constrained contour label placement (2D) \n guide lines shown in gray"
+set tics scale 0.0
 
-set style textbox  opaque margins  1.0, 2.0 fc  bgnd noborder
-set style watch labels nopoint center offset -0.5,0 font ",10" 
+set style textbox  opaque margins  0.5,0.5 fc  bgnd noborder
+set style watch labels nopoint center font ",10" 
 
 line1(x,y) = y - (1.1*x -1)
 line2(x,y) = y + x - 0.9
 
+set multiplot
+
+set linetype 101 lw 0.5 lc "gray"
+plot 0 with lines lt 101, 1.1*x - 1 with lines lt 101, -x + 0.9 with lines lt 101
+
 plot $CONTOURS with lines lw 2 watch y=0 label sprintf("%2d", int(z)), \
      '' with lines lt nodraw watch line1(x,y)=0 label sprintf("%2d ", int(z)), \
      '' with lines lt nodraw watch line2(x,y)=0 label sprintf("%2d ", int(z))
+
+unset multiplot
 
 pause -1
 reset

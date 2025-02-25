@@ -36,6 +36,7 @@ pause -1 "<cr> to continue"
 
 set title "Same plot with auto-generated watchpoint hit labels"
 set style watchpoint label boxed
+set style watchpoint label right point pt 7 offset -1,0.5
 set style textbox opaque margin 0,0 lw 0.5
 replot
 

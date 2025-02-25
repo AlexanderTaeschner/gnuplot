@@ -163,11 +163,13 @@ static struct text_label default_labelstyle = {
 	.font = NULL,
 	.textcolor = BLACK_COLORSPEC,
 	.lp_properties = DEFAULT_LP_STYLE_TYPE,
-	.offset = {character, character, character, 0.5, 0.5, 0.0},
+	.offset = {character, character, character, 0.0, 0.0, 0.0},
 	.noenhanced = FALSE,
 	.hypertext = FALSE,
 	.hidden = TRUE
 };
+static struct position default_mouse_offset =
+	{character, character, character, 0.5, 0.5, 0.0};
 
 
 /*
@@ -506,12 +508,13 @@ mouse_hit_label(struct curve_points *plot, watch_t *target,
 	case MOUSE_PROXY_AXIS:
 			new_label->tag = LABEL_TAG_WATCH_MOUSE;
 			new_label->hidden = FALSE;
+			new_label->lp_properties.flags = LP_SHOW_POINTS;
+			new_label->offset = default_mouse_offset;
 			break;
 	default:	
 			int_error(NO_CARET, "unknown watch target");
     }
 
-    new_label->lp_properties.flags = LP_SHOW_POINTS;
     new_label->place.x = x;
     new_label->place.y = y;
 
