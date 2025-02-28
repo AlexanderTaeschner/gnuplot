@@ -4039,7 +4039,7 @@ Ffigure_newsyntax
  One will always be drawn as an empty triangle (mode 1).
  The second will always be drawn as a filled triangle with no border (mode 2).
  The third will default to whatever fillstyle is active when the mark is used.
- This would typically be the filstyle given in a command `plot with marks mt 3`
+ This would typically be the fillstyle given in a command `plot with marks mt 3`
  or in a command `set object mark mt 3`.
  
       array t = [ {-0.5, 0}, {0, 0.7}, {0.5, 0}, {-0.5, 0} ]
@@ -4346,7 +4346,7 @@ Ffigure_parametric_marks
         for [k=1:9] dummy using (k):(7) with marks mt k ps S fill solid (1./k)     fc 'black', \
         for [k=1:9] dummy using (k):(5) with marks mt k ps S fill solid 0.0 border lc 'black', \
         for [k=1:9] dummy using (k):(3) with marks mt k ps S fill solid 1.0 noborder fc 'red', \
-        for [k=1:9] dummy using (k):(1) with marks mt k ps S fill solid 1.0 border lc 'blue',  \
+        for [k=1:9] dummy using (k):(1) with marks mt k ps S fill solid 1.0 border lc 'blue'
 
 #TeX \newpage
 2 mouse input
@@ -5329,7 +5329,7 @@ Ffigure_boxplot
  If a fourth field is given in the `using` specification the content of that
  input column will be used as a string that identifies a discrete category.
  A separate boxplot will be drawn for each category found in the input.
- The horizontal separation between these boxplots is 1.0 by default;, it can be
+ The horizontal separation between these boxplots is 1.0 by default; it can be
  changed by `set style boxplot separation`.  By default the category identifier
  is shown as a tic label below each boxplot.  Note that if category column
  contains numerical values they are nevertheless treated as strings and thus
@@ -6523,7 +6523,7 @@ Ffigure_markpoints
  The spacing of marks along the line can be modified by two additional options.
  "pointinterval" (short form "pi") N tells gnuplot to only place a mark on
  every Nth point.
- "pointnumber" (short form "pn") N or tells gnuplot to mark only N of the data
+ "pointnumber" (short form "pn") N tells gnuplot to mark only N of the data
  points, evenly spaced over the data set.
       
 2 masking
@@ -14198,7 +14198,7 @@ Ffigure_multiple_keys
  Lines in the marks are drawn with the same color as the fillstyle border,
  if there is one.
  CAVEAT: If the mark is stroked but the active fillstyle is "noborder",
- the line color may not be what you intended. It wili probably be black.
+ the line color may not be what you intended. It will probably be black.
 
 3 micro
 ?commands set micro
@@ -14950,9 +14950,9 @@ Ffigure_multiple_keys
           {<other-object-properties>}
 
  The marktype is used to specify the tag number of a mark defined using the
- ’set mark’ command.  The "marktype" keyword may be shortened to "mt".
+ `set mark` command.  The "marktype" keyword may be shortened to "mt".
  "at <position>" specifies the center of the mark. The center position may be
- given in axis, graph, or screen coordinates. See ‘coordinates‘.
+ given in axis, graph, or screen coordinates. See `coordinates`.
  "scale" is a multiplier applied to x and y coordinates in the body of the mark.
  "angle" applies a rotation in degrees about the center position.
 
