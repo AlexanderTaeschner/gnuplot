@@ -3793,7 +3793,13 @@ eval_plots()
 		    for (i = 0; i < samples_1; i++) {
 			double x, temp;
 			struct value a;
-			double t = t_min + i * t_step;
+			double t;
+
+			/* Guarantee that we hit t_max exactly */
+			if (i == samples_1 - 1)
+			    t = t_max;
+			else
+			    t = t_min + i * t_step;
 
 			if (parametric) {
 			    /* SAMPLE_AXIS is not relevant in parametric mode */
