@@ -329,6 +329,36 @@ plot [t=1:9:2] '+' using (t):(5):(SIZE):(SIZE):(36*t) notitle with marks mt 5 un
 reset
 unset mark
 
+#
+# Watchpoint example contour label placement
+# ==========================================
+
+set output out . 'figure_watch_contours' . ext
+
+if (!strstrt(GPVAL_COMPILE_OPTIONS, "+WATCHPOINTS")) {
+    clear
+} else {
+    set linetype 5 lc "dark-blue"
+    set view map scale 1.1
+    set xrange [-1.6 : 2.5]
+    set yrange [-0.5 : 2.2]
+    set contour
+    set cntrparam levels incr 0, .2, 4
+    unset key
+
+    set style watchpoint labels center nopoint font "Xerox Serif Narrow,10"
+    set style textbox noborder opaque margins 0.5, 0.5
+    line(a,b) = a*x+b - y
+    a = 0.6
+    b = 0.5
+    set tics 1.0 scale 0 format "%.1f"
+    set ytics offset 1
+
+    splot 2.0 * sinc(sqrt(x*sin(x)+y*(y+sin(3.*x)))) with lines nosurface \
+	  watch line(a,b)=0 label sprintf("%.1f",z)
+}
+
+reset
 
 # =========================================
 # close last file
