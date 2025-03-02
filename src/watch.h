@@ -55,7 +55,7 @@ void save_style_watchpoint(FILE *fp);
 #define reset_watches()
 #define unset_watchpoint_style()
 #define show_style_watchpoint()
-#define save_style_watchpoint()
+#define save_style_watchpoint(fp)
 
 #endif	/* USE_WATCHPOINTS */
 
