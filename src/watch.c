@@ -252,15 +252,31 @@ watch_line(struct curve_points *plot, double x1, double y1, double z1, double x2
 		hit_z = watch->target;
 		break;
 	case SAMPLE_AXIS:
-		/* the test is actually for f(x,y)*/
-		Gcomplex(&watch->func->dummy_values[0], x1, 0.0);
-		Gcomplex(&watch->func->dummy_values[1], y1, 0.0);
-		evaluate_at(watch->func->at, &f);
+		{
+		/* FIXME could share save/restore xyz code with mouse_label_hit() */
+		struct udvt_entry *x_udv = add_udv_by_name("x");
+		struct udvt_entry *y_udv = add_udv_by_name("y");
+		struct udvt_entry *z_udv = add_udv_by_name("z");
+		t_value original_x = x_udv->udv_value;
+		t_value original_y = y_udv->udv_value;
+		t_value original_z = z_udv->udv_value;
+
+		Gcomplex(&x_udv->udv_value, x1, 0);
+		Gcomplex(&y_udv->udv_value, y1, 0);
+		Gcomplex(&z_udv->udv_value, z1, 0);
+		evaluate_at(watch->function_at, &f);
 		f1 = real(&f);
-		Gcomplex(&watch->func->dummy_values[0], x2, 0.0);
-		Gcomplex(&watch->func->dummy_values[1], y2, 0.0);
-		evaluate_at(watch->func->at, &f);
+
+		Gcomplex(&x_udv->udv_value, x2, 0);
+		Gcomplex(&y_udv->udv_value, y2, 0);
+		Gcomplex(&z_udv->udv_value, z2, 0);
+		evaluate_at(watch->function_at, &f);
 		f2 = real(&f);
+
+		x_udv->udv_value = original_x;
+		y_udv->udv_value = original_y;
+		z_udv->udv_value = original_z;
+
 		/* outrange line segment does not trigger a watch event */
 		if (!inrange(watch->target, f1, f2))
 		    continue;
@@ -271,6 +287,7 @@ watch_line(struct curve_points *plot, double x1, double y1, double z1, double x2
 		hit_y = y1 + (y2 - y1) * (watch->target - f1)/(f2 - f1);
 		hit_z = z1 + (z2 - z1) * (watch->target - f1)/(f2 - f1);
 		break;
+		}
 	default:
 		continue;
 		break;
@@ -386,19 +403,15 @@ parse_watch(struct curve_points *plot)
 	    return;
 	new_watch->type = MOUSE_PROXY_AXIS;
 	watch_mouse_active = TRUE;
-    } else if ((new_watch->func = get_udf_by_token(c_token))) {
-	if (!new_watch->func->at)
-	    int_error(c_token, "undefined function: %s", new_watch->func->udf_name);
-	if (new_watch->func->dummy_num != 2)
-	    int_error(c_token, "%s is not a 2-parameter function", new_watch->func->udf_name);
-	c_token += 6;
+    } else if (get_udf_by_token(c_token) != NULL) {
+	new_watch->function_at = perm_at();
 	if (equals(c_token++, "="))
 	    new_watch->target = real_expression();
 	else
-	    int_error(c_token, "expecting f(x,y)=<value>");
+	    int_error(c_token, "expecting f()=<value>");
 	new_watch->type = SAMPLE_AXIS;
     } else
-	int_error(NO_CARET, "unrecognized watch request");
+	int_error(NO_CARET, "undefined function or unrecognized watch request");
 
     /* label can be generated at the time of a hit by a string-valued function */
     if (equals(c_token, "label")) {
@@ -438,6 +451,8 @@ free_watchlist(struct watch_t *watchlist)
     while (watchlist) {
 	temp = watchlist;
 	watchlist = watchlist->next;
+	if (temp->function_at)
+	    free_at(temp->function_at);
 	if (temp->label_at)
 	    free_at(temp->label_at);
 	free(temp);
