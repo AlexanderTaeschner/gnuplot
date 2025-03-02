@@ -403,7 +403,9 @@ parse_watch(struct curve_points *plot)
 	    return;
 	new_watch->type = MOUSE_PROXY_AXIS;
 	watch_mouse_active = TRUE;
-    } else if (get_udf_by_token(c_token) != NULL) {
+    } else if ((get_udf_by_token(c_token) != NULL)
+	   ||  (( equals(c_token,"$") && equals(c_token+2, "("))) ) {
+	/* Function or functionblock */
 	new_watch->function_at = perm_at();
 	if (equals(c_token++, "="))
 	    new_watch->target = real_expression();
