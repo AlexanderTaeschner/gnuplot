@@ -65,6 +65,7 @@
 #include "color.h"
 
 #include "plot.h"
+#include "watch.h"
 
 static int key_entry_height;	/* bigger of t->v_char, pointsize*t->v_tick */
 static int key_title_height;
@@ -146,7 +147,8 @@ static void plot3d_lines_pm3d(struct surface_points * plot);
 static void plot3d_contourfill(struct surface_points * plot);
 static void get_surface_cbminmax(struct surface_points *plot, double *cbmin, double *cbmax);
 static void cntr3d_impulses(struct gnuplot_contours * cntr, struct lp_style_type * lp);
-static void cntr3d_lines(struct gnuplot_contours * cntr, struct lp_style_type * lp);
+static void cntr3d_lines(struct surface_points * plot,
+		         struct gnuplot_contours * cntr, struct lp_style_type * lp);
 static void cntr3d_points(struct gnuplot_contours * cntr, struct lp_style_type * lp);
 static void cntr3d_labels(struct gnuplot_contours * cntr, char * leveltext,
 				   struct text_label * label);
@@ -1491,6 +1493,9 @@ do_3dplot(
 		thiscontour_lp_properties = this_plot->lp_properties;
 		term_apply_lp_properties(&(thiscontour_lp_properties));
 
+		if (this_plot->plot_style == LINES && this_plot->watchlist)
+		    init_watch( (struct curve_points *)(this_plot) );
+
 		while (cntrs) {
 		    if (!clabel_onecolor && cntrs->isNewLevel) {
 
@@ -1589,12 +1594,12 @@ do_3dplot(
 			save_hidden3d = hidden3d;
 			if (this_plot->opt_out_of_hidden3d)
 			    hidden3d = FALSE;
-			cntr3d_lines(cntrs, &thiscontour_lp_properties);
+			cntr3d_lines(this_plot, cntrs, &thiscontour_lp_properties);
 			hidden3d = save_hidden3d;
 			break;
 
 		    case LINESPOINTS:
-			cntr3d_lines(cntrs, &thiscontour_lp_properties);
+			cntr3d_lines(this_plot, cntrs, &thiscontour_lp_properties);
 			/* Fall through to draw the points */
 		    case DOTS:
 		    case POINTSTYLE:
@@ -1652,6 +1657,18 @@ do_3dplot(
 		    place_labels3d(this_plot->labels->next, LAYER_PLOTLABELS);
 	}
     }
+#ifdef USE_WATCHPOINTS
+    /* Add labels that were deferred until after all plots have been drawn */
+    if (!key_pass) {
+	this_plot = plots;
+	for (surface = 0; surface < pcount; this_plot = this_plot->next_sp, surface++) {
+	    if (this_plot->watchlist
+	    &&  this_plot->plot_style == LINES && this_plot->labels) {
+		place_labels3d(this_plot->labels, LAYER_PLOTLABELS);
+	    }
+	}
+    }
+#endif
 
     /* Draw grid and border.
      * The 1st case allows "set border behind" to override hidden3d processing.
@@ -1838,14 +1855,20 @@ plot3d_lines(struct surface_points *plot)
     struct iso_curve *icrvs = plot->iso_crvs;
     struct coordinate *points;
     TBOOLEAN rgb_from_column;
+    double xprev, yprev, zprev;		/* used only for watchpoints */
+    double xnow, ynow, znow;		/* used only for watchpoints */
 
     /* These are handled elsewhere.  */
     if (plot->has_grid_topology && hidden3d)
 	return;
 
     /* These don't need to be drawn at all */
-    if (plot->lp_properties.l_type == LT_NODRAW)
+    if (plot->lp_properties.l_type == LT_NODRAW && !(plot->watchlist))
 	return;
+
+    /* Clear status of watch events */
+    if (plot->watchlist)
+        init_watch( (struct curve_points *)(plot) );
 
     rgb_from_column = plot->pm3d_color_from_column
 			&& plot->lp_properties.pm3d_color.type == TC_RGB
@@ -1853,8 +1876,13 @@ plot3d_lines(struct surface_points *plot)
 
     while (icrvs) {
 	enum coord_type prev = UNDEFINED;	/* type of previous plot */
+	xprev = yprev = zprev = 0.0;
 
 	for (i = 0, points = icrvs->points; i < icrvs->p_count; i++) {
+
+	    xnow = points[i].x;
+	    ynow = points[i].y;
+	    znow = points[i].z;
 
 	    if (rgb_from_column)
 		set_rgbcolor_var((unsigned int)points[i].CRD_COLOR);
@@ -1869,6 +1897,9 @@ plot3d_lines(struct surface_points *plot)
 
 		    if (prev == INRANGE) {
 			clip_vector(x, y);
+			if (plot->watchlist)
+			    watch_line( (struct curve_points *)(plot),
+					xprev, yprev, zprev, xnow, ynow, znow);
 		    } else {
 			if (prev == OUTRANGE) {
 			    /* from outrange to inrange */
@@ -1885,6 +1916,9 @@ plot3d_lines(struct surface_points *plot)
 
 				clip_move(xx0, yy0);
 				clip_vector(x, y);
+				if (plot->watchlist)
+				    watch_line( (struct curve_points *)(plot),
+						clip_x, clip_y, clip_z, xnow, ynow, znow);
 			    }
 			} else {
 			    clip_move(x, y);
@@ -1922,6 +1956,9 @@ plot3d_lines(struct surface_points *plot)
 			    }
 			}
 		    }
+		    if (plot->watchlist)
+			watch_line( (struct curve_points *)(plot),
+				    xprev, yprev, zprev, xnow, ynow, znow);
 		    break;
 		}
 	    case UNDEFINED:{
@@ -1932,6 +1969,9 @@ plot3d_lines(struct surface_points *plot)
 	    }
 
 	    prev = points[i].type;
+	    xprev = xnow;
+	    yprev = ynow;
+	    zprev = znow;
 	}
 
 	icrvs = icrvs->next;
@@ -2256,7 +2296,8 @@ cntr3d_impulses(struct gnuplot_contours *cntr, struct lp_style_type *lp)
  * Plot a surface contour in LINES style
  */
 static void
-cntr3d_lines(struct gnuplot_contours *cntr, struct lp_style_type *lp)
+cntr3d_lines(struct surface_points *plot, 
+             struct gnuplot_contours *cntr, struct lp_style_type *lp)
 {
     int i;			/* point index */
     vertex this_vertex;
@@ -2302,6 +2343,17 @@ cntr3d_lines(struct gnuplot_contours *cntr, struct lp_style_type *lp)
 	    polyline3d_next(&this_vertex, lp);
 	}
     }
+
+#ifdef USE_WATCHPOINTS
+    if (plot->plot_style == LINES && plot->watchlist) {
+	for (i = 1; i < cntr->num_pts; i++) {
+	    struct coordinate *prev = &cntr->coords[i-1];
+	    struct coordinate *this = &cntr->coords[i];
+	    watch_line((struct curve_points *) (plot),
+			prev->x, prev->y, prev->z, this->x, this->y, this->z);
+	}
+    }
+#endif
 
     if (splot_map)
 	clip_area = clip_save;

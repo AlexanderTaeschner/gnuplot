@@ -144,7 +144,7 @@ struct text_label watchpoint_labelstyle;
  * Local prototypes
  */
 
-static struct text_label *mouse_hit_label(struct curve_points *plot,
+static struct text_label *mouse_hit_label(
 			watch_t *target, double x, double y, double z);
 static char *apply_tic_format( struct axis *axis, double hit );
 
@@ -308,7 +308,7 @@ watch_line(struct curve_points *plot, double x1, double y1, double z1, double x2
 	 */
 	if (watch->type == MOUSE_PROXY_AXIS) {
 	    struct text_label *label;
-	    label = mouse_hit_label(plot, watch, hit_x, hit_y, hit_z);
+	    label = mouse_hit_label(watch, hit_x, hit_y, hit_z);
 	    label->next = plot->labels;
 	    plot->labels = label;
 	    continue;
@@ -317,7 +317,7 @@ watch_line(struct curve_points *plot, double x1, double y1, double z1, double x2
 	/* For all other watch target types we update the list of hits */
 	sprintf(array_name, "WATCH_%d", watch->watchno);
 	array = get_udv_by_name(array_name);
-	if (array->udv_value.type != ARRAY)
+	if (!array || array->udv_value.type != ARRAY)
 	    int_error(NO_CARET, "%s is not an array", array_name);
 
 	/* If a hit falls exactly on a line segment endpoint it can trigger on
@@ -335,7 +335,7 @@ watch_line(struct curve_points *plot, double x1, double y1, double z1, double x2
 	 */
 	if (TRUE) {
 	    struct text_label *label;
-	    label = mouse_hit_label(plot, watch, hit_x, hit_y, hit_z);
+	    label = mouse_hit_label(watch, hit_x, hit_y, hit_z);
 	    label->next = plot->labels;
 	    plot->labels = label;
 	    label->hidden = watchpoint_labelstyle.hidden;
@@ -505,8 +505,7 @@ init_watch(struct curve_points *plot)
  * in plot->labels and print them all afterwards.
  */
 static struct text_label *
-mouse_hit_label(struct curve_points *plot, watch_t *target,
-		double x, double y, double z)
+mouse_hit_label(watch_t *target, double x, double y, double z)
 {
     char *xlabel, *ylabel;
     static char buffer[256];

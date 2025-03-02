@@ -56,6 +56,7 @@
 #include "tabulate.h"
 #include "util.h"
 #include "voxelgrid.h"
+#include "watch.h"
 
 #include "plot2d.h" /* Only for store_label() */
 
@@ -233,6 +234,7 @@ sp_free(struct surface_points *sp)
 
 	free_at(sp->plot_function.at);
 	free_at(sp->if_filter_at);
+	free_watchlist(sp->watchlist);
 	free(sp->zclip);
 
 	free(sp);
@@ -2215,6 +2217,16 @@ eval_3dplots()
 			    continue;
 		    }
 		}
+
+#ifdef USE_WATCHPOINTS
+		/* EXPERIMENTAL watchpoints for "splot with lines" */
+		if (equals(c_token, "watch")) {
+		    if (this_plot->plot_style != LINES || !splot_map)
+			int_error(c_token, "3D watchpoints only possible for splot with lines, and only if 'set view map'");
+		    parse_watch( (struct curve_points *)(this_plot) );
+		    continue;
+		}
+#endif
 
 		/* EXPERIMENTAL filter splot ... if (<expression>) */
 		if (equals(c_token,"if")) {
