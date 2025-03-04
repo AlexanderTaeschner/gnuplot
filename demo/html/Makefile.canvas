@@ -41,7 +41,8 @@ html_2d: airfoil.html approximate.html array.html \
          simple.html sectors.html sharpen.html smooth.html smooth_path.html \
          solar_path.html smooth_splines.html spiderplot.html spline.html steps.html \
          stats.html transparent.html timedat.html ttics.html \
-         using.html varcolor.html violinplot.html windbarb.html windrose.html world.html
+         using.html varcolor.html violinplot.html watchpoints.html watch_contours.html \
+         windbarb.html windrose.html world.html
 
 
 html: html_2d html_3d

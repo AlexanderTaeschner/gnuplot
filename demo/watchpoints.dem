@@ -16,6 +16,7 @@ set tics nomirror
 set y2tics 0.25
 set link y2
 
+set multiplot
 set title "Use watchpoints to find threshold values on a smoothed curve"
 plot 'moli3.dat' using 0:(abs($2)*sin($0/6.)**2) smooth cnormal lt -1 lw 2 \
      watch y=.25 watch y=.50 watch y=.75 \
@@ -28,6 +29,7 @@ set obj 3 rect from real(WATCH_3[1]), imag(WATCH_3[1]) to graph 2, graph -2
 set obj 3 fs empty bo lc "forest-green"
 
 replot
+unset multiplot
 
 show watchpoints
 

@@ -161,6 +161,13 @@ on mouse-coordinate tracking.
     <li><a href="imageNaN.html">missing/NaN values</a></li>
     <li><a href="pixmap.html">pixmap gradients and icons</a></li>
     </ul>
+
+    <h4>Watchpoints</h4>
+    <ul>
+    <li><a href="watchpoints.html">2D watchpoints</a></li>
+    <li><a href="watch_contours.html">3D watchpoints</a></li>
+    </ul>
+
 </td>
 
 <td rowspan=2>
