@@ -1276,10 +1276,10 @@ void
 update_active_region(void)
 {
     if (in_multiplot && multiplot_auto()) {
-	active_bounds.xleft = plot_bounds.xleft;
-	active_bounds.xright = plot_bounds.xright;
-	active_bounds.ybot = plot_bounds.ybot;
-	active_bounds.ytop = plot_bounds.ytop;
+	active_bounds.xleft = panel_bounds.xleft;
+	active_bounds.xright = panel_bounds.xright;
+	active_bounds.ybot = panel_bounds.ybot;
+	active_bounds.ytop = panel_bounds.ytop;
     } else {
 	active_bounds.xleft = term->xmax * xoffset;
 	active_bounds.xright = term->xmax * (xoffset + xsize);

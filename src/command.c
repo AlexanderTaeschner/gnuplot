@@ -1222,12 +1222,10 @@ clear_command()
 
     term_start_plot();
 
-    if (in_multiplot && term->fillbox) {
-	int xx1 = xoffset * term->xmax;
-	int yy1 = yoffset * term->ymax;
-	unsigned int width = xsize * term->xmax;
-	unsigned int height = ysize * term->ymax;
-	(*term->fillbox)(FS_EMPTY, xx1, yy1, width, height);
+    if (in_multiplot) {
+	(*term->fillbox)(FS_EMPTY, panel_bounds.xleft, panel_bounds.ybot,
+		    panel_bounds.xright - panel_bounds.xleft,
+		    panel_bounds.ytop - panel_bounds.ybot);
     }
     term_end_plot();
 

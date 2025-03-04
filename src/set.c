@@ -67,6 +67,7 @@
 #ifdef USE_MOUSE
 #include "mouse.h"
 #endif
+#include "multiplot.h"
 #include "encoding.h"
 #include "voxelgrid.h"
 #include "watch.h"
@@ -3337,6 +3338,9 @@ set_origin()
 	c_token++;
 	yoffset = real_expression();
     }
+
+    /* For multiplot + clear */
+    multiplot_use_size_and_origin();
 }
 
 
@@ -4619,6 +4623,9 @@ set_size()
 	xsize = ysize = 1.0;
 	int_error(NO_CARET,"Illegal value for size");
     }
+
+    /* For multiplot + clear */
+    multiplot_use_size_and_origin();
 }
 
 
