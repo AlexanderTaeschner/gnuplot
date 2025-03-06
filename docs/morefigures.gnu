@@ -338,6 +338,7 @@ set output out . 'figure_watch_contours' . ext
 if (!strstrt(GPVAL_COMPILE_OPTIONS, "+WATCHPOINTS")) {
     clear
 } else {
+    sinc(x) = (x==0) ? 1.0 : sin(x) / x
     set linetype 5 lc "dark-blue"
     set view map scale 1.1
     set xrange [-1.6 : 2.5]
