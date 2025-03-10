@@ -1,4 +1,4 @@
-    gnuplot.mouse_version = " 01 August 2022";
+    gnuplot.mouse_version = " 18 February 2025";
 
 // Mousing code for use with gnuplot's 'canvas' terminal driver.
 // The functions defined here assume that the javascript plot produced by
@@ -116,16 +116,15 @@ gnuplot.mouse_update = function(e)
   gnuplot.ploty = -(gnuplot.mousey - gnuplot.plot_ybot);
 
   // Limit tracking to the interior of the plot
-  if (gnuplot.plotx < 0 || gnuplot.ploty < 0){
+  if ((gnuplot.plotx < 0 || gnuplot.ploty < 0)
+  ||  (gnuplot.mousex > gnuplot.plot_xmax || gnuplot.mousey < gnuplot.plot_ytop)) {
       if (gnuplot.hypertext_list != "undefined" && gnuplot.hypertext_list.length > 0) {
 	  gnuplot.check_hypertext();
       } 
-      return;
-  }
-  if (gnuplot.mousex > gnuplot.plot_xmax || gnuplot.mousey < gnuplot.plot_ytop){
-      if (gnuplot.hypertext_list != "undefined" && gnuplot.hypertext_list.length > 0) {
-	  gnuplot.check_hypertext();
-      } 
+      if (document.getElementById(gnuplot.active_plot_name + "_x"))
+	  document.getElementById(gnuplot.active_plot_name + "_x").innerHTML = " ";
+      if (document.getElementById(gnuplot.active_plot_name + "_y"))
+	  document.getElementById(gnuplot.active_plot_name + "_y").innerHTML = " ";
       return;
   }
 
@@ -177,7 +176,10 @@ gnuplot.mouse_update = function(e)
     }
   
   var label_x, label_y;
-  if (gnuplot.polar_mode) {
+  if (gnuplot.plot_is_not_2D) {
+    label_x = "";
+    label_y = "";
+  } else if (gnuplot.polar_mode) {
     var polar = gnuplot.convert_to_polar(x,y);
     label_x = "ang= " + polar.ang.toPrecision(4);
     label_y = "R= " + polar.r.toPrecision(4);

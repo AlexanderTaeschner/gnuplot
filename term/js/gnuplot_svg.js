@@ -37,7 +37,7 @@ if (window) {
 
 gnuplot_svg = function (svgElement) {
 
-    var version = '12 June 2024';
+    var version = '17 February 2025';
 
     var settings = {};
 
@@ -341,6 +341,20 @@ gnuplot_svg = function (svgElement) {
         // Set coordinate label position
         coordinateText.element.setAttribute('x', position.x);
         coordinateText.element.setAttribute('y', position.y);
+
+        // Do not echo mouse coordinates for 3D plots
+        if (settings.plot_is_not_2D) {
+            coordinateText.element.textContent = '';
+            return;
+        }
+
+        // Echo coordinates only if mouse is in the active plot
+        // Allow one pixel of slop because exact mouse placement is hard
+        if ((position.x < settings.plot_xmin-1 || position.x > settings.plot_xmax+1)
+        ||  (position.y > settings.plot_ybot+1 || position.y < settings.plot_ytop-1)) {
+            coordinateText.element.textContent = '⇩';
+            return;
+        }
 
         // Convert svg position to plot coordinates
         var plotcoord = convertSVGToPlot(position);

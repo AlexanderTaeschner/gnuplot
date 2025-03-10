@@ -221,12 +221,16 @@ set_color(double gray)
     t_colorspec color;
 
     if (isnan(gray)) {
-	term->linetype(LT_NODRAW);
+	/* I would prefer to set LT_NODRAW here but it doesn't work as a color;
+	 * calling term->linetype(LT_NODRAW) instead would lose the current linetype.
+	 */
+	color.type = TC_LT;
+	color.lt = LT_BACKGROUND;
     } else {
 	color.type = TC_FRAC;
 	color.value = gray;
-	term->set_color(&color);
     }
+    term->set_color(&color);
 }
 
 void

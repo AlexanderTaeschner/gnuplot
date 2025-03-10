@@ -107,6 +107,7 @@ typedef struct surface_points {
     enum PLOT_FILTER plot_filter;	/* currently only "mask" */
     enum PLOT_SMOOTH plot_smooth; 	/* smooth lines in 3D */
     struct at_type *if_filter_at;   	/* plot ... if (<expression>) */
+    struct watch_t *watchlist;		/* only used if watch conditions are active */
 
     /* 2D and 3D plot structure fields overlay only to this point */
 

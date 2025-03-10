@@ -561,6 +561,7 @@ PICT2E_pushpath(unsigned int x, unsigned int y)
 	pict2e_path[pict2e_linecount][0] = x;
 	pict2e_path[pict2e_linecount][1] = y;
 	pict2e_linecount++;
+	pict2e_inline = TRUE;
     }
     return;
 }

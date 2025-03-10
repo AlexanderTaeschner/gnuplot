@@ -6,7 +6,8 @@ typedef struct watch_t {
     int watchno;	/* sequential position in plot command */
     AXIS_INDEX type;	/* FIRST_Y_AXIS, MOUSE_PROXY_AXIS, etc */
     double target;	/* target value in user coordinates */
-    struct udft_entry *func; /* If the target is F(x,y)=<value>, this is F() */
+    struct at_type *function_at; /* If the target is F(...)=<value>, this is F() */
+    struct at_type *label_at;	 /* Function to generate a label */
     int hits;		/* number of triggers during most recent plot command */
 } watch_t;
 
@@ -38,6 +39,7 @@ void reset_watches(void);
 void unset_watchpoint_style(void);
 void set_style_watchpoint(void);
 void show_style_watchpoint(void);
+void save_style_watchpoint(FILE *fp);
 
 #else	/* USE_WATCHPOINTS */
 
@@ -53,6 +55,7 @@ void show_style_watchpoint(void);
 #define reset_watches()
 #define unset_watchpoint_style()
 #define show_style_watchpoint()
+#define save_style_watchpoint(fp)
 
 #endif	/* USE_WATCHPOINTS */
 

@@ -615,6 +615,7 @@ CANVAS_text()
 	fprintf(gpoutfile, "gnuplot.plot_ytop = %.1f;\n", (double)(term->ymax-plot_bounds.ytop) / CANVAS_OVERSAMPLE);
 	fprintf(gpoutfile, "gnuplot.plot_width = %.1f;\n", (double)(plot_bounds.xright - plot_bounds.xleft) / CANVAS_OVERSAMPLE);
 	fprintf(gpoutfile, "gnuplot.plot_height = %.1f;\n", (double)(plot_bounds.ytop - plot_bounds.ybot) / CANVAS_OVERSAMPLE);
+	fprintf(gpoutfile, "gnuplot.plot_is_not_2D = %s;\n", ALMOST2D ? "false" : "true");
 
 	/* Get true axis ranges as used in the plot */
 	update_gpval_variables(1);

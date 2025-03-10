@@ -1,5 +1,5 @@
-C RCS $Id: gnuplot-ja.doc,v 1.819 2024-12-02 17:33:41+09 shige Exp $
-C corresponding original gnuplot.doc at 2024-12-02
+C RCS $Id: gnuplot-ja.doc,v 1.824 2025-02-26 11:29:20+09 shige Exp $
+C corresponding original gnuplot.doc at 2025-02-25
 C
 C Copyright (C) 1986 - 1993, 1998, 1999, 2000, 2001, 2004   Thomas Williams, Colin Kelley et al.
 C
@@ -555,6 +555,7 @@ D viridis 1
 #b 従属変数 (y か z) か、関数 f(x,y) が指定値と一致する場所を見つけ表示
 ## すること
 #b マウスを使って複数のグラフに沿った値を同時に追跡すること
+#b 等高線上のラベル配置の制御
 #end
 
 3 週曜日のサポート (Week-date time support)
@@ -712,25 +713,25 @@ D epi_data 1
  新日もチェックする必要があります。
 
  以下に、まだ安定リリースには載せていない開発ブランチでの機能の部分的な
- 一覧を示します。一覧の先頭に近い項目は、現在のリリース版の引き続く更新
- 時 (6.0.x) に後方導入するかもしれません。このユーザーマニュアルは、そ
- れらに対する説明の予備を持っています。一覧の下の方にある項目は、バージ
+ 一覧を示します。一覧の先頭に近い項目は、現在の安定版 (6.0.x) の引き続
+ く更新時に後方導入するかもしれません。一覧の下の方にある項目は、バージ
  ョン 6.2 までは安定リリース版には導入しないかもしれません。
 #start
 #b 新しい 2 次元描画スタイル `with hsteps` は、階段関数型のグラフとして
 ## 既にあるスタイル `steps`, `histeps`, `fsteps`, `fillsteps` が提供し
-## ていたものに、さらに色々な表現を追加することができる。以下
-## 参照: `hsteps`。
+## ていたものに、さらに色々な表現を追加することができる。以下参照:
+## `hsteps`。(6.0.2 に導入)
 #b バイナリデータファイルに対する空行の同等品。データ項目を分離するのに
 ## 空行を必要とするような描画スタイルに対するバイナリ入力をサポートする
-## のに必要。以下参照: `binary blank`。
+## のに必要。以下参照: `binary blank`。(6.0.2 に導入)
 #b 以前の版の gnuplot では、3 次元多角形 (polygon)、部品 (object)、塗り
 ## 潰しの領域などは、すべて "set pm3d" から取られる一つの境界色と線幅を
 ## 共有していました。この制限は、現在では取り除かれています。境界の属性
 ## はグラフ毎、部品毎に指定できます。この変更は "set pm3d" が 3 次元多
 ## 角形と箱の境界に影響すると期待するすべてのスクリプトに影響を与えます。
 #b splot with contourfill at base
-#b 局所変数の実装の改良 (より速く、よりよく定義される通用範囲で)
+#b 局所変数の実装の改良 (より速く、よりよく定義される通用範囲で) (6.0.2
+## に導入)
 #b "linestyle variable"
 #b 3 次元面体に対する pm3d 色付け (例えば Delaunay モザイク曲面)。以下
 ## 参照: `delaunay`。
@@ -745,7 +746,7 @@ D epi_data 1
 #b 配列要素に渡る繰り返し `array A; for [e in A] { ... }` [試験段階]
 #b キーワード "sample" の非推奨
 #b "marks" と呼ぶ新しいグラフィカルな物体のカテゴリ。これは、複雑な記号
-## を定義し、plot で利用できます。説明やデモはまだありません。
+## を定義し、plot で利用できます。以下参照: `marks`。
 #end
 
 2 デモ、ネット上のサンプル (Demos and Online Examples)
@@ -4054,6 +4055,390 @@ Ffigure_newsyntax
  出力に積み重ねます。一般にこの場合、各文字列要素は全部がグラフの前に出
  てしまうか、逆に全部がグラフの裏に置かれてしまうかのどちらかになります。
 
+#TeX \newpage
+2 マーク (marks)
+?marks
+ バージョン 6.1 では、新しいオブジェクトクラス `marks` (マーク) を導入
+ しました。これは、線や多角形で構成されるユーザ定義の形状です。マークは、
+ 長方形や円などの既存のオブジェクト型と同様に `set object mark` で個々
+ に配置できます。既存の描画スタイル `with points` や `with linespoints`
+ と同様に、新しい 2 次元描画スタイル `with marks` と `with linesmarks`
+ によりマークをグラフ要素としても利用できます。
+
+ 個々のマークは、新しいコマンド `set mark`, `unset mark`, `show mark`,
+ `save marks` で定義・管理します。これらのコマンドは、矢のスタイルやラ
+ ベルを定義・管理する既存のコマンドと同様です。各マークの定義は、数値識
+ 別タグに割り当てられ、その後の描画コマンドやオブジェクト定義で選択する
+ ときにそのタグを使用します。
+
+ 一度定義したマークは、さらに移動、回転、アスペクト比の変更、色や塗り潰
+ し属性などの変更が可能です。
+
+ マークを `set mark` で定義するときに fillcolor や fillstyle を指定した
+ 場合、それらを、plot やそのマークが含まれる object の塗り潰し属性に優
+ 先して使用します。`set mark` で fillstyle を指定しなかった場合は、plot
+ コマンドや `set object` で fillstyle が指定されていればそれに従って描
+ 画し、それらにも指定されていなければ `set style fill` の大域的な設定を
+ 使用します。
+
+ マークを定義する書式は、かなり複雑です。さらに、マークの定義は、ファイ
+ ルやデータブロックからの座標データを読み込むことも必要です。これらの理
+ 由から、マークの定義は別なファイルに書き、描画する前にそれを読み込むの
+ が典型的な利用法です。以下参照: `set mark`。
+
+3 マークデータ (Mark data)
+?marks data
+ 各マークのデータは、数値識別タグ、"show mark" で表示するタイトル、塗り
+ 潰しスタイル (fillstyle) と塗り潰し色 (fillcolor) を持ちます。
+
+      set mark <tab> {<data>} {<properties>}
+
+ マークは、多角形や線の頂点を記述する配列データも持ちます。この節で、そ
+ の書式やマークデータの解釈を説明します。
+
+ マーク要素の頂点は、空行で区切られた多角形や線分を次々に順番に読みます。
+ これは、`plot with polygons` で使用する入力書式と同様です。
+ `set mark N append <data>` を使用して頂点を追加すると、空行を自動的に
+ 追加します。
+
+ 各頂点は、3 つの値 [x y mode] を持ちます。モード (mode) は以下の通り。
+      0  (デフォルト) fillstyle が意味する線描と塗り潰しを使用する
+      1  常に線描するが、塗り潰さない
+      2  常に塗り潰すが、線描しない
+      3  常に線描し、塗り潰す
+      4  背景色で塗り潰す
+ モード値が 0 または無指定の場合、各頂点グループの扱いは、有効な
+ fillstyle が "fs empty" でなければ塗り潰し多角形、有効な fillstyle が
+ "fs noborder" でなければ線描するものとします。これがデフォルトです。
+
+ 以下は 3 つの三角形マークの定義の例です。
+ 1 つ目は、常に空の三角形 (モード 1) として描画します。
+ 2 つ目は、常に境界のない塗り潰し三角形 (モード 2) として描画します。
+ 3 つ目は、マークが使われるときに有効な fillstyle をデフォルトとします。
+ これは、典型的にはコマンド `plot with marks mt 3` や
+ `set object mark mt 3` で与える fillstyle になります。
+
+      array t = [ {-0.5, 0}, {0, 0.7}, {0.5, 0}, {-0.5, 0} ]
+      set mark 1 t using 2:3:(1) title "empty triangle"
+      set mark 2 t using 2:3:(2) title "filled triangle"
+      set mark 3 t using 2:3     title "generic triangle"
+
+ ファイルやデータブロックで与える書式の例については、以下参照:
+ `marks examples annotation`, `marks examples windbarbs`。
+#TeX \newpage
+3 マークの例 (Marks examples)
+?marks examples
+ 以下の例は、マークに使用できる色々な方法を示しています。
+
+4 例: よくある点形状 (Example: custom point shapes)
+?marks examples custom_point_shapes
+?examples custom_point_shapes
+ マークの定義を作成する線分と閉領域は、座標 [x,y] 群を与えるか、または
+ パラメータ関数 x(t),y(t) を与えるかによって指定できます。コマンド
+ `set mark` は、それが単に、データやパラメータ関数の描画するコマンド
+ `plot` のように作用する、という見方もできます。実際、コマンド
+ `set mark` は、コマンド `plot` と同じ入力コードレイヤを使用しています。
+ `set mark` は、識別用に関連するタイトルも持つことができます。
+ それがどのように機能するかについての詳細は、以下参照: `set mark`。
+
+ 以下の例は、4 つのマークを定義しています。それぞれ背景色で塗り潰す形状
+ で、デフォルトで点種として利用可能な形状を補うものとして利用できます。
+ 2 つのマークは座標の配列で定義され、残りの 2 つはパラメータ定義です。
+
+      FILLSTROKE = 3     # 線と塗り潰し属性の両方を持つことを指示
+      array Square = [{-1,-1}, { 1,-1}, { 1, 1}, {-1, 1}, {-1,-1}]
+      array Triangle = [{0,1.2}, {1.04,-0.6}, {-1.04,-0.6}, {0,1.2}]
+      set mark 1 Square   using 2:3:(FILLSTROKE) fc bgnd title "square"
+      set mark 2 Triangle using 2:3:(FILLSTROKE) fc bgnd title "triangle"
+      set angle degrees
+      set mark 3 [0:360:10] '+' using (sin($1)):(cos($1)):(FILLSTROKE) \
+                             title "circle"  fc bgnd
+      set mark 4 [0:360:72] '+' using (sin($1)):(cos($1)):(FILLSTROKE) \
+                             title "pentagon" fc bgnd
+      unset angle
+
+Ffigure_markpoints
+ 既存のデフォルト点種を plot コマンドで "with linespoints pt N" として
+ 使用するように、新しいマークを "with linesmarks marktype N" として
+ plot コマンドで利用できます。ここで紹介していませんが、入力データの追
+ 加列で形状を選択していれば `marktype variable` も利用可能です。
+ 以下のデモには、この例を拡張したものが含まれています。
+^ <a href="http://www.gnuplot.info/demo/extra_points.html">
+ extra_points.dem
+^ </a>
+
+      set title "Custom point shapes defined as marks"
+      plot for [M=1:4] -sin(x/M) with linesmarks marktype M
+
+#TeX \newpage
+4 例: 散布図 (Example: scatterplots)
+?examples scatterplots
+?marks examples scatterplots
+ 前の例は、マーク多角形が、その一部分である線分の色を継承する場合の背景
+ 色でのマークの塗り潰しを示していました。本節の例は、そのようなマークで
+ 塗り潰し色と境界色をどのようにして別々に変え得るかを示しています。
+#start
+#b マーク座標はいずれも配列かデータブロックかファイル (例示なし) のいず
+## れかで与えることができます。
+#b データは、コマンド `set mark` 内の `using` 指定子で変換できます。以
+## 下の例では、マーク 3 はマーク 2 を上下反転したものです。
+#b さらに plot コマンドでも変換を適用できます。以下の例では、`pointsize`
+## でマークを伸縮しています。
+#end
+
+ 本節の例で描画するデータは、
+^ <a href="http://www.gnuplot.info/demo/iris.html">
+ iris.dem
+^ </a>
+ から取ったものです。
+ 簡素化のため、別々のデータブロック $setosa, $versicolor, $virginicana
+ を生成するデータ処理はここでは示していません。
+
+      array Square = [{-0.5,-0.5}, { 0.5,-0.5}, { 0.5, 0.5}, \
+        {-0.5, 0.5}, {-0.5,-0.5}]
+      $Triangle << EOD
+       0  0.5
+       0.433013 -0.25
+      -0.433013 -0.25
+       0  0.5
+      EOD
+
+      set mark 1 Square using 2:3
+      set mark 2 $Triangle using 1:2
+      set mark 3 $Triangle using 1:(-$2)
+
+Ffigure_markscatter1
+ 最初のグラフは、マークの定義と plot コマンドの両方で fillstyle を指定
+ しない場合、それは `set style fill` の大域的な属性を継承することを示し
+ ています。fillcolor を指定しない場合、それはデフォルトの plot 色の列に
+ 従います。
+
+      set object 1 rectangle from graph 0,0 to graph 1,1
+      set object 1 fillstyle solid fc "gray" behind
+
+      set title "White outline with solid color fill"
+      set style fill solid border lc 'white'
+
+      plot $setosa     with marks mt 1 ps 1.5 title "setosa", \
+           $versicolor with marks mt 2 ps 2   title "versicolor", \
+           $virginica  with marks mt 3 ps 2   title "virginica"
+
+Ffigure_markscatter2
+ 2 つ目のグラフは、塗り潰し色 (fillcolor) と線描色の両方を指定したもの
+ です。そのため、keyentry が異なる塗り潰し色用に必要です。
+
+      set style fill solid
+      plot $setosa     with marks mt 1 ps 1.5 lw 2 notitle \
+                            fc "gray" fs border lc '#1f77b4', \
+           $versicolor with marks mt 2 ps 2   lw 2 notitle \
+                            fc "gray" fs border lc '#ff7f0e', \
+           $virginica  with marks mt 3 ps 2   lw 2 notitle \
+                            fc "gray" fs border lc '#2ca02c', \
+           keyentry    with marks mt 1 ps 1.5 lw 2 \
+                            fc bgnd fs border lc '#1f77b4' \
+                            title "setosa", \
+           keyentry    with marks mt 2 ps 2   lw 2 \
+                            fc bgnd fs border lc '#ff7f0e' \
+                            title "versicolor", \
+           keyentry    with marks mt 3 ps 2   lw 2 \
+                            fc bgnd fs border lc '#2ca02c' \
+                            title "virginica"
+
+#TeX \newpage
+4 例: 注釈 (Example: annotation)
+?examples annotation
+?marks examples annotation
+ マークが変形可能であるという事実は、ひとつのマーク定義は、描画範囲や描
+ 画要素群に注釈をつけたマークアップ要素として、適切に伸縮して描画できる
+ マークのテンプレートとして使えることを意味します。以下の例は、ひとつ定
+ 義したマークを、棒グラフの選択したグループのハイライトとラベルに合わせ
+ て配置し水平方向に伸縮して使用しています。
+ この例は以下のデモを簡略化したものです。
+^ <a href="http://www.gnuplot.info/demo/mark_grouping.html">
+ mark_grouping.dem
+^ </a>
+ フルのデモでは、最も左の x の値と各グループの水平の広がりは、入力デー
+ タ集合から計算していますが、ここではそれらの値は事前に計算し、$markup
+ に保存されていると仮定します。
+
+ マークとラベルを y 軸でなく y2 軸に対して描画することは、データの特定
+ の y の範囲から注釈のマークアップを分離するのに便利です。しかしこれは
+ 必須ではありません。他の方法として、y 軸に対してマークを描画し、追加キ
+ ーワード "noclip noautoscale" をつければ、マークが y 軸の範囲に寄与せ
+ ず、それに対するクリッピングもされないようにできます。
+
+Ffigure_marksannotate
+
+      $Group_mark << EOD
+      # x  y   1=stroke
+        0 -0.5  1
+        0  0    1
+        1  0    1
+        1 -0.5  1
+
+      0.5  0.0  1
+      0.5  0.5  1
+      EOD
+
+      set mark 1 $Group_mark
+
+      $markup << EOD
+      # ラベル     幅    左端
+      "Group 1"     4       1
+      "Group 2"     3       6
+      "Group 3"     4      10
+      "Group 4"     2      15
+      EOD
+      TOP = 9   # グループ化マークの y の値
+
+      set link y2
+      set ytics nomirror rangelimited
+      set border 3
+
+      plot $bar_data using ($0+$3):2:(0.8):3:xtic(1) with boxes \
+             lc variable, \
+           $markup using ($3-0.5):(TOP):2:(1)   axes x1y2 with marks \
+             mt 1 units xy lt -1 lw 1, \
+           $markup using ($3-0.5+$2/2):(TOP):1  axes x1y2 with labels \
+             center offset 0,1.7
+
+ 垂直方向に注釈に対して配置と伸縮をするマークを使用する補足的な例は以下
+ のデモにあります。
+^ <a href="http://www.gnuplot.info/demo/mark_labels.html">
+ mark_labels.dem
+^ </a>
+D mark_labels 1
+
+#TeX \newpage
+4 例: 風向風力記号 (Example: windbarbs)
+?examples windbarbs
+?marks examples windbarbs
+
+Ffigure_windbarbs
+ 本節の例は、"plot with marks" の 5 列の形式で、マークの位置、伸縮、回
+ 転を制御する方法を示します。風向風力記号の矢羽根 (barb) はいくつかの線
+ 分で構成します。塗り潰した三角形の旗を持つものもあります。データブロッ
+ クで [0:1] の範囲内の座標を与えます (以下参照: `marks data`)。そして
+ plot コマンドで、一定の伸縮と可変な回転を適用します。
+
+ 本節で示す 3 種類の風向風力記号 (windbarb) のマークは、以下のデモで使
+ 用されているフルセットから抜きだしたものです。
+^ <a href="http://www.gnuplot.info/demo/windbarbs.html">
+ windbarbs.dem
+^ </a>
+D windbarbs 1
+
+      #
+      # 5, 25, 50 ノットの風力を示す風向風力記号
+      # 5 列の plot コマンドで一定の大きさで回転させる
+      #     plot with marks using x:y:scale:scale:angle units gxx
+
+      $MARK_5 <<EOM
+      0        0        1
+      0        1        1
+
+      0        0.870    1
+      0.235    0.956    1
+      EOM
+
+      $MARK_25 <<EOM
+      0        0        1
+      0        1        1
+
+      0        1        1
+      0.470    1.171    1
+
+      0        0.870    1
+      0.470    1.041    1
+
+      0        0.740    1
+      0.235    0.826    1
+      EOM
+
+      $MARK_50 <<EOM
+      0        0        1
+      0        1.100    1
+
+      0        0.900    3
+      0.470    1.071    3
+      0        1.100    3
+      0        0.900    3
+      EOM
+
+      set mark  5 $MARK_5   title " 5 knots" fill solid
+      set mark 25 $MARK_25  title "25 knots" fill solid
+      set mark 50 $MARK_50  title "50 knots" fill solid
+
+      unset border; unset tics
+      set key horizontal reverse Left samplen 1 height 3
+      set xrange [0:10]
+      set yrange [0:8]
+      SIZE = 0.05     # 矢羽根のサイズをグラフ幅の 5% に (単位 gxx)
+
+      plot [t=1:9:2] '+' using (t):(6):(SIZE):(SIZE):(36*t) notitle \
+             with marks mt 5 units gxx, \
+           [t=1:9:2] '+' using (t):(4):(SIZE):(SIZE):(15*t) notitle \
+             with marks mt 25 units gxx, \
+           [t=1:9:2] '+' using (t):(2):(SIZE):(SIZE):(25*t) notitle \
+             with marks mt 50 units gxx, \
+           keyentry with marks mt  5 ps 4 lc "black" title "5 knots", \
+           keyentry with marks mt 25 ps 4 lc "black" title "25 knots", \
+           keyentry with marks mt 50 ps 4 lc "black" title "50 knots"
+
+#TeX \newpage
+4 例: パラメータ関数によるマーク (Example: parametric marks)
+?examples parametric
+?marks examples parametric
+ 書式:
+      set mark <tag> [start:end:increment] '+' using (f($1)):(g($1))
+
+Ffigure_parametric_marks
+ コマンド `set mark` の書式は、コマンド `plot` の書式に従います。よって
+ ファイルや配列、データブロックから x,y 座標を読みこむだけでなく、疑似
+ ファイル '+' で示される標本化用の暗黙の変数を操作するパラメータ関数の
+ 組でもマークを定義できます。以下参照: `special_filenames`。
+
+ 本節の例は、パラメータ関数によるマークの組を定義し、それらを線描スタイ
+ ルと塗り潰しスタイルと組み合わせて描画記号群を生成する方法を示します。
+ この例は、以下のデモの一部分です。
+^ <a href="http://www.gnuplot.info/demo/mark_formulas.html">
+ mark_formulas.dem
+^ </a>
+
+      set angle degrees
+      set mark 1 [t=0:360:10]  '+' using (sin(t)):(cos(t)) ### 円
+      set mark 2 [t=0:360:120] '+' using (sin(t)):(cos(t)) ### 三角
+      set mark 3 [t=0:360:90]  '+' using (sin(t)):(cos(t)) ### ひし型
+      set mark 4 [t=0:360:72]  '+' using (sin(t)):(cos(t)) ### 五角形
+      set mark 5 [t=0:360:60]  '+' using (sin(t)):(cos(t)) ### 六角形
+      set mark 6 [t=0:360:10]  '+' using \
+        (cos(t)):(0.8*(sqrt(abs(cos(t)))+sin(t)))          ### ハート
+      set mark 7 [t=0:360:10]  '+' using \
+        (r=0.5*abs(cos(3/2.0*t))+0.5, r*sin(t)):(r*cos(t)) ### 3 弁花
+      set mark 8 [t=0:360:72/2]  '+' using \
+        (r=0.4*(cos(5*t)+2), r*sin(t)):(r*cos(t))          ### 星
+      set mark 9 [t=0:360:72/20] '+' using \
+        (r=0.18*(cos(5*t)+5), r*sin(t)):(r*cos(t))         ### 5 弁花
+      unset angle
+
+      array dummy[1]
+      S = 1.25       # 伸縮倍率
+
+      plot \
+        for [k=1:9] dummy using (k):(11):(sprintf("%i",k)) \
+          with labels center, \
+        for [k=1:9] dummy using (k):(9) with marks mt k ps S \
+          fill solid 0.5 border lc 'black', \
+        for [k=1:9] dummy using (k):(7) with marks mt k ps S \
+          fill solid (1./k)     fc 'black', \
+        for [k=1:9] dummy using (k):(5) with marks mt k ps S \
+          fill solid 0.0 border lc 'black', \
+        for [k=1:9] dummy using (k):(3) with marks mt k ps S \
+          fill solid 1.0 noborder fc 'red', \
+        for [k=1:9] dummy using (k):(1) with marks mt k ps S \
+          fill solid 1.0 border lc 'blue'
+
+#TeX \newpage
 2 マウス入力 (mouse input)
 ?mouse input
  多くの出力形式で、現在の描画にマウスを使って作用をすることが可能になっ
@@ -4691,7 +5076,7 @@ C 変数の有効範囲 (スコープ) (Scope of variables)
  ます)。
 
  書式:
-       plot FOO watch {x|y|z|F(x,y)} = <value>
+       plot FOO watch {x|y|z|F(x,y)} = <value> {label <文字列値関数>}
        plot FOO watch mouse
 
        set style watchpoints nolabels
@@ -4769,14 +5154,29 @@ Ffigure_watchpoints
 ?watchpoint labels
 ?watch labels
  デフォルトではラベルは、対象 "watch mouse" に対して常に生成します。他
- の対象に対しても、コマンド `set style watchpoint labels` を使えばラベ
- ルをオンにできます。ラベル文字列は "x : y" で、x, y は対象点の座標、そ
- の書式化は対応する軸に対する現在の設定を使用します。
+ の対象に対しても、コマンド `set style watchpoint labels` を使うか、ま
+ たは plot コマンドの watchpoint の対象の一部としてラベルを指定すること
+ でラベルをオンにできます。
+
+ デフォルトのラベル文字列は "x : y" で、x, y は対象点の座標、その書式化
+ は対応する軸に対する現在の設定を使用します。
 
  例:
-      set y2tics format "%.2f<C2><B0>"
+      set y2tics format "%.2f°"
       set style watchpoint labels point pt 6
       plot FOO axes x1y2 watch mouse
+
+ 各 watch の対象に対して、文字列定数か、または文字列を返す関数を通して
+ カスタマイズした文字列を与えることができます。
+
+ 例:
+      set style data lines
+      plot FOO watch y=50 label "50" watch y=100 label "100"
+      f(x,y) = 2*x - y      # f(x,y) = 0 は斜線を定義
+      plot $CONTOURS using 1:2:3 watch f(x,y) = 0 label sprintf("%.2f",z)
+
+ 各 watchpoint ラベルは、テキストボックス内に置きます。以下参照:
+ `set style textbox`。
 
 1 描画スタイル (Plotting styles)
 ?plotting styles
@@ -6155,6 +6555,88 @@ Ffigure_linespoints
  `pn N` あるいは `pn -N` は、データ点のうち N 個だけラベル付けするよう
  gnuplot に指示します。点はそのデータ全体に渡って均等な間隔に取ります。
  `pi` 同様、負の値を指定すると、記号の下の線分の部分を消します。
+
+2 marks
+?plotting styles marks
+?style marks
+?with marks
+ 2 次元描画スタイル `with marks` は、線分や多角形で構成されたマークを、
+ 各データ点の場所に配置します。この描画スタイルは 2 次元描画でのみ意味
+ を持ちます。これは、散布図を自分専用のマーク (記号) で描画するためのも
+ のですが、他の描画スタイルに対して文字ではないラベル付けや注釈をつける
+ のにも利用できます。
+ マークの定義方法の詳細については、以下参照: `marks`。特にそこにいくつ
+ かある例を参照してください。
+
+ 書式:
+      plot <data> with marks marktype {<tag>|variable}
+                                      {units {ps|xy|xx|yy|gxy|gxx|gyy}}
+                                      {noclip}
+
+ コマンド `plot with marks` には、2 列から 5 列までの基本データが必要で
+ す。各マークは、その中心、x 方向の伸縮 (xscale)、y 方向の伸縮 (yscale)、
+ 度単位での回転角 (angle) に従って配置します。方向と回転角の中心は、
+ `set theta` の設定に従います。この入力列は、描画スタイル ellipses と同
+ 様です (以下参照: `with ellipses`)。可変線色、可変塗り潰し色、可変マー
+ ク型を指定す追加入力列も使えます (以下参照: `rgbcolor variable`)。
+
+ using 指定:
+      2 列: x y
+      3 列: x y scale
+      4 列: x y xscale yscale
+      5 列: x y xscale yscale angle
+
+ キーワード "marktype" (省略形 "mt") は、事前にコマンド `set mark` で定
+ 義したマークのタグ番号を指定するのに使います。数値タグの代わりにキーワ
+ ード "variable" を指定すると、マーク型 (marktype) は追加の入力列から取
+ ります。
+
+ オプション "units" は、`set mark` によるマーク定義で保存された [x,y]
+ の値をどの座標系で解釈するかを指定するのに使います。
+
+      ps  : x と y の両方の単位をほぼポイントサイズに (デフォルト)
+      xy  : x は x 軸の単位、y は y 軸の単位に
+      xx  : x と y を両方 x 軸の単位に
+      yy  : x と y を両方 y 軸の単位に
+      gxy : x と y は グラフ領域の横、縦幅の百分率 (%) で
+      gxx : x と y は両方グラフ領域の横幅の百分率 (%) で
+      gyy : x と y は両方グラフ領域の縦幅の百分率 (%) で
+
+ オプション "noclip" は、グラフ領域の外にマークを描画することを可能にし
+ ますが、そうでなければ、グラフ境界にかかるマークはクリッピングし、グラ
+ フ領域内に残る部分だけを描画します。これは、マークをデータ点の表示でな
+ く、注釈やグラフのマークアップに使う場合に有用です。以下参照:
+ `marks examples annotation`。
+2 linesmarks
+?plotting styles linesmarks
+?style linesmarks
+?with linesmarks
+ 描画スタイル linesmarks は、隣接する点を線分で結び、各点に線分と多角形
+ で構成されたマークを描きます。
+ この描画スタイルは、2 次元描画でのみ意味を持ちます。
+ 書式:
+      plot <data> with linesmarks marktype {<tag>|variable}
+      {units {ps|xy|xx|yy|gxy|gxx|gyy}}
+      {pointnumber N}
+      {pointinterval M}
+
+Ffigure_markpoints
+ コマンド `plot with linesmarks` には、3 列から 5 列までの基本データが
+ 必要です。可変線色、可変塗り潰し色、可変マーク型を指定す追加入力列も使
+ えます。マーク型 (marktype)、伸縮 (scale)、回転角 (angle)、単位 (units)
+ の処理は、`plot with marks` と完全に同じです。
+
+ using 指定:
+      2 列: x y
+      3 列: x y scale
+      4 列: x y xscale yscale
+      5 列: x y xscale yscale angle
+
+ 曲線に沿ったマークの間隔は、2 つの追加オプションで変更できます。
+ "pointinterval" (省略形 "pi") N は、N 点毎に 1 個のマークのみを置くよ
+ う gnuplot に指示します。
+ "pointnumber" (省略形 "pn") N は、データ点のうち、均等に間隔を開けた N
+ 個のみにマークを置くよう gnuplot に指示します。
 
 2 マスキング (masking)
 ?plotting styles mask
@@ -10278,7 +10760,7 @@ C using の書式 (format)
       boxes         boxplot        ellipses       histograms  rgbalpha
       boxerrorbars  candlesticks   filledcurves   image       rgbimage
       boxxyerror    circles        fillsteps      pm3d        polygons
-      isosurface    zerrorfill
+      marks         isosurface     zerrorfill
  または
       table         mask
 
@@ -10614,16 +11096,20 @@ C using の書式 (format)
 ?save
 ?save fit
 ?save changes
+?save datablocks
+?save marks
+?save terminal
  書式:
-       save  {functions | variables | terminal | set | fit | datablocks}
-             '<filename>' {append}
+       save  {functions | variables | terminal | set | fit
+              | datablocks | marks} '<filename>' {append}
 
        save changes '<filename>' {append}
 
  どれも指定しなかった場合は、`gnuplot` は、ユーザ定義関数、ユーザ変数、
  set で設定するオプション、一番最後に実行した `plot` か `splot` コマン
- ドの全てを保存します。`set term` と `set output` の現在の状態は、コメ
- ントとして書き出します。
+ ドの全てを保存します。
+ これは、データブロックの内容は保存しません。
+ `set term` と `set output` の現在の状態は、コメントとして書き出します。
  保存ファイルには、gnuplot コマンドの列がテキスト形式で保存され、それは
  コマンド `load` の入力として使用できます。
 
@@ -10643,13 +11129,15 @@ C using の書式 (format)
  `set term`。
 
  `save variables` は、すべてのユーザ変数を書き出しますが、データブロッ
- クと内部変数 GPVAL_* GPFUN_* MOUSE_* ARG* は書き出しません。
+ クとマーク、内部変数 GPVAL_* GPFUN_* MOUSE_* ARG* は書き出しません。
 
  `save fit` は、直近の `fit` コマンドで使用した変数のみを保存します。そ
  の保存ファイルは、後で `via` キーワードを使うことで fit コマンドの初期
  化用のパラメータファイルとして利用できます。
 
- ファイル名は引用符に囲われていなければなりません。
+ `save marks` は、マーク定義と関連するマークデータのみを保存します。
+
+ ファイル名は引用符で囲わなければなりません。
 
  特別なファイル名 "-" により `save` コマンドに標準出力に出力させること
  ができます。popen 関数をサポートするようなシステム (Unix など) では、
@@ -12977,7 +13465,7 @@ D hidden 6
  `unset isotropic` は、2 次元、3 次元グラフの両方でその束縛を開放しま
  す。これは以下の古いコマンドと同値ですが、覚えるにはこれの方が簡単でし
  ょう: `set size noratio; set view noequal_axes`。
-3 jitter
+3 揺らぎ (jitter)
 ?commands set jitter
 ?set jitter
 ?jitter
@@ -13845,6 +14333,60 @@ Ffigure_multiple_keys
  は含まれませんし、余白に書かれる他の文字列の位置の計算にも含まれません。
  これは、軸と境界が非常に近い場合、軸の見出しが他の文字列を上書きする可
  能性を示唆します。
+
+3 マーク (mark)
+?commands set mark
+?set mark
+ コマンド "set mark" は、0 以上の値 N を持つタグで識別される一つのマー
+ クを定義します。一度定義すると、そのマークは描画スタイル "with marks"
+ で使ったり、"set object mark marktype N" によるオブジェクトを定義する
+ ことでその後のグラフ上に配置したりできます。コマンド "plot" や
+ "set object" は、そのマークを伸縮、回転、新たに色付けなどをすることが
+ でき、よって一つのマーク定義は、多くの記号群を描画時に提供します。以下
+ の例を参照: `marks examples parametric`。
+
+ 書式:
+
+      set mark N empty
+          デフォルト属性を持つ空のマークを作成
+      set mark N empty {properties}
+          指定した属性 (properties) を持つ空のマークを作成
+      set mark N <data> {properties}
+          マーク N があれば頂点と属性を置き換え、
+          なければ頂点と属性を持つ新しいマーク N を作成
+      set mark N append <data>
+          既存のマーク N に新しい頂点を追加
+
+ マークの属性は、マークデータと同じコマンドで個別に設定したり、与えるこ
+ とができます。
+
+      set mark N title "XXX"            マーク N にタイトル文字列を設定
+      set mark N fillcolor <colorspec>  マーク N に fillcolor を設定
+      set mark N fillstyle <fillstyle>  マーク N に fillstyle を設定
+
+ コマンド `set mark` の <data> 部分は、コマンド `plot` の <data> 部分に
+ とても良く似ています。座標は、ファイルやデータブロック、配列、疑似ファ
+ イル '+' から標本化することでパラメータ的に生成されたデータ、等を読み
+ こむことができます。
+
+ 例:
+
+      array Square = [{-1,-1}, { 1,-1}, { 1, 1}, {-1, 1}, {-1,-1}]
+      set mark 101 Square title "Gray Box" fillcolor "gray" fillstyle \
+        solid noborder
+      set mark 102 Square title "Empty Blue Box" fillstyle empty border \
+        lc "blue"
+
+ マークの `set mark` による定義時に fillcolor と fillstyle を与えてある
+ 場合、それらをマークが使われる plot や object の任意の塗り潰し属性に優
+ 先して使用します。`set mark` で fillstyle を与えてない場合は、そのマー
+ クは plot コマンドや `set object` にあればそのスタイルを使用しますが、
+ それもない場合は大域的な `set style fill` の設定を使用します。
+
+ マーク内の線分は、fillstyle があればその境界と同じ色で描画します。
+ 警告: マークが線描されていながら有効な fillstyle が "noborder" の場合、
+ 線色はあなたが意図したものにならない可能性があります。それは多分黒です。
+
 3 micro
 ?commands set micro
 ?commands show micro
@@ -14472,9 +15014,9 @@ Ffigure_multiple_keys
          {default} {lw|linewidth <width>} {dt|dashtype <dashtype>}
      unset object <index>
 
- <object-type> は、`rectangle`, `ellipse`, `circle`, `polygon` のいずれ
- かです。個々のオブジェクトの型は、その型に特有の性質もいくつか持ってい
- ます。
+ <object-type> は、`rectangle`, `ellipse`, `circle`, `polygon`, `mark`
+ のいずれかです。個々のオブジェクトの型は、その型に特有の性質もいくつか
+ 持っています。
 
  オプション `front`, `back`, `behind` は、グラフ自身の描画の前、あるい
  は後のどちらに描くかを制御します。以下参照: `layers`。
@@ -14597,6 +15139,42 @@ Ffigure_multiple_keys
 
  以下も参照: `set style circle`, `set object ellipse`。
 
+4 マーク (mark)
+?commands set object mark
+?commands show object mark
+?set object mark
+?show object mark
+ 書式:
+      set object <index> mark marktype <tag> at <position>
+          {scale <s>|<sx>,<sy>} {angle <a>}
+          {units ps|xy|xx|yy|gxy|gxx|gyy}
+          {<other-object-properties>}
+
+ マーク型 (marktype) は、コマンド `set mark` で定義したマークのタグ番号
+ を指定するのに使います。キーワード "marktype" は、省略形の "mt" でも構
+ いません。
+ "at <position>" は、マークの中心を指定します。中心座標には、軸座標、グ
+ ラフ座標、スクリーン座標が使えます。以下参照: `coordinates`。
+ "scale" は、マーク本体の x 座標, y 座標に適用する倍率です。
+ "angle" は、中心位置に関する度単位での回転を引き起こします。
+
+ オプション "units" は、`set mark` によるマーク定義で保存された [x,y]
+ の値をどの座標系で解釈するかを指定するのに使います。
+ これは、"at" で与える中心位置には影響「しません」。
+      ps : x と y の両方の単位をほぼポイントサイズに (デフォルト)
+      xy : x は x 軸の単位、y は y 軸の単位に
+      xx : x と y を両方 x 軸の単位に
+      yy : x と y を両方 y 軸の単位に
+      gxy : x と y は グラフ領域の横、縦幅の百分率 (%) で
+      gxx : x と y は両方グラフ領域の横幅の百分率 (%) で
+      gyy : x と y は両方グラフ領域の縦幅の百分率 (%) で
+
+ 他のオブジェクト型と同様に、マークオブジェクトには、追加属性として
+ front/back/behind, 塗り潰し色、塗り潰しスタイル、線属性を持たせること
+ もできます。そのオブジェクトの塗り潰し色、塗り潰しスタイルは、そのマー
+ ク自身が持つ塗り潰し色、塗り潰しスタイルと違っていても構わないことに注
+ 意してください。以下参照: `marks data`。
+
 4 多角形 (polygon)
 ?polygon
 ?commands set object polygon
@@ -14604,9 +15182,10 @@ Ffigure_multiple_keys
 ?set object polygon
 ?show object polygon
  書式:
-     set object <index> polygon
+
+      set object <index> polygon
          from <position> to <position> ... {to <position>}
- または
+      または
          from <position> rto <position> ... {rto <position>}
 
  多角形の位置は、頂点の位置の列を与えることで指定できます。それらには、
@@ -14616,6 +15195,7 @@ Ffigure_multiple_keys
  例:
      set object 1 polygon from 0,0 to 1,1 to 2,0
      set object 1 fc rgb "cyan" fillstyle solid 1.0 border lt -1
+
 5 depthorder
 ?polygon depthorder
 ?set object depthorder
@@ -16390,8 +16970,8 @@ Ffigure_polar_grid
  `set style increment userstyles` はこれを変更し、代わりにユーザ定義ラ
  インスタイル番号に沿って行うようにしていました。
 
- 非推奨: gnuplot が使用する線種の範囲を有用なものに再定義するには、これ
- の代わりに `set linetype` を使用してください。以下参照: `set linetype`。
+ 非推奨: gnuplot が使用する線種の範囲を有用なものに再定義するには、代わ
+ りに `set linetype` を使用してください。以下参照: `set linetype`。
 4 線スタイル指定 (set style line)
 ?commands set style line
 ?commands unset style line
@@ -16676,8 +17256,9 @@ Ffigure_polar_grid
  実際の x,y 座標をマークする点の点種、点サイズを設定できます。以下参照:
  `set label`。
 
- 現在は、ラベルの文字列は、現在のグラフに対する軸の見出しに使用する書式
- を使用して、常に文字列 " x-座標 : y-座標" を自動生成します。
+ plot コマンドでラベル文字列、ラベル関数のどちらも与えなかった場合、
+ gnuplot は、現在のグラフに対する軸の見出しに使用する書式を使用して、文
+ 字列 " x-座標 : y-座標" を自動生成します。
 
  例:
       set style watchpoint labels point pt 4 ps 2
@@ -18533,6 +19114,19 @@ C 度の記号は set encoding locale で出るようになると。
 ^ <a href="http://www.gnuplot.info/demo/airfoil.html">
  関数と複素変数を翼に使用 (airfoil.dem)。
 ^ </a>
+3 show marks
+?commands show marks
+?show marks
+ 書式:
+      show marks
+      show mark <tag>
+
+ コマンド `show mark` は、現在定義されているマークのタイトル、fillcolor,
+ fillstyle 属性を表示します。頂点の配列は出力しません。
+
+ 対話型作業中に頂点の配列を見たい場合は、以下のようにしてください。
+      save marks "-"
+
 3 show palette
 ?commands show palette
 ?show palette

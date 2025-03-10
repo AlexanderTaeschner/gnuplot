@@ -38,13 +38,13 @@
  */
 
 #include "term_api.h"
-#include "multiplot.h"
 
 #include "command.h"
 #include "datablock.h"
 #include "gadgets.h"
 #include "graphics.h"
 #include "misc.h"
+#include "multiplot.h"
 #include "parse.h"
 #include "setshow.h"
 #include "util.h"
@@ -135,6 +135,8 @@ static struct {
     text_label title;      /* goes above complete set of plots */
     double title_height;   /* fractional height reserved for title */
 } mp_layout = MP_LAYOUT_DEFAULT;
+
+BoundingBox panel_bounds;/* terminal coords of next panel to be drawn */
 
 /* Helper routines */
 void
@@ -515,7 +517,12 @@ multiplot_end()
     last_plot_was_multiplot = TRUE;
 }
 
-/* Helper function for multiplot auto layout to issue size and offset cmds */
+/* Helper functions for multiplot auto layout to issue size and offset cmds */
+TBOOLEAN multiplot_auto()
+{
+    return mp_layout.auto_layout_margins;
+}
+
 void
 multiplot_reset()
 {
@@ -525,12 +532,21 @@ multiplot_reset()
 	mp_layout_size_and_offset();
 }
 
+void
+multiplot_use_size_and_origin()
+{
+    panel_bounds.xleft = xoffset * term->xmax;
+    panel_bounds.xright = panel_bounds.xleft + xsize * term->xmax;
+    panel_bounds.ybot = yoffset * term->ymax;
+    panel_bounds.ytop = panel_bounds.ybot + ysize * term->ymax;
+}
+
 static void
 mp_layout_size_and_offset(void)
 {
-    if (!mp_layout.auto_layout) return;
+    if (!mp_layout.auto_layout)
+	return;
 
-    /* fprintf(stderr,"col==%d row==%d\n",mp_layout.act_col,mp_layout.act_row); */
     /* the 'set size' command */
     xsize = mp_layout.xscale / mp_layout.num_cols;
     ysize = mp_layout.yscale / mp_layout.num_rows;
@@ -541,7 +557,6 @@ mp_layout_size_and_offset(void)
 	yoffset = 1.0 - (double)(mp_layout.act_row+1) / mp_layout.num_rows;
     else
 	yoffset = (double)(mp_layout.act_row) / mp_layout.num_rows;
-    /* fprintf(stderr,"xoffset==%g  yoffset==%g\n", xoffset,yoffset); */
 
     /* Allow a little space at the top for a title */
     if (mp_layout.title.text) {
@@ -555,7 +570,16 @@ mp_layout_size_and_offset(void)
     /* fprintf(stderr,"  xoffset==%g  yoffset==%g\n", xoffset,yoffset); */
     xoffset += mp_layout.xoffset;
     yoffset += mp_layout.yoffset;
-    /* fprintf(stderr,"  xoffset==%g  yoffset==%g\n", xoffset,yoffset); */
+
+    /* At this point we know the boundary of the next multiplot panel to be drawn.
+     * Save this somewhere for use by "clear"; maybe also for subsequent mousing.
+     */
+    panel_bounds.xleft = xoffset * term->xmax;
+    panel_bounds.xright = (xoffset + xsize) * term->xmax;
+    panel_bounds.ybot = yoffset * term->ymax;
+    panel_bounds.ytop = (yoffset + ysize) * term->ymax;
+    FPRINTF((stderr, "next multiplot panel\t%d\t%d\t%d\t%d\n",
+	    panel_bounds.xleft, panel_bounds.xright, panel_bounds.ybot, panel_bounds.ytop));
 }
 
 /* Helper function for multiplot auto layout to set the explicit plot margins, 
@@ -618,6 +642,16 @@ mp_layout_margins_and_spacing(void)
     bmargin.scalex = screen;
     tmargin.x = bmargin.x + tmp_height;
     tmargin.scalex = screen;
+
+    /* At this point we know the boundary of the next multiplot panel to be drawn.
+     * Save this somewhere for use by "clear"; maybe also for subsequent mousing.
+     */
+    panel_bounds.xleft = mp_layout.act_col * term->xmax / mp_layout.num_cols;
+    panel_bounds.xright = panel_bounds.xleft + term->xmax / mp_layout.num_cols;
+    panel_bounds.ytop = term->ymax - mp_layout.act_row * term->ymax / mp_layout.num_rows;
+    panel_bounds.ybot = panel_bounds.ytop - term->ymax / mp_layout.num_rows;
+    FPRINTF((stderr, "next multiplot panel:\t%d\t%d\t%d\t%d\n",
+	    panel_bounds.xleft, panel_bounds.xright, panel_bounds.ybot, panel_bounds.ytop));
 }
 
 static void

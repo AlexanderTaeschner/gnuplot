@@ -487,6 +487,7 @@ D viridis 1
 #b Find and notate where a dependent variable (y or z) or function f(x,y)
 ## crosses a threshold value
 #b Use the mouse to track values along multiple plots simultaneously
+#b Control placement of labels on contour lines
 #end
 
 3 Week-date time support
@@ -4038,7 +4039,7 @@ Ffigure_newsyntax
  One will always be drawn as an empty triangle (mode 1).
  The second will always be drawn as a filled triangle with no border (mode 2).
  The third will default to whatever fillstyle is active when the mark is used.
- This would typically be the filstyle given in a command `plot with marks mt 3`
+ This would typically be the fillstyle given in a command `plot with marks mt 3`
  or in a command `set object mark mt 3`.
  
       array t = [ {-0.5, 0}, {0, 0.7}, {0.5, 0}, {-0.5, 0} ]
@@ -4345,7 +4346,7 @@ Ffigure_parametric_marks
         for [k=1:9] dummy using (k):(7) with marks mt k ps S fill solid (1./k)     fc 'black', \
         for [k=1:9] dummy using (k):(5) with marks mt k ps S fill solid 0.0 border lc 'black', \
         for [k=1:9] dummy using (k):(3) with marks mt k ps S fill solid 1.0 noborder fc 'red', \
-        for [k=1:9] dummy using (k):(1) with marks mt k ps S fill solid 1.0 border lc 'blue',  \
+        for [k=1:9] dummy using (k):(1) with marks mt k ps S fill solid 1.0 border lc 'blue'
 
 #TeX \newpage
 2 mouse input
@@ -4964,10 +4965,10 @@ Ffigure_parametric_marks
 ?watch
  Support for watchpoints is present only if your copy of gnuplot was built
  with configuration option --enable-watchpoints. This feature is EXPERIMENTAL
- [details may change in a subsequent release version].
+ [details may change in subsequent versions].
 
  Syntax:
-       plot FOO watch {x|y|z|F(x,y)} = <value>
+       plot FOO watch {x|y|z|F(...)} = <value> {label <string-valued function>}
        plot FOO watch mouse
 
        set style watchpoints nolabels
@@ -4978,12 +4979,11 @@ Ffigure_parametric_marks
        show watchpoints    # summarizes all watches from previous plot command
 
  A watchpoint is a target value for the x, y, or z coordinate or for a function
- f(x,y).  Each watchpoint is attached to a single plot within a `plot` command.
- Watchpoints are tracked only for styles `with lines` and `with linespoints`.
- Every component line segment of that plot is checked against all watchpoints
- attached the plot to see whether one or more of the watchpoint targets is
- satisfied at a point along that line segment. A list of points that satisfy the
- the target condition ("hits") is accumulated as the plot is drawn.
+ f(a,...).  Each watchpoint is attached to a single plot within a `plot` or
+ `splot` command.  Every component line segment of that plot is checked against
+ all watchpoints attached the plot to see whether one or more of the watchpoint
+ targets is satisfied at a point along that line segment. A list of points that
+ satisfy the the target condition ("hits") is accumulated as the plot is drawn.
 
  For example, if there is a watchpoint with a target y=100, each line segment
  is checked to see if the y coordinates of the two endpoints bracket the target
@@ -4995,6 +4995,10 @@ Ffigure_parametric_marks
  More than one watchpoint per plot component may be specified.
  Example:
       plot DATA using 1:2 smooth cnormal watch y=0.25 watch y=0.5 watch y=0.75
+
+ Watchpoints are tracked only for plot styles `with lines` and
+ `with linespoints`. Watchpoints are also possible for `splot with lines` in 2D
+ xy projection (`set view map`).
 
 Ffigure_watchpoints
  Watchpoint hits for each target in the previous plot command are stored in
@@ -5022,6 +5026,94 @@ Ffigure_watchpoints
  Otherwise the coordinates [x,y] are approximated by linear interpolation
  along the line segment.
 
+3 watch labels
+?watchpoint labels
+?watch labels
+ By default, labels are always generated for the target "watch mouse".
+ You can turn labels on for other watch targets using the command
+ `set style watchpoint labels` or by specifying a label as part of the
+ watchpoint target in a plot command.
+
+ The default label text is "x : y", where x and y are the coordinates of the
+ point, formatted using the current settings for the corresponding axes.
+
+ Example:
+      set y2tics format "%.2f°"
+      set style watchpoint labels point pt 6
+      plot FOO axes x1y2 watch mouse
+
+ You can provide a customized label for each watch target, either as a string
+ constant or via function that returns a string.
+
+ Examples:
+      set style data lines
+      plot FOO watch y=50 label "50" watch y=100 label "100"
+      f(x,y) = 2*x - y      # f(x,y) = 0 defines a sloping line
+      plot $CONTOURS using 1:2:3 watch f(x,y) = 0 label sprintf("%.2f",z)
+
+ Each watchpoint label is placed in a textbox.  See `set style textbox`.
+
+3 watchpoint function target
+?watchpoints function target
+?watch function target
+
+ A watchpoint can be set for the target value of a function.  The function is
+ evaluated at the beginning and end of each line segment in the plot. If the
+ endpoint values span the target value, the [x,y] hit coordinates are reported
+ after linear interpolation.
+
+      plot FOO watch func(...)=targetvalue
+
+ The trivial example below sets a watchpoint target that will place a label
+ where the curve crosses the line y = ax + b.  When evaluated at [x,y] the
+ function Line(a,b) returns the deviation of the current y coordinate from
+ the value ax + b.  Thus when evaluated at an intersection of the plotted
+ curve with the line ax+b, the function returns zero.  We set this as
+ the watch target.
+
+      Line(x,y) = (a*x + b) - y
+      plot cos(x) watch Line(x,y)=0,   a*x + b
+
+ During evaluation the corresponding values of x, y, and z at that point are
+ available to the function whether or not they are named parameters.
+ So the variant below achieves the same result as the previous example.
+
+      Line(dummy1,dummy1) = dummy1*x + dummy2 - y
+      plot cos(x) watch Line(a,b)=0,   a*x + b
+
+ The same again, using a function block instead of an in-line function.
+
+     function $Line() << EOF
+        return (a*x + b) - y
+     EOF
+     plot cos(x) watch $Line()=0,   a*x + b
+
+Ffigure_watch_contours
+ A more interesting use is to constrain the placement of contour labels on a
+ contour plot.  Gnuplot has several options to modify the automatic placement
+ of contour labels see `set cntrlabel`) but these may not be satisfactory
+ for labelling crowded plots.  You can instead place labels only at positions
+ where a watchpoint function target is satisfied.
+
+ Here is an example where a straight line across the area of the plot is chosen
+ and contour labels are placed only where a contour crosses one that line.
+ For the complete worked example see demo `watch_contours.dem`.
+
+      set style watchpoint labels center nopoint font ",9"
+      set style textbox noborder opaque margins 0.5, 0.5
+      line(a,b) = a*x+b - y
+      a = 0.6; b = 0.5
+
+      set contours
+      set cntrparam levels incr 0, .2, 4
+      set view map
+
+      splot f(x,y) with lines nosurface watch line(a,b)=0 label sprintf("%.1f",z)
+
+ Each label is generated using the z value of that contour.
+ The default watchpoint labels " x : y " would not be useful for this plot so
+ we provide a formatting function that prints the z value of the contour.
+
 3 watch mouse
 ?watchpoints mouse
 ?watch mouse
@@ -5038,20 +5130,6 @@ Ffigure_watchpoints
       set style watchpoint labels point pt 6 ps 2 boxstyle 1
       set style textbox 1 lw 0.5 opaque
       plot for [i=1:N] "file.dat" using 1:(column(i)) watch mouse
-
-3 watch labels
-?watchpoint labels
-?watch labels
- By default, labels are always generated for the target "watch mouse".
- You can turn labels on for other watch targets using the command
- `set style watchpoint labels`.  The label text is "x : y", where x and
- y are the coordinates of the point, formatted using the current settings
- for the corresponding axes.
-
- Example:
-      set y2tics format "%.2f°"
-      set style watchpoint labels point pt 6
-      plot FOO axes x1y2 watch mouse
 
 1 Plotting styles
 ?plotting styles
@@ -5315,7 +5393,7 @@ Ffigure_boxplot
  If a fourth field is given in the `using` specification the content of that
  input column will be used as a string that identifies a discrete category.
  A separate boxplot will be drawn for each category found in the input.
- The horizontal separation between these boxplots is 1.0 by default;, it can be
+ The horizontal separation between these boxplots is 1.0 by default; it can be
  changed by `set style boxplot separation`.  By default the category identifier
  is shown as a tic label below each boxplot.  Note that if category column
  contains numerical values they are nevertheless treated as strings and thus
@@ -6509,7 +6587,7 @@ Ffigure_markpoints
  The spacing of marks along the line can be modified by two additional options.
  "pointinterval" (short form "pi") N tells gnuplot to only place a mark on
  every Nth point.
- "pointnumber" (short form "pn") N or tells gnuplot to mark only N of the data
+ "pointnumber" (short form "pn") N tells gnuplot to mark only N of the data
  points, evenly spaced over the data set.
       
 2 masking
@@ -14184,7 +14262,7 @@ Ffigure_multiple_keys
  Lines in the marks are drawn with the same color as the fillstyle border,
  if there is one.
  CAVEAT: If the mark is stroked but the active fillstyle is "noborder",
- the line color may not be what you intended. It wili probably be black.
+ the line color may not be what you intended. It will probably be black.
 
 3 micro
 ?commands set micro
@@ -14936,9 +15014,9 @@ Ffigure_multiple_keys
           {<other-object-properties>}
 
  The marktype is used to specify the tag number of a mark defined using the
- ’set mark’ command.  The "marktype" keyword may be shortened to "mt".
+ `set mark` command.  The "marktype" keyword may be shortened to "mt".
  "at <position>" specifies the center of the mark. The center position may be
- given in axis, graph, or screen coordinates. See ‘coordinates‘.
+ given in axis, graph, or screen coordinates. See `coordinates`.
  "scale" is a multiplier applied to x and y coordinates in the body of the mark.
  "angle" applies a rotation in degrees about the center position.
 
@@ -17010,9 +17088,10 @@ Ffigure_polar_grid
  textcolor, point type and size of a point marking the exact x,y coordinates.
  See `set label`.
 
- Currently the text of the label is always autogenerated by the program
- using the axis tic formats for the current plot to produce the string
- " x-coordinate : y-coordinate".
+ If no label string or label function is given in the plot command, the program
+ autogenerates labels using the axis tic formats for the current plot to
+ produce the string " x-coordinate : y-coordinate".
+ See `watchpoint labels`.
 
  Examples:
       set style watchpoint labels point pt 4 ps 2

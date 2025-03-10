@@ -1372,6 +1372,9 @@ plot_lines(struct curve_points *plot)
 	    y = map_ysharp(ynow);
 	    if (invalid_coordinate(x,y))
 		plot->points[i].type = UNDEFINED;
+	    if (plot->varcolor && plot->lp_properties.pm3d_color.type == TC_Z
+	    &&  isnan(plot->varcolor[i]))
+		plot->points[i].type = UNDEFINED;
 	}
 
 	switch (plot->points[i].type) {

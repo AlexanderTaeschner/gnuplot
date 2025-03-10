@@ -2270,14 +2270,6 @@ eval_plots()
 	uses_axis[SECOND_X_AXIS] =
 	uses_axis[SECOND_Y_AXIS] = 0;
 
-    /* Original Comment follows: */
-    /* Reset first_plot. This is usually done at the end of this function.
-     * If there is an error within this function, the memory is left allocated,
-     * since we cannot call cp_free if the list is incomplete. Making sure that
-     * the list structure is always valid requires some rewriting */
-    /* EAM Apr 2007 - but we need to keep the previous structures around in 
-     * order to be able to refresh/zoom them without re-reading all the data.
-     */
     if (first_plot)
 	cp_free(first_plot);
     first_plot = NULL;
@@ -3793,7 +3785,13 @@ eval_plots()
 		    for (i = 0; i < samples_1; i++) {
 			double x, temp;
 			struct value a;
-			double t = t_min + i * t_step;
+			double t;
+
+			/* Guarantee that we hit t_max exactly */
+			if (i == samples_1 - 1)
+			    t = t_max;
+			else
+			    t = t_min + i * t_step;
 
 			if (parametric) {
 			    /* SAMPLE_AXIS is not relevant in parametric mode */

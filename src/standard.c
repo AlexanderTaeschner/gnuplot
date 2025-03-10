@@ -782,6 +782,9 @@ f_atanh(union argument *arg)
     }
 }
 
+/*
+ * EllipticK
+ */
 void
 f_ellip_first(union argument *arg)
 {
@@ -804,6 +807,9 @@ f_ellip_first(union argument *arg)
 
 }
 
+/*
+ * EllipticE
+ */
 void
 f_ellip_second(union argument *arg)
 {
@@ -817,6 +823,15 @@ f_ellip_second(union argument *arg)
 
     ak=real(&a);
     q=(1.0-ak)*(1.0+ak);
+
+    /* EllipticE(x) has domain [-1 : 1]
+     * Allow for floating point precision +/- epsilon at the endpoints
+     * so that EllipticE(1.0 + epsilon) returns 1.0 rather than <undefined>.
+     * The test below corresponds to epsilon ~= 3.e-16 in practice.
+     */
+    if (fabs(q) < 4.*DBL_EPSILON)
+	q = 0.0;
+
     if (q > 0.0) {
 	e=carlson_elliptic_rf(0.0,q,1.0)-(ak*ak)*carlson_elliptic_rd(0.0,q,1.0)/3.0;
 	push(Gcomplex(&a,e,0.0));
@@ -833,6 +848,9 @@ f_ellip_second(union argument *arg)
 
 }
 
+/*
+ * EllipticPi
+ */
 void
 f_ellip_third(union argument *arg)
 {
@@ -848,6 +866,7 @@ f_ellip_third(union argument *arg)
     ak=real(&a1);
     en=real(&a2);
     q=(1.0-ak)*(1.0+ak);
+
     if (q > 0.0 && en < 1.0)
 	push(Gcomplex(&a2, carlson_elliptic_rf(0.0,q,1.0)+en*carlson_elliptic_rj(0.0,q,1.0,1.0-en)/3.0, 0.0));
     else {

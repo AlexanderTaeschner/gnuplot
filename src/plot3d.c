@@ -56,6 +56,7 @@
 #include "tabulate.h"
 #include "util.h"
 #include "voxelgrid.h"
+#include "watch.h"
 
 #include "plot2d.h" /* Only for store_label() */
 
@@ -233,6 +234,7 @@ sp_free(struct surface_points *sp)
 
 	free_at(sp->plot_function.at);
 	free_at(sp->if_filter_at);
+	free_watchlist(sp->watchlist);
 	free(sp->zclip);
 
 	free(sp);
@@ -403,9 +405,9 @@ plot3drequest()
  * axis limits and try to approximate the full auto-scaling behaviour.
  */
 void
-refresh_3dbounds(struct surface_points *first_plot, int nplots)
+refresh_3dbounds(struct surface_points *first_3dplot, int nplots)
 {
-    struct surface_points *this_plot = first_plot;
+    struct surface_points *this_plot = first_3dplot;
     int iplot;		/* plot index */
 
     for (iplot = 0;  iplot < nplots; iplot++, this_plot = this_plot->next_sp) {
@@ -2216,6 +2218,16 @@ eval_3dplots()
 		    }
 		}
 
+#ifdef USE_WATCHPOINTS
+		/* EXPERIMENTAL watchpoints for "splot with lines" */
+		if (equals(c_token, "watch")) {
+		    if (this_plot->plot_style != LINES || !splot_map)
+			int_error(c_token, "3D watchpoints only possible for splot with lines, and only if 'set view map'");
+		    parse_watch( (struct curve_points *)(this_plot) );
+		    continue;
+		}
+#endif
+
 		/* EXPERIMENTAL filter splot ... if (<expression>) */
 		if (equals(c_token,"if")) {
 		    if (this_plot->plot_type != DATA3D)
@@ -3146,7 +3158,7 @@ parametric_3dfixup(struct surface_points *start_plot, int *plot_num)
 	}
     }
 
-    /* Ok, append free list and write first_plot */
+    /* Ok, append free list and write first_3dplot */
     *last_pointer = free_list;
     first_3dplot = new_list;
 }
