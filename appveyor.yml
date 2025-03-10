@@ -1,4 +1,4 @@
-version: 6.0.0-{build}
+version: 6.1.0-{build}
 branches:
   only:
   - main
@@ -7,6 +7,7 @@ image: Visual Studio 2022
 install:
   - cd C:\Tools\vcpkg
 #  - git clean -f -d -x
+#  - del /S /Q c:\tools\vcpkg\installed
   - git pull
   - .\bootstrap-vcpkg.bat
   - .\vcpkg.exe install --recurse fontconfig:%PLATFORM%-windows
