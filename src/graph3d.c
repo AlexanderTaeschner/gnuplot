@@ -2164,7 +2164,7 @@ plot3d_points(struct surface_points *plot)
     /* Set whatever we can that applies to every point in the loop */
     if (plot->lp_properties.p_type == PT_CHARACTER) {
 	ignore_enhanced(TRUE);
-	if (plot->labels->font && plot->labels->font[0])
+	if (plot->labels && plot->labels->font && plot->labels->font[0])
 	    (*t->set_font) (plot->labels->font);
 	(*t->justify_text) (CENTRE);
     }
@@ -2260,7 +2260,7 @@ plot3d_points(struct surface_points *plot)
 
     /* Return to initial state */
     if (plot->lp_properties.p_type == PT_CHARACTER) {
-	if (plot->labels->font && plot->labels->font[0])
+	if (plot->labels && plot->labels->font && plot->labels->font[0])
 	    (*t->set_font) ("");
 	ignore_enhanced(FALSE);
     }
