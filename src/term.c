@@ -224,12 +224,6 @@ static void do_point(unsigned int x, unsigned int y, int number);
 static void do_pointsize(double size);
 static void do_arrow(unsigned int sx, unsigned int sy, unsigned int ex, unsigned int ey, int headstyle);
 static void null_dashtype(int type, t_dashtype *custom_dash_pattern);
-#ifdef USE_MOUSE
-static void null_tmptext(int i, const char *s);
-static void null_set_ruler(int x, int y);
-static void null_set_cursor(int c, int x, int y);
-static void null_set_clipboard(const char *s);
-#endif
 
 static int null_text_angle(float ang);
 static int null_justify_text(enum JUSTIFY just);
@@ -1420,21 +1414,6 @@ term_waitforinput(int options)
     }
 }
 
-static void
-null_tmptext(int i, const char *s)
-{}
-
-static void
-null_set_ruler(int x, int y)
-{}
-
-static void
-null_set_cursor(int c, int x, int y)
-{}
-
-static void
-null_set_clipboard(const char *s)
-{}
 #endif
 
 /* setup the magic macros to compile in the right parts of the
@@ -1645,17 +1624,6 @@ change_term(const char *origname, int length)
     }
     if (term->dashtype == 0)
 	term->dashtype = null_dashtype;
-
-#ifdef USE_MOUSE
-    if (term->put_tmptext == NULL)
-	term->put_tmptext = null_tmptext;
-    if (term->set_ruler == NULL)
-	term->set_ruler = null_set_ruler;
-    if (term->set_cursor == NULL)
-	term->set_cursor = null_set_cursor;
-    if (term->set_clipboard == NULL)
-	term->set_clipboard = null_set_clipboard;
-#endif
 
     if (interactive && !term_on_entry)
 	fprintf(stderr, "\nTerminal type is now '%s'\n", term->name);
