@@ -619,6 +619,11 @@ static char *
 xDateTimeFormat(double x, char *b, int mode)
 {
     struct tm tm;
+    if (fabs(x) > 1.e12) {  /* Some time in the year 33688 */
+	int_warn(NO_CARET, "time value out of range");
+	*b = '\0';
+	return b;
+    }
 
     switch (mode) {
     case MOUSE_COORDINATES_XDATE:
