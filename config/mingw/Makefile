@@ -47,11 +47,11 @@ VARIANT = PLAIN
 # Set-up your compiler environment
 #
 # Define if you are using MSYS2/MinGW64 instead of MSYS/MinGW
-MINGW64=1
+#MINGW64=1
 # Define if you want a 32bit version (even using a 64bit compiler)
 #M32=1
-# Define if you use clang instead of gcc, requires MINGW64
-#CLANG=1
+# Define if you use clang instead of gcc, requires MSYS2/CLANG64
+CLANG64=1
 # Use the colorgcc frontend explicitly
 #COLORGCC=1
 # Specify the path to the compiler unless it is already in PATH
@@ -131,7 +131,11 @@ MOUSE=1
 # specify QT installation directory
 #QT_DIR = /c/Qt/5.2.1/mingw48_32
 ifndef MINGW64
+ifndef CLANG64
 QT_DIR = /d/Source/Qt-5.2.1-mingw/5.2.1/mingw48_32
+else
+QT_DIR = /clang64
+endif
 else
 ifdef M32
 QT_DIR = /mingw32
@@ -215,7 +219,7 @@ DESTDIR = "$(PROGRAMFILES)/gnuplot"
 # Do you want some special optimization / flags?
 #CFLAGS +=
 CWFLAGS += -Wno-unused-function
-ifdef CLANG
+ifdef CLANG64
 CFLAGS += -fcolor-diagnostics -fansi-escape-codes
 CWFLAGS += -Wno-incompatible-ms-struct -Wno-ignored-attributes
 CWFLAGS += -Wno-infinite-recursion
@@ -292,7 +296,7 @@ M32=1
 endif
 endif
 
-ifndef CLANG
+ifndef CLANG64
 ifdef COLORGCC
 CC=$(CCPATH)color-gcc
 CXX=$(CCPATH)color-g++
@@ -305,7 +309,7 @@ CC = gcc
 CXX = g++
 endif
 endif
-else # CLANG
+else # CLANG64
 CC = $(CCPATH)clang
 CXX = $(CCPATH)clang++
 endif
@@ -842,14 +846,22 @@ $(HELPFILE): $(BUILDHELPFILE)
 
 htmlhelp.def: /c/Windows/System32/hhctrl.ocx
 ifndef MINGW64
+ifndef CLANG64
 	pexports $^ > $@
+else
+	gendef - $^ > $@
+endif
 else
 	gendef - $^ > $@
 endif
 
 prntvpt.def: /c/Windows/System32/prntvpt.dll
 ifndef MINGW64
+ifndef CLANG64
 	pexports $^ > $@
+else
+	gendef - $^ > $@
+endif
 else
 	gendef - $^ > $@
 endif
