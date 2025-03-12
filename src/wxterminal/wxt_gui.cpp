@@ -623,7 +623,7 @@ void wxtFrame::OnExport( wxCommandEvent& WXUNUSED( event ) )
 
 		RECT rect;
 		rect.left = rect.top = 0;
-		unsigned dpi = GetDPI();
+		unsigned dpi = ::GetDPI();
 		rect.right  = MulDiv(panel->plot.device_xmax, dpi, 10);
 		rect.bottom = MulDiv(panel->plot.device_ymax, dpi, 10);
 		HDC hmf = CreateEnhMetaFileW(NULL, fullpathFilename.wc_str(), &rect, NULL);
@@ -693,7 +693,7 @@ void wxtFrame::OnPrint( wxCommandEvent& WXUNUSED( event ) )
 		wxSize ppi = wxdc->GetPPI();
 		unsigned dpi = 96;
 #ifdef _WIN32
-		dpi = GetDPI();
+		dpi = ::GetDPI();
 #endif
 		double scaleX = ppi.GetWidth() / (double) dpi;
 		double scaleY = ppi.GetHeight() / (double) dpi;
