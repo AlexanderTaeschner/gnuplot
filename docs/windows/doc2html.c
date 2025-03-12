@@ -47,10 +47,11 @@
 # include "config.h"
 #endif
 
-#ifdef WXHELP
+#if defined(WXHELP) || defined(FPC)
 /* The Microsoft help compiler splits topics and creates the index automatically.
-   To create help files for wxWidgets we need to do this manually.
-   Note that this might overwrite the stub index file from CVS. */
+   To create help files for wxWidgets or using the Free Pascal tool "chmcmd",
+   we need to do this manually.
+   Note that this will overwrite the stub index file from the repository. */
 #define SPLIT_FILES
 #define CREATE_INDEX
 #endif
