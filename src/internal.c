@@ -1905,30 +1905,37 @@ f_strftime(union argument *arg)
 	int_error(NO_CARET,
 		  "First parameter to strftime must be a format string");
 
-    /* Prepare format string.
-     * Make sure the resulting string not empty by adding a space.
-     * Otherwise, the return value of gstrftime doesn't give enough
-     * information.
-     */
-    fmtlen = strlen(fmt.v.string_val) + 1;
-    fmtstr = gp_alloc(fmtlen + 1, "f_strftime: fmt");
-    strncpy(fmtstr, fmt.v.string_val, fmtlen);
-    strncat(fmtstr, " ", fmtlen);
-    buflen = 80 + 2*fmtlen;
-    buffer = gp_alloc(buflen, "f_strftime: buffer");
+    /* Range check */
+    if (!(fabs(real(&val)) < 1.e12)) {
+	int_warn(NO_CARET, "time value out of range");
+	buffer = strdup("    ");
 
-    /* Get time_str */
-    length = gstrftime(buffer, buflen, fmtstr, real(&val));
-    if (length == 0 || length >= buflen)
-	int_error(NO_CARET, "String produced by time format is too long");
+    } else {
+	/* Prepare format string.
+	 * Make sure the resulting string not empty by adding a space.
+	 * Otherwise, the return value of gstrftime doesn't give enough
+	 * information.
+	 */
+	fmtlen = strlen(fmt.v.string_val) + 1;
+	fmtstr = gp_alloc(fmtlen + 1, "f_strftime: fmt");
+	strncpy(fmtstr, fmt.v.string_val, fmtlen);
+	strncat(fmtstr, " ", fmtlen);
+	buflen = 80 + 2*fmtlen;
+	buffer = gp_alloc(buflen, "f_strftime: buffer");
 
-    /* Remove trailing space */
-    assert(buffer[length-1] == ' ');
-    buffer[length-1] = NUL;
+	/* Get time_str */
+	length = gstrftime(buffer, buflen, fmtstr, real(&val));
+	if (length == 0 || length >= buflen)
+	    int_error(NO_CARET, "String produced by time format is too long");
+
+	/* Remove trailing space */
+	assert(buffer[length-1] == ' ');
+	buffer[length-1] = NUL;
+	free(fmtstr);
+    }
 
     gpfree_string(&val);
     gpfree_string(&fmt);
-    free(fmtstr);
 
     push(Gstring(&val, buffer));
     free(buffer);
