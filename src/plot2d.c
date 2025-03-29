@@ -804,8 +804,11 @@ get_data(struct curve_points *current_plot)
 	/* We now know that j > 0, i.e. there is some data on this input line.
 	 * However it is still possible that the user wants to skip this line
 	 * because it fails to satisfy the "plot .. if (<expr>)" condition.
-	 * FIXME: This treats filtered points as if they were missing;
-	 *        alternatively we could keep them but mark as undefined.
+	 * NOTE:
+	 *       This treats filtered points as if they were missing, except
+	 * that any side-effects from processing in df_get_readline() have
+	 * already happened.  Alternatively we could keep them but set the type
+	 * to UNDEFINED or EXCLUDERANGE.
 	 */
 	if (current_plot->if_filter_at) {
 	    struct value keep;
@@ -1525,7 +1528,7 @@ store2d_point(
     coord_type dummy_type = INRANGE;   /* sometimes we dont care about outranging */
     TBOOLEAN excluded_range = FALSE;
 
-    /* FIXME this destroys any UNDEFINED flag assigned during input */
+    /* This destroys any UNDEFINED flag assigned during input */
     cp->type = INRANGE;
 
     if (polar) {
@@ -4380,7 +4383,7 @@ parse_plot_title(struct curve_points *this_plot, char *xtitle, char *ytitle, TBO
 	}
 
 	/* This catches both "title columnheader" and "title columnhead(foo)" */
-	/* FIXME:  but it doesn't catch "title sprintf( f(columnhead(foo)) )" */
+	/* but it wouldn't catch "title sprintf( f(columnhead(foo)) )" */
 	if (almost_equals(c_token,"col$umnheader")) {
 	    parse_1st_row_as_headers = TRUE;
 	}

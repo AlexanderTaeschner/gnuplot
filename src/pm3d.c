@@ -982,7 +982,6 @@ pm3d_plot(struct surface_points *this_plot, int at_which_z)
 
 			/* apply lighting model */
 			if (pm3d_shade.strength > 0) {
-			    /* FIXME: coordinate->quadrangle->coordinate seems crazy */
 			    coordinate corcorners[4];
 			    int i;
 			    for (i=0; i<4; i++) {

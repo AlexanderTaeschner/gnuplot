@@ -3397,7 +3397,7 @@ help_command()
  * Lars - The "int toplevel" argument is gone. I have converted it to a
  * static variable.
  *
- * FIXME - helpbuf is never free()'d
+ * NOTE: helpbuf is never free()'d
  */
 
 #ifndef NO_GIH

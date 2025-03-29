@@ -2448,8 +2448,6 @@ check_corner_height(
 {
     if (p->type != INRANGE)
 	return;
-    /* FIXME HBB 20010121: don't compare 'zero' to data values in
-     * absolute terms. */
     if ((fabs(p->x - X_AXIS.min) < zero || fabs(p->x - X_AXIS.max) < zero) &&
 	(fabs(p->y - Y_AXIS.min) < zero || fabs(p->y - Y_AXIS.max) < zero)) {
 	int x = MAP_HEIGHT_X(p->x);

@@ -767,8 +767,6 @@ calc_min_max(
     /* Width and height of the grid is used as a unit length (2d-norm) */
     unit_x = x_max - x_min;
     unit_y = y_max - y_min;
-    /* FIXME HBB 20010121: 'zero' should not be used as an absolute
-     * figure to compare to data */
     unit_x = (unit_x > zero ? unit_x : zero);	/* should not be zero */
     unit_y = (unit_y > zero ? unit_y : zero);
 }

@@ -3060,7 +3060,7 @@ plot_marks(struct curve_points *plot)
 
     tag = plot->marks_options.tag;
     if (tag == MARK_TYPE_VARIABLE) {
-	max_vertices = 100;	/* FIXME: what happens if this is exceded? */
+	max_vertices = 100;
     } else {
 	mark = get_mark(first_mark, tag);
 	if (!mark)
@@ -3756,7 +3756,6 @@ plot_spiderplot(struct curve_points *plot)
 	    if ((thisplot->points == NULL) || (thisplot->p_count <= i)
 	    ||  (thisplot->points[i].type == UNDEFINED)
 	    ||  isnan(thisplot->points[i].x) || isnan(thisplot->points[i].y)) {
-		/* FIXME EAM: how to exit cleanly? */
 		bad_data = TRUE;
 		break;
 	    }
@@ -5968,9 +5967,9 @@ process_image(void *plot, t_procimg_action action)
 			    }
 			}
 		    } else {
-			/* DJS FIXME:
-			 * Could still be visible if any of the four corners of the view port are
-			 * within the parallelogram formed by the pixel.  This is tricky geometry.
+			/* DJS:
+			 * Could still be visible if any of the four corners of the view port
+			 * are within the parallelogram formed by the pixel.
 			 */
 		    }
 
@@ -6148,7 +6147,6 @@ place_spiderplot_axes(struct curve_points *first_plot, int layer)
 	if (this_axis->ticmode) {
 	    spoke_dx = (spoke_y0 - spoke_y1) * .02;
 	    spoke_dy = (spoke_x1 - spoke_x0) * .02;
-	    /* FIXME: separate control of tic linewidth? */
 	    term_apply_lp_properties(&border_lp);
 	    this_axis->ticdef.rangelimited = FALSE;
 	    gen_tics(this_axis, spidertick_callback);
