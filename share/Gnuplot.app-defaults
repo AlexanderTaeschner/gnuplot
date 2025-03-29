@@ -1,6 +1,13 @@
+!!!
+!!! This mechanism is all basically obsolete.
+!!! It dates back to the X11R4 era (1990s).
+!!! Gnuplot now manages line colors and styles generically.
+!!!
+
 ! X resources for gnuplot x11 terminal driver
 ! More information available in the gnuplot documentation
 ! From inside gnuplot, try 'help set term x11'
+
 
 ! User interface settings
   gnuplot*exportselection:  on
