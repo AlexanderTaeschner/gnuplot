@@ -1340,7 +1340,10 @@ gen_tics(struct axis *this, tic_callback callback)
 		internal = (this->tictype == DT_TIMEDATE)
 		    ? time_tic_just(this->timelevel, tic)
 		    : tic;
-		user = CheckZero(internal, step);
+		user = internal;
+		/* If the tic would be placed almost at zero, make it exact */
+		if (fabs(internal/step) < SIGNIF)
+		    user = 0.0;
 	    }
 	    /* }}} */
 

@@ -439,9 +439,6 @@ do {									\
 
 /* 'roundoff' check tolerance: less than one hundredth of a tic mark */
 #define SIGNIF (0.01)
-/* (DFK) Watch for cancellation error near zero on axes labels */
-/* FIXME HBB 20000521: these seem not to be used much, anywhere... */
-#define CheckZero(x,tic) (fabs(x) < ((tic) * SIGNIF) ? 0.0 : (x))
 
 /* Function pointer type for callback functions to generate ticmarks */
 typedef void (*tic_callback) (struct axis *, double, char *, int, 

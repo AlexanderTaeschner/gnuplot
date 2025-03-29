@@ -243,7 +243,9 @@ contour(int num_isolines, struct iso_curve *iso_lines)
 	switch (contour_params.levels_kind) {
 	case LEVELS_AUTO:
 	    z = z0 + (i+1) * dz;
-	    z = CheckZero(z,dz);
+	    /* Adjust to exactly zero if it is very close */
+	    if (fabs(z) < 0.01*dz)
+		z = 0.0;
 	    if (nonlinear(&Z_AXIS))
 		z = eval_link_function((&Z_AXIS), z);
 	    break;

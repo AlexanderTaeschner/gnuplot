@@ -3805,7 +3805,8 @@ eval_plots()
 			    AXIS *vis = axis_array[SAMPLE_AXIS].linked_to_primary->linked_to_secondary;
 			    t = eval_link_function(vis, t_min + i * t_step);
 			} else {
-			    /* Zero is often a special point in a function domain.
+			    /* Sample at exactly zero.
+			     * Zero is often a special point in a function domain.
 			     * Make sure we don't miss it due to round-off error.
 			     * See also the "sharpen" filter code.
 			     */
