@@ -4468,8 +4468,7 @@ check3d_for_variable_color(struct surface_points *plot, struct coordinate *point
 	    set_rgbcolor_var( (unsigned int)point->CRD_COLOR );
 	break;
     case TC_Z:
-	set_color( cb2gray(point->z) );
-	break;
+	/* Fall through */
     case TC_DEFAULT:   /* pm3d mode assumes this is default */
 	if (plot->pm3d_color_from_column)
 	    set_color( cb2gray(point->CRD_COLOR) );
