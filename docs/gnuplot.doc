@@ -18385,12 +18385,12 @@ Ffigure_walls
 
  This will automatically generate tic marks every 0.5 along x, but will
  also add an explicit labeled tic mark at pi.
-4 xtics timedata
-?set xtics timedata
-?xtics timedata tics
+4 xtics time
+?set xtics timedate
+?xtics timedate tics
 ?set xtics time
 ?xtics time
-?timedata tics
+?timedate tics
  Times and dates are stored internally as a number of seconds.
 
  Input: Non-numeric time and date values are converted to seconds on input using
