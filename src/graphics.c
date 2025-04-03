@@ -2921,7 +2921,9 @@ plot_sectors(struct curve_points *plot)
             /* check of 4-corners */
             for (k=0; k<5; k++) {
 		polar_to_xy(aa[k], rr[k], &xp, &yp, FALSE);
-                if ( inrange(xp+center_x, xmin, xmax) && inrange(yp+center_y, ymin, ymax) ) {
+                if ((plot->ellipseaxes_units == ELLIPSEAXES_XX && inrange(xp+center_x, xmin, xmax))
+                ||  (plot->ellipseaxes_units == ELLIPSEAXES_YY && inrange(yp+center_y, ymin, ymax))
+                ||  (inrange(xp+center_x, xmin, xmax) && inrange(yp+center_y, ymin, ymax))) {
                     is_inrange = TRUE;
                     break;
                 }
@@ -2930,7 +2932,9 @@ plot_sectors(struct curve_points *plot)
 		for (k=0; k<2; k++) {
 	            for (angle = arc_begin+delta_angle; angle<arc_end; angle += delta_angle) {
 	               polar_to_xy(angle, r2[k], &xp, &yp, FALSE);
-	               if ( inrange(xp+center_x, xmin, xmax) && inrange(yp+center_y, ymin, ymax) ) {
+                       if ((plot->ellipseaxes_units == ELLIPSEAXES_XX && inrange(xp+center_x, xmin, xmax))
+                       ||  (plot->ellipseaxes_units == ELLIPSEAXES_YY && inrange(yp+center_y, ymin, ymax))
+                       ||  (inrange(xp+center_x, xmin, xmax) && inrange(yp+center_y, ymin, ymax))) {
 	                   is_inrange = TRUE;
 	                   break;
 	               }
