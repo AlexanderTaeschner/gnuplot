@@ -401,9 +401,7 @@ print_3dtable(int pcount)
 
 	switch (this_plot->plot_style) {
 	case LABELPOINTS:
-	    {
-	    struct text_label *this_label;
-	    for (this_label = this_plot->labels->next;
+	    for (struct text_label *this_label = this_plot->labels->next;
 		 this_label != NULL;
 		 this_label = this_label->next) {
 		char *label = expand_newline(this_label->text);
@@ -417,7 +415,6 @@ print_3dtable(int pcount)
 		len = strappend(&line, &size, len, "\"");
 		print_line(line);
 		free(label);
-	    }
 	    }
 	    continue;
 	case LINES:
@@ -465,6 +462,9 @@ print_3dtable(int pcount)
 		    len = strappend(&line, &size, len, "  red green blue alpha");
 		    break;
 		default:
+		    if (this_plot->pm3d_color_from_column) {
+			len = strappend(&line, &size, len, "  color");
+		    }
 		    break;
 		}
 
@@ -493,6 +493,8 @@ print_3dtable(int pcount)
 			        (int)point->CRD_R, (int)point->CRD_G,
 			        (int)point->CRD_B, (int)point->CRD_A);
 			len = strappend(&line, &size, len, buffer);
+		    } else if (this_plot->pm3d_color_from_column) {
+			OUTPUT_NUMBER(point->CRD_COLOR, COLOR_AXIS);
 		    }
 		    snprintf(buffer, BUFFERSIZE, "%c",
 			    point->type == INRANGE

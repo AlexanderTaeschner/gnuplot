@@ -17135,7 +17135,7 @@ Ffigure_polar_grid
 ?table
  When `table` mode is enabled, `plot` and `splot` commands print out a
  multicolumn text table of values
-      X Y {Z} <flag>
+      X Y {Z} {color} <flag>
  rather than creating an actual plot on the current terminal. The flag character
  is "i" if the point is in the active range, "o" if it is out-of-range, or "u"
  if it is undefined.  The data format is determined by the format of the axis
@@ -17156,6 +17156,13 @@ Ffigure_polar_grid
  Alternatively, tabular output can be redirected to a named data block.
  Data block names start with '$', see also `inline data`. You must explicitly
  `unset table` in order to go back to normal plotting on the current terminal.
+
+ Generally each line of tabular output from a `plot` command will show two
+ values and a flag character: "X Y flag". The output from an `splot` command
+ will show "X Y Z flag".  In either case if the command provides an additional
+ column of input data used for variable color, this extra column will also be
+ shown in the output.  Certain plot styles such as `with vectors` will show
+ additional values corresponding to the number of required input data columns.
 
  The `separator` character can be used to output csv (comma separated value)
  files.  This mode only affects plot style `with table`.  See `plot with table`.
