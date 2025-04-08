@@ -1513,14 +1513,15 @@ f_index(union argument *arg)
 
     if (index.type == INTGR)
 	i = index.v.int_val;
-    else if (index.type == CMPLX)
+    else if (index.type == CMPLX && !isnan(index.v.cmplx_val.real))
 	i = floor(index.v.cmplx_val.real);
     else
 	int_error(NO_CARET, "non-numeric array index");
 
     if (array.type == ARRAY) {
 	if (i <= 0 || i > array.v.value_array[0].v.int_val)
-	    int_error(NO_CARET, "array index out of range");
+	    int_error(NO_CARET, "attempt to access element %d of array whose size is %d",
+			i, array.v.value_array[0].v.int_val);
 	push( &array.v.value_array[i] );
 	if (array.v.value_array[0].type == TEMP_ARRAY)
 	    gpfree_array(&array);
@@ -2163,12 +2164,13 @@ f_assign(union argument *arg)
 	pop(&index);
 	if (index.type == INTGR)
 	    i = index.v.int_val;
-	else if (index.type == CMPLX)
+	else if (index.type == CMPLX && !isnan(index.v.cmplx_val.real))
 	    i = floor(index.v.cmplx_val.real);
 	else
 	    int_error(NO_CARET, "non-numeric array index");
 	if (i <= 0 || i > dest->v.value_array[0].v.int_val)
-	    int_error(NO_CARET, "array index out of range");
+	    int_error(NO_CARET, "attempt to access element %d of array whose size is %d",
+			i, dest->v.value_array[0].v.int_val);
 	gpfree_string(&dest->v.value_array[i]);
 	dest->v.value_array[i] = b;
 
