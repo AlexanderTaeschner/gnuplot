@@ -1147,15 +1147,33 @@ do_arc(
     double aspect;
     TBOOLEAN complete_circle;
 
-    /* Protect against out-of-range values */
-    while (arc_start < 0)
-	arc_start += 360.;
-    while (arc_end > 360.)
-	arc_end -= 360.;
+    /* Nothing should be drawn */
+    if (arc_end - arc_start == 0)
+	return;
 
     /* Always draw counterclockwise */
-    while (arc_end < arc_start)
+    while (arc_end <= arc_start)
 	arc_end += 360.;
+
+    /* Adjust arc_start to [0:360]. */
+    while (arc_start < 0) {
+	arc_start += 360.;
+	arc_end += 360.;
+    }
+    while (arc_start > 360.0) {
+	arc_start -= 360.;
+	arc_end -= 360.;
+    }
+
+    /* Adjust arc_end to [arc_start:arc_start+360]. */
+    while (arc_end - arc_start > 360.0)
+	arc_end -= 360.;
+
+    /* Determining whether complete circle or arc */
+    if (arc_end - arc_start == 360.0)
+	complete_circle = TRUE;
+    else
+	complete_circle = FALSE;
 
     /* Choose how finely to divide this arc into segments */
     /* Note: INC=2 caused problems for gnuplot_x11 */
@@ -1174,15 +1192,13 @@ do_arc(
     vertex[segments].x = cx + cos(DEG2RAD * arc_end) * radius;
     vertex[segments].y = cy + sin(DEG2RAD * arc_end) * radius * aspect;
 
-    if (fabs(arc_end - arc_start) > .1
-    &&  fabs(arc_end - arc_start) < 359.9) {
+    if (!complete_circle) {
 	vertex[++segments].x = cx;
 	vertex[segments].y = cy;
 	vertex[++segments].x = vertex[0].x;
 	vertex[segments].y = vertex[0].y;
 	complete_circle = FALSE;
-    } else
-	complete_circle = TRUE;
+    }
 
     if (style) { /* Fill in the center */
 	gpiPoint fillarea[250];
