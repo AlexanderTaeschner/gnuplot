@@ -5066,7 +5066,7 @@ Ffigure_watchpoints
 
  The trivial example below sets a watchpoint target that will place a label
  where the curve crosses the line y = ax + b.  When evaluated at [x,y] the
- function Line(a,b) returns the deviation of the current y coordinate from
+ function Line() returns the deviation of the current y coordinate from
  the value ax + b.  Thus when evaluated at an intersection of the plotted
  curve with the line ax+b, the function returns zero.  We set this as
  the watch target.
@@ -5078,7 +5078,7 @@ Ffigure_watchpoints
  available to the function whether or not they are named parameters.
  So the variant below achieves the same result as the previous example.
 
-      Line(dummy1,dummy1) = dummy1*x + dummy2 - y
+      Line(dummy1,dummy2) = dummy1*x + dummy2 - y
       plot cos(x) watch Line(a,b)=0,   a*x + b
 
  The same again, using a function block instead of an in-line function.
