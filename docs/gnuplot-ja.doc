@@ -1,5 +1,4 @@
-C RCS $Id: gnuplot-ja.doc,v 1.824 2025-02-26 11:29:20+09 shige Exp $
-C corresponding original gnuplot.doc at 2025-02-25
+C corresponding original gnuplot.doc at 2025-04-09
 C
 C Copyright (C) 1986 - 1993, 1998, 1999, 2000, 2001, 2004   Thomas Williams, Colin Kelley et al.
 C
@@ -5072,11 +5071,10 @@ C 変数の有効範囲 (スコープ) (Scope of variables)
 ?watch
  ウォッチポイントは、あなたが使用する gnuplot が configure 時にオプショ
  ン --enable-watchpoints をつけて作られた場合にのみサポートされます。こ
- の昨日は試験段階です (詳細は、今後のリリース版で変更される可能性があり
- ます)。
+ の昨日は試験段階です (詳細は、今後の版で変更される可能性があります)。
 
  書式:
-       plot FOO watch {x|y|z|F(x,y)} = <value> {label <文字列値関数>}
+       plot FOO watch {x|y|z|F(...)} = <value> {label <文字列値関数>}
        plot FOO watch mouse
 
        set style watchpoints nolabels
@@ -5087,14 +5085,13 @@ C 変数の有効範囲 (スコープ) (Scope of variables)
        show watchpoints    # 直前の plot コマンドからのすべてのウォッチ
                            # ポイントを要約表示
 
- 一つのウォッチポイントは、x, y, z 座標、または関数 f(x,y) に対する一つ
- の対象値です。各ウォッチポイントは、コマンド `plot` 内の一つのグラフに
- 付随します。ウォッチポイントは、`with lines` と `with linespoints` の
- 描画スタイルでのみ機能します。その場合、そのグラフのすべての構成線分に
- 対し、そのグラフに付随するすべてのウォッチポイントがチェックされ、一つ
- 以上のウォッチポイントの対象がその線分上の点で満たされるかどうかを調べ
- ます。対象条件を満たす (「ヒット」("hits") と呼びます) 点の一覧は、グ
- ラフの描画毎に累積されます。
+ 一つのウォッチポイントは、x, y, z 座標のいずれか、または関数 f(a,...)
+ に対する一つの対象値です。各ウォッチポイントは、コマンド `plot` または
+ `splot` 内の一つのグラフに付随します。その場合、そのグラフのすべての構
+ 成線分に対し、そのグラフに付随するすべてのウォッチポイントがチェックさ
+ れ、一つ以上のウォッチポイントの対象がその線分上の点で満たされるかどう
+ かを調べます。対象条件を満たす (「ヒット」("hits") と呼びます) 点の一
+ 覧は、グラフの描画毎に累積されます。
 
  例えば、対象値 y=100 のウォッチポイントがある場合、各線分に対して、そ
  の両端点の y 座標がその対象値を挟んでいるかをチェックします。もしそう
@@ -5107,6 +5104,10 @@ C 変数の有効範囲 (スコープ) (Scope of variables)
  例:
       plot DATA using 1:2 smooth cnormal watch y=0.25 watch y=0.5 \
           watch y=0.75
+
+ ウォッチポイントは、`with lines` と `with linespoints` の描画スタイル
+ でのみ機能しますが、`splot with lines` の 2 次元 xy 射影
+ (`set view map`) でも使えます。
 
 Ffigure_watchpoints
  直前の plot コマンドで対象にヒットしたウォッチポイントは、WATCH_n とい
@@ -5133,22 +5134,6 @@ Ffigure_watchpoints
  精度: 線分が関数描画で生成されたものであれば、f(x) = y となる x の値は
  2 分反復法で見つけます。それ以外の場合は、その線分に沿う線形補間で座標
  [x,y] を近似します。
-
-3 ウォッチマウス (watch mouse)
-?watchpoints mouse
-?watch mouse
-
- 現在のマウス x 座標をウォッチ対象として使用すると、マウスの水平位置を
- 追跡しながら、グラフの線に沿って移動するラベルを生成します。これにより
- 同じグラフ上の複数の曲線の y の値を同時に表示することも可能です。現在
- の位置を示す点とラベルの見た目は、`set style watchpoint` で変更できま
- す。
-
- 例:
-
-      set style watchpoint labels point pt 6 ps 2 boxstyle 1
-      set style textbox 1 lw 0.5 opaque
-      plot for [i=1:N] "file.dat" using 1:(column(i)) watch mouse
 
 3 ウォッチラベル (watch labels)
 ?watchpoint labels
@@ -5177,6 +5162,81 @@ Ffigure_watchpoints
 
  各 watchpoint ラベルは、テキストボックス内に置きます。以下参照:
  `set style textbox`。
+
+3 関数対象のウォッチポイント (watchpoint function target)
+?watchpoints function target
+?watch function target
+
+ ウォッチポイントは、関数に対象値を設定できます。その関数は、グラフの各
+ 線分の始点と終点で評価しますが、終点の値が対象値をまたいだ場合、線形補
+ 間ののちにそのヒットした座標 [x,y] を報告します。
+
+      plot FOO watch func(...)=targetvalue
+
+ 以下の自明な例は、その曲線が直線 y = ax + b と交わる場所にラベルを置く
+ というウォッチポイント対象を設定します。[x,y] を評価したとき、関数
+ Line(x,y) は、現在の y 座標から値 ax + b までの偏差を返すので、描画グ
+ ラフと直線 ax+b の交点で評価したときには、その関数は 0 を返すことにな
+ ります。そのため我々はこれをウォッチの対象として設定します。
+
+      Line(x,y) = (a*x + b) - y
+      plot cos(x) watch Line(x,y)=0,   a*x + b
+ 
+ 評価の際に、対応する点の x, y, z の値は、それらが名前付きパラメータで
+ あるかどうかに係わらず、その関数に対して有効なので、以下の変種も上の例
+ と同じ結果を産みます。
+
+      Line(dummy1,dummy2) = dummy1*x + dummy2 - y
+      plot cos(x) watch Line(a,b)=0,   a*x + b
+
+ さらに、インライン関数の代わりの関数ブロックを使っても同じです。
+
+     function $Line() << EOF
+        return (a*x + b) - y
+     EOF
+     plot cos(x) watch $Line()=0,   a*x + b
+
+Ffigure_watch_contours
+ より興味深い使用例は、等高線描画での等高線ラベルの配置の抑制です。
+ gnuplot には、等高線ラベルの自動的な配置を変更するオプションがいくつか
+ あります (以下参照: `set cntrlabel`)。しかしグラフが混んでいる場合はそ
+ のラベル付けでは満足できないかもしれません。代わりに、ウォッチポイント
+ 関数対象が満たされる場所にのみラベルを配置することができます。
+
+ 以下の例は、描画領域を横断する直線を選択し、そして等高線ラベルは、等高
+ 線がその一つの直線を横切る場所にのみ配置します。
+
+      set style watchpoint labels center nopoint font ",9"
+      set style textbox noborder opaque margins 0.5, 0.5
+      line(a,b) = a*x+b - y
+      a = 0.6; b = 0.5
+
+      set contours
+      set cntrparam levels incr 0, .2, 4
+      set view map
+
+      splot f(x,y) with lines nosurface watch line(a,b)=0 label \
+        sprintf("%.1f",z)
+
+ 各ラベルを、等高線の z 座標を使って生成します。デフォルトのウォッチポ
+ イントラベル " x : y " は、このグラフでは有益ではないので、等高線の z
+ 値を印字する書式関数を使用しています。
+
+3 ウォッチマウス (watch mouse)
+?watchpoints mouse
+?watch mouse
+
+ 現在のマウス x 座標をウォッチ対象として使用すると、マウスの水平位置を
+ 追跡しながら、グラフの線に沿って移動するラベルを生成します。これにより
+ 同じグラフ上の複数の曲線の y の値を同時に表示することも可能です。現在
+ の位置を示す点とラベルの見た目は、`set style watchpoint` で変更できま
+ す。
+
+ 例:
+
+      set style watchpoint labels point pt 6 ps 2 boxstyle 1
+      set style textbox 1 lw 0.5 opaque
+      plot for [i=1:N] "file.dat" using 1:(column(i)) watch mouse
 
 1 描画スタイル (Plotting styles)
 ?plotting styles
@@ -6987,6 +7047,7 @@ Ffigure_spiderplot
       George  15     75     20     43     90     50
       Harriet 40     40     40     60     30     50
       EOD
+      set datafile columnheader
       set spiderplot
       set style spiderplot fs transparent solid 0.2 border
       set for [p=1:5] paxis p range [0:100]
@@ -6994,7 +7055,7 @@ Ffigure_spiderplot
       set             paxis 1 tics font ",9"
       set for [p=1:5] paxis p label sprintf("Score %d",p)
       set grid spiderplot
-      plot for [i=1:5] $DATA using i:key(1)
+      plot for [i=2:6] $DATA using i:key(1)
 
 3 newspiderplot
 ?newspiderplot
@@ -8286,7 +8347,7 @@ Ffigure_zerror
  関数ブロックを使う 2 つ目の目的は、gnuplot コマンドが、これを使う以外
  には存在できないような状況でその実行を可能にすることです。例えばあなた
  が 2 つの CSV ファイルからのデータを描画したいが、一つのファイルはフィ
- ールドがカンマ区切りで、もう一方はセミコロン区切りであるとします。通常
+ ールドがコンマ区切りで、もう一方はセミコロン区切りであるとします。通常
  この属性に対しては、事前にコマンド `set datafile` をセットしますが、そ
  れは plot コマンドが使用するすべてのファイルに適用されてしまいます。し
  かし我々は、各ファイルが plot コマンドで参照される直前にそれを設定する
@@ -9179,15 +9240,15 @@ Ffigure_zerror
  でなければ、スキップ数に 1 を追加するか、`set datafile columnheaders`
  の属性を設定することで明示的にその行をスキップする必要があるでしょう。
  以下参照: `skip`, `columnhead`, `autotitle columnheader`。
-4 カンマ区切りファイル (csv files)
+4 コンマ区切りファイル (csv files)
 ?csv files
 ?datafile csv
  書式:
       set datafile separator {whitespace | tab | comma | "chars"}
 
- "csv" は、本来はカンマ区切り ("comma-separated values") の略語ですが、
+ "csv" は、本来はコンマ区切り ("comma-separated values") の略語ですが、
  ここでの「csv ファイル」 ("csv file") という言葉は、その中のデータフィ
- ールドが、必ずしもカンマである必要はない特定の文字で区切られているよう
+ ールドが、必ずしもコンマである必要はない特定の文字で区切られているよう
  なファイルとします。csv ファイルからデータを読むためには、gnuplot にフ
  ィールド区切り文字がなんであるかを示す必要があります。例えば、フィール
  ド区切り文字としてセミコロンを使うファイルから読む場合は:
@@ -17302,7 +17363,7 @@ Ffigure_polar_grid
 ?table
  `table` モードが有効な場合、`plot` と `splot` コマンドは、現在の出力形
  式に対する実際の描画を生成する代わりに
-      X Y {Z} <flag>
+      X Y {Z} {color} <flag>
  の値の複数列からなる表形式のテキスト出力を行ないます。フラグ文字 <frag>
  は、その点が有効な範囲内にある場合は "i"、範囲外の場合は "o"、未定義値
  (undefined) の場合は "u" です。データの書式は、軸の刻みの書式 (以下
@@ -17324,6 +17385,12 @@ Ffigure_polar_grid
  出力を名前付きデータブロックにリダイレクトすることもできます。データブ
  ロック名は '$' で始まります。以下も参照: `inline data`。現在の出力形式
  の標準的な描画に戻すには、`unset table` を明示的に行なう必要があります。
+
+ 一般的に、一つの `plot` コマンドの表出力の各行は、2 つの値とフラグ文字
+ "X Y flag" となります。`splot` コマンドの出力は "X Y Z flag" です。コ
+ マンドが可変色として使用する入力の追加列を用意している場合は、その追加
+ 列も出力します。`with vectors` のような描画スタイルでは、入力データ列
+ に要求される数に対応する追加の値を出力します。
 
  `separator` 文字は、CSV ファイル (コンマ区切り) の出力に使えます。その
  モードは、描画スタイル `with table` にのみ影響を与えます。以下参照:
@@ -18579,12 +18646,12 @@ Ffigure_walls
 
  これは自動的に目盛りの刻みを x 軸に 0.5 間隔でつけますが、πのところに
  明示的な見出しも追加します。
-4 xtics timedata
-?set xtics timedata
-?xtics timedata tics
+4 xtics timedate
+?set xtics timedate
+?xtics timedate tics
 ?set xtics time
 ?xtics time
-?timedata tics
+?timedate tics
  時間と日付は内部では秒数として保持されています。
 
  入力: 非数値の日時値は、入力時に `timefmt` で指定した書式を用いて秒数
