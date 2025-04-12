@@ -2157,6 +2157,12 @@ ENHsvg_writec(int c)
 		*enhanced_cur_text++ = 't';
 		*enhanced_cur_text++ = ';';
 		break;
+    case '>':
+		*enhanced_cur_text++ = '&';
+		*enhanced_cur_text++ = 'g';
+		*enhanced_cur_text++ = 't';
+		*enhanced_cur_text++ = ';';
+		break;
     case '&':
 		*enhanced_cur_text++ = '&';
 		*enhanced_cur_text++ = 'a';
