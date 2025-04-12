@@ -210,6 +210,7 @@ static void SVG_local_reset(void);
 static void SVG_DefineFillPattern(int fillpat);
 static void SVG_MoveForced(unsigned int x, unsigned int y);
 static void SVG_write_preamble(void);
+static void SVG_put_CDATA(char* s, FILE* outfile);
 
 /* Stuff for enhanced text mode */
 static int ENHsvg_string_state = 0;
@@ -857,6 +858,23 @@ SVG_init ()
     term->v_tic = term->v_char / 2;
 }
 
+/* put XML <![CDATA[...]]> into file */
+static void
+SVG_put_CDATA (char* s, FILE* gpoutfile)
+{
+    fprintf(gpoutfile, "<![CDATA[");
+    while (*s != '\0') {
+	if (strncmp(s, "]]>", 3) == 0) {
+	    fprintf(gpoutfile, "]]]]><![CDATA[>"); /* restart CDATA */
+	    s+=3;
+	} else {
+	    fputc(*s, gpoutfile);
+	    s++;
+	}
+    }
+    fprintf(gpoutfile, "]]>");
+}
+
 /* write file header*/
 static void
 SVG_write_preamble ()
@@ -864,6 +882,7 @@ SVG_write_preamble ()
     int len;
     double stroke_width;
     char *svg_encoding = "";
+    char *svg_title = NULL;
 
     switch (encoding) {
 	case S_ENC_ISO8859_1:	svg_encoding = "encoding=\"iso-8859-1\" "; break;
@@ -917,8 +936,10 @@ SVG_write_preamble ()
 #endif
     fprintf (gpoutfile, ">\n\n");
 
-    /* TODO: It would be nice to print the actual plot title here */
-    fprintf (gpoutfile, "<title>%s</title>\n", SVG_name ? SVG_name : "Gnuplot");
+    fprintf (gpoutfile, "<title>");
+    svg_title = (title.text && *title.text) ? title.text : (SVG_name ? SVG_name : "Gnuplot");
+    SVG_put_CDATA(svg_title, gpoutfile);
+    fprintf (gpoutfile, "</title>\n");
     fprintf (gpoutfile,
 	     "<desc>Produced by GNUPLOT %s patchlevel %s </desc>\n\n",
 	     gnuplot_version, gnuplot_patchlevel);
