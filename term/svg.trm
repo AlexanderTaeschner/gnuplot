@@ -136,6 +136,7 @@ static unsigned int SVG_rgb = 0;
 static unsigned int SVG_patterncolor[8];
 static char *SVG_linecolor = NULL;
 static char *SVG_name = NULL;
+static char *SVG_description = NULL;
 static char *SVG_scriptdir = NULL;
 static TBOOLEAN SVG_mouseable = FALSE;
 static TBOOLEAN SVG_standalone = FALSE;
@@ -588,6 +589,14 @@ SVG_options ()
 	    continue;
 	}
 
+	if (almost_equals(c_token, "desc$ription")) {
+	    c_token++;
+	    SVG_description = try_to_get_string();
+	    if (!SVG_description)
+		    int_error(c_token,"expecting a plot description");
+	    continue;
+	}
+
 	if (equals(c_token, "jsdir")) {
 	    c_token++;
 	    SVG_scriptdir = try_to_get_string();
@@ -746,6 +755,11 @@ SVG_options ()
 	    "name \"%s\" ", SVG_name);
     }
 
+    if (SVG_description) {
+	sprintf(term_options + strlen(term_options),
+	    "description \"%s\" ", SVG_description);
+    }
+
     sprintf(term_options + strlen(term_options),
 	SVG_linecap == ROUNDED ? "rounded " : SVG_linecap == SQUARE ? "square " : "butt ");
 
@@ -782,6 +796,8 @@ SVG_local_reset()
     SVG_standalone = FALSE;
     free(SVG_name);
     SVG_name = NULL;
+    free(SVG_description);
+    SVG_description = NULL;
     free(SVG_scriptdir);
     SVG_scriptdir = NULL;
     SVG_gridline = FALSE;
@@ -940,9 +956,16 @@ SVG_write_preamble ()
     svg_title = (title.text && *title.text) ? title.text : (SVG_name ? SVG_name : "Gnuplot");
     SVG_put_CDATA(svg_title, gpoutfile);
     fprintf (gpoutfile, "</title>\n");
-    fprintf (gpoutfile,
-	     "<desc>Produced by GNUPLOT %s patchlevel %s </desc>\n\n",
-	     gnuplot_version, gnuplot_patchlevel);
+
+    if (SVG_description == NULL) {
+	fprintf (gpoutfile,
+		 "<desc>Produced by GNUPLOT %s patchlevel %s</desc>\n\n",
+		 gnuplot_version, gnuplot_patchlevel);
+    } else {
+	fprintf(gpoutfile, "<desc>");
+	SVG_put_CDATA(SVG_description, gpoutfile);
+	fprintf(gpoutfile, "</desc>");
+    }
 
 /*
  * FIXME: This code could be shared with canvas.trm
@@ -2393,6 +2416,7 @@ START_HELP(svg)
 "                        {fontscale <multiplier>}",
 "                        {rounded|butt|square} {solid|dashed} {linewidth <lw>}",
 "                        {background <rgb_color>}",
+"                        {description \"<description>\"}",
 "",
 " where <x> and <y> are the size of the SVG plot to generate,",
 " `dynamic` allows a svg-viewer to resize plot, whereas the default",
@@ -2422,6 +2446,8 @@ START_HELP(svg)
 " e.g. if it is referenced by javascript code in a web page or parent document,",
 " then a unique name is required to avoid potential conflicting references",
 " to other SVG plots.  Use the `name` option to ensure uniqueness.",
+"",
+" If a description is provided, it is used in the XML desc tag of the output.",
 ""
 END_HELP(svg)
 
