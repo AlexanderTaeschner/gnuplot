@@ -17228,30 +17228,49 @@ Ffigure_polar_grid
  that output to a file or device.
 
  Syntax:
-       set terminal {<terminal-type> | push | pop}
+       set terminal <terminal-type> <options>
+       set terminal push
+       set terminal pop
        show terminal
 
- If <terminal-type> is omitted, `gnuplot` will list the available terminal
- types.  <terminal-type> may be abbreviated.
+ If <terminal-type> is omitted, `gnuplot` will list all available terminal
+ types.  There are many terminal-specific options that may be specified
+ when the terminal is set.  See also `termoption`.
 
  If both `set terminal` and `set output` are used together, it is safest to
- give `set terminal` first, because some terminals set a flag which is needed
- in some operating systems.
+ give `set terminal` first, because in some cases correct initialization of
+ the output stream may require knowledge of the terminal type.
 
- Some terminals have many additional options.
- The options used by a previous invocation `set term <term> <options>` of a
- given `<term>` are remembered, thus subsequent `set term <term>` does
- not reset them.  This helps in printing, for instance, when switching
- among different terminals---previous options don't have to be repeated.
+ Example:
+       set terminal pdf font "Times,11" size 5in, 3in
+       set output "figure_1.pdf"
+       plot FILE1 with lines
+       set output "figure_2.pdf"
+       plot FILE2 with points
+       unset output
+
+ Caution: If the same terminal type is requested more than once in a session,
+ some terminal-specific options given in previous requests may need to be
+ respecified.
 
  The command `set term push` remembers the current terminal including its
- settings while `set term pop` restores it. This is equivalent to `save term`
- and `load term`, but without accessing the filesystem. Therefore they can be
- used to achieve platform independent restoring of the terminal after printing,
- for instance. After gnuplot's startup, the default terminal or that from
- `startup` file is pushed automatically. Therefore portable scripts can rely
- that `set term pop` restores the default terminal on a given platform unless
+ settings while `set term pop` restores it together with all its previously
+ selected options.  This helps in printing, for instance, when switching
+ among different terminals---previous options don't have to be repeated.
+ When gnuplot is started, the default terminal or that from a from `startup`
+ file is pushed automatically. Therefore portable scripts can rely on
+ `set term pop` to restore the default terminal on a given platform unless
  another terminal has been pushed explicitly.
+
+ Example:
+       set terminal kitty anchor fontscale 0.5 size 700,500
+       load "myplot.gp"
+       set terminal push
+       set terminal pdf font "Times,11" size 5in, 3in
+       set output "myplot.pdf"
+       replot
+       unset output     # Required!  Must not write kitty output to a pdf file
+       set term pop     # restore terminal kitty and options
 
  For more information, see the `complete list of terminals`.
 
