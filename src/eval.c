@@ -137,6 +137,8 @@ const struct ft_entry ft[] =
     {"||",  f_cardinality},		/* for array variables only */
     {"assign", f_assign},		/* assignment operator '=' */
     {"eval", f_eval},			/* function block */
+    {"serial comma", f_serial_comma},	/* invoked when evaluating (A,B) */
+
     {"jump",  f_jump},
     {"jumpz",  f_jumpz},
     {"jumpnz",  f_jumpnz},
@@ -1331,4 +1333,17 @@ array_slice( struct value *full, int beg, int end)
     }
 
     return slice;
+}
+
+/* Called between expressions during serial evaluation,
+ * i.e. at the point of the comma in   C = ( <exp1> , <exp2> ).
+ * The intent is that any error flags from evaluation of <exp1> should not
+ * persist across evaluation of <exp2>.  If necessary the value of <exp1>
+ * could be passed in via x->v_arg for inspection.
+ */
+void
+f_serial_comma(union argument *x)
+{
+    undefined = FALSE;
+    errno = 0;
 }

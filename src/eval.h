@@ -55,6 +55,7 @@ enum operators {
     CONCATENATE, EQS, NES, RANGE, INDEX, CARDINALITY,
     ASSIGN,
     EVAL,
+    SERIAL_COMMA,
     /* only jump operators go between jump and sf_start, for is_jump() */
     JUMP, JUMPZ, JUMPNZ, JTERN, SF_START,
 
@@ -175,6 +176,7 @@ void push(struct value *x);
 void int_check(struct value * v);
 
 void f_bool(union argument *x);
+void f_serial_comma(union argument *x);
 void f_jump(union argument *x);
 void f_jumpz(union argument *x);
 void f_jumpnz(union argument *x);
