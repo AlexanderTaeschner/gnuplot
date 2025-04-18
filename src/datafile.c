@@ -134,10 +134,6 @@
 /* Used to skip whitespace but not cross a field boundary */
 #define NOTSEP (!df_separators || !strchr(df_separators,*s))
 
-enum COLUMN_TYPE { CT_DEFAULT, CT_STRING, CT_KEYLABEL, CT_MUST_HAVE,
-		CT_XTICLABEL, CT_X2TICLABEL, CT_YTICLABEL, CT_Y2TICLABEL,
-		CT_ZTICLABEL };
-
 /*{{{  static fns */
 static int check_missing(char *s);
 
@@ -151,7 +147,7 @@ static void plot_option_every(void);
 static void plot_option_index(void);
 static void plot_option_using(int);
 static TBOOLEAN valid_format(const char *);
-static void plot_ticlabel_using(int);
+static void plot_ticlabel_using(enum COLUMN_TYPE);
 static void add_key_entry(char *temp_string, int df_datum);
 static char * df_generate_pseudodata(void);
 static char * df_generate_ascii_array_entry(void);
@@ -1845,7 +1841,7 @@ plot_option_using(int max_using)
 
 
 static void
-plot_ticlabel_using(int axis)
+plot_ticlabel_using(enum COLUMN_TYPE tictype)
 {
     int col = 0;
 
@@ -1871,7 +1867,7 @@ plot_ticlabel_using(int axis)
     if (!equals(c_token,")"))
 	int_error(c_token, "missing ')'");
     c_token++;
-    use_spec[df_no_use_specs+df_no_tic_specs].expected_type = axis;
+    use_spec[df_no_use_specs+df_no_tic_specs].expected_type = tictype;
     use_spec[df_no_use_specs+df_no_tic_specs].column = col;
     df_no_tic_specs++;
 }
@@ -3079,7 +3075,12 @@ expect_string(const signed char column)
 	return -1;
     }
 
+    /* We already know both that it's a string and what to do with it */
+    if (use_spec[column-1].expected_type >= CT_XTICLABEL)
+	return -1;
+
     use_spec[column-1].expected_type = CT_STRING;
+
     /* Nasty hack to make 'plot "file" using "A":"B":"C" with labels' work.
      * The case of named columns is handled by create_call_column_at(),
      * which fakes an action table as if '(column("string"))' was written
