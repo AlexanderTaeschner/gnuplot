@@ -5376,9 +5376,10 @@ Ffigure_boxplot
       # Compare distribution of y-values from two different files.
       set border 2                    # left-hand border only
       set xtics nomirror scale 0      # no tickmarks; only labels
+      set xtics ("A" 1., "B" 2.)      # x-coords in first field of `using` below
       set ytics rangelimited nomirror
-      plot 'dataset_A' using (1.):2:xticlabel('A') with boxplot, \
-           'dataset_B' using (2.):2:xticlabel('B') with boxplot
+      plot 'dataset_A' using (1.):2 with boxplot, \
+           'dataset_B' using (2.):2 with boxplot
        
       #
       # Compare y-values from two categories of data in the same file.
