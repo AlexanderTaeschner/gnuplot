@@ -326,11 +326,19 @@ make_bins(struct curve_points *plot, int nbins,
     cp_extend(plot, nbins);
     for (i=0; i<nbins; i++) {
 	double bincent = bottom + (0.5 + (double)i) * binwidth;
-	double ybin = bin[i];
-	if ((binopt == 1) && (members[i] > 1))
-	    ybin = bin[i]/members[i];
+        double ybin;
 
 	plot->points[i].type = INRANGE;
+
+	if (binopt == 0)
+	    ybin = bin[i];            /* sum */
+	else if (members[i] >= 1)
+	    ybin = bin[i]/members[i]; /* avg */
+	else {
+	    plot->points[i].type = UNDEFINED;
+	    ybin = not_a_number();
+	}
+
 	plot->points[i].x     = bincent;
 	plot->points[i].xlow  = bincent - binwidth/2.;
 	plot->points[i].xhigh = bincent + binwidth/2.;
@@ -358,7 +366,8 @@ make_bins(struct curve_points *plot, int nbins,
 
     /* Recheck range on y */
     for (i=0; i<nbins; i++)
-	if (!inrange(plot->points[i].y, yaxis->min, yaxis->max))
+	if (plot->points[i].type == INRANGE
+	  && !inrange(plot->points[i].y, yaxis->min, yaxis->max))
 	    plot->points[i].type = OUTRANGE;
 
     /* Clean up */

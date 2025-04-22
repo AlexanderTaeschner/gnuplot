@@ -5066,7 +5066,7 @@ Ffigure_watchpoints
 
  The trivial example below sets a watchpoint target that will place a label
  where the curve crosses the line y = ax + b.  When evaluated at [x,y] the
- function Line(a,b) returns the deviation of the current y coordinate from
+ function Line() returns the deviation of the current y coordinate from
  the value ax + b.  Thus when evaluated at an intersection of the plotted
  curve with the line ax+b, the function returns zero.  We set this as
  the watch target.
@@ -5078,7 +5078,7 @@ Ffigure_watchpoints
  available to the function whether or not they are named parameters.
  So the variant below achieves the same result as the previous example.
 
-      Line(dummy1,dummy1) = dummy1*x + dummy2 - y
+      Line(dummy1,dummy2) = dummy1*x + dummy2 - y
       plot cos(x) watch Line(a,b)=0,   a*x + b
 
  The same again, using a function block instead of an in-line function.
@@ -5376,9 +5376,10 @@ Ffigure_boxplot
       # Compare distribution of y-values from two different files.
       set border 2                    # left-hand border only
       set xtics nomirror scale 0      # no tickmarks; only labels
+      set xtics ("A" 1., "B" 2.)      # x-coords in first field of `using` below
       set ytics rangelimited nomirror
-      plot 'dataset_A' using (1.):2:xticlabel('A') with boxplot, \
-           'dataset_B' using (2.):2:xticlabel('B') with boxplot
+      plot 'dataset_A' using (1.):2 with boxplot, \
+           'dataset_B' using (2.):2 with boxplot
        
       #
       # Compare y-values from two categories of data in the same file.
@@ -6930,6 +6931,7 @@ Ffigure_spiderplot
       George  15     75     20     43     90     50
       Harriet 40     40     40     60     30     50
       EOD
+      set datafile columnheader
       set spiderplot
       set style spiderplot fs transparent solid 0.2 border
       set for [p=1:5] paxis p range [0:100]
@@ -6937,7 +6939,7 @@ Ffigure_spiderplot
       set             paxis 1 tics font ",9"
       set for [p=1:5] paxis p label sprintf("Score %d",p)
       set grid spiderplot
-      plot for [i=1:5] $DATA using i:key(1)
+      plot for [i=2:6] $DATA using i:key(1)
 
 3 newspiderplot
 ?newspiderplot
@@ -17135,7 +17137,7 @@ Ffigure_polar_grid
 ?table
  When `table` mode is enabled, `plot` and `splot` commands print out a
  multicolumn text table of values
-      X Y {Z} <flag>
+      X Y {Z} {color} <flag>
  rather than creating an actual plot on the current terminal. The flag character
  is "i" if the point is in the active range, "o" if it is out-of-range, or "u"
  if it is undefined.  The data format is determined by the format of the axis
@@ -17156,6 +17158,13 @@ Ffigure_polar_grid
  Alternatively, tabular output can be redirected to a named data block.
  Data block names start with '$', see also `inline data`. You must explicitly
  `unset table` in order to go back to normal plotting on the current terminal.
+
+ Generally each line of tabular output from a `plot` command will show two
+ values and a flag character: "X Y flag". The output from an `splot` command
+ will show "X Y Z flag".  In either case if the command provides an additional
+ column of input data used for variable color, this extra column will also be
+ shown in the output.  Certain plot styles such as `with vectors` will show
+ additional values corresponding to the number of required input data columns.
 
  The `separator` character can be used to output csv (comma separated value)
  files.  This mode only affects plot style `with table`.  See `plot with table`.
@@ -17220,30 +17229,49 @@ Ffigure_polar_grid
  that output to a file or device.
 
  Syntax:
-       set terminal {<terminal-type> | push | pop}
+       set terminal <terminal-type> <options>
+       set terminal push
+       set terminal pop
        show terminal
 
- If <terminal-type> is omitted, `gnuplot` will list the available terminal
- types.  <terminal-type> may be abbreviated.
+ If <terminal-type> is omitted, `gnuplot` will list all available terminal
+ types.  There are many terminal-specific options that may be specified
+ when the terminal is set.  See also `termoption`.
 
  If both `set terminal` and `set output` are used together, it is safest to
- give `set terminal` first, because some terminals set a flag which is needed
- in some operating systems.
+ give `set terminal` first, because in some cases correct initialization of
+ the output stream may require knowledge of the terminal type.
 
- Some terminals have many additional options.
- The options used by a previous invocation `set term <term> <options>` of a
- given `<term>` are remembered, thus subsequent `set term <term>` does
- not reset them.  This helps in printing, for instance, when switching
- among different terminals---previous options don't have to be repeated.
+ Example:
+       set terminal pdf font "Times,11" size 5in, 3in
+       set output "figure_1.pdf"
+       plot FILE1 with lines
+       set output "figure_2.pdf"
+       plot FILE2 with points
+       unset output
+
+ Caution: If the same terminal type is requested more than once in a session,
+ some terminal-specific options given in previous requests may need to be
+ respecified.
 
  The command `set term push` remembers the current terminal including its
- settings while `set term pop` restores it. This is equivalent to `save term`
- and `load term`, but without accessing the filesystem. Therefore they can be
- used to achieve platform independent restoring of the terminal after printing,
- for instance. After gnuplot's startup, the default terminal or that from
- `startup` file is pushed automatically. Therefore portable scripts can rely
- that `set term pop` restores the default terminal on a given platform unless
+ settings while `set term pop` restores it together with all its previously
+ selected options.  This helps in printing, for instance, when switching
+ among different terminals---previous options don't have to be repeated.
+ When gnuplot is started, the default terminal or that from a from `startup`
+ file is pushed automatically. Therefore portable scripts can rely on
+ `set term pop` to restore the default terminal on a given platform unless
  another terminal has been pushed explicitly.
+
+ Example:
+       set terminal kitty anchor fontscale 0.5 size 700,500
+       load "myplot.gp"
+       set terminal push
+       set terminal pdf font "Times,11" size 5in, 3in
+       set output "myplot.pdf"
+       replot
+       unset output     # Required!  Must not write kitty output to a pdf file
+       set term pop     # restore terminal kitty and options
 
  For more information, see the `complete list of terminals`.
 
@@ -18385,12 +18413,12 @@ Ffigure_walls
 
  This will automatically generate tic marks every 0.5 along x, but will
  also add an explicit labeled tic mark at pi.
-4 xtics timedata
-?set xtics timedata
-?xtics timedata tics
+4 xtics time
+?set xtics timedate
+?xtics timedate tics
 ?set xtics time
 ?xtics time
-?timedata tics
+?timedate tics
  Times and dates are stored internally as a number of seconds.
 
  Input: Non-numeric time and date values are converted to seconds on input using

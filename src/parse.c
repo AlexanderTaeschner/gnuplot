@@ -667,6 +667,7 @@ parse_primary_expression()
 	while (equals(c_token,",")) {
 	    c_token++;
 	    (void) add_action(POP);
+	    (void) add_action(SERIAL_COMMA);
 	    parse_expression();
 	}
 

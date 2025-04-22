@@ -1513,14 +1513,15 @@ f_index(union argument *arg)
 
     if (index.type == INTGR)
 	i = index.v.int_val;
-    else if (index.type == CMPLX)
+    else if (index.type == CMPLX && !isnan(index.v.cmplx_val.real))
 	i = floor(index.v.cmplx_val.real);
     else
 	int_error(NO_CARET, "non-numeric array index");
 
     if (array.type == ARRAY) {
 	if (i <= 0 || i > array.v.value_array[0].v.int_val)
-	    int_error(NO_CARET, "array index out of range");
+	    int_error(NO_CARET, "attempt to access element %d of array whose size is %d",
+			i, array.v.value_array[0].v.int_val);
 	push( &array.v.value_array[i] );
 	if (array.v.value_array[0].type == TEMP_ARRAY)
 	    gpfree_array(&array);
@@ -1905,30 +1906,37 @@ f_strftime(union argument *arg)
 	int_error(NO_CARET,
 		  "First parameter to strftime must be a format string");
 
-    /* Prepare format string.
-     * Make sure the resulting string not empty by adding a space.
-     * Otherwise, the return value of gstrftime doesn't give enough
-     * information.
-     */
-    fmtlen = strlen(fmt.v.string_val) + 1;
-    fmtstr = gp_alloc(fmtlen + 1, "f_strftime: fmt");
-    strncpy(fmtstr, fmt.v.string_val, fmtlen);
-    strncat(fmtstr, " ", fmtlen);
-    buflen = 80 + 2*fmtlen;
-    buffer = gp_alloc(buflen, "f_strftime: buffer");
+    /* Range check */
+    if (!(fabs(real(&val)) < 1.e12)) {
+	int_warn(NO_CARET, "time value out of range");
+	buffer = strdup("    ");
 
-    /* Get time_str */
-    length = gstrftime(buffer, buflen, fmtstr, real(&val));
-    if (length == 0 || length >= buflen)
-	int_error(NO_CARET, "String produced by time format is too long");
+    } else {
+	/* Prepare format string.
+	 * Make sure the resulting string not empty by adding a space.
+	 * Otherwise, the return value of gstrftime doesn't give enough
+	 * information.
+	 */
+	fmtlen = strlen(fmt.v.string_val) + 1;
+	fmtstr = gp_alloc(fmtlen + 1, "f_strftime: fmt");
+	strncpy(fmtstr, fmt.v.string_val, fmtlen);
+	strncat(fmtstr, " ", fmtlen);
+	buflen = 80 + 2*fmtlen;
+	buffer = gp_alloc(buflen, "f_strftime: buffer");
 
-    /* Remove trailing space */
-    assert(buffer[length-1] == ' ');
-    buffer[length-1] = NUL;
+	/* Get time_str */
+	length = gstrftime(buffer, buflen, fmtstr, real(&val));
+	if (length == 0 || length >= buflen)
+	    int_error(NO_CARET, "String produced by time format is too long");
+
+	/* Remove trailing space */
+	assert(buffer[length-1] == ' ');
+	buffer[length-1] = NUL;
+	free(fmtstr);
+    }
 
     gpfree_string(&val);
     gpfree_string(&fmt);
-    free(fmtstr);
 
     push(Gstring(&val, buffer));
     free(buffer);
@@ -2156,12 +2164,13 @@ f_assign(union argument *arg)
 	pop(&index);
 	if (index.type == INTGR)
 	    i = index.v.int_val;
-	else if (index.type == CMPLX)
+	else if (index.type == CMPLX && !isnan(index.v.cmplx_val.real))
 	    i = floor(index.v.cmplx_val.real);
 	else
 	    int_error(NO_CARET, "non-numeric array index");
 	if (i <= 0 || i > dest->v.value_array[0].v.int_val)
-	    int_error(NO_CARET, "array index out of range");
+	    int_error(NO_CARET, "attempt to access element %d of array whose size is %d",
+			i, dest->v.value_array[0].v.int_val);
 	gpfree_string(&dest->v.value_array[i]);
 	dest->v.value_array[i] = b;
 

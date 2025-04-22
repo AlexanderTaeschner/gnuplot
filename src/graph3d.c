@@ -2164,7 +2164,7 @@ plot3d_points(struct surface_points *plot)
     /* Set whatever we can that applies to every point in the loop */
     if (plot->lp_properties.p_type == PT_CHARACTER) {
 	ignore_enhanced(TRUE);
-	if (plot->labels->font && plot->labels->font[0])
+	if (plot->labels && plot->labels->font && plot->labels->font[0])
 	    (*t->set_font) (plot->labels->font);
 	(*t->justify_text) (CENTRE);
     }
@@ -2260,7 +2260,7 @@ plot3d_points(struct surface_points *plot)
 
     /* Return to initial state */
     if (plot->lp_properties.p_type == PT_CHARACTER) {
-	if (plot->labels->font && plot->labels->font[0])
+	if (plot->labels && plot->labels->font && plot->labels->font[0])
 	    (*t->set_font) ("");
 	ignore_enhanced(FALSE);
     }
@@ -4468,8 +4468,7 @@ check3d_for_variable_color(struct surface_points *plot, struct coordinate *point
 	    set_rgbcolor_var( (unsigned int)point->CRD_COLOR );
 	break;
     case TC_Z:
-	set_color( cb2gray(point->z) );
-	break;
+	/* Fall through */
     case TC_DEFAULT:   /* pm3d mode assumes this is default */
 	if (plot->pm3d_color_from_column)
 	    set_color( cb2gray(point->CRD_COLOR) );

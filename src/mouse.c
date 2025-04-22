@@ -619,6 +619,11 @@ static char *
 xDateTimeFormat(double x, char *b, int mode)
 {
     struct tm tm;
+    if (fabs(x) > 1.e12) {  /* Some time in the year 33688 */
+	int_warn(NO_CARET, "time value out of range");
+	*b = '\0';
+	return b;
+    }
 
     switch (mode) {
     case MOUSE_COORDINATES_XDATE:
@@ -1349,9 +1354,15 @@ builtin_toggle_polardistance(struct gp_event_t *ge)
     if (!ge) {
 	return "`builtin-toggle-polardistance`";
     }
-    if (++mouse_setting.polardistance > 2) mouse_setting.polardistance = 0;
-	/* values: 0 (no polar coordinates), 1 (polar coordinates), 2 (tangent instead of angle) */
-    term->set_cursor((mouse_setting.polardistance ? -3:-4), ge->mx, ge->my); /* change cursor type */
+    /* values: 0 (no polar coordinates),
+     *         1 (polar coordinates),
+     *         2 (tangent instead of angle)
+     */
+    if (++mouse_setting.polardistance > 2)
+	mouse_setting.polardistance = 0;
+    /* change cursor type */
+    if (term->set_cursor)
+	term->set_cursor((mouse_setting.polardistance ? -3:-4), ge->mx, ge->my);
 # ifdef OS2
     PM_update_menu_items();
 # endif

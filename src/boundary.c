@@ -1172,8 +1172,8 @@ find_maxl_keys(struct curve_points *plots, int count, int *kcnt)
 	if (this_plot->title && !this_plot->title_is_suppressed
 	&&  !this_plot->title_position) {
 	    if (this_plot->plot_style == SPIDERPLOT && this_plot->plot_type != KEYENTRY)
-		; /* Nothing */
-	    if (this_plot->plot_style == HISTOGRAMS && this_plot->histogram->type == HT_STACKED_IN_TOWERS)
+		; /* These title are used as axis labels rather than in the key */
+	    else if (this_plot->plot_style == HISTOGRAMS && this_plot->histogram->type == HT_STACKED_IN_TOWERS)
 		; /* These titles are placed as xtics rather than in the key */
 	    else {
 		ignore_enhanced(this_plot->title_no_enhanced);
@@ -1468,7 +1468,7 @@ do_key_sample_point(
 	    (*t->pointsize)(pointsize);
 	if (on_page(xl + key_point_offset, yl)) {
 	    if (this_plot->lp_properties.p_type == PT_CHARACTER) {
-		if (this_plot->labels->textcolor.type != TC_DEFAULT)
+		if (this_plot->labels && this_plot->labels->textcolor.type != TC_DEFAULT)
 		    apply_pm3dcolor(&(this_plot->labels->textcolor));
 		(*t->put_text) (xl + key_point_offset, yl, 
 				this_plot->lp_properties.p_char);

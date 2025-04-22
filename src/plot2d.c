@@ -161,9 +161,13 @@ cp_extend(struct curve_points *cp, int num)
     if (num > 0) {
 	cp->points = gp_realloc(cp->points, num * sizeof(cp->points[0]),
 				"expanding 2D points");
-	if (cp->varcolor)
+	if (cp->varcolor) {
+	    int increment = num - cp->p_max;
 	    cp->varcolor = gp_realloc(cp->varcolor, num * sizeof(double),
 				    "expanding curve variable colors");
+	    if (increment > 0)
+		memset( &cp->varcolor[cp->p_max], 0, increment * sizeof(double) );
+	}
 	cp->p_max = num;
 	cp->p_max -= 1;		/* Set trigger point for reallocation ahead of	*/
 				/* true end in case two slots are used at once	*/
@@ -417,8 +421,9 @@ get_data(struct curve_points *current_plot)
 	    variable_color = FALSE;
 	}
 	if (variable_color) {
-	    current_plot->varcolor = gp_alloc(current_plot->p_max * sizeof(double),
-		"varcolor array");
+	    size_t varcolsize = current_plot->p_max * sizeof(double);
+	    current_plot->varcolor = gp_alloc(varcolsize, "varcolor array");
+	    memset(current_plot->varcolor, 0, varcolsize);
 	}
     }
 

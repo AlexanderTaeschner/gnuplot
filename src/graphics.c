@@ -1933,8 +1933,16 @@ plot_hsteps (struct curve_points *plot)
     /* Setting xlow/xhigh member of 'points' array according to anchor value */
     /* For variable width (3rd column), xlow/xhigh is already set in plot2d.c:get_data() */
     for (i=0; i<np; i++) {
+	/* z holds variable boxwidth */
         if (points[i].z >= 0.0)
 	    continue;
+	/* 'boxwidth absolute' for hsteps */
+        if (plot->plot_style == HSTEPS && boxwidth > 0 && boxwidth_is_absolute) {
+	    points[i].z = boxwidth;
+	    points[i].xlow  = points[i].x - anchor*boxwidth;
+	    points[i].xhigh = points[i].x + (1.0-anchor)*boxwidth;
+	    continue;
+	}
 	/* anchor */
 	/*	  0 : xl = x - 0.0*w, xr = x + 1.0*w */
 	/*	0.5 : xl = x - 0.5*w, xr = x + 0.5*w */
@@ -1980,6 +1988,18 @@ plot_hsteps (struct curve_points *plot)
     /* last point: UNDEFINED if previous point is UNDEFINED */
     if (points[np-1].z < 0.0 && state[np-2] == HSTEPS_POINT_UNDEFINED)
 	state[np-1] = HSTEPS_POINT_UNDEFINED;
+
+    /* 'boxwidth relative' for hsteps */
+    if (plot->plot_style == HSTEPS && boxwidth > 0 && ! boxwidth_is_absolute) {
+	for (i=0; i<np; i++) {
+	    /* z holds variable boxwidth */
+	    if (points[i].z >= 0)
+		continue;
+	    points[i].z = boxwidth;
+	    points[i].xlow  = (1.0-boxwidth)*points[i].x + boxwidth*points[i].xlow;
+	    points[i].xhigh = (1.0-boxwidth)*points[i].x + boxwidth*points[i].xhigh;
+	}
+    }
 
     /* Emulation of steps/fsteps/fillsteps */
 
@@ -2649,7 +2669,7 @@ plot_points(struct curve_points *plot)
     /* Set whatever we can that applies to every point in the loop */
     if (plot->lp_properties.p_type == PT_CHARACTER) {
 	ignore_enhanced(TRUE);
-	if (plot->labels->font && plot->labels->font[0])
+	if (plot->labels && plot->labels->font && plot->labels->font[0])
 	    (*t->set_font) (plot->labels->font);
 	(*t->justify_text) (CENTRE);
     }
@@ -2781,7 +2801,7 @@ plot_points(struct curve_points *plot)
 
     /* Return to initial state */
     if (plot->lp_properties.p_type == PT_CHARACTER) {
-	if (plot->labels->font && plot->labels->font[0])
+	if (plot->labels && plot->labels->font && plot->labels->font[0])
 	    (*t->set_font) ("");
 	ignore_enhanced(FALSE);
     }
@@ -2921,7 +2941,9 @@ plot_sectors(struct curve_points *plot)
             /* check of 4-corners */
             for (k=0; k<5; k++) {
 		polar_to_xy(aa[k], rr[k], &xp, &yp, FALSE);
-                if ( inrange(xp+center_x, xmin, xmax) && inrange(yp+center_y, ymin, ymax) ) {
+                if ((plot->ellipseaxes_units == ELLIPSEAXES_XX && inrange(xp+center_x, xmin, xmax))
+                ||  (plot->ellipseaxes_units == ELLIPSEAXES_YY && inrange(yp+center_y, ymin, ymax))
+                ||  (inrange(xp+center_x, xmin, xmax) && inrange(yp+center_y, ymin, ymax))) {
                     is_inrange = TRUE;
                     break;
                 }
@@ -2930,7 +2952,9 @@ plot_sectors(struct curve_points *plot)
 		for (k=0; k<2; k++) {
 	            for (angle = arc_begin+delta_angle; angle<arc_end; angle += delta_angle) {
 	               polar_to_xy(angle, r2[k], &xp, &yp, FALSE);
-	               if ( inrange(xp+center_x, xmin, xmax) && inrange(yp+center_y, ymin, ymax) ) {
+                       if ((plot->ellipseaxes_units == ELLIPSEAXES_XX && inrange(xp+center_x, xmin, xmax))
+                       ||  (plot->ellipseaxes_units == ELLIPSEAXES_YY && inrange(yp+center_y, ymin, ymax))
+                       ||  (inrange(xp+center_x, xmin, xmax) && inrange(yp+center_y, ymin, ymax))) {
 	                   is_inrange = TRUE;
 	                   break;
 	               }

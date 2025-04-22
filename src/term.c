@@ -224,12 +224,6 @@ static void do_point(unsigned int x, unsigned int y, int number);
 static void do_pointsize(double size);
 static void do_arrow(unsigned int sx, unsigned int sy, unsigned int ex, unsigned int ey, int headstyle);
 static void null_dashtype(int type, t_dashtype *custom_dash_pattern);
-#ifdef USE_MOUSE
-static void null_tmptext(int i, const char *s);
-static void null_set_ruler(int x, int y);
-static void null_set_cursor(int c, int x, int y);
-static void null_set_clipboard(const char *s);
-#endif
 
 static int null_text_angle(float ang);
 static int null_justify_text(enum JUSTIFY just);
@@ -1153,15 +1147,33 @@ do_arc(
     double aspect;
     TBOOLEAN complete_circle;
 
-    /* Protect against out-of-range values */
-    while (arc_start < 0)
-	arc_start += 360.;
-    while (arc_end > 360.)
-	arc_end -= 360.;
+    /* Nothing should be drawn */
+    if (arc_end - arc_start == 0)
+	return;
 
     /* Always draw counterclockwise */
-    while (arc_end < arc_start)
+    while (arc_end <= arc_start)
 	arc_end += 360.;
+
+    /* Adjust arc_start to [0:360]. */
+    while (arc_start < 0) {
+	arc_start += 360.;
+	arc_end += 360.;
+    }
+    while (arc_start > 360.0) {
+	arc_start -= 360.;
+	arc_end -= 360.;
+    }
+
+    /* Adjust arc_end to [arc_start:arc_start+360]. */
+    while (arc_end - arc_start > 360.0)
+	arc_end -= 360.;
+
+    /* Determining whether complete circle or arc */
+    if (arc_end - arc_start == 360.0)
+	complete_circle = TRUE;
+    else
+	complete_circle = FALSE;
 
     /* Choose how finely to divide this arc into segments */
     /* Note: INC=2 caused problems for gnuplot_x11 */
@@ -1180,15 +1192,13 @@ do_arc(
     vertex[segments].x = cx + cos(DEG2RAD * arc_end) * radius;
     vertex[segments].y = cy + sin(DEG2RAD * arc_end) * radius * aspect;
 
-    if (fabs(arc_end - arc_start) > .1
-    &&  fabs(arc_end - arc_start) < 359.9) {
+    if (!complete_circle) {
 	vertex[++segments].x = cx;
 	vertex[segments].y = cy;
 	vertex[++segments].x = vertex[0].x;
 	vertex[segments].y = vertex[0].y;
 	complete_circle = FALSE;
-    } else
-	complete_circle = TRUE;
+    }
 
     if (style) { /* Fill in the center */
 	gpiPoint fillarea[250];
@@ -1420,21 +1430,6 @@ term_waitforinput(int options)
     }
 }
 
-static void
-null_tmptext(int i, const char *s)
-{}
-
-static void
-null_set_ruler(int x, int y)
-{}
-
-static void
-null_set_cursor(int c, int x, int y)
-{}
-
-static void
-null_set_clipboard(const char *s)
-{}
 #endif
 
 /* setup the magic macros to compile in the right parts of the
@@ -1645,17 +1640,6 @@ change_term(const char *origname, int length)
     }
     if (term->dashtype == 0)
 	term->dashtype = null_dashtype;
-
-#ifdef USE_MOUSE
-    if (term->put_tmptext == NULL)
-	term->put_tmptext = null_tmptext;
-    if (term->set_ruler == NULL)
-	term->set_ruler = null_set_ruler;
-    if (term->set_cursor == NULL)
-	term->set_cursor = null_set_cursor;
-    if (term->set_clipboard == NULL)
-	term->set_clipboard = null_set_clipboard;
-#endif
 
     if (interactive && !term_on_entry)
 	fprintf(stderr, "\nTerminal type is now '%s'\n", term->name);
