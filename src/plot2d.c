@@ -1780,7 +1780,7 @@ check_or_add_boxplot_factor(struct curve_points *plot, char* string, double x)
 	    new_label->next = label;
 	    new_label->tag = plot->boxplot_factors++;
 	    new_label->text = gp_strdup(trimmed_string);
-	    new_label->place.x = plot->points[0].x;
+	    new_label->place.x = x;
 	    prev_label->next = new_label;
 	    label = new_label;
 	}
@@ -1798,6 +1798,7 @@ add_tics_boxplot_factors(struct curve_points *plot)
 {
     AXIS_INDEX boxplot_labels_axis;
     text_label *this_label;
+    double first_x_position = plot->labels->next->place.x;
     int i = 0;
 
     boxplot_labels_axis = 
@@ -1807,7 +1808,7 @@ add_tics_boxplot_factors(struct curve_points *plot)
     for (this_label = plot->labels->next; this_label;
 	 this_label = this_label->next) {
 	    add_tic_user( &axis_array[boxplot_labels_axis], this_label->text,
-		plot->points->x + i * boxplot_opts.separation, -1);
+		first_x_position + i * boxplot_opts.separation, -1);
 	    i++;
     }
 }
