@@ -5974,6 +5974,10 @@ populate_sparse_matrix(struct coordinate **points, int *p_count)
     if (noutside > 0)
 	fprintf(stderr, "       %d points outside defined matrix extent\n", noutside);
 
+    /* UNDEFINED corner points would cause rendering in process_image() to fail. */
+    matrix[0].type = INRANGE;
+    matrix[msize-1].type = INRANGE;
+
     /* Replace the original data with the full sparse matrix */
     free(*points);
     *points = matrix;
