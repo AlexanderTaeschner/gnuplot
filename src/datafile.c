@@ -2768,10 +2768,10 @@ f_column(union argument *arg)
     else if (column == -1)
 	push(Ginteger(&a, line_count));
     else if (column == 0)       /* $0 = df_datum */
-	push(Gcomplex(&a, (double) df_datum, 0.0));
+	push(Ginteger(&a, df_datum));
     else if (column == DOLLAR_NCOLUMNS)	{
 	/* $# returns actual number of columns in this line */
-	push(Gcomplex(&a, (double)df_no_cols, 0.0));
+	push(Ginteger(&a, df_no_cols));
     } else if (column < 1 || column > df_no_cols) {
 	undefined = TRUE;
 	push(Gcomplex(&a, not_a_number(), 0.0));
