@@ -103,6 +103,7 @@ const struct ft_entry ft[] =
     {"call",  f_call},
     {"calln",  f_calln},
     {"sum", f_sum},
+    {"prod", f_prod},
     {"lnot",  f_lnot},
     {"bnot",  f_bnot},
     {"uminus",  f_uminus},
@@ -825,7 +826,7 @@ free_action_entry(struct at_entry *a)
     if ( a->index == PUSHC || a->index == DOLLARS )
 	gpfree_string(&(a->arg.v_arg));
     /* a summation contains its own action table wrapped in a private udf */
-    if (a->index == SUM) {
+    if (a->index == SUM || a->index == PROD) {
 	real_free_at(a->arg.udf_arg->at);
 	free(a->arg.udf_arg);
     }

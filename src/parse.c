@@ -95,6 +95,7 @@ static void parse_additive_expression(void);
 static void parse_multiplicative_expression(void);
 static void parse_unary_expression(void);
 static void parse_sum_expression(void);
+static void parse_prod_expression(void);
 static int  parse_assignment_expression(void);
 static int  parse_array_assignment_expression(void);
 static void parse_function_block(void);
@@ -242,7 +243,7 @@ string_or_express(struct at_type **atptr)
     for (i = 0; i < at->a_count; i++) {
 	enum operators op_index = at->actions[i].index;
 	if ( op_index == PUSHD1 || op_index == PUSHD2 || op_index == PUSHD
-	||   op_index == SUM ) {
+	||   op_index == SUM || op_index == PROD ) {
 	    has_dummies = TRUE;
 	    break;
 	}
@@ -792,6 +793,8 @@ parse_primary_expression()
 	    }
 	} else if (equals(c_token, "sum") && equals(c_token+1, "[")) {
 	    parse_sum_expression();
+	} else if (equals(c_token, "prod") && equals(c_token+1, "[")) {
+	    parse_prod_expression();
 	/* dummy_func==NULL is a flag to say no dummy variables active */
 	} else if (dummy_func) {
 	    if (equals(c_token, c_dummy_var[0])) {
@@ -1297,6 +1300,81 @@ parse_sum_expression()
 
     /* pass the udf to f_sum using the argument */
     add_action(SUM)->udf_arg = udf;
+}
+
+/* create action code for 'prod' expressions */
+static void
+parse_prod_expression()
+{
+    /* prod [<var>=<start>:<end>] <expr>
+     * - <var> pushed to stack *by name*
+     * - <start> and <end> expressions pushed to stack
+     * - A new action table for <expr> is created and passed to f_sum(arg)
+     *   via arg->udf_arg
+     */
+
+    char *errormsg = "Expecting 'prod [<var> = <start>:<end>] <expression>'\n";
+    char *varname = NULL;
+    union argument *arg;
+    struct udft_entry *udf;
+
+    struct at_type * save_at;
+    int save_at_size;
+    int i;
+    
+    /* Caller already checked for string "prod [" so skip both tokens */
+    c_token += 2;
+
+    /* <var> */
+    if (!isletter(c_token))
+	int_error(c_token, errormsg);
+    m_capture(&varname, c_token, c_token);
+    arg = add_action(PUSHC);
+    Gstring(&(arg->v_arg), varname);
+    c_token++;
+
+    if (!equals(c_token, "="))
+	int_error(c_token, errormsg);
+    c_token++;
+
+    /* <start> */
+    parse_expression();
+
+    if (!equals(c_token, ":"))
+	int_error(c_token, errormsg);
+    c_token++;
+
+    /* <end> */
+    parse_expression();
+
+    if (!equals(c_token, "]"))
+	int_error(c_token, errormsg);
+    c_token++;
+
+    /* parse <expr> and convert it to a new action table.
+     * modeled on code from temp_at().
+     */
+    /* 1. save environment to restart parsing */
+    save_at = at;
+    save_at_size = at_size;
+    at = NULL;
+
+    /* 2. save action table in a user defined function */
+    udf = (struct udft_entry *) gp_alloc(sizeof(struct udft_entry), "prod");
+    udf->next_udf = (struct udft_entry *) NULL;
+    udf->udf_name = NULL; /* TODO maybe add a name and definition */ 
+    udf->at = perm_at();
+    udf->definition = NULL;
+    udf->dummy_num = 0;
+    for (i = 0; i < MAX_NUM_VAR; i++)
+	Ginteger(&(udf->dummy_values[i]), 0);
+
+    /* 3. restore environment */
+    at = save_at;
+    at_size = save_at_size;
+
+    /* pass the udf to f_sum using the argument */
+    add_action(PROD)->udf_arg = udf;
 }
 
 /* Fill in array elements read from the command line

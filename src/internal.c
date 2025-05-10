@@ -326,7 +326,7 @@ f_sum(union argument *arg)
 
     udf = arg->udf_arg;
     if (!udf)
-	int_error(NO_CARET, "internal error: lost expression to be evaluated during summation");
+	int_error(NO_CARET, "internal error: lost the expression being evaluated");
 
     for (intgr_t i = beg.v.int_val; i <= end.v.int_val; ++i) {
 	double x, y;
@@ -366,6 +366,83 @@ f_sum(union argument *arg)
 
     if (integer_terms)
 	push(Ginteger(&result, llsum));
+    else
+	push(&result);
+
+    /* restore original value of iteration variable */
+    udv->udv_value = save_i;
+}
+
+/* shige */
+void
+f_prod(union argument *arg)
+{
+    struct value beg, end, varname; /* [<var> = <start>:<end>] */
+    udft_entry *udf;                /* function to evaluate */
+    udvt_entry *udv;                /* iteration variable */
+    struct value result;            /* accummulated product */
+    struct value f_i;
+    struct value save_i;	    /* previous value of iteration variable */
+    intgr_t llprod;		    /* integer product */
+    TBOOLEAN integer_terms = TRUE;
+
+    (void) pop(&end);
+    (void) pop(&beg);
+    (void) pop(&varname);
+
+    /* Initialize product to 1 */
+    Gcomplex(&result, 1, 0);
+    llprod = 1;
+
+    if (beg.type != INTGR || end.type != INTGR)
+	int_error(NO_CARET, "range specifiers of prod must have integer values");
+
+    udv = add_udv_by_name(varname.v.string_val);
+    gpfree_string(&varname);
+    save_i = udv->udv_value;
+
+    udf = arg->udf_arg;
+    if (!udf)
+	int_error(NO_CARET, "internal error: lost the expression being evaluated");
+
+    for (intgr_t i = beg.v.int_val; i <= end.v.int_val; ++i) {
+	double x, y;
+
+	/* calculate f_i = f() with user defined variable i */
+	Ginteger(&udv->udv_value, i);
+	execute_at(udf->at);
+	pop(&f_i);
+
+	x = real(&result)*real(&f_i) - imag(&result)*imag(&f_i);
+	y = real(&result)*imag(&f_i) + imag(&result)*real(&f_i);
+	Gcomplex(&result, x, y);
+
+	if (f_i.type != INTGR)
+	    integer_terms = FALSE;
+	if (!integer_terms)
+	    continue;
+
+	/* So long as the individual terms are integral */
+	/* keep an integer product as well.		*/
+	llprod *= f_i.v.int_val;
+
+	/* Check for integer overflow */
+	if (overflow_handling == INT64_OVERFLOW_IGNORE)
+	    continue;
+	if (sgn(result.v.cmplx_val.real) != sgn(llprod))  {
+	    integer_terms = FALSE;
+	    if (overflow_handling == INT64_OVERFLOW_TO_FLOAT)
+		continue;
+	    if (overflow_handling == INT64_OVERFLOW_UNDEFINED)
+		undefined = TRUE;
+	    if (overflow_handling == INT64_OVERFLOW_NAN)
+		Gcomplex(&result, not_a_number(), 0.0);
+	    break;
+	}
+    }
+
+    if (integer_terms)
+	push(Ginteger(&result, llprod));
     else
 	push(&result);
 
