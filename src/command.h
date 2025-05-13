@@ -174,6 +174,7 @@ void printerr_command(void);
 void pwd_command(void);
 void refresh_request(void);
 void refresh_command(void);
+void remultiplot_command(void);
 void replot_command(void);
 void reread_command(void);
 void return_command(void);

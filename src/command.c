@@ -2517,6 +2517,13 @@ refresh_request()
     inside_plot_command = FALSE;
 }
 
+void
+remultiplot_command()
+{
+    c_token++;
+    replay_multiplot();
+}
+
 /* process the 'replot' command */
 void
 replot_command()
