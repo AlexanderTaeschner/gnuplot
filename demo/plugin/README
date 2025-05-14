@@ -8,9 +8,8 @@ of running the unit test / demo "plugin.dem".
 
 uigamma_plugin.c provides an implementation of the regularized
 upper incomplete gamma function Q(a,x) [NIST DLMF eq. 8.2.4].
-This code is already built in to gnuplot version 5.5 and later,
-but may be useful to provide this function as a plugin for earlier
-gnuplot versions.
+This function is already built in to gnuplot version 6 but it may
+be useful to provide it via a plugin for earlier gnuplot versions.
 
 If you are configuring and building gnuplot from the top level of
 the source tree then autoconf/automake will create a Makefile for
