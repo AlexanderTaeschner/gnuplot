@@ -710,16 +710,17 @@ BLOCK_text()
 	for (x = 0; x <= term->xmax; x += cellx) {
 	    int xd = x / cellx;  // character cell coordinate
 	    int i = 0;  // index to character map
+	    int soff = (char *)s - line;
 	    TBOOLEAN resetbg = FALSE;
 	    const char * c;
 	    t_colorspec color;
 
 	    // increase buffer size if necessary, assuming a maximum of 100 bytes per cell
-	    if (((char *)s - line) > (bufsiz - 100)) {
+	    if (soff > (bufsiz - 100)) {
 		char * l;
 		bufsiz += (term->xmax + 1) * 8;
 		l = realloc(line, bufsiz);
-		s = (unsigned char *)(l + ((char *)s - line));
+		s = (unsigned char *)(l + soff);
 		line = l;
 	    }
 
