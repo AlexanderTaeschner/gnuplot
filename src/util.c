@@ -1154,19 +1154,21 @@ int_error(int t_num, const char str[], va_dcl)
     /* reprint line if screen has been written to */
     print_line_with_error(t_num);
 
+    if (str != NULL) {
 #ifdef VA_START
-    VA_START(args, str);
+	VA_START(args, str);
 # if defined(HAVE_VFPRINTF) || _LIBC
-    vsnprintf(error_message, sizeof(error_message), str, args);
-    fprintf(stderr,"%.120s",error_message);
+	vsnprintf(error_message, sizeof(error_message), str, args);
+	fprintf(stderr,"%.120s",error_message);
 # else
-    _doprnt(str, args, stderr);
+	_doprnt(str, args, stderr);
 # endif
-    va_end(args);
+	va_end(args);
 #else
-    fprintf(stderr, str, a1, a2, a3, a4, a5, a6, a7, a8);
-    snprintf(error_message, sizeof(error_message), str, a1, a2, a3, a4, a5, a6, a7, a8);
+	fprintf(stderr, str, a1, a2, a3, a4, a5, a6, a7, a8);
+	snprintf(error_message, sizeof(error_message), str, a1, a2, a3, a4, a5, a6, a7, a8);
 #endif
+    }
 
     fputs("\n\n", stderr);
     fill_gpval_string("GPVAL_ERRMSG", error_message);

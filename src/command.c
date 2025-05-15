@@ -1270,8 +1270,10 @@ exit_command()
 
     /* exit error 'error message'  returns to the top command line */
     if (equals(c_token+1,"error")) {
+	char *message;
 	c_token += 2;
-	int_error(NO_CARET, try_to_get_string());
+	message = try_to_get_string();
+	int_error(NO_CARET, message ? message : "");
     }
 
     /* else graphics will be tidied up in main */
