@@ -1324,6 +1324,8 @@ set_palette_file()
 	int_error(c_token, "expecting filename or datablock");
 
     /* Same interlock as plot/splot/stats */
+    if (inside_plot_command)
+	int_error(c_token, "cannot read palette from file in this context");
     inside_plot_command = TRUE;
 
     df_set_plot_mode(MODE_QUERY);	/* Needed only for binary datafiles */

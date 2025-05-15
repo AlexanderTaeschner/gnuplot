@@ -2538,6 +2538,10 @@ replot_command()
 	return;
     }
 
+    /* Protects against recursive call of df_open from plot/splot/stats */
+    if (evaluate_inside_functionblock && inside_plot_command)
+	int_error(NO_CARET, "replot command not available in this context");
+
     /* Disable replot for some reason; currently used by the mouse/hotkey
        capable terminals to avoid replotting when some data come from stdin,
        i.e. when  plotted_data_from_stdin==1  after plot "-".
