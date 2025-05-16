@@ -1273,7 +1273,7 @@ exit_command()
 	char *message;
 	c_token += 2;
 	message = try_to_get_string();
-	int_error(NO_CARET, message ? message : "");
+	int_error(NO_CARET, "%s", message ? message : "");
     }
 
     /* else graphics will be tidied up in main */

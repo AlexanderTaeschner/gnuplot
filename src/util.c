@@ -1271,7 +1271,7 @@ warn_command()
     char *message;
     c_token++;
     if ((message = try_to_get_string())) {
-	int_warn(NO_CARET, message);
+	int_warn(NO_CARET, "%s", message ? message : "");
 	free(message);
     }
 }
