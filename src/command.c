@@ -731,7 +731,11 @@ define()
 	c_token += 3;		/* skip (, dummy, ) and = */
 	if (END_OF_COMMAND)
 	    int_error(c_token, "function definition expected");
-	udf = dummy_func = add_udf(start_token);
+	udf = add_udf(start_token);
+	/* DEBUG odd corner case of attempt to redefine a function while executing it */
+	if (udf->at && udf->at->recursion_depth > 0)
+	    int_error(NO_CARET, "attempt to redefine %s while executing it", udf->udf_name);
+	dummy_func = udf;
 	udf->dummy_num = dummy_num;
 	if ((at_tmp = perm_at()) == (struct at_type *) NULL)
 	    int_error(start_token, "not enough memory for function");

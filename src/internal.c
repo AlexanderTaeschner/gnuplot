@@ -96,6 +96,10 @@ eval_reset_after_error()
     recursion_depth = 0;
     undefined = FALSE;
     eval_fail_soft = FALSE;
+    for (struct udft_entry *udf = first_udf; udf != NULL; udf = udf->next_udf) {
+	if (udf->at)
+	    udf->at->recursion_depth = 0;
+    }
 }
 
 void

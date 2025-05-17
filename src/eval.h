@@ -126,7 +126,9 @@ struct at_entry {
 struct at_type {
     /* count of entries in .actions[] */
     int a_count;
-    /* will usually be less than MAX_AT_LEN is malloc()'d copy */
+    /* only used to prevent freeing the function at depth > 0 */
+    int recursion_depth;
+    /* will usually be less than MAX_AT_LEN when alloc()ed */
     struct at_entry actions[MAX_AT_LEN];
 };
 

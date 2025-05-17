@@ -330,9 +330,10 @@ perm_at()
 struct at_type *
 create_call_column_at(char *string)
 {
-    struct at_type *at = gp_alloc(sizeof(int) + 2*sizeof(struct at_entry),"");
+    struct at_type *at = gp_alloc(2*sizeof(int) + 2*sizeof(struct at_entry),"");
 
     at->a_count = 2;
+    at->recursion_depth = 0;
     at->actions[0].index = PUSHC;
     at->actions[0].arg.j_arg = 0;
     at->actions[0].arg.v_arg.type = STRING;
@@ -348,9 +349,10 @@ create_call_column_at(char *string)
 struct at_type *
 create_call_columnhead()
 {
-    struct at_type *at = gp_alloc(sizeof(int) + 2*sizeof(struct at_entry),"");
+    struct at_type *at = gp_alloc(2*sizeof(int) + 2*sizeof(struct at_entry),"");
 
     at->a_count = 2;
+    at->recursion_depth = 0;
     at->actions[0].index = PUSHC;
     at->actions[0].arg.j_arg = 0;
     at->actions[0].arg.v_arg.type = INTGR;
