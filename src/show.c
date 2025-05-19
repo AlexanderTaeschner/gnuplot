@@ -728,7 +728,6 @@ show_at()
 {
     (void) putc('\n', stderr);
     disp_at(temp_at(), 0);
-    c_token++;
 }
 
 
