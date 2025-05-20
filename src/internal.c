@@ -2222,8 +2222,10 @@ f_assign(union argument *arg)
     dest = pop(&a);	/* name of variable or pointer to array content */
 
     if (dest->type == ARRAY) {
-	/* It's an assignment to an array element. We don't know the index yet */
-	;
+	/* It's an assignment to the element of an array named by a dummy variable.
+	 * We don't know the index yet
+	 */
+	udv = NULL;
 
     } else {
 	if (dest->type != STRING)
@@ -2236,15 +2238,10 @@ f_assign(union argument *arg)
 	dest = &(udv->udv_value);   /* Now dest points to where the new value will go */
     }
 
-    if (b.type == ARRAY) {
-	if (arg->v_arg.type == ARRAY)	/* Actually flags assignment to an array element */
-	    int_error(NO_CARET, "cannot nest arrays");
-	free_value(dest);
-	*dest = b;
-	make_array_permanent(dest);
-
-    } else if (dest->type == ARRAY) {
+    if (arg->v_arg.type == ARRAY) {
 	int i;
+	if (b.type == ARRAY) 	/* Actually flags assignment to an array element */
+	    int_error(NO_CARET, "cannot nest arrays");
 	pop(&index);
 	if (index.type == INTGR)
 	    i = index.v.int_val;
@@ -2258,6 +2255,10 @@ f_assign(union argument *arg)
 	gpfree_string(&dest->v.value_array[i]);
 	dest->v.value_array[i] = b;
 
+    } else if (b.type == ARRAY) {
+	free_value(dest);
+	*dest = b;
+	make_array_permanent(dest);
     } else {
 	free_value(dest);
 	*dest = b;
