@@ -1087,7 +1087,7 @@ is_array_assignment()
     /* Guard against replacement of destination array to other thing during evaluation. */
     if (udv->udv_value.type != ARRAY ||
         udv->udv_value.v.value_array != orig_value_array) {
-	int_error(c_token, "destination array has been replaced during evaluation");
+	int_error(c_token, "destination array was overwritten during evaluation");
     }
     if (index <= 0 || index > udv->udv_value.v.value_array[0].v.int_val)
 	int_error(c_token, "array index out of range");
@@ -1100,7 +1100,7 @@ is_array_assignment()
     /* Guard against replacement of destination array to other thing during evaluation. */
     if (udv->udv_value.type != ARRAY ||
         udv->udv_value.v.value_array != orig_value_array) {
-	int_error(c_token, "destination array has been replaced during evaluation");
+	int_error(c_token, "destination array was overwritten during evaluation");
     }
     if (newvalue.type == ARRAY) {
 	if (newvalue.v.value_array[0].type == TEMP_ARRAY)
