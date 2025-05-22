@@ -1603,9 +1603,9 @@ f_index(union argument *arg)
 	int_error(NO_CARET, "non-numeric array index");
 
     if (array.type == ARRAY) {
-	if (i <= 0 || i > array.v.value_array[0].v.int_val)
+	if (i <= 0 || i > array.v.value_array[0].v.array_header.size)
 	    int_error(NO_CARET, "attempt to access element %d of array whose size is %d",
-			i, array.v.value_array[0].v.int_val);
+			i, array.v.value_array[0].v.array_header.size);
 	push( &array.v.value_array[i] );
 	if (array.v.value_array[0].type == TEMP_ARRAY)
 	    gpfree_array(&array);
@@ -1633,7 +1633,7 @@ f_cardinality(union argument *arg)
     (void) pop(&array);
 
     if (array.type == ARRAY) {
-	size = array.v.value_array[0].v.int_val;
+	size = array.v.value_array[0].v.array_header.size;
 	if (array.v.value_array[0].type == TEMP_ARRAY)
 	    gpfree_array(&array);
     } else if (array.type == DATABLOCK) {
@@ -2252,9 +2252,9 @@ f_assign(union argument *arg)
 	    i = floor(index.v.cmplx_val.real);
 	else
 	    int_error(NO_CARET, "non-numeric array index");
-	if (i <= 0 || i > dest->v.value_array[0].v.int_val)
+	if (i <= 0 || i > dest->v.value_array[0].v.array_header.size)
 	    int_error(NO_CARET, "attempt to access element %d of array whose size is %d",
-			i, dest->v.value_array[0].v.int_val);
+			i, dest->v.value_array[0].v.array_header.size);
 	gpfree_string(&dest->v.value_array[i]);
 	dest->v.value_array[i] = b;
 

@@ -1393,7 +1393,7 @@ parse_array_constant( t_value *array )
     if (array->type != ARRAY || !equals(c_token, "["))
 	return; /* should never happen */
 
-    current_size = array->v.value_array[0].v.int_val;
+    current_size = array->v.value_array[0].v.array_header.size;
     max_size = current_size;
     c_token++;
 
@@ -1424,7 +1424,7 @@ parse_array_constant( t_value *array )
     }
     if (current_size == 0)
 	current_size = i-1;
-    array->v.value_array[0].v.int_val = current_size;
+    array->v.value_array[0].v.array_header.size = current_size;
 
     /* trim off excess (not strictly necessary) */
     if (max_size > current_size) {
@@ -1700,7 +1700,7 @@ check_for_iteration()
 		make_array_permanent(&v);
 		iteration_array = v;
 		iteration_start = 1;
-		iteration_end = v.v.value_array[0].v.int_val;
+		iteration_end = v.v.value_array[0].v.array_header.size;
 		free_value(&(iteration_udv->udv_value));
 		if (iteration_end > 0) {
 		    /* Skip to first non-empty entry slot */
@@ -1795,7 +1795,7 @@ reevaluate_iteration_limits(t_iterator *iter)
 	    make_array_permanent(&v);
 	    iter->iteration_array = v;
 	    iter->iteration_start = 1;
-	    iter->iteration_end = v.v.value_array[0].v.int_val;
+	    iter->iteration_end = v.v.value_array[0].v.array_header.size;
 	    if (iter->iteration_end > 0) {
 		/* Skip to first non-empty entry slot */
 		while ((iter->iteration_start <= iter->iteration_end)
@@ -2082,7 +2082,8 @@ split(const char *string, const char *sep)
 	if (++thisword > size) {
 	    size = size + strlen(string)/8 + 1;
 	    array = gp_realloc(array, (size+1) * sizeof(t_value), "split");
-	    array[0].v.int_val = thisword;
+	    array[0].v.array_header.size = thisword;
+	    array[0].v.array_header.parent = NULL;
 	    for (i = thisword; i <= size; i++)
 		array[i].type = NOTDEFINED;
 	}
@@ -2123,7 +2124,7 @@ split(const char *string, const char *sep)
 
     /* Trim off any extra allocated space */
     array = gp_realloc(array, (thisword+1) * sizeof(t_value), "split");
-    array[0].v.int_val = thisword;
+    array[0].v.array_header.size = thisword;
     array[0].type = TEMP_ARRAY;
 
     return array;

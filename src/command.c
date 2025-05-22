@@ -971,7 +971,7 @@ lower_command(void)
  *    array A = [ .., .. ]
  *    array A = <expression>     (only valid if <expression> returns an array)
  * where size is an integer and space is reserved for elements A[1] through A[size]
- * The size itself is stored in A[0].v.int_val.
+ * The size itself is stored in A[0].v.array_header.size 
  * The list of initial values is optional.
  * Any element that is not initialized is set to NOTDEFINED.
  *
@@ -1081,7 +1081,7 @@ is_array_assignment()
     /* Evaluate index */
     c_token += 2;
     index = int_expression();
-    if (index <= 0 || index > udv->udv_value.v.value_array[0].v.int_val)
+    if (index <= 0 || index > udv->udv_value.v.value_array[0].v.array_header.size)
 	int_error(c_token, "array index out of range");
     if (!equals(c_token, "]") || !equals(c_token+1, "="))
 	int_error(c_token, "Expecting Arrayname[<expr>] = <expr>");
@@ -2389,7 +2389,7 @@ print_command()
 	    struct value *array = a.v.value_array;
 	    if (dataline != NULL) {
 		int i;
-		int arraysize = array[0].v.int_val;
+		int arraysize = array[0].v.array_header.size;
 		len = strappend(&dataline, &size, len, "[");
 		for (i = 1; i <= arraysize; i++) {
 		    if (array[i].type != NOTDEFINED)

@@ -327,7 +327,7 @@ watch_line(struct curve_points *plot, double x1, double y1, double z1, double x2
 	 * both of the successive segments. In that case ignore the second hit.
 	 */
 	v = array->udv_value.v.value_array;
-	if (watch->hits > 0 && v[0].v.int_val > 0) {
+	if (watch->hits > 0 && v[0].v.array_header.size > 0) {
 	    if ((fabs(hit_x - v[watch->hits].v.cmplx_val.real) < EPS)
 	    &&  (fabs(hit_y - v[watch->hits].v.cmplx_val.imag) < EPS))
 		continue;
@@ -352,7 +352,7 @@ watch_line(struct curve_points *plot, double x1, double y1, double z1, double x2
 	array->udv_value.v.value_array
 	    = gp_realloc(array->udv_value.v.value_array,
 			    (watch->hits+1) * sizeof(t_value), NULL);
-	array->udv_value.v.value_array[0].v.int_val = watch->hits;
+	array->udv_value.v.value_array[0].v.array_header.size = watch->hits;
 	Gcomplex(&array->udv_value.v.value_array[watch->hits], hit_x, hit_y);
 
 	/* Not always wanted; should be configurable */
@@ -719,7 +719,7 @@ show_watchlist( struct curve_points *this_plot, struct watch_t *watchlist )
 	array = get_udv_by_name(array_name);
 	if (!array || array->udv_value.type != ARRAY)
 	    int_error(NO_CARET, "error: cannot find array %s", array_name);
-	hits = array->udv_value.v.value_array[0].v.int_val;
+	hits = array->udv_value.v.value_array[0].v.array_header.size;
 	if (hits != this_watch->hits)
 	    int_error(NO_CARET, "error: wrong number of hits in %s", array_name);
 

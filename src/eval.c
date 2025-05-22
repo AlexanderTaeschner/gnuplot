@@ -528,7 +528,7 @@ gpfree_array(struct value *a)
     int size;
 
     if (a->type == ARRAY) {
-	size = a->v.value_array[0].v.int_val;
+	size = a->v.value_array[0].v.array_header.size;
 	for (i=1; i<=size; i++)
 	    gpfree_string(&(a->v.value_array[i]));
 	free(a->v.value_array);
@@ -547,7 +547,8 @@ init_array( struct udvt_entry *array, int size )
     array->udv_value.v.value_array = gp_alloc((size+1) * sizeof(t_value), "init_array");
     array->udv_value.type = ARRAY;
     A = array->udv_value.v.value_array;
-    A[0].v.int_val = size;
+    A[0].v.array_header.size = size;
+    A[0].v.array_header.parent = array;
     for (i = 0; i <= size; i++)
 	A[i].type = NOTDEFINED;
 }
@@ -1299,7 +1300,7 @@ make_array_permanent(struct value *array)
     /* If it was a pre-existing array (no temporary flag) then we must make
      * a clean copy of the whole thing.
      */
-    size = array->v.value_array[0].v.int_val;
+    size = array->v.value_array[0].v.array_header.size;
     copy = gp_alloc( (size+1) * sizeof(struct value), "array copy");
     memcpy( copy, array->v.value_array, (size+1) * sizeof(struct value) );
     for (i=0; i<= size; i++)
@@ -1321,14 +1322,15 @@ array_slice( struct value *full, int beg, int end)
     /* Sanity checks */
     if (beg < 1)
 	beg = 1;
-    if (end > array[0].v.int_val)
-	end = array[0].v.int_val;
+    if (end > array[0].v.array_header.size)
+	end = array[0].v.array_header.size;
     if (end < beg)
 	beg = 1, end = 0;
 
     slice = gp_alloc( (2 + end - beg) * sizeof(struct value), "array slice" );
     slice[0].type = TEMP_ARRAY;
-    slice[0].v.int_val = 1 + end - beg;
+    slice[0].v.array_header.size = 1 + end - beg;
+    slice[0].v.array_header.parent = NULL;
 
     for (i = beg, j = 1; i <= end; i++,j++) {
 	slice[j] = array[i];

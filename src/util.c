@@ -1540,7 +1540,7 @@ value_to_str(struct value *val, TBOOLEAN need_quotes)
 	}
     case ARRAY:
 	{
-	sprintf(s[j], "<%d element array>", (int)(val->v.value_array->v.int_val));
+	sprintf(s[j], "<%d element array>", (int)(val->v.value_array->v.array_header.size));
 	if (val->v.value_array->type == COLORMAP_ARRAY)
 	    strcat(s[j], " (colormap)");
 	break;
