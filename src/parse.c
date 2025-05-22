@@ -271,6 +271,7 @@ string_or_express(struct at_type **atptr)
 	    free_value(&(df_array->udv_value));
 	    make_array_permanent(&val);
 	    df_array->udv_value = val;
+	    df_array->udv_value.v.value_array[0].v.array_header.parent = df_array;
 	    return array_placeholder;
 	}
     }

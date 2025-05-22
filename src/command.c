@@ -778,6 +778,9 @@ define()
 	udv = add_udv(start_token);
 	free_value(&udv->udv_value);
 	udv->udv_value = result;
+
+	if (udv->udv_value.type == ARRAY)
+	    udv->udv_value.v.value_array[0].v.array_header.parent = udv;
     }
 }
 
@@ -1009,6 +1012,7 @@ local_array_command( int depth )
 	}
 	make_array_permanent(&a);
 	array->udv_value = a;
+	array->udv_value.v.value_array[0].v.array_header.parent = array;
 	return;
     }
 
@@ -1919,8 +1923,10 @@ local_command()
     if (array_token) {
 	c_token = array_token;
 	local_array_command(lf_head->depth);
-	if (udv && udv->udv_value.type == ARRAY)
+	if (udv && udv->udv_value.type == ARRAY) {
 	    udv->udv_value.v.value_array[0].type = LOCAL_ARRAY;
+	    udv->udv_value.v.value_array[0].v.array_header.parent = udv;
+	}
     } else {
 	define();
     }
@@ -2612,6 +2618,7 @@ return_command()
 	if (eval_return_value.type == ARRAY) {
 	    make_array_permanent(&eval_return_value);
 	    eval_return_value.v.value_array[0].type = TEMP_ARRAY;
+	    eval_return_value.v.value_array[0].v.array_header.parent = NULL;
 	}
     }
     command_exit_requested = 1;

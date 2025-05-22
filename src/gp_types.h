@@ -175,7 +175,7 @@ struct fblock {
 };
 
 struct array_header {
-	int size;			/* This array is indexed from 1 to size */
+	intgr_t size;			/* This array is indexed from 1 to size */
 	struct udvt_entry *parent;	/* User variable that holds this array */
 };
 
