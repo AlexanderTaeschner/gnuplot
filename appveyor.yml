@@ -7,7 +7,7 @@ image: Visual Studio 2022
 install:
   - cd C:\Tools\vcpkg
 #  - git clean -f -d -x
-#  - del /S /Q c:\tools\vcpkg\installed
+#  - del /S /Q C:\tools\vcpkg\installed
   - git pull
   - .\bootstrap-vcpkg.bat
   - .\vcpkg.exe install --recurse fontconfig:%PLATFORM%-windows
