@@ -731,7 +731,11 @@ define()
 	c_token += 3;		/* skip (, dummy, ) and = */
 	if (END_OF_COMMAND)
 	    int_error(c_token, "function definition expected");
-	udf = dummy_func = add_udf(start_token);
+	udf = add_udf(start_token);
+	/* DEBUG odd corner case of attempt to redefine a function while executing it */
+	if (udf->at && udf->at->recursion_depth > 0)
+	    int_error(NO_CARET, "attempt to redefine %s while executing it", udf->udf_name);
+	dummy_func = udf;
 	udf->dummy_num = dummy_num;
 	if ((at_tmp = perm_at()) == (struct at_type *) NULL)
 	    int_error(start_token, "not enough memory for function");
@@ -1042,6 +1046,7 @@ is_array_assignment()
 {
     udvt_entry *udv;
     struct value newvalue;
+    struct value *orig_value_array;
     int index;
     TBOOLEAN looks_OK = FALSE;
     int brackets;
@@ -1074,9 +1079,16 @@ is_array_assignment()
     if (udv->udv_value.type != ARRAY)
 	int_error(c_token, "Not a known array");
 
+    orig_value_array = udv->udv_value.v.value_array;
+
     /* Evaluate index */
     c_token += 2;
     index = int_expression();
+    /* Guard against replacement of destination array to other thing during evaluation. */
+    if (udv->udv_value.type != ARRAY ||
+        udv->udv_value.v.value_array != orig_value_array) {
+	int_error(c_token, "destination array was overwritten during evaluation");
+    }
     if (index <= 0 || index > udv->udv_value.v.value_array[0].v.int_val)
 	int_error(c_token, "array index out of range");
     if (!equals(c_token, "]") || !equals(c_token+1, "="))
@@ -1085,6 +1097,11 @@ is_array_assignment()
     /* Evaluate right side of assignment */
     c_token += 2;
     const_express(&newvalue);
+    /* Guard against replacement of destination array to other thing during evaluation. */
+    if (udv->udv_value.type != ARRAY ||
+        udv->udv_value.v.value_array != orig_value_array) {
+	int_error(c_token, "destination array was overwritten during evaluation");
+    }
     if (newvalue.type == ARRAY) {
 	if (newvalue.v.value_array[0].type == TEMP_ARRAY)
 	    gpfree_array(&newvalue);
@@ -1270,8 +1287,10 @@ exit_command()
 
     /* exit error 'error message'  returns to the top command line */
     if (equals(c_token+1,"error")) {
+	char *message;
 	c_token += 2;
-	int_error(NO_CARET, try_to_get_string());
+	message = try_to_get_string();
+	int_error(NO_CARET, "%s", message ? message : "");
     }
 
     /* else graphics will be tidied up in main */
@@ -2517,6 +2536,13 @@ refresh_request()
     inside_plot_command = FALSE;
 }
 
+void
+remultiplot_command()
+{
+    c_token++;
+    replay_multiplot();
+}
+
 /* process the 'replot' command */
 void
 replot_command()
@@ -2530,6 +2556,10 @@ replot_command()
 	refresh_command();
 	return;
     }
+
+    /* Protects against recursive call of df_open from plot/splot/stats */
+    if (evaluate_inside_functionblock && inside_plot_command)
+	int_error(NO_CARET, "replot command not available in this context");
 
     /* Disable replot for some reason; currently used by the mouse/hotkey
        capable terminals to avoid replotting when some data come from stdin,

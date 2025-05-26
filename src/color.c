@@ -625,7 +625,7 @@ draw_inside_colorbox_bitmap_smooth()
     /* The primary beneficiary of the image variant is cairo + pdf,
      * since it avoids banding artifacts in the filled_polygon variant.
      */
-    if ((term->flags & TERM_COLORBOX_IMAGE))
+    if ((term->flags & TERM_COLORBOX_IMAGE) && !color_box.invert)
         draw_inside_colorbox_bitmap_smooth__image();
     else
         draw_inside_colorbox_bitmap_smooth__filled_polygon();
@@ -841,6 +841,11 @@ draw_color_smooth_box(int plot_mode)
 	double tmp = color_box.bounds.ytop;
 	color_box.bounds.ytop = color_box.bounds.ybot;
 	color_box.bounds.ybot = tmp;
+    }
+    if (color_box.invert && color_box.rotation == 'h') {
+	double tmp = color_box.bounds.xright;
+	color_box.bounds.xright = color_box.bounds.xleft;
+	color_box.bounds.xleft = tmp;
     }
 
     term->layer(TERM_LAYER_BEGIN_COLORBOX);
@@ -1319,6 +1324,8 @@ set_palette_file()
 	int_error(c_token, "expecting filename or datablock");
 
     /* Same interlock as plot/splot/stats */
+    if (inside_plot_command)
+	int_error(c_token, "cannot read palette from file in this context");
     inside_plot_command = TRUE;
 
     df_set_plot_mode(MODE_QUERY);	/* Needed only for binary datafiles */

@@ -1444,6 +1444,16 @@ gen_tics(struct axis *this, tic_callback callback)
 		    }
 		}
 
+		/* If the axis is logscaled but the major tics have been changed
+		 * from log to linear placement, adjust the minor tics to match.
+		 */
+		if (nonlinear(this) && this->log
+		&&  (!def->logscaling || (def->logscaling && def->force_linear_tics))) {
+		    ministep = step / 10.;
+		    ministart = internal + ministep;
+		    miniend = internal + step;
+		}
+
 		for (mplace = ministart; mplace < miniend; mplace += ministep) {
 		    if (this->tictype == DT_TIMEDATE) {
 			mtic_user = time_tic_just(this->timelevel - 1, internal + mplace);
@@ -1460,7 +1470,12 @@ gen_tics(struct axis *this, tic_callback callback)
 			    mtic_user = this_major + mplace/miniend * (next_major - this_major);
 			    mtic_internal = eval_link_function(this->linked_to_primary, mtic_user);
 			}
+		    } else if (nonlinear(this) && this->log
+			   &&  (!def->logscaling || (def->logscaling && def->force_linear_tics))) {
+			mtic_user = mplace;
+			mtic_internal = mtic_user;	/* It isn't really but this makes the range checks work */
 		    } else if (nonlinear(this) && this->log) {
+			/* FIXME - not sure this is correct. Fall through instead? */
 			mtic_user = internal + mplace;
 			mtic_internal = eval_link_function(this->linked_to_primary, mtic_user);
 		    } else {
@@ -2057,6 +2072,7 @@ sanity_check_log_tics( int axis_index )
 	gen_tics(axis, tic_count_callback);	/* find actual number of tics */
 	if (axis_tic_count < 3) {
 	    axis->ticdef.force_linear_tics = TRUE;
+	    FPRINTF((stderr, " >>>>>>>> forcing switch to linear tic generation along %s\n", axis_name(axis_index)));
 	    setup_tics(axis, 20);
 	}
     }

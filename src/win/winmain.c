@@ -271,7 +271,9 @@ appdata_directory(void)
 {
     HMODULE hShell32;
     FARPROC pSHGetSpecialFolderPath;
-    static char dir[MAX_PATH] = "";
+    typedef UINT (CALLBACK* GETFOLDERPATH)
+		(HWND  hwnd, LPSTR pszPath, int csidl, BOOL fCreate);
+    static char dir[MAX_PATH] = {'\0'};
 
     if (dir[0])
 	return dir;
@@ -284,7 +286,7 @@ appdata_directory(void)
 	pSHGetSpecialFolderPath =
 	    GetProcAddress(hShell32, "SHGetSpecialFolderPathA");
 	if (pSHGetSpecialFolderPath)
-	    (*pSHGetSpecialFolderPath)(NULL, dir, CSIDL_APPDATA, FALSE);
+	    (*(GETFOLDERPATH)(pSHGetSpecialFolderPath))(NULL, dir, CSIDL_APPDATA, FALSE);
 	FreeModule(hShell32);
 	return dir;
     }

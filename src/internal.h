@@ -52,6 +52,7 @@ void f_pop(union argument *x);
 void f_call(union argument *x);
 void f_calln(union argument *x);
 void f_sum(union argument *x);
+void f_prod(union argument *x);
 void f_lnot(union argument *x);
 void f_bnot(union argument *x);
 void f_lor(union argument *x);

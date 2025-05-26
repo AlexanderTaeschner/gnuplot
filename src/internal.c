@@ -96,6 +96,13 @@ eval_reset_after_error()
     recursion_depth = 0;
     undefined = FALSE;
     eval_fail_soft = FALSE;
+    for (struct udft_entry *udf = first_udf; udf != NULL; udf = udf->next_udf) {
+	if (udf->at)
+	    udf->at->recursion_depth = 0;
+    }
+#ifdef USE_FUNCTIONBLOCKS
+    evaluate_inside_functionblock = FALSE;
+#endif
 }
 
 void
@@ -326,7 +333,7 @@ f_sum(union argument *arg)
 
     udf = arg->udf_arg;
     if (!udf)
-	int_error(NO_CARET, "internal error: lost expression to be evaluated during summation");
+	int_error(NO_CARET, "internal error: lost the expression being evaluated");
 
     for (intgr_t i = beg.v.int_val; i <= end.v.int_val; ++i) {
 	double x, y;
@@ -366,6 +373,83 @@ f_sum(union argument *arg)
 
     if (integer_terms)
 	push(Ginteger(&result, llsum));
+    else
+	push(&result);
+
+    /* restore original value of iteration variable */
+    udv->udv_value = save_i;
+}
+
+/* shige */
+void
+f_prod(union argument *arg)
+{
+    struct value beg, end, varname; /* [<var> = <start>:<end>] */
+    udft_entry *udf;                /* function to evaluate */
+    udvt_entry *udv;                /* iteration variable */
+    struct value result;            /* accummulated product */
+    struct value f_i;
+    struct value save_i;	    /* previous value of iteration variable */
+    intgr_t llprod;		    /* integer product */
+    TBOOLEAN integer_terms = TRUE;
+
+    (void) pop(&end);
+    (void) pop(&beg);
+    (void) pop(&varname);
+
+    /* Initialize product to 1 */
+    Gcomplex(&result, 1, 0);
+    llprod = 1;
+
+    if (beg.type != INTGR || end.type != INTGR)
+	int_error(NO_CARET, "range specifiers of prod must have integer values");
+
+    udv = add_udv_by_name(varname.v.string_val);
+    gpfree_string(&varname);
+    save_i = udv->udv_value;
+
+    udf = arg->udf_arg;
+    if (!udf)
+	int_error(NO_CARET, "internal error: lost the expression being evaluated");
+
+    for (intgr_t i = beg.v.int_val; i <= end.v.int_val; ++i) {
+	double x, y;
+
+	/* calculate f_i = f() with user defined variable i */
+	Ginteger(&udv->udv_value, i);
+	execute_at(udf->at);
+	pop(&f_i);
+
+	x = real(&result)*real(&f_i) - imag(&result)*imag(&f_i);
+	y = real(&result)*imag(&f_i) + imag(&result)*real(&f_i);
+	Gcomplex(&result, x, y);
+
+	if (f_i.type != INTGR)
+	    integer_terms = FALSE;
+	if (!integer_terms)
+	    continue;
+
+	/* So long as the individual terms are integral */
+	/* keep an integer product as well.		*/
+	llprod *= f_i.v.int_val;
+
+	/* Check for integer overflow */
+	if (overflow_handling == INT64_OVERFLOW_IGNORE)
+	    continue;
+	if (sgn(result.v.cmplx_val.real) != sgn(llprod))  {
+	    integer_terms = FALSE;
+	    if (overflow_handling == INT64_OVERFLOW_TO_FLOAT)
+		continue;
+	    if (overflow_handling == INT64_OVERFLOW_UNDEFINED)
+		undefined = TRUE;
+	    if (overflow_handling == INT64_OVERFLOW_NAN)
+		Gcomplex(&result, not_a_number(), 0.0);
+	    break;
+	}
+    }
+
+    if (integer_terms)
+	push(Ginteger(&result, llprod));
     else
 	push(&result);
 
@@ -2138,7 +2222,7 @@ f_assign(union argument *arg)
     dest = pop(&a);	/* name of variable or pointer to array content */
 
     if (dest->type == ARRAY) {
-	/* It's an assignment to an array element. We don't know the index yet */
+	/* It's an assignment to the element of an array given for dummy variable. We don't know the index yet */
 	;
 
     } else {
@@ -2152,16 +2236,14 @@ f_assign(union argument *arg)
 	dest = &(udv->udv_value);   /* Now dest points to where the new value will go */
     }
 
-    if (b.type == ARRAY) {
-	if (arg->v_arg.type == ARRAY)	/* Actually flags assignment to an array element */
-	    int_error(NO_CARET, "cannot nest arrays");
-	free_value(dest);
-	*dest = b;
-	make_array_permanent(dest);
-
-    } else if (dest->type == ARRAY) {
+    if (arg->v_arg.type == ARRAY) {
 	int i;
+	if (b.type == ARRAY) 	/* Actually flags assignment to an array element */
+	    int_error(NO_CARET, "cannot nest arrays");
 	pop(&index);
+        /* Guard against replacement of destination array to other thing during evaluation. */
+	if (dest->type != ARRAY)
+	    int_error(NO_CARET, "destination array was overwritten during evaluation");
 	if (index.type == INTGR)
 	    i = index.v.int_val;
 	else if (index.type == CMPLX && !isnan(index.v.cmplx_val.real))
@@ -2174,6 +2256,10 @@ f_assign(union argument *arg)
 	gpfree_string(&dest->v.value_array[i]);
 	dest->v.value_array[i] = b;
 
+    } else if (b.type == ARRAY) {
+	free_value(dest);
+	*dest = b;
+	make_array_permanent(dest);
     } else {
 	free_value(dest);
 	*dest = b;

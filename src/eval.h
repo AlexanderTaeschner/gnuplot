@@ -47,7 +47,7 @@
 enum operators {
     /* keep this in line with table in eval.c */
     PUSH, PUSHC, PUSHD1, PUSHD2, PUSHD, POP,
-    CALL, CALLN, SUM, LNOT, BNOT, UMINUS, NOP,
+    CALL, CALLN, SUM, PROD, LNOT, BNOT, UMINUS, NOP,
     LOR, LAND, BOR, XOR, BAND, EQ, NE, GT, LT, GE, LE, 
     LEFTSHIFT, RIGHTSHIFT, PLUS, MINUS,
     MULT, DIV, MOD, POWER, FACTORIAL, BOOLE,
@@ -126,7 +126,9 @@ struct at_entry {
 struct at_type {
     /* count of entries in .actions[] */
     int a_count;
-    /* will usually be less than MAX_AT_LEN is malloc()'d copy */
+    /* only used to prevent freeing the function at depth > 0 */
+    int recursion_depth;
+    /* will usually be less than MAX_AT_LEN when alloc()ed */
     struct at_entry actions[MAX_AT_LEN];
 };
 

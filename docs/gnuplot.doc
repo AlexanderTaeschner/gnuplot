@@ -3227,10 +3227,17 @@ C ... and restart the table:
        plot 'file' using 1:( $4<0 ? 1/0 : ($2+$3)/2 )
 
  For an explanation of the `using` syntax, please see `plot datafile using`.
-3 summation
+3 summation and cumulative product
 ?expressions operators summation
 ?operators summation
 ?summation
+?expressions operators prod
+?operators prod
+?product
+ Gnuplot provides operators for iterative sum (Σ) and iterative product (Π).
+
+#TeX \hspace{2 cm} $\sum_{i=min}^{max} f(i)$ ~~~and~~~ $\prod_{i=min}^{max} f(i)$
+
  A summation expression has the form
        sum [<var> = <start> : <end>] <expression>
  <var> is treated as an integer variable that takes on successive integral
@@ -3247,6 +3254,15 @@ C ... and restart the table:
  their value cannot be changed dynamically as a side-effect of carrying
  out the summation. If <end> is less than <start> then the value of the
  summation is zero.
+
+ The equivalent expression for an iterative product has the form
+       prod [<var> = <start> : <end>] <expression>
+ Thus
+       N! == prod [i=1:N] i
+
+ If <end> is less than <start> then no iteration is performed and 
+ the value is returned as 1.0.
+
 3 Gnuplot-defined variables
 ?expressions gnuplot-defined
 ?gnuplot-defined

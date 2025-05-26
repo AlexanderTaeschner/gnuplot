@@ -166,9 +166,14 @@ void f_valid  (union argument *x);
 void f_timecolumn  (union argument *x);
 void f_stringcolumn  (union argument *x);
 
+
+/* filled in while parsing the "using" specifier */
+enum COLUMN_TYPE { CT_DEFAULT, CT_STRING, CT_KEYLABEL, CT_MUST_HAVE,
+		CT_XTICLABEL, CT_X2TICLABEL, CT_YTICLABEL, CT_Y2TICLABEL,
+		CT_ZTICLABEL };
 struct use_spec_s {
     int column;
-    int expected_type;
+    enum COLUMN_TYPE expected_type;
     struct at_type *at;
     int depends_on_column;
 };

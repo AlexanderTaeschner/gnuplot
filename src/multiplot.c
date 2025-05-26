@@ -720,7 +720,6 @@ append_multiplot_line(char *line)
 void
 replay_multiplot()
 {
-    c_token++;
     multiplot_playback = TRUE;
     load_file(NULL, strdup("$GPVAL_LAST_MULTIPLOT"), 6);
     multiplot_playback = FALSE;

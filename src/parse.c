@@ -95,6 +95,7 @@ static void parse_additive_expression(void);
 static void parse_multiplicative_expression(void);
 static void parse_unary_expression(void);
 static void parse_sum_expression(void);
+static void parse_prod_expression(void);
 static int  parse_assignment_expression(void);
 static int  parse_array_assignment_expression(void);
 static void parse_function_block(void);
@@ -242,7 +243,7 @@ string_or_express(struct at_type **atptr)
     for (i = 0; i < at->a_count; i++) {
 	enum operators op_index = at->actions[i].index;
 	if ( op_index == PUSHD1 || op_index == PUSHD2 || op_index == PUSHD
-	||   op_index == SUM ) {
+	||   op_index == SUM || op_index == PROD ) {
 	    has_dummies = TRUE;
 	    break;
 	}
@@ -329,9 +330,10 @@ perm_at()
 struct at_type *
 create_call_column_at(char *string)
 {
-    struct at_type *at = gp_alloc(sizeof(int) + 2*sizeof(struct at_entry),"");
+    struct at_type *at = gp_alloc(2*sizeof(int) + 2*sizeof(struct at_entry),"");
 
     at->a_count = 2;
+    at->recursion_depth = 0;
     at->actions[0].index = PUSHC;
     at->actions[0].arg.j_arg = 0;
     at->actions[0].arg.v_arg.type = STRING;
@@ -347,9 +349,10 @@ create_call_column_at(char *string)
 struct at_type *
 create_call_columnhead()
 {
-    struct at_type *at = gp_alloc(sizeof(int) + 2*sizeof(struct at_entry),"");
+    struct at_type *at = gp_alloc(2*sizeof(int) + 2*sizeof(struct at_entry),"");
 
     at->a_count = 2;
+    at->recursion_depth = 0;
     at->actions[0].index = PUSHC;
     at->actions[0].arg.j_arg = 0;
     at->actions[0].arg.v_arg.type = INTGR;
@@ -792,6 +795,8 @@ parse_primary_expression()
 	    }
 	} else if (equals(c_token, "sum") && equals(c_token+1, "[")) {
 	    parse_sum_expression();
+	} else if (equals(c_token, "prod") && equals(c_token+1, "[")) {
+	    parse_prod_expression();
 	/* dummy_func==NULL is a flag to say no dummy variables active */
 	} else if (dummy_func) {
 	    if (equals(c_token, c_dummy_var[0])) {
@@ -1299,31 +1304,116 @@ parse_sum_expression()
     add_action(SUM)->udf_arg = udf;
 }
 
+/* create action code for 'prod' expressions */
+static void
+parse_prod_expression()
+{
+    /* prod [<var>=<start>:<end>] <expr>
+     * - <var> pushed to stack *by name*
+     * - <start> and <end> expressions pushed to stack
+     * - A new action table for <expr> is created and passed to f_sum(arg)
+     *   via arg->udf_arg
+     */
+
+    char *errormsg = "Expecting 'prod [<var> = <start>:<end>] <expression>'\n";
+    char *varname = NULL;
+    union argument *arg;
+    struct udft_entry *udf;
+
+    struct at_type * save_at;
+    int save_at_size;
+    int i;
+    
+    /* Caller already checked for string "prod [" so skip both tokens */
+    c_token += 2;
+
+    /* <var> */
+    if (!isletter(c_token))
+	int_error(c_token, errormsg);
+    m_capture(&varname, c_token, c_token);
+    arg = add_action(PUSHC);
+    Gstring(&(arg->v_arg), varname);
+    c_token++;
+
+    if (!equals(c_token, "="))
+	int_error(c_token, errormsg);
+    c_token++;
+
+    /* <start> */
+    parse_expression();
+
+    if (!equals(c_token, ":"))
+	int_error(c_token, errormsg);
+    c_token++;
+
+    /* <end> */
+    parse_expression();
+
+    if (!equals(c_token, "]"))
+	int_error(c_token, errormsg);
+    c_token++;
+
+    /* parse <expr> and convert it to a new action table.
+     * modeled on code from temp_at().
+     */
+    /* 1. save environment to restart parsing */
+    save_at = at;
+    save_at_size = at_size;
+    at = NULL;
+
+    /* 2. save action table in a user defined function */
+    udf = (struct udft_entry *) gp_alloc(sizeof(struct udft_entry), "prod");
+    udf->next_udf = (struct udft_entry *) NULL;
+    udf->udf_name = NULL; /* TODO maybe add a name and definition */ 
+    udf->at = perm_at();
+    udf->definition = NULL;
+    udf->dummy_num = 0;
+    for (i = 0; i < MAX_NUM_VAR; i++)
+	Ginteger(&(udf->dummy_values[i]), 0);
+
+    /* 3. restore environment */
+    at = save_at;
+    at_size = save_at_size;
+
+    /* pass the udf to f_sum using the argument */
+    add_action(PROD)->udf_arg = udf;
+}
+
 /* Fill in array elements read from the command line
  *    [ element1, element2, ... ]
  */
 void
 parse_array_constant( t_value *array )
 {
+    struct value *orig_value_array;
+    t_value *elements;
     t_value *element;
+    int orig_size;
     int current_size;
     int max_size;
-    int i = 1;
+    int count = 0;
 
     if (array->type != ARRAY || !equals(c_token, "["))
 	return; /* should never happen */
 
-    current_size = array->v.value_array[0].v.int_val;
-    max_size = current_size;
     c_token++;
 
+    orig_value_array = array->v.value_array;
+    orig_size = orig_value_array[0].v.int_val;
+
+    elements = gp_alloc((orig_size+1) * sizeof(t_value), "load_array");
+    elements[0] = orig_value_array[0];
+
+    current_size = orig_size;
+    max_size = current_size;
+
     while (!END_OF_COMMAND) {
-	if (i > max_size) {
+	if (count > max_size - 1) {
 	    max_size = (max_size < 10) ? 10 : 2*max_size;
-	    array->v.value_array = gp_realloc( array->v.value_array,
+	    elements = gp_realloc( elements,
 		(max_size+1) * sizeof(t_value), "load_array");
 	}
-	element = &(array->v.value_array[i++]);
+	element = &(elements[++count]);
 	if (equals(c_token,",") || equals(c_token,"]")) {
 	    element->type = NOTDEFINED;
 	} else {
@@ -1337,20 +1427,35 @@ parse_array_constant( t_value *array )
 	}
 	if (equals(c_token, "]"))
 	    break;
-	if (!equals(c_token, ","))
+	if (!equals(c_token, ",")) {
+	    free(elements);
 	    int_error(c_token, "array syntax error");
+        }
 	else
 	    c_token++;
     }
-    if (current_size == 0)
-	current_size = i-1;
-    array->v.value_array[0].v.int_val = current_size;
 
-    /* trim off excess (not strictly necessary) */
-    if (max_size > current_size) {
+    /* Guard against replacement of destination array to other thing during evaluation. */
+    if (array->type != ARRAY ||
+	orig_value_array != array->v.value_array) {
+	free(elements);
+	int_error(c_token, "destination array was overwritten during evaluation");
+    }
+
+    if (current_size == 0)
+	current_size = count;
+
+    elements[0].v.int_val = current_size;
+
+    if (orig_size != current_size) {
 	array->v.value_array = gp_realloc( array->v.value_array,
 	    (current_size+1) * sizeof(t_value), "trim array");
     }
+
+    for (int k=0; k<=count; k++)
+	array->v.value_array[k] = elements[k];
+
+    free(elements);
 
     if (!equals(c_token++,"]"))
 	int_error(c_token, "array syntax error");

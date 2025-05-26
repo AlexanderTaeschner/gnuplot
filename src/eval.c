@@ -103,6 +103,7 @@ const struct ft_entry ft[] =
     {"call",  f_call},
     {"calln",  f_calln},
     {"sum", f_sum},
+    {"prod", f_prod},
     {"lnot",  f_lnot},
     {"bnot",  f_bnot},
     {"uminus",  f_uminus},
@@ -762,6 +763,7 @@ execute_at(struct at_type *at_ptr)
     int instruction_index, operator, count;
     int saved_jump_offset = jump_offset;
 
+    at_ptr->recursion_depth++;
     count = at_ptr->a_count;
     for (instruction_index = 0; instruction_index < count;) {
 	operator = (int) at_ptr->actions[instruction_index].index;
@@ -770,6 +772,7 @@ execute_at(struct at_type *at_ptr)
 	assert(is_jump(operator) || (jump_offset == 1));
 	instruction_index += jump_offset;
     }
+    at_ptr->recursion_depth--;
 
     jump_offset = saved_jump_offset;
 }
@@ -825,7 +828,7 @@ free_action_entry(struct at_entry *a)
     if ( a->index == PUSHC || a->index == DOLLARS )
 	gpfree_string(&(a->arg.v_arg));
     /* a summation contains its own action table wrapped in a private udf */
-    if (a->index == SUM) {
+    if (a->index == SUM || a->index == PROD) {
 	real_free_at(a->arg.udf_arg->at);
 	free(a->arg.udf_arg);
     }

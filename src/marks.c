@@ -481,6 +481,8 @@ read_mark_data()
 	int_error(c_token, "unrecognized data source for mark");
 
     /* Same interlock as plot/splot/stats */
+    if (inside_plot_command)
+	int_error(c_token, "cannot read mark data from this context");
     inside_plot_command = TRUE;
 
     df_set_plot_mode(MODE_QUERY);	/* Needed only for binary datafiles */
