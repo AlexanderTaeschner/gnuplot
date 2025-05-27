@@ -524,9 +524,17 @@ parse_assignment_expression()
 	    }
 	}
 
+
+	/* assignment target */
+	m_capture(&varname,c_token,c_token);
+
+	/* Set interlock to protect the variable from corruption during assignment */
+	foo = add_action(LOCK);
+	foo->v_arg.type = STRING;
+	foo->v_arg.v.string_val = strdup(varname);
+
 	/* Push the name of the variable */
 	foo = add_action(PUSHC);
-	m_capture(&varname,c_token,c_token);
 	foo->v_arg.type = STRING;
 	foo->v_arg.v.string_val = varname;
 
@@ -537,6 +545,12 @@ parse_assignment_expression()
 	/* push the actual assignment operation */
 	foo = add_action(ASSIGN);
 	foo->v_arg.type = 0;	/* could be anything but ARRAY */
+
+	/* Remove interlock */
+	foo = add_action(UNLOCK);
+	foo->v_arg.type = STRING;
+	foo->v_arg.v.string_val = strdup(varname);
+
 	return 1;
     }
 
@@ -616,6 +630,10 @@ parse_array_assignment_expression()
 	}
 
 	if (standard_at) {
+	    /* increment lock counter */
+	    foo = add_action(LOCK);
+	    foo->v_arg.type = STRING;
+	    foo->v_arg.v.string_val = strdup(varname);
 	    /* push the array name */
 	    foo = add_action(PUSHC);
 	    foo->v_arg.type = STRING;
