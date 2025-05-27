@@ -1384,8 +1384,9 @@ parse_prod_expression()
  *    [ element1, element2, ... ]
  */
 void
-parse_array_constant( t_value *array )
+parse_array_constant( struct udvt_entry *udv )
 {
+    t_value *array = &(udv->udv_value);
     t_value *element;
     int current_size;
     int max_size;
@@ -1393,6 +1394,9 @@ parse_array_constant( t_value *array )
 
     if (array->type != ARRAY || !equals(c_token, "["))
 	return; /* should never happen */
+
+    /* array reference count > 0 disallows an assignment operation that would clobber it */
+    udv->udv_refcount++;
 
     current_size = array->v.value_array[0].v.array_header.size;
     max_size = current_size;
@@ -1426,6 +1430,9 @@ parse_array_constant( t_value *array )
     if (current_size == 0)
 	current_size = i-1;
     array->v.value_array[0].v.array_header.size = current_size;
+
+    /* array reference count > 0 disallows an assignment operation that would clobber it */
+    udv->udv_refcount--;
 
     /* trim off excess (not strictly necessary) */
     if (max_size > current_size) {

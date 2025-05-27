@@ -1003,6 +1003,10 @@ local_array_command( int depth )
     else
 	array = add_udv(c_token++);
 
+    /* array reference count > 0 disallows an assignment operation that would clobber it */
+    if (array->udv_value.type == ARRAY && array->udv_refcount > 0)
+	int_error(NO_CARET, "assignment would corrupt array %s", array->udv_name);
+
     if (equals(c_token, "=") && !equals(c_token+1, "[")) {
 	/* array A = <expression> */
 	struct value a;
@@ -1036,7 +1040,7 @@ local_array_command( int depth )
     /* Initializer syntax:   array A[10] = [x,y,z,,"foo",] */
     if (equals(c_token, "=") && equals(c_token+1, "[")) {
 	c_token++;
-	parse_array_constant(&(array->udv_value));
+	parse_array_constant(array);
     }
 
     return;
