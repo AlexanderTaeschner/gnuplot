@@ -802,6 +802,10 @@ disp_at(struct at_type *curr_at, int level)
 	case EVAL:
 	    fprintf(stderr, " function block %s\n", arg->udv_arg->udv_name);
 	    break;
+	case LOCK:
+	case UNLOCK:
+	    fprintf(stderr, " %s\n", arg->v_arg.v.string_val);
+	    break;
 	default:
 	    (void) putc('\n', stderr);
 	}

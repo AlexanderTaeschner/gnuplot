@@ -139,6 +139,8 @@ const struct ft_entry ft[] =
     {"assign", f_assign},		/* assignment operator '=' */
     {"eval", f_eval},			/* function block */
     {"serial comma", f_serial_comma},	/* invoked when evaluating (A,B) */
+    {"lock", f_lock},			/* increments array reference count */
+    {"unlock", f_unlock},		/* decrements array reference count */
 
     {"jump",  f_jump},
     {"jumpz",  f_jumpz},
@@ -829,6 +831,9 @@ free_action_entry(struct at_entry *a)
 {
     /* if union a->arg is used as a->arg.v_arg free potential string */
     if ( a->index == PUSHC || a->index == DOLLARS )
+	gpfree_string(&(a->arg.v_arg));
+    /* the LOCK and UNLOCK operations pass a variable name in arg */
+    if ( a->index == LOCK || a->index == UNLOCK )
 	gpfree_string(&(a->arg.v_arg));
     /* a summation contains its own action table wrapped in a private udf */
     if (a->index == SUM || a->index == PROD) {

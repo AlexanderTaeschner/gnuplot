@@ -2493,3 +2493,28 @@ f_join(union argument *arg)
     free(sep);
 }
 
+
+/* Bookkeeping for an array operation reference count that prevents
+ * an array variable from being reassigned while its refcount > 0
+ */
+void
+f_lock(union argument *arg)
+{
+    struct udvt_entry *udv;
+
+    udv = get_udv_by_name(arg->v_arg.v.string_val);
+    if (udv->udv_value.type != ARRAY)
+	int_error(NO_CARET, "internal error: only arrays can be locked");
+    udv->udv_refcount++;
+}
+
+void
+f_unlock(union argument *arg)
+{
+    struct udvt_entry *udv;
+
+    udv = get_udv_by_name(arg->v_arg.v.string_val);
+    if (udv->udv_value.type != ARRAY)
+	int_error(NO_CARET, "internal error: only arrays can be locked");
+    udv->udv_refcount--;
+}
