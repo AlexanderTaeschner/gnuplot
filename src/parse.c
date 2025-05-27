@@ -1519,6 +1519,7 @@ add_udv_local(int t_num, char *name, int locality)
     udv_ptr->udv_name = gp_strdup(name);
     udv_ptr->udv_value.type = NOTDEFINED;
     udv_ptr->locality = locality;
+    udv_ptr->udv_refcount = 0;
     return udv_ptr;
 }
 

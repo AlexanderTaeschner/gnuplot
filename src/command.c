@@ -764,10 +764,6 @@ define()
 	c_token += 2;
 	const_express(&result);
 
-	/* Special handling needed to safely return an array */
-	if (result.type == ARRAY)
-	    make_array_permanent(&result);
-
 	/* If the variable name was previously in use then depending on its
 	 * old type it may have attached memory that needs to be freed.
 	 * Note: supposedly the old variable type cannot be datablock because
@@ -776,7 +772,13 @@ define()
 	 *       and leave FOO as a datablock whose name does not start with $.
 	 */
 	udv = add_udv(start_token);
+	if (udv->udv_value.type == ARRAY && udv->udv_refcount > 0)
+	    int_error(NO_CARET, "assignment would corrupt array %s", udv->udv_name);
 	free_value(&udv->udv_value);
+
+	/* Special handling needed to safely return an array */
+	if (result.type == ARRAY)
+	    make_array_permanent(&result);
 	udv->udv_value = result;
 
 	if (udv->udv_value.type == ARRAY)
@@ -1082,6 +1084,9 @@ is_array_assignment()
     if (udv->udv_value.type != ARRAY)
 	int_error(c_token, "Not a known array");
 
+    /* array reference count > 0 disallows an assignment operation that would clobber it */
+    udv->udv_refcount++;
+
     /* Evaluate index */
     c_token += 2;
     index = int_expression();
@@ -1099,6 +1104,8 @@ is_array_assignment()
 	newvalue.type = NOTDEFINED;
 	int_error(c_token, "Cannot nest arrays");
     }
+
+    udv->udv_refcount--;
     gpfree_string(&udv->udv_value.v.value_array[index]);
     udv->udv_value.v.value_array[index] = newvalue;
 

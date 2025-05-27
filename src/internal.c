@@ -96,9 +96,13 @@ eval_reset_after_error()
     recursion_depth = 0;
     undefined = FALSE;
     eval_fail_soft = FALSE;
+    /* Clear reference count interlocks */
     for (struct udft_entry *udf = first_udf; udf != NULL; udf = udf->next_udf) {
 	if (udf->at)
 	    udf->at->recursion_depth = 0;
+    }
+    for (struct udvt_entry *udv = first_udv; udv != NULL; udv = udv->next_udv) {
+	udv->udv_refcount = 0;
     }
 #ifdef USE_FUNCTIONBLOCKS
     evaluate_inside_functionblock = FALSE;
@@ -2239,8 +2243,9 @@ f_assign(union argument *arg)
     }
 
     if (arg->v_arg.type == ARRAY) {
+	/* arg type is used as a flag to indicate assignment to an array element */
 	int i;
-	if (b.type == ARRAY) 	/* Actually flags assignment to an array element */
+	if (b.type == ARRAY)
 	    int_error(NO_CARET, "cannot nest arrays");
 	pop(&index);
 	if (index.type == INTGR)
@@ -2256,10 +2261,14 @@ f_assign(union argument *arg)
 	dest->v.value_array[i] = b;
 
     } else if (b.type == ARRAY) {
+	if (udv && udv->udv_refcount > 0)
+	    int_error(NO_CARET, "operation would corrupt array");
 	free_value(dest);
 	*dest = b;
 	make_array_permanent(dest);
     } else {
+	if (udv && udv->udv_refcount > 0)
+	    int_error(NO_CARET, "operation would corrupt array");
 	free_value(dest);
 	*dest = b;
     }

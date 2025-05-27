@@ -549,6 +549,8 @@ init_array( struct udvt_entry *array, int size )
     A = array->udv_value.v.value_array;
     A[0].v.array_header.size = size;
     A[0].v.array_header.parent = array;
+    A[0].v.array_header.parent->udv_refcount = 0;
+
     for (i = 0; i <= size; i++)
 	A[i].type = NOTDEFINED;
 }
@@ -885,6 +887,7 @@ add_udv_by_name(char *key)
     (*udv_ptr)->udv_name = gp_strdup(key);
     (*udv_ptr)->udv_value.type = NOTDEFINED;
     (*udv_ptr)->locality = 0;
+    (*udv_ptr)->udv_refcount = 0;
     return (*udv_ptr);
 }
 
@@ -1307,6 +1310,7 @@ make_array_permanent(struct value *array)
 	clone_string_value(&(copy[i]));
     copy[0].type = NOTDEFINED;
     array->v.value_array = copy;
+    array->v.array_header.parent = NULL;
 }
 
 /* Extract a portion of the array full[N] into a new array slice[M]
