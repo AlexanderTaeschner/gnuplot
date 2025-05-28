@@ -2221,6 +2221,7 @@ f_assign(union argument *arg)
     struct udvt_entry *udv;
     struct value a, b, index;
     struct value *dest;
+    struct udvt_entry *array_parent = NULL;
     (void) arg;
     (void) pop(&b);	/* new value */
     dest = pop(&a);	/* name of variable or pointer to array content */
@@ -2242,6 +2243,16 @@ f_assign(union argument *arg)
 	dest = &(udv->udv_value);   /* Now dest points to where the new value will go */
     }
 
+    /* refcount was incremented prior to pushing the destination array onto the stack
+     * so that it would be protected during evaluation of the new value.
+     * Now we can remove the protection and accept the new value.
+     */
+    if (dest->type == ARRAY) {
+	array_parent = dest->v.value_array[0].v.array_header.parent;
+	if (array_parent)
+	    array_parent->udv_refcount--;
+    }
+
     if (arg->v_arg.type == ARRAY) {
 	/* arg type is used as a flag to indicate assignment to an array element */
 	int i;
@@ -2260,17 +2271,13 @@ f_assign(union argument *arg)
 	gpfree_string(&dest->v.value_array[i]);
 	dest->v.value_array[i] = b;
 
-    } else if (b.type == ARRAY) {
-	if (udv && udv->udv_refcount > 0)
-	    int_error(NO_CARET, "operation would corrupt array");
-	free_value(dest);
-	*dest = b;
-	make_array_permanent(dest);
     } else {
 	if (udv && udv->udv_refcount > 0)
 	    int_error(NO_CARET, "operation would corrupt array");
 	free_value(dest);
 	*dest = b;
+	if (b.type == ARRAY)
+	    make_array_permanent(dest);
     }
 
     push(&b);
@@ -2503,8 +2510,8 @@ f_lock(union argument *arg)
     struct udvt_entry *udv;
 
     udv = get_udv_by_name(arg->v_arg.v.string_val);
-    if (udv->udv_value.type != ARRAY)
-	int_error(NO_CARET, "internal error: only arrays can be locked");
+    if (!udv || udv->udv_value.type != ARRAY)
+	return;
     udv->udv_refcount++;
 }
 
@@ -2514,7 +2521,7 @@ f_unlock(union argument *arg)
     struct udvt_entry *udv;
 
     udv = get_udv_by_name(arg->v_arg.v.string_val);
-    if (udv->udv_value.type != ARRAY)
-	int_error(NO_CARET, "internal error: only arrays can be locked");
+    if (!udv || udv->udv_value.type != ARRAY)
+	return;
     udv->udv_refcount--;
 }

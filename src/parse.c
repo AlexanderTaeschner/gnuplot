@@ -546,10 +546,9 @@ parse_assignment_expression()
 	foo = add_action(ASSIGN);
 	foo->v_arg.type = 0;	/* could be anything but ARRAY */
 
-	/* Remove interlock */
-	foo = add_action(UNLOCK);
-	foo->v_arg.type = STRING;
-	foo->v_arg.v.string_val = strdup(varname);
+	/* Note: the interlock is cleared as part of ASSIGN (f_assign) so that
+	 *       the refcount is returned to 0 just before the variable is replaced.
+	 */
 
 	return 1;
     }

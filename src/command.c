@@ -732,7 +732,7 @@ define()
 	if (END_OF_COMMAND)
 	    int_error(c_token, "function definition expected");
 	udf = add_udf(start_token);
-	/* DEBUG odd corner case of attempt to redefine a function while executing it */
+	/* odd corner case of attempt to redefine a function while executing it */
 	if (udf->at && udf->at->recursion_depth > 0)
 	    int_error(NO_CARET, "attempt to redefine %s while executing it", udf->udf_name);
 	dummy_func = udf;
@@ -761,8 +761,6 @@ define()
 	||  !strncmp(varname, "MOUSE_", 6))
 	    int_error(c_token, "Cannot set internal variables GPVAL_ GPFUN_ MOUSE_");
 	start_token = c_token;
-	c_token += 2;
-	const_express(&result);
 
 	/* If the variable name was previously in use then depending on its
 	 * old type it may have attached memory that needs to be freed.
@@ -774,11 +772,15 @@ define()
 	udv = add_udv(start_token);
 	if (udv->udv_value.type == ARRAY && udv->udv_refcount > 0)
 	    int_error(NO_CARET, "assignment would corrupt array %s", udv->udv_name);
-	free_value(&udv->udv_value);
+
+	/* Get new value */
+	c_token += 2;
+	const_express(&result);
 
 	/* Special handling needed to safely return an array */
 	if (result.type == ARRAY)
 	    make_array_permanent(&result);
+	free_value(&udv->udv_value);
 	udv->udv_value = result;
 
 	if (udv->udv_value.type == ARRAY)
