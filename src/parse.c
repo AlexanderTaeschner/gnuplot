@@ -1385,9 +1385,7 @@ parse_prod_expression()
 void
 parse_array_constant( t_value *array )
 {
-    t_value *elements;
     t_value *element;
-    struct value *orig_value_array;
     int current_size;
     int max_size;
     int i = 1;
@@ -1395,20 +1393,17 @@ parse_array_constant( t_value *array )
     if (array->type != ARRAY || !equals(c_token, "["))
 	return; /* should never happen */
 
-    orig_value_array = array->v.value_array;
     current_size = array->v.value_array[0].v.int_val;
     max_size = current_size;
     c_token++;
 
-    elements = gp_alloc((max_size+1) * sizeof(t_value), "load_array");
-
     while (!END_OF_COMMAND) {
 	if (i > max_size) {
 	    max_size = (max_size < 10) ? 10 : 2*max_size;
-	    elements = gp_realloc( elements,
+	    array->v.value_array = gp_realloc( array->v.value_array,
 		(max_size+1) * sizeof(t_value), "load_array");
 	}
-	element = &(elements[i++]);
+	element = &(array->v.value_array[i++]);
 	if (equals(c_token,",") || equals(c_token,"]")) {
 	    element->type = NOTDEFINED;
 	} else {
@@ -1427,14 +1422,6 @@ parse_array_constant( t_value *array )
 	else
 	    c_token++;
     }
-
-    /* Guard against replacement of destination array to other thing during evaluation. */
-    if (array->type != ARRAY ||
-	orig_value_array != array->v.value_array) {
-	free(elements);
-	int_error(c_token, "destination array was overwritten during evaluation");
-    }
-
     if (current_size == 0)
 	current_size = i-1;
     array->v.value_array[0].v.int_val = current_size;
@@ -1444,11 +1431,6 @@ parse_array_constant( t_value *array )
 	array->v.value_array = gp_realloc( array->v.value_array,
 	    (current_size+1) * sizeof(t_value), "trim array");
     }
-
-    for (int k=1; k<=current_size; k++)
-	array->v.value_array[k] = elements[k];
-
-    free(elements);
 
     if (!equals(c_token++,"]"))
 	int_error(c_token, "array syntax error");
