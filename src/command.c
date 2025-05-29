@@ -1046,7 +1046,6 @@ is_array_assignment()
 {
     udvt_entry *udv;
     struct value newvalue;
-    struct value *orig_value_array;
     int index;
     TBOOLEAN looks_OK = FALSE;
     int brackets;
@@ -1079,16 +1078,9 @@ is_array_assignment()
     if (udv->udv_value.type != ARRAY)
 	int_error(c_token, "Not a known array");
 
-    orig_value_array = udv->udv_value.v.value_array;
-
     /* Evaluate index */
     c_token += 2;
     index = int_expression();
-    /* Guard against replacement of destination array to other thing during evaluation. */
-    if (udv->udv_value.type != ARRAY ||
-        udv->udv_value.v.value_array != orig_value_array) {
-	int_error(c_token, "destination array has been replaced during evaluation");
-    }
     if (index <= 0 || index > udv->udv_value.v.value_array[0].v.int_val)
 	int_error(c_token, "array index out of range");
     if (!equals(c_token, "]") || !equals(c_token+1, "="))
@@ -1097,11 +1089,6 @@ is_array_assignment()
     /* Evaluate right side of assignment */
     c_token += 2;
     const_express(&newvalue);
-    /* Guard against replacement of destination array to other thing during evaluation. */
-    if (udv->udv_value.type != ARRAY ||
-        udv->udv_value.v.value_array != orig_value_array) {
-	int_error(c_token, "destination array has been replaced during evaluation");
-    }
     if (newvalue.type == ARRAY) {
 	if (newvalue.v.value_array[0].type == TEMP_ARRAY)
 	    gpfree_array(&newvalue);
