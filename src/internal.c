@@ -2241,9 +2241,6 @@ f_assign(union argument *arg)
 	if (b.type == ARRAY) 	/* Actually flags assignment to an array element */
 	    int_error(NO_CARET, "cannot nest arrays");
 	pop(&index);
-        /* Guard against replacement of destination array to other thing during evaluation. */
-	if (dest->type != ARRAY)
-	    int_error(NO_CARET, "destination array was overwritten during evaluation");
 	if (index.type == INTGR)
 	    i = index.v.int_val;
 	else if (index.type == CMPLX && !isnan(index.v.cmplx_val.real))
