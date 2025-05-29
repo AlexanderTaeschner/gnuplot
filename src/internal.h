@@ -101,4 +101,7 @@ void f_trim(union argument *x);
 void f_split(union argument *x);
 void f_join(union argument *x);
 
+void f_lock(union argument *x);
+void f_unlock(union argument *x);
+
 #endif /* GNUPLOT_INTERNAL_H */

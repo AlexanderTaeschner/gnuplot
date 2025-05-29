@@ -732,7 +732,7 @@ define()
 	if (END_OF_COMMAND)
 	    int_error(c_token, "function definition expected");
 	udf = add_udf(start_token);
-	/* DEBUG odd corner case of attempt to redefine a function while executing it */
+	/* odd corner case of attempt to redefine a function while executing it */
 	if (udf->at && udf->at->recursion_depth > 0)
 	    int_error(NO_CARET, "attempt to redefine %s while executing it", udf->udf_name);
 	dummy_func = udf;
@@ -761,12 +761,6 @@ define()
 	||  !strncmp(varname, "MOUSE_", 6))
 	    int_error(c_token, "Cannot set internal variables GPVAL_ GPFUN_ MOUSE_");
 	start_token = c_token;
-	c_token += 2;
-	const_express(&result);
-
-	/* Special handling needed to safely return an array */
-	if (result.type == ARRAY)
-	    make_array_permanent(&result);
 
 	/* If the variable name was previously in use then depending on its
 	 * old type it may have attached memory that needs to be freed.
@@ -776,8 +770,21 @@ define()
 	 *       and leave FOO as a datablock whose name does not start with $.
 	 */
 	udv = add_udv(start_token);
+	if (udv->udv_value.type == ARRAY && udv->udv_refcount > 0)
+	    int_error(NO_CARET, "assignment would corrupt array %s", udv->udv_name);
+
+	/* Get new value */
+	c_token += 2;
+	const_express(&result);
+
+	/* Special handling needed to safely return an array */
+	if (result.type == ARRAY)
+	    make_array_permanent(&result);
 	free_value(&udv->udv_value);
 	udv->udv_value = result;
+
+	if (udv->udv_value.type == ARRAY)
+	    udv->udv_value.v.value_array[0].v.array_header.parent = udv;
     }
 }
 
@@ -971,7 +978,7 @@ lower_command(void)
  *    array A = [ .., .. ]
  *    array A = <expression>     (only valid if <expression> returns an array)
  * where size is an integer and space is reserved for elements A[1] through A[size]
- * The size itself is stored in A[0].v.int_val.
+ * The size itself is stored in A[0].v.array_header.size 
  * The list of initial values is optional.
  * Any element that is not initialized is set to NOTDEFINED.
  *
@@ -998,6 +1005,10 @@ local_array_command( int depth )
     else
 	array = add_udv(c_token++);
 
+    /* array reference count > 0 disallows an assignment operation that would clobber it */
+    if (array->udv_value.type == ARRAY && array->udv_refcount > 0)
+	int_error(NO_CARET, "assignment would corrupt array %s", array->udv_name);
+
     if (equals(c_token, "=") && !equals(c_token+1, "[")) {
 	/* array A = <expression> */
 	struct value a;
@@ -1009,6 +1020,7 @@ local_array_command( int depth )
 	}
 	make_array_permanent(&a);
 	array->udv_value = a;
+	array->udv_value.v.value_array[0].v.array_header.parent = array;
 	return;
     }
 
@@ -1030,7 +1042,7 @@ local_array_command( int depth )
     /* Initializer syntax:   array A[10] = [x,y,z,,"foo",] */
     if (equals(c_token, "=") && equals(c_token+1, "[")) {
 	c_token++;
-	parse_array_constant(&(array->udv_value));
+	parse_array_constant(array);
     }
 
     return;
@@ -1078,10 +1090,13 @@ is_array_assignment()
     if (udv->udv_value.type != ARRAY)
 	int_error(c_token, "Not a known array");
 
+    /* array reference count > 0 disallows an assignment operation that would clobber it */
+    udv->udv_refcount++;
+
     /* Evaluate index */
     c_token += 2;
     index = int_expression();
-    if (index <= 0 || index > udv->udv_value.v.value_array[0].v.int_val)
+    if (index <= 0 || index > udv->udv_value.v.value_array[0].v.array_header.size)
 	int_error(c_token, "array index out of range");
     if (!equals(c_token, "]") || !equals(c_token+1, "="))
 	int_error(c_token, "Expecting Arrayname[<expr>] = <expr>");
@@ -1095,6 +1110,8 @@ is_array_assignment()
 	newvalue.type = NOTDEFINED;
 	int_error(c_token, "Cannot nest arrays");
     }
+
+    udv->udv_refcount--;
     gpfree_string(&udv->udv_value.v.value_array[index]);
     udv->udv_value.v.value_array[index] = newvalue;
 
@@ -1919,8 +1936,10 @@ local_command()
     if (array_token) {
 	c_token = array_token;
 	local_array_command(lf_head->depth);
-	if (udv && udv->udv_value.type == ARRAY)
+	if (udv && udv->udv_value.type == ARRAY) {
 	    udv->udv_value.v.value_array[0].type = LOCAL_ARRAY;
+	    udv->udv_value.v.value_array[0].v.array_header.parent = udv;
+	}
     } else {
 	define();
     }
@@ -2389,7 +2408,7 @@ print_command()
 	    struct value *array = a.v.value_array;
 	    if (dataline != NULL) {
 		int i;
-		int arraysize = array[0].v.int_val;
+		int arraysize = array[0].v.array_header.size;
 		len = strappend(&dataline, &size, len, "[");
 		for (i = 1; i <= arraysize; i++) {
 		    if (array[i].type != NOTDEFINED)
@@ -2612,6 +2631,7 @@ return_command()
 	if (eval_return_value.type == ARRAY) {
 	    make_array_permanent(&eval_return_value);
 	    eval_return_value.v.value_array[0].type = TEMP_ARRAY;
+	    eval_return_value.v.value_array[0].v.array_header.parent = NULL;
 	}
     }
     command_exit_requested = 1;

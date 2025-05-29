@@ -139,6 +139,8 @@ const struct ft_entry ft[] =
     {"assign", f_assign},		/* assignment operator '=' */
     {"eval", f_eval},			/* function block */
     {"serial comma", f_serial_comma},	/* invoked when evaluating (A,B) */
+    {"lock", f_lock},			/* increments array reference count */
+    {"unlock", f_unlock},		/* decrements array reference count */
 
     {"jump",  f_jump},
     {"jumpz",  f_jumpz},
@@ -528,7 +530,7 @@ gpfree_array(struct value *a)
     int size;
 
     if (a->type == ARRAY) {
-	size = a->v.value_array[0].v.int_val;
+	size = a->v.value_array[0].v.array_header.size;
 	for (i=1; i<=size; i++)
 	    gpfree_string(&(a->v.value_array[i]));
 	free(a->v.value_array);
@@ -547,7 +549,10 @@ init_array( struct udvt_entry *array, int size )
     array->udv_value.v.value_array = gp_alloc((size+1) * sizeof(t_value), "init_array");
     array->udv_value.type = ARRAY;
     A = array->udv_value.v.value_array;
-    A[0].v.int_val = size;
+    A[0].v.array_header.size = size;
+    A[0].v.array_header.parent = array;
+    A[0].v.array_header.parent->udv_refcount = 0;
+
     for (i = 0; i <= size; i++)
 	A[i].type = NOTDEFINED;
 }
@@ -827,6 +832,9 @@ free_action_entry(struct at_entry *a)
     /* if union a->arg is used as a->arg.v_arg free potential string */
     if ( a->index == PUSHC || a->index == DOLLARS )
 	gpfree_string(&(a->arg.v_arg));
+    /* the LOCK and UNLOCK operations pass a variable name in arg */
+    if ( a->index == LOCK || a->index == UNLOCK )
+	gpfree_string(&(a->arg.v_arg));
     /* a summation contains its own action table wrapped in a private udf */
     if (a->index == SUM || a->index == PROD) {
 	real_free_at(a->arg.udf_arg->at);
@@ -884,6 +892,7 @@ add_udv_by_name(char *key)
     (*udv_ptr)->udv_name = gp_strdup(key);
     (*udv_ptr)->udv_value.type = NOTDEFINED;
     (*udv_ptr)->locality = 0;
+    (*udv_ptr)->udv_refcount = 0;
     return (*udv_ptr);
 }
 
@@ -1299,13 +1308,14 @@ make_array_permanent(struct value *array)
     /* If it was a pre-existing array (no temporary flag) then we must make
      * a clean copy of the whole thing.
      */
-    size = array->v.value_array[0].v.int_val;
+    size = array->v.value_array[0].v.array_header.size;
     copy = gp_alloc( (size+1) * sizeof(struct value), "array copy");
     memcpy( copy, array->v.value_array, (size+1) * sizeof(struct value) );
     for (i=0; i<= size; i++)
 	clone_string_value(&(copy[i]));
     copy[0].type = NOTDEFINED;
     array->v.value_array = copy;
+    array->v.array_header.parent = NULL;
 }
 
 /* Extract a portion of the array full[N] into a new array slice[M]
@@ -1321,14 +1331,15 @@ array_slice( struct value *full, int beg, int end)
     /* Sanity checks */
     if (beg < 1)
 	beg = 1;
-    if (end > array[0].v.int_val)
-	end = array[0].v.int_val;
+    if (end > array[0].v.array_header.size)
+	end = array[0].v.array_header.size;
     if (end < beg)
 	beg = 1, end = 0;
 
     slice = gp_alloc( (2 + end - beg) * sizeof(struct value), "array slice" );
     slice[0].type = TEMP_ARRAY;
-    slice[0].v.int_val = 1 + end - beg;
+    slice[0].v.array_header.size = 1 + end - beg;
+    slice[0].v.array_header.parent = NULL;
 
     for (i = beg, j = 1; i <= end; i++,j++) {
 	slice[j] = array[i];

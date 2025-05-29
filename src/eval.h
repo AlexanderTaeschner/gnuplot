@@ -55,7 +55,7 @@ enum operators {
     CONCATENATE, EQS, NES, RANGE, INDEX, CARDINALITY,
     ASSIGN,
     EVAL,
-    SERIAL_COMMA,
+    SERIAL_COMMA, LOCK, UNLOCK,
     /* only jump operators go between jump and sf_start, for is_jump() */
     JUMP, JUMPZ, JUMPNZ, JTERN, SF_START,
 
@@ -94,6 +94,7 @@ typedef struct udvt_entry {
     t_value udv_value;		/* value it has */
     int locality;		/* LFS depth at which this variable was declared */
 				/* locality=0 (the usual case) for a global variable */
+    int udv_refcount;		/* reference count used to prevent ARRAY corruption */
 } udvt_entry;
 
 /* p-code argument */

@@ -461,7 +461,7 @@ lf_pop()
 
 	if ((udv = get_udv_by_name("ARGV")) && udv->udv_value.type == ARRAY) {
 	    struct value *ARGV;
-	    int argv_size = lf->argv[0].v.int_val;
+	    int argv_size = lf->argv[0].v.array_header.size;
 
 	    init_array(udv, argv_size);
 	    ARGV = udv->udv_value.v.value_array;
@@ -560,14 +560,14 @@ lf_push(FILE *fp, char *name, char *cmdline)
 	    call_args[argindex] = NULL;	/* initially no args */
 	}
 	/* Save ARGV[] */
-	lf->argv[0].v.int_val = 0;
+	lf->argv[0].v.array_header.size = 0;
 	lf->argv[0].type = NOTDEFINED;
 	if ((udv = get_udv_by_name("ARGV")) && udv->udv_value.type == ARRAY) {
 	    /* When called from the command line (-c option) call_argc correctly
 	     * enumerates the entities on the command line, but they were not
 	     * previously saved in ARGV.
 	     */
-	    int saved_args = udv->udv_value.v.value_array[0].v.int_val;
+	    int saved_args = udv->udv_value.v.value_array[0].v.array_header.size;
 	    for (argindex = 0; argindex <= call_argc; argindex++) {
 		if (argindex > saved_args)
 		    break;
@@ -1737,7 +1737,7 @@ get_colormap(int token)
     if (type_udv(token) == ARRAY) {
 	udvt_entry *udv = add_udv(token);
 	if ((udv->udv_value.v.value_array[0].type == COLORMAP_ARRAY)
-	&&  (udv->udv_value.v.value_array[0].v.int_val >= 2))
+	&&  (udv->udv_value.v.value_array[0].v.array_header.size >= 2))
 	    colormap = udv;
     }
     return colormap;
@@ -1760,7 +1760,7 @@ pixmap_from_colormap(t_pixmap *pixmap)
     c_token++;
     free(pixmap->colormapname);
     pixmap->colormapname = gp_strdup(colormap->udv_name);
-    size = colormap->udv_value.v.value_array[0].v.int_val;
+    size = colormap->udv_value.v.value_array[0].v.array_header.size;
 
     pixmap->image_data = gp_realloc( pixmap->image_data,
 			size * 4. * sizeof(coordval), "pixmap");

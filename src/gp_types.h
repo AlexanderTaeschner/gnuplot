@@ -174,6 +174,11 @@ struct fblock {
 	char **parnames;
 };
 
+struct array_header {
+	intgr_t size;			/* This array is indexed from 1 to size */
+	struct udvt_entry *parent;	/* User variable that holds this array */
+};
+
 typedef struct value {
     enum DATA_TYPES type;
     union {
@@ -183,6 +188,7 @@ typedef struct value {
 	char **data_array;
 	struct fblock functionblock;
 	struct value *value_array;
+	struct array_header array_header;	/* substructure of ARRAY value_array[0] */
 	struct vgrid *vgrid;
     } v;
 } t_value;

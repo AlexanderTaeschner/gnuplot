@@ -5882,7 +5882,7 @@ df_generate_ascii_array_entry()
     struct value *entry;
 
     df_array_index++;
-    if (df_array_index > df_array->udv_value.v.value_array[0].v.int_val)
+    if (df_array_index > df_array->udv_value.v.value_array[0].v.array_header.size)
 	return NULL;
 
     entry = &(df_array->udv_value.v.value_array[df_array_index]);
