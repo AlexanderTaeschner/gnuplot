@@ -209,7 +209,18 @@ f_call(union argument *x)
     &&  udf->dummy_values[0].v.value_array[0].type == TEMP_ARRAY)
 	udf->dummy_values[0].v.value_array[0].type = ARRAY;
 
+    /* Set interlock to prevent array corruption during function evaluation */
+    if (udf->dummy_values[0].type == ARRAY) {
+	if (udf->dummy_values[0].v.value_array[0].v.array_header.parent)
+	    udf->dummy_values[0].v.value_array[0].v.array_header.parent->udv_refcount++;
+    }
+
     execute_at(udf->at);
+
+    if (udf->dummy_values[0].type == ARRAY) {
+	if (udf->dummy_values[0].v.value_array[0].v.array_header.parent)
+	    udf->dummy_values[0].v.value_array[0].v.array_header.parent->udv_refcount--;
+    }
 
     if (udf->dummy_values[0].type == ARRAY
     &&  udf->dummy_values[0].v.value_array[0].type == ARRAY) {
@@ -276,6 +287,12 @@ f_calln(union argument *x)
 	if (udf->dummy_values[i].type == ARRAY
 	&&  udf->dummy_values[i].v.value_array[0].type == TEMP_ARRAY)
 	    udf->dummy_values[i].v.value_array[0].type = ARRAY;
+	/* Set interlock to prevent array corruption during function evaluation */
+	if (udf->dummy_values[i].type == ARRAY) {
+	    if (udf->dummy_values[i].v.value_array[0].v.array_header.parent)
+		udf->dummy_values[i].v.value_array[0].v.array_header.parent->udv_refcount++;
+	}
+
     }
 
     execute_at(udf->at);
@@ -283,6 +300,10 @@ f_calln(union argument *x)
     /* Free TEMP_ARRAY passed as a parameter unless it is also the return value */
     pop(&top_of_stack);
     for (i = 0; i < num_pop; i++) {
+	if (udf->dummy_values[i].type == ARRAY) {
+	    if (udf->dummy_values[i].v.value_array[0].v.array_header.parent)
+		udf->dummy_values[i].v.value_array[0].v.array_header.parent->udv_refcount--;
+	}
 	if (udf->dummy_values[i].type == ARRAY
 	&&  udf->dummy_values[i].v.value_array[0].type == ARRAY) {
 	    if (udf->dummy_values[i].type == top_of_stack.type
