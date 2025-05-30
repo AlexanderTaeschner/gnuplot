@@ -133,6 +133,14 @@ struct at_type {
     struct at_entry actions[MAX_AT_LEN];
 };
 
+/* macros used to manipulate refcount for a user variable */
+#define lock_array(array) \
+    if ((array)->v.value_array[0].v.array_header.parent) \
+	(array)->v.value_array[0].v.array_header.parent->udv_refcount++;
+#define unlock_array(array) \
+    if ((array)->v.value_array[0].v.array_header.parent) \
+	(array)->v.value_array[0].v.array_header.parent->udv_refcount--;
+
 
 /* Variables of eval.c needed by other modules: */
 

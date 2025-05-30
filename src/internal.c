@@ -204,37 +204,32 @@ f_call(union argument *x)
      * If the action table contains hard-coded array functions they may
      * delete these before return, which would lead to a double-free below.
      * We replace the TEMP_ARRAY flag during evaluation to prevent this.
+     * Also increase the array reference count to prevent array corruption
+     * during function evaluation.
      */
-    if (udf->dummy_values[0].type == ARRAY
-    &&  udf->dummy_values[0].v.value_array[0].type == TEMP_ARRAY)
-	udf->dummy_values[0].v.value_array[0].type = ARRAY;
-
-    /* Set interlock to prevent array corruption during function evaluation */
     if (udf->dummy_values[0].type == ARRAY) {
-	if (udf->dummy_values[0].v.value_array[0].v.array_header.parent)
-	    udf->dummy_values[0].v.value_array[0].v.array_header.parent->udv_refcount++;
+	if (udf->dummy_values[0].v.value_array[0].type == TEMP_ARRAY)
+	    udf->dummy_values[0].v.value_array[0].type = ARRAY;
+	lock_array(&(udf->dummy_values[0]));
     }
 
     execute_at(udf->at);
 
     if (udf->dummy_values[0].type == ARRAY) {
-	if (udf->dummy_values[0].v.value_array[0].v.array_header.parent)
-	    udf->dummy_values[0].v.value_array[0].v.array_header.parent->udv_refcount--;
-    }
-
-    if (udf->dummy_values[0].type == ARRAY
-    &&  udf->dummy_values[0].v.value_array[0].type == ARRAY) {
-	/* Free TEMP_ARRAY passed as a parameter unless it is also the return value. */
-	struct value top_of_stack;
-	pop(&top_of_stack);
-	if (udf->dummy_values[0].type == top_of_stack.type
-	&&  udf->dummy_values[0].v.value_array == top_of_stack.v.value_array) {
-	    top_of_stack.v.value_array[0].type = TEMP_ARRAY;
-	} else {
-	    gpfree_array(&udf->dummy_values[0]);
+	unlock_array(&(udf->dummy_values[0]));
+	if (udf->dummy_values[0].v.value_array[0].type == ARRAY) {
+	    /* Free TEMP_ARRAY passed as a parameter unless it is also the return value. */
+	    struct value top_of_stack;
+	    pop(&top_of_stack);
+	    if (udf->dummy_values[0].type == top_of_stack.type
+	    &&  udf->dummy_values[0].v.value_array == top_of_stack.v.value_array) {
+		top_of_stack.v.value_array[0].type = TEMP_ARRAY;
+	    } else {
+		gpfree_array(&udf->dummy_values[0]);
+	    }
+	    push(&top_of_stack);
+	    gpfree_string(&top_of_stack);
 	}
-	push(&top_of_stack);
-	gpfree_string(&top_of_stack);
     }
     gpfree_string(&udf->dummy_values[0]);
     udf->dummy_values[0] = save_dummy;
@@ -283,14 +278,13 @@ f_calln(union argument *x)
 	 * If the action table contains hard-coded array functions they may
 	 * delete these before return, which would lead to a double-free below.
 	 * We replace the TEMP_ARRAY flag during evaluation to prevent this.
+	 * Also increase the array reference count to prevent array corruption
+	 * during function evaluation.
 	 */
-	if (udf->dummy_values[i].type == ARRAY
-	&&  udf->dummy_values[i].v.value_array[0].type == TEMP_ARRAY)
-	    udf->dummy_values[i].v.value_array[0].type = ARRAY;
-	/* Set interlock to prevent array corruption during function evaluation */
 	if (udf->dummy_values[i].type == ARRAY) {
-	    if (udf->dummy_values[i].v.value_array[0].v.array_header.parent)
-		udf->dummy_values[i].v.value_array[0].v.array_header.parent->udv_refcount++;
+	    if (udf->dummy_values[i].v.value_array[0].type == TEMP_ARRAY)
+		udf->dummy_values[i].v.value_array[0].type = ARRAY;
+	    lock_array(&(udf->dummy_values[i]));
 	}
 
     }
@@ -301,16 +295,14 @@ f_calln(union argument *x)
     pop(&top_of_stack);
     for (i = 0; i < num_pop; i++) {
 	if (udf->dummy_values[i].type == ARRAY) {
-	    if (udf->dummy_values[i].v.value_array[0].v.array_header.parent)
-		udf->dummy_values[i].v.value_array[0].v.array_header.parent->udv_refcount--;
-	}
-	if (udf->dummy_values[i].type == ARRAY
-	&&  udf->dummy_values[i].v.value_array[0].type == ARRAY) {
-	    if (udf->dummy_values[i].type == top_of_stack.type
-	    &&  udf->dummy_values[i].v.value_array == top_of_stack.v.value_array) {
-		top_of_stack.v.value_array[0].type = TEMP_ARRAY;
-	    } else {
-		gpfree_array(&udf->dummy_values[i]);
+	    unlock_array(&(udf->dummy_values[i]));
+	    if (udf->dummy_values[i].v.value_array[0].type == ARRAY) {
+		if (udf->dummy_values[i].type == top_of_stack.type
+		&&  udf->dummy_values[i].v.value_array == top_of_stack.v.value_array) {
+		    top_of_stack.v.value_array[0].type = TEMP_ARRAY;
+		} else {
+		    gpfree_array(&udf->dummy_values[i]);
+		}
 	    }
 	}
 	gpfree_string(&udf->dummy_values[i]);
@@ -2294,7 +2286,7 @@ f_assign(union argument *arg)
 
     } else {
 	if (udv && udv->udv_refcount > 0)
-	    int_error(NO_CARET, "operation would corrupt array");
+	    int_error(NO_CARET, "operation would corrupt array %s", udv->udv_name);
 	free_value(dest);
 	*dest = b;
 	if (b.type == ARRAY)
@@ -2366,7 +2358,7 @@ f_lookup(union argument *arg)
     if (a.type != ARRAY)
 	int_error(NO_CARET, "index: expecting an array");
     array = a.v.value_array;
-    n = array[0].v.int_val;
+    n = array[0].v.array_header.size;
 
     for (i=1; i<=n; i++) {
 	if (array[i].type != entry.type)
@@ -2494,7 +2486,7 @@ f_join(union argument *arg)
 	int_error(NO_CARET, "join: expecting join(array, \"separator\")");
 
     array = a.v.value_array;
-    n = array[0].v.int_val;
+    n = array[0].v.array_header.size;
     size = 0;
     for (i=1; i<=n; i++) {
 	if (array[i].type == STRING)
