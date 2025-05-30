@@ -2271,6 +2271,10 @@ f_assign(union argument *arg)
 	int i;
 	if (b.type == ARRAY)
 	    int_error(NO_CARET, "cannot nest arrays");
+	if (dest->type != ARRAY) {
+	    /* FIXME: this does not detect an array replaced by a difference array */
+	    int_error(NO_CARET, "array %s was corrupted", udv->udv_name);
+	}
 	pop(&index);
 	if (index.type == INTGR)
 	    i = index.v.int_val;
