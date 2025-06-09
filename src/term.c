@@ -2475,6 +2475,10 @@ enhanced_recursion(
 		    int i, length;
 		    if (strlen(&(p[3])) < 4)
 			break;
+		    if (!isxdigit(p[3]) || !isxdigit(p[4]) || !isxdigit(p[5]) || !isxdigit(p[6])) {
+			int_warn(NO_CARET, "misformed unicode escape sequence %7.7s", p);
+			break;
+		    }
 		    if (sscanf(&(p[3]), "%5x", &codepoint) != 1)
 			break;
 		    length = ucs4toutf8(codepoint, utf8char);
