@@ -324,6 +324,7 @@ extern const struct ticdef default_axis_ticdef;
 /* default format for tic mark labels */
 #define DEF_FORMAT "% h"
 #define DEF_FORMAT_LATEX "$%h$"
+#define is_def_format(s) (!strcmp(s,"% h") || !strcmp(s,"% H"))
 
 /* default parse timedata string */
 #define TIMEFMT "%d/%m/%y,%H:%M"

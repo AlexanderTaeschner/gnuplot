@@ -85,7 +85,7 @@ output_number(double coord, int axis, char *buffer) {
 	gprintf(buffer, BUFFERSIZE, "%.0f", 1.0, coord);
     } else if (axis_array[axis].tictype == DT_TIMEDATE) {
 	buffer[0] = '"';
-	if (!strcmp(axis_array[axis].formatstring,DEF_FORMAT))
+	if (is_def_format(axis_array[axis].formatstring))
 	    gstrftime(buffer+1, BUFFERSIZE-1, timefmt, coord);
 	else
 	    gstrftime(buffer+1, BUFFERSIZE-1, axis_array[axis].formatstring, coord);

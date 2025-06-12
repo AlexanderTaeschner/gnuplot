@@ -607,7 +607,7 @@ copy_or_invent_formatstring(struct axis *this_axis)
 	/* The simple case: formatstring is usable, so use it! */
 	safe_strncpy(tempfmt, this_axis->formatstring, MAX_ID_LEN);
 	/* Ensure enough precision to distinguish tics */
-	if (!strcmp(tempfmt, DEF_FORMAT)) {
+	if (is_def_format(tempfmt)) {
 	    double axmin = this_axis->min;
 	    double axmax = this_axis->max;
 	    int precision = ceil(-log10(GPMIN(fabs(axmax-axmin),fabs(axmin))));

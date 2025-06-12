@@ -597,7 +597,7 @@ apply_tic_format( struct axis *axis, double hit )
 	gstrftime(buffer, MAX_LABEL_SIZE, axis->ticfmt, hit);
     else if (axis->tictype == DT_DMS)
 	gstrdms(buffer, axis->ticfmt, hit);
-    else if (!strcmp(axis->ticfmt, "% h"))
+    else if (is_def_format(axis->ticfmt))
 	gprintf(buffer, MAX_LABEL_SIZE, "%.3h", 1.0, hit);
     else
 	gprintf(buffer, MAX_LABEL_SIZE, axis->ticfmt, 1.0, hit);
