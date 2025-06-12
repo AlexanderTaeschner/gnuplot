@@ -16739,13 +16739,16 @@ Ffigure_polar_grid
 
  The default fillstyle is `empty`.
 
- The `solid` option causes filling with a solid color, if the terminal
- supports that. The <density> parameter specifies the intensity of the
- fill color. At a <density> of 0.0, the box is empty, at <density> of 1.0,
- the inner area is of the same color as the current linetype.
- Some terminal types can vary the density continuously; others implement
- only a few levels of partial fill.  If no <density> parameter is given,
- it defaults to 1.
+ The `solid` option causes filling with a solid color.
+ The <density> parameter specifies the saturation of the fill color.
+ At <density> 0.0 the box is white (or for some terminals background color).
+ At <density> 1.0 the filled area is the same color as the current line
+ or fill color.  Some terminal types can vary the saturation continuously;
+ others implement only a few levels of partial fill.
+ If no <density> parameter is given, it defaults to 1.
+
+ `transparent solid` works similarly except that <density> is interpreted as
+ an alpha value. Density 0.0 is fully transparent; density 1.0 is solid fill.
 
  The `pattern` option causes filling to be done with a fill pattern supplied
  by the terminal driver.  The kind and number of available fill patterns

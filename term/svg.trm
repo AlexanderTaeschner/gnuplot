@@ -1817,6 +1817,19 @@ SVG_filled_polygon(int points, gpiPoint* corners)
 	    fprintf(gpoutfile," fill = '%s'", SVG_pens[0].color);
 	    break;
 	case FS_SOLID: /* solid fill */
+	    if (fillpar >= 0 && fillpar < 100) {
+		/* partial saturation;   0 -> 100 maps to white -> color */
+		double fade = fillpar * 0.01;
+		double bkg = 255. * (1 - fade);
+		unsigned char fade_red = SVG_red * fade + bkg;
+		unsigned char fade_green = SVG_green * fade + bkg;
+		unsigned char fade_blue = SVG_blue * fade + bkg;
+		fprintf(gpoutfile, "fill = 'rgb(%3d, %3d, %3d)'",
+			fade_red, fade_green, fade_blue);
+	    } else {
+		SVG_StyleFillColor();
+	    }
+	    break;
 	case FS_TRANSPARENT_SOLID:
 	    SVG_StyleFillColor();
 	    if (SVG_alpha != 0.0)
