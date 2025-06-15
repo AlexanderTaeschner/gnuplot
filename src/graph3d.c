@@ -1462,6 +1462,15 @@ do_3dplot(
 		    key_sample_fill(xl, yl, this_plot);
 		    break;
 
+		case PM3DSURFACE: {
+			t_colorspec fillcolorspec = this_plot->fill_properties.border_color;
+			if (fillcolorspec.type == TC_RGB || fillcolorspec.type == TC_LINESTYLE) {
+				apply_pm3dcolor(&this_plot->fill_properties.border_color);
+				key_sample_fill(xl, yl, this_plot);
+			}
+		    break;
+		}
+
 		case PLOT_STYLE_NONE:
 		    /* cannot happen */
 		default:
