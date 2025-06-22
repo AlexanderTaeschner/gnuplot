@@ -49,10 +49,12 @@ pause -1 "<cr> to continue"
 # Method 2 (new in version 6)
 #	"set pm3d interpolate" works now
 #	"set pm3d lighting" also works
-set title "Version 6 offers a new keyword to access this palette"
+set title "Version 6 offers a new keyword to access this palette\n(should look the same)"
+set title offset 0,1
 
 set palette defined (0 "dark-blue", 1 "white")
 set colormap new bluemap
+set palette defined (0 "black", 1 "black")
 splot '++' using 1:2:(foo($1,$2)) with pm3d fc palette bluemap\
            title "pm3d using 1:2:3 with pm3d fc palette bluemap"
 

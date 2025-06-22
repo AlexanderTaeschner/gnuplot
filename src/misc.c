@@ -1058,9 +1058,13 @@ lp_parse(struct lp_style_type *lp, lp_class destination_class, TBOOLEAN allow_po
 	 * fc colorspec as a line property.  We need to parse it later as a
 	 * _fill_ property. Also prevents "plot ... fc <col1> fs <foo> lw <baz>"
 	 * from generating an error claiming redundant line properties.
+	 * The test for "fillcolor palette" allows "splot with pm3d fc palette <colormap>"
+	 * to NOT store the palette request in this_plot->lp_properties and
+	 * instead catch it later in a subsequent search for fillcolor.
 	 */
 	if ((destination_class == LP_NOFILL || destination_class == LP_ADHOC)
-	&&  (equals(c_token,"fc") || almost_equals(c_token,"fillc$olor"))) {
+	&&  (equals(c_token,"fc") || almost_equals(c_token,"fillc$olor"))
+	&&  (!almost_equals(c_token+1, "pal$ette"))) {
 	    FPRINTF((stderr, "ignoring 'fc' request\n"));
 	    break;
 	}
