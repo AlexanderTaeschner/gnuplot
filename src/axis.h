@@ -256,7 +256,7 @@ typedef struct axis {
     double paxis_x;		/* x coordinate of parallel axis */
 } AXIS;
 
-#define DEFAULT_AXIS_TICDEF {TIC_COMPUTED, NULL, {TC_DEFAULT, 0, 0.0}, {NULL, {0.,0.,0.}, FALSE},  { character, character, character, 0., 0., 0. }, FALSE, TRUE, FALSE, FALSE }
+#define DEFAULT_AXIS_TICDEF {TIC_COMPUTED, NULL, DEFAULT_COLORSPEC, {NULL, {0.,0.,0.}, FALSE},  { character, character, character, 0., 0., 0. }, FALSE, TRUE, FALSE, FALSE }
 #define DEFAULT_AXIS_ZEROAXIS {0, LT_AXIS, 0, DASHTYPE_AXIS, 0, 0, 1.0, PTSZ_DEFAULT, DEFAULT_P_CHAR, BLACK_COLORSPEC, DEFAULT_DASHPATTERN}
 
 #define DEFAULT_AXIS_STRUCT {						    \

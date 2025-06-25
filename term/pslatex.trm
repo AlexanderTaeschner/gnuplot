@@ -128,7 +128,7 @@ static struct pstex_text_command *pstex_labels = NULL;
 static int epslatex_text_layer = 0;
 
 /* Support for optimization of set_color */
-static t_colorspec tex_previous_colorspec = {-1, 0, 0.0};  /* Initialize to invalid type */
+static t_colorspec tex_previous_colorspec = {-1};  /* Initialize to invalid type */
 static char tex_current_color[64];
 static char tex_rgb_colordef[64];
 static TBOOLEAN tex_color_synced = FALSE;
@@ -911,8 +911,10 @@ EPSLATEX_set_color(t_colorspec *colorspec)
 TERM_PUBLIC void
 EPSLATEX_linetype(int linetype)
 {
-    t_colorspec tempcol = {TC_LT, 0, 0.0};
+    t_colorspec tempcol;
+    tempcol.type = TC_LT;
     tempcol.lt = linetype;
+    tempcol.value = 0;
 
 #ifdef HAVE_CAIROPDF
     if (ISCAIROTERMINAL)

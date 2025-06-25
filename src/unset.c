@@ -1173,7 +1173,7 @@ reset_key()
 	.enhanced = TRUE,
 	.box = DEFAULT_KEYBOX_LP,
 	.font = NULL,
-	.textcolor = {TC_LT, LT_BLACK, 0.0},
+	.textcolor = BLACK_COLORSPEC,
 	.fillcolor = BACKGROUND_COLORSPEC,
 	.bounds = {0,0,0,0},
 	.maxcols = 0,
