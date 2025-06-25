@@ -4220,7 +4220,7 @@ plot3d_boxes(struct surface_points *plot)
 
 	    /* Copy variable color value into plot header for pm3d_add_quadrangle */
 	    if (plot->pm3d_color_from_column)
-		plot->lp_properties.pm3d_color.lt =  points[i].CRD_COLOR;
+		plot->lp_properties.pm3d_color.lt =  (unsigned) points[i].CRD_COLOR;
 
 	    /* Construct and store single pm3d rectangle (front of box) */
 	    /* Z	corner1	corner2	*/
