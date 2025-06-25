@@ -1273,7 +1273,7 @@ pm3d_add_polygon(struct surface_points *plot, gpdPoint corners[], int vertices)
     } else if (plot->plot_style == ISOSURFACE
            ||  plot->plot_style == POLYGONS) {
 
-	int rgb_color = corners[0].c;
+	unsigned rgb_color = corners[0].c;
 	if (corners[0].c == LT_BACKGROUND)
 	    q->gray = PM3D_USE_BACKGROUND_INSTEAD_OF_GRAY;
 	else
