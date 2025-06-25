@@ -4220,7 +4220,7 @@ plot3d_boxes(struct surface_points *plot)
 
 	    /* Copy variable color value into plot header for pm3d_add_quadrangle */
 	    if (plot->pm3d_color_from_column)
-		plot->lp_properties.pm3d_color.lt =  (unsigned) points[i].CRD_COLOR;
+		plot->lp_properties.pm3d_color.rgbcolor =  points[i].CRD_COLOR;
 
 	    /* Construct and store single pm3d rectangle (front of box) */
 	    /* Z	corner1	corner2	*/
@@ -4348,7 +4348,7 @@ plot3d_polygons(struct surface_points *plot)
 		&& plot->lp_properties.pm3d_color.lt == LT_BACKGROUND) {
 	    quad[0].c = LT_BACKGROUND;
 	} else
-	    quad[0].c = (unsigned int) plot->lp_properties.pm3d_color.lt;
+	    quad[0].c = plot->lp_properties.pm3d_color.rgbcolor;
 	quad[1].c = style;
 	pm3d_add_polygon( plot, quad, nv );
     }

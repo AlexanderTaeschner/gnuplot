@@ -1247,9 +1247,9 @@ pm3d_add_polygon(struct surface_points *plot, gpdPoint corners[], int vertices)
 	/* This is the usual path for 'splot with boxes' */
 	if (pm3d_shade.strength > 0) {
 	    color_from_rgbvar = TRUE;
-	    illuminate_one_quadrangle(q, plot->lp_properties.pm3d_color.lt, color_from_rgbvar);
+	    illuminate_one_quadrangle(q, plot->lp_properties.pm3d_color.rgbcolor, color_from_rgbvar);
 	} else {
-	    q->qcolor = plot->lp_properties.pm3d_color.lt;
+	    q->qcolor = plot->lp_properties.pm3d_color.rgbcolor;
 	    q->gray = PM3D_USE_RGB_COLOR_INSTEAD_OF_GRAY;
 	}
 
@@ -1292,7 +1292,7 @@ pm3d_add_polygon(struct surface_points *plot, gpdPoint corners[], int vertices)
 	    if (pm3d_side( &v[0], &v[1], &v[2] ) < 0)
 		i += isosurface_options.inside_offset;
 	    lp_use_properties(&style, i);
-	    rgb_color = style.pm3d_color.lt;
+	    rgb_color = style.pm3d_color.rgbcolor;
 	}
 	q->qcolor = rgb_color;
 	if (pm3d_shade.strength > 0) {
