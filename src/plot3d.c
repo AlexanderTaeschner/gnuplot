@@ -1275,7 +1275,7 @@ get_3ddata(struct surface_points *this_plot)
 		    if (this_plot->lp_properties.pm3d_color.type == TC_VARIABLE) {
 			struct lp_style_type lptmp;
 			load_linetype(&lptmp, (int)(v[3]));
-			color = lptmp.pm3d_color.lt;
+			color = lptmp.pm3d_color.rgbcolor;
 			color_from_column(TRUE);
 		    }
 		}

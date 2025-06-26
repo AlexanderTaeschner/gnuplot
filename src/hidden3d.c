@@ -1207,6 +1207,8 @@ build_networks(struct surface_points *plots, int pcount)
 			labelpoint.z = label->place.z;
 			if (label->textcolor.type == TC_Z)
 			    labelpoint.CRD_COLOR = label->textcolor.value;
+			else if (label->textcolor.type == TC_RGB)
+			    labelpoint.CRD_COLOR = label->textcolor.rgbcolor;
 			else
 			    labelpoint.CRD_COLOR = label->textcolor.lt;
 			
@@ -1661,7 +1663,7 @@ draw_vertex(p_vertex v)
 	else if (tc->type == TC_RGB && tc->lt == LT_COLORFROMCOLUMN)
 	    set_rgbcolor_var((unsigned int)v->real_z);
 	else if (tc->type == TC_RGB)
-	    set_rgbcolor_const(tc->lt);
+	    set_rgbcolor_const(tc->rgbcolor);
 	else if (tc->type == TC_CB)
 	    set_color( cb2gray(v->real_z) );
 	else if (tc->type == TC_Z)
@@ -1715,7 +1717,7 @@ draw_edge(p_edge e, p_vertex v1, p_vertex v2)
     /* This handles 'lc rgb variable' */
     if (color.type == TC_RGB && color.lt == LT_COLORFROMCOLUMN) {
 	recolor = TRUE;
-	lptemp.pm3d_color.lt = varcolor;
+	lptemp.pm3d_color.rgbcolor = varcolor;
     } else
 
     /* This handles explicit 'lc rgb' in the plot command */
@@ -1724,7 +1726,7 @@ draw_edge(p_edge e, p_vertex v1, p_vertex v2)
     } else
 
     if (color.type == TC_RGB && e->lp == &border_lp) {
-	lptemp.pm3d_color.lt = varcolor;
+	lptemp.pm3d_color.rgbcolor = varcolor;
     } else
 
     /* This handles 'lc variable' */

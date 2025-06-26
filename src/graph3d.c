@@ -1780,7 +1780,7 @@ plot3d_impulses(struct surface_points *plot)
     int colortype = plot->lp_properties.pm3d_color.type;
 
     if (colortype == TC_RGB)
-	set_rgbcolor_const(plot->lp_properties.pm3d_color.lt);
+	set_rgbcolor_const(plot->lp_properties.pm3d_color.rgbcolor);
 
     while (icrvs) {
 	struct coordinate *points = icrvs->points;
@@ -2186,7 +2186,7 @@ plot3d_points(struct surface_points *plot)
 
 	/* Apply constant color outside of the loop */
 	if (colortype == TC_RGB)
-	    set_rgbcolor_const( plot->lp_properties.pm3d_color.lt );
+	    set_rgbcolor_const( plot->lp_properties.pm3d_color.rgbcolor );
 
 	for (i = 0; i < icrvs->p_count; i++) {
 
@@ -2226,7 +2226,7 @@ plot3d_points(struct surface_points *plot)
 			/* Retrace the border if the style requests it */
 			if (need_fill_border(fillstyle)) {
 			    do_arc(x, y, radius, 0., 360., 0, FALSE);
-			    set_rgbcolor_const(plot->lp_properties.pm3d_color.lt);
+			    set_rgbcolor_const(plot->lp_properties.pm3d_color.rgbcolor);
 			}
 			continue;
 		    }
@@ -4416,10 +4416,10 @@ plot3d_contourfill(struct surface_points *plot)
 		slice[level].color.value = -1;
 		if (contourfill.firstlinetype > 0) {
 		    lp_use_properties(&contour_lp, contourfill.firstlinetype + level);
-		    slice[level].color.lt = rgb_from_colorspec(&contour_lp.pm3d_color);
+		    slice[level].color.rgbcolor = rgb_from_colorspec(&contour_lp.pm3d_color);
 		} else {
 		    double zmid = slice[level].zlow + zinc/2.;
-		    slice[level].color.lt = rgb_from_gray(cb2gray(zmid));
+		    slice[level].color.rgbcolor = rgb_from_gray(cb2gray(zmid));
 		}
 	    }
 	    break;
@@ -4441,10 +4441,10 @@ plot3d_contourfill(struct surface_points *plot)
 		slice[level].color.value = -1;
 		if (contourfill.firstlinetype > 0) {
 		    lp_use_properties(&contour_lp, contourfill.firstlinetype + level);
-		    slice[level].color.lt = rgb_from_colorspec(&contour_lp.pm3d_color);
+		    slice[level].color.rgbcolor = rgb_from_colorspec(&contour_lp.pm3d_color);
 		} else {
 		    double zmid = (slice[level].zlow + slice[level].zhigh) / 2.;
-		    slice[level].color.lt = rgb_from_gray(cb2gray(zmid));
+		    slice[level].color.rgbcolor = rgb_from_gray(cb2gray(zmid));
 		}
 	    }
 	    break;

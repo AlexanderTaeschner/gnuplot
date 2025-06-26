@@ -2156,7 +2156,7 @@ store_label(
 	tl->textcolor.value = colorval;
     /* Check for optional (textcolor rgb variable) */
     else if (listhead->textcolor.type == TC_RGB && listhead->textcolor.value < 0)
-	tl->textcolor.lt = colorval;
+	tl->textcolor.rgbcolor = colorval;
     /* Check for optional (textcolor variable) */
     else if (listhead->textcolor.type == TC_VARIABLE) {
 	struct lp_style_type lptmp;
@@ -2171,7 +2171,7 @@ store_label(
 	/* Check for optional (point linecolor rgb variable) */
 	else if (listhead->lp_properties.pm3d_color.type == TC_RGB 
 		&& listhead->lp_properties.pm3d_color.value < 0)
-	    tl->lp_properties.pm3d_color.lt = colorval;
+	    tl->lp_properties.pm3d_color.rgbcolor = colorval;
 	/* Check for optional (point linecolor variable) */
 	else if (listhead->lp_properties.l_type == LT_COLORFROMCOLUMN) {
 	    struct lp_style_type lptmp;

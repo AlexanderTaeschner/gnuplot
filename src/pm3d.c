@@ -723,16 +723,20 @@ pm3d_plot(struct surface_points *this_plot, int at_which_z)
 		    cb3 = pointsB[ii].CRD_COLOR;
 		    cb4 = pointsB[ii1].CRD_COLOR;
 		} else if (color_from_fillcolor) {
-		    /* color is set by "fc <rgbvalue>" */
-		    cb1 = cb2 = cb3 = cb4 = fillcolorspec.lt;
-		    /* pm3d fc linestyle N generates
-		     * top/bottom color difference as with hidden3d
-		     */
-		    if (fillcolorspec.type == TC_LINESTYLE) {
+		    if (fillcolorspec.type == TC_RGB) {
+			/* color is set by "fc <rgbvalue>" */
+			cb1 = cb2 = cb3 = cb4 = fillcolorspec.rgbcolor;
+		    } else if (fillcolorspec.type == TC_LINESTYLE) {
+			/* pm3d fc linestyle N generates
+			 * top/bottom color difference as with hidden3d
+			 */
 			struct lp_style_type style;
 			int side = pm3d_side( &pointsA[i], &pointsA[i1], &pointsB[ii]);
-			lp_use_properties(&style, side < 0 ? cb1 + 1 : cb1);
+			int top = fillcolorspec.lt;
+			lp_use_properties(&style, side < 0 ? top + 1 : top);
 			cb1 = cb2 = cb3 = cb4 = style.pm3d_color.rgbcolor;
+		    } else {
+			cb1 = cb2 = cb3 = cb4 = fillcolorspec.lt;
 		    }
 		} else {
 		    cb1 = pointsA[i].z;
@@ -958,16 +962,20 @@ pm3d_plot(struct surface_points *this_plot, int at_which_z)
 			}
 
 			if (color_from_fillcolor) {
-			    /* color is set by "fc <rgbval>" */
-			    gray = fillcolorspec.lt;
-			    /* pm3d fc linestyle N generates
-			     * top/bottom color difference as with hidden3d
-			     */
-			    if (fillcolorspec.type == TC_LINESTYLE) {
+			    if (fillcolorspec.type == TC_RGB) {
+				/* color is set by "fc <rgbval>" */
+				gray = fillcolorspec.rgbcolor;
+			    } else if (fillcolorspec.type == TC_LINESTYLE) {
+				/* pm3d fc linestyle N generates
+				 * top/bottom color difference as with hidden3d
+				 */
 				struct lp_style_type style;
 				int side = pm3d_side( &pointsA[i], &pointsB[ii], &pointsB[ii1]);
-				lp_use_properties(&style, side < 0 ? gray + 1 : gray);
-				gray = style.pm3d_color.lt;
+				int top = fillcolorspec.lt;
+				lp_use_properties(&style, side < 0 ? top + 1 : top);
+				gray = style.pm3d_color.rgbcolor;
+			    } else {
+				gray = fillcolorspec.lt;
 			    }
 			} else if (color_from_rgbvar) {
 			    /* we were given an explicit color */

@@ -238,7 +238,7 @@ set_rgbcolor_var(unsigned int rgbvalue)
 {
     t_colorspec color;
     color.type = TC_RGB;
-    *(unsigned int *)(&color.lt) = rgbvalue;
+    color.rgbcolor = rgbvalue;
     color.value = -1;	/* -1 flags that this came from "rgb variable" */
     apply_pm3dcolor(&color);
 }
@@ -248,7 +248,7 @@ set_rgbcolor_const(unsigned int rgbvalue)
 {
     t_colorspec color;
     color.type = TC_RGB;
-    *(unsigned int *)(&color.lt) = rgbvalue;
+    color.rgbcolor = rgbvalue;
     color.value = 0;	/* 0 flags that this is a constant color */
     apply_pm3dcolor(&color);
 }
@@ -1094,7 +1094,7 @@ rgb_from_colorspec(struct t_colorspec *tc)
 	case TC_DEFAULT:
 		return 0;
 	case TC_RGB:
-		return tc->lt;
+		return tc->rgbcolor;
 	case TC_Z:
 		cbval = cb2gray(tc->value);
 		break;

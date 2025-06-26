@@ -1444,7 +1444,7 @@ parse_colorspec(struct t_colorspec *tc, int options)
 	    c_token++;
 	} else {
 	    tc->value = 0.0;
-	    tc->lt = parse_color_name();
+	    tc->rgbcolor = parse_color_name();
 	}
     } else if (almost_equals(c_token,"pal$ette")) {
 	/* The next word could be any of {z|cb|frac|<colormap-name>}.
@@ -1492,7 +1492,7 @@ parse_colorspec(struct t_colorspec *tc, int options)
     /* New: allow to skip the rgb keyword, as in  'plot $foo lc "blue"' */
     } else if (isstring(c_token)) {
 	tc->type = TC_RGB;
-	tc->lt = parse_color_name();
+	tc->rgbcolor = parse_color_name();
 
     } else {
 	int_error(c_token, "colorspec option not recognized");

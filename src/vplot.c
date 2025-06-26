@@ -131,7 +131,7 @@ vplot_points (struct surface_points *plot, double level)
 
     /* Set whatever we can that applies to every point in the loop */
     if (plot->lp_properties.pm3d_color.type == TC_RGB)
-	set_rgbcolor_const( plot->lp_properties.pm3d_color.lt );
+	set_rgbcolor_const( plot->lp_properties.pm3d_color.rgbcolor );
 
     for (ix = 0; ix < N; ix++) {
 	for (iy = 0; iy < N; iy++) {

@@ -1631,13 +1631,13 @@ save_pm3dcolor(FILE *fp, const struct t_colorspec *tc)
 	case TC_FRAC: fprintf(fp," palette fraction %4.2f", tc->value);
 		      break;
 	case TC_RGB:  {
-		      const char *color = reverse_table_lookup(pm3d_color_names_tbl, tc->lt);
+		      const char *color = reverse_table_lookup(pm3d_color_names_tbl, tc->rgbcolor);
 		      if (tc->value < 0)
 		  	fprintf(fp," rgb variable ");
 		      else if (*color)
 			fprintf(fp," rgb \"%s\" ", color);
 		      else
-			fprintf(fp," rgb \"#%6.6x\" ", tc->lt);
+			fprintf(fp," rgb \"#%6.6x\" ", tc->rgbcolor);
 		      break;
 		      }
 	case TC_VARIABLE:

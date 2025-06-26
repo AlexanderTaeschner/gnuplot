@@ -1874,7 +1874,7 @@ test_term()
 	textbox->opaque = TRUE;
 	textbox->noborder = TRUE;
 	textbox->fillcolor.type = TC_RGB;
-	textbox->fillcolor.lt = 0xccccee;
+	textbox->fillcolor.rgbcolor = 0xccccee;
 	/* disable extra space around text */
 	textbox->xmargin = 0;
 	textbox->ymargin = 0;
