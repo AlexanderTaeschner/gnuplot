@@ -1390,6 +1390,8 @@ set_plot_with_palette(int plot_num, int plot_mode)
 	    type = this_3dplot->lp_properties.pm3d_color.type;
 	    if (type == TC_LT || type == TC_LINESTYLE || type == TC_RGB)
 		; /* don't return yet */
+	    else if (type == TC_VARIABLE)
+		; /* don't return yet */
 	    else
 		/* TC_DEFAULT: splot x with line|lp|dot palette */
 		return;
