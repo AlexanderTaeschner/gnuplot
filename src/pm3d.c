@@ -732,7 +732,7 @@ pm3d_plot(struct surface_points *this_plot, int at_which_z)
 			struct lp_style_type style;
 			int side = pm3d_side( &pointsA[i], &pointsA[i1], &pointsB[ii]);
 			lp_use_properties(&style, side < 0 ? cb1 + 1 : cb1);
-			cb1 = cb2 = cb3 = cb4 = style.pm3d_color.lt;
+			cb1 = cb2 = cb3 = cb4 = (unsigned int) style.pm3d_color.lt;
 		    }
 		} else {
 		    cb1 = pointsA[i].z;
