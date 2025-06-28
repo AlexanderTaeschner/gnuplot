@@ -644,7 +644,7 @@ extern struct object default_rectangle;
 
 extern struct object default_circle;
 #define DEFAULT_CIRCLE_STYLE { NULL, -1, 0, OBJ_CIRCLE, OBJ_CLIP, \
-	{FS_EMPTY, 100, 0, {TC_DEFAULT, {-2}, 0}},   			\
+	{FS_EMPTY, 100, 0, DEFAULT_FILL_COLORSPEC},   			\
 	{0, LT_BACKGROUND, 0, DASHTYPE_SOLID, 0, 0, 1.0, 0.0, DEFAULT_P_CHAR, BLACK_COLORSPEC, DEFAULT_DASHPATTERN}, \
 	{.circle = {1, {0,0,0,0.,0.,0.}, {graph,0,0,0.02,0.,0.}, 0., 360., TRUE }} }
 

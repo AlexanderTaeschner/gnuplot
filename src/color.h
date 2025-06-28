@@ -49,10 +49,10 @@ typedef struct t_colorspec {
     double value;		/* used for TC_CB and TC_FRAC */
 } t_colorspec;
 
-#define DEFAULT_COLORSPEC {TC_DEFAULT, {0}, 0.0}
-#define BLACK_COLORSPEC {TC_LT, {LT_BLACK}, 0.0}
-#define BACKGROUND_COLORSPEC {TC_LT, {LT_BACKGROUND}, 0.0}
-#define DEFAULT_FILL_COLORSPEC {TC_DEFAULT, {LT_BLACK}, 0.0}
+#define DEFAULT_COLORSPEC {.type=TC_DEFAULT, .lt=0, .value=0.0}
+#define BLACK_COLORSPEC {.type=TC_LT, .lt=LT_BLACK, .value=0.0}
+#define BACKGROUND_COLORSPEC {.type=TC_LT, .lt=LT_BACKGROUND, .value=0.0}
+#define DEFAULT_FILL_COLORSPEC {.type=TC_DEFAULT, .lt=LT_BLACK, .value=0.0}
 
 /* EAM July 2004 - Disentangle polygon support and PM3D support  */
 /* a point (with integer coordinates) for use in polygon drawing */
