@@ -1560,9 +1560,9 @@ TGIF_set_color(t_colorspec *colorspec)
 	sprintf(sActColor, "#%.2x%.2x%.2x",
 		rgbActColor.r, rgbActColor.g, rgbActColor.b);
     } else if (colorspec->type == TC_RGB) {
-	rgbActColor.r = colorspec->lt >> 16 & 0xff;
-	rgbActColor.g = colorspec->lt >> 8 & 0xff;
-	rgbActColor.b = colorspec->lt & 0xff;
+	rgbActColor.r = colorspec->rgbcolor >> 16 & 0xff;
+	rgbActColor.g = colorspec->rgbcolor >> 8 & 0xff;
+	rgbActColor.b = colorspec->rgbcolor & 0xff;
 	sprintf(sActColor, "#%.2x%.2x%.2x",
 		rgbActColor.r, rgbActColor.g, rgbActColor.b);
     }

@@ -1759,10 +1759,10 @@ SVG_set_color(t_colorspec *colorspec)
     } else if (colorspec->type == TC_FRAC) {
 	rgb255maxcolors_from_gray( colorspec->value, &rgb255 );
     } else if (colorspec->type == TC_RGB) {
-	rgb255.r = colorspec->lt >> 16 & 0xff;
-	rgb255.g = colorspec->lt >> 8 & 0xff;
-	rgb255.b = colorspec->lt & 0xff;
-	SVG_alpha = (double)(colorspec->lt >> 24 & 0xff) / 255.;
+	rgb255.r = colorspec->rgbcolor >> 16 & 0xff;
+	rgb255.g = colorspec->rgbcolor >> 8 & 0xff;
+	rgb255.b = colorspec->rgbcolor & 0xff;
+	SVG_alpha = (double)(colorspec->rgbcolor >> 24 & 0xff) / 255.;
     } else {
 	return;
     }

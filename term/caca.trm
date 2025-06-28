@@ -1185,10 +1185,10 @@ CACA_color(t_colorspec *colorspec)
 			attr = caca_get_attr(CACA_cv, -1, -1); 	/* get current attribute */
 
 			/* extract color components from colorspec.lt */
-			alpha = 0xff - ((colorspec->lt >> 24) & 0xff);
-			red = (colorspec->lt >> 16) & 0xff;
-			green = (colorspec->lt >> 8) & 0xff;
-			blue = (colorspec->lt) & 0xff;
+			alpha = 0xff - ((colorspec->rgbcolor >> 24) & 0xff);
+			red = (colorspec->rgbcolor >> 16) & 0xff;
+			green = (colorspec->rgbcolor >> 8) & 0xff;
+			blue = (colorspec->rgbcolor) & 0xff;
 
 			if (!CACA_truecolor) {
 				uint32_t fg_color32 = colorspec->lt;

@@ -1009,8 +1009,8 @@ WIN_set_color(t_colorspec *colorspec)
 			break;
 		}
 		case TC_RGB:
-			/* highest byte of colorspec->lt contains alpha */
-			GraphOp(graphwin, W_setcolorrgb, (colorspec->lt) & 0xffff, (colorspec->lt >> 16) & 0xffff, NULL);
+			/* highest byte of colorspec->rgbcolor contains alpha */
+			GraphOp(graphwin, W_setcolorrgb, (colorspec->rgbcolor) & 0xffff, (colorspec->rgbcolor >> 16) & 0xffff, NULL);
 			break;
 		case TC_LT:
 			GraphOp(graphwin, W_setcolor, colorspec->lt, 0, NULL);

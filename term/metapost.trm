@@ -943,9 +943,9 @@ MP_set_color(t_colorspec *colorspec)
 		    1 : floor(gray * sm_palette.colors) / sm_palette.colors;
 	    rgb1_from_gray( gray, &color );
 	} else if (colorspec->type == TC_RGB) {
-	    color.r = (double)((colorspec->lt >> 16 ) & 255) / 255.;
-	    color.g = (double)((colorspec->lt >> 8 ) & 255) / 255.;
-	    color.b = (double)(colorspec->lt & 255) / 255.;
+	    color.r = (double)((colorspec->rgbcolor >> 16 ) & 255) / 255.;
+	    color.g = (double)((colorspec->rgbcolor >> 8 ) & 255) / 255.;
+	    color.b = (double)(colorspec->rgbcolor & 255) / 255.;
 	} else
 	    return;
 

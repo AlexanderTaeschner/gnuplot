@@ -756,9 +756,9 @@ TEXDRAW_set_color(t_colorspec *colorspec)
     case TC_RGB: {
 	int red, green, blue;
 
-	red   = (colorspec->lt >> 16) & 0xff;
-	green = (colorspec->lt >>  8) & 0xff;
-	blue  = (colorspec->lt      ) & 0xff;
+	red   = (colorspec->rgbcolor >> 16) & 0xff;
+	green = (colorspec->rgbcolor >>  8) & 0xff;
+	blue  = (colorspec->rgbcolor      ) & 0xff;
 	TEXDRAW_gray = (red * 0.30 + green * 0.59 + blue * 0.11) / 255;
 	break;
     }

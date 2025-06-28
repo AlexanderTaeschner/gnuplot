@@ -578,7 +578,7 @@ FIG_graphics()
     for (this = first_perm_linestyle; this != NULL; this = this->next) {
 	if (this->lp_properties.pm3d_color.type == TC_RGB) {
 	    /* Load color into FIG_RGB_colors */
-	    FIG_RGB_colors[ncolors] = this->lp_properties.pm3d_color.lt;
+	    FIG_RGB_colors[ncolors] = this->lp_properties.pm3d_color.rgbcolor;
 	    FIG_RGB_colors[ncolors] &= 0xffffff;	/* No alpha channel */
 	    /* Write it to the output file */
 	    fprintf(gpoutfile, "%d %d #%2.2x%2.2x%2.2x\n",

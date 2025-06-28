@@ -3006,7 +3006,7 @@ HPGL2_set_color(t_colorspec *colorspec)
 	HPGL_penstate = UP;
 	break;
     case TC_RGB: {
-	unsigned int rgb = colorspec->lt;
+	unsigned int rgb = colorspec->rgbcolor;
 
 	HPGL2_end_poly();
 	fprintf(gpoutfile, "PC%i,%i,%i,%i;\n",

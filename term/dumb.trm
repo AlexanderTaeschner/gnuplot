@@ -528,9 +528,9 @@ ansi_colorstring(t_colorspec * color, t_colorspec * prev_color)
 
 	if (prev_color != NULL && prev_color->type == TC_RGB && prev_color->lt == color->lt)
 	    break;
-	rgb255.r = (color->lt >> 16) & 0xff;
-	rgb255.g = (color->lt >>  8) & 0xff;
-	rgb255.b = (color->lt >>  0) & 0xff;
+	rgb255.r = (color->rgbcolor >> 16) & 0xff;
+	rgb255.g = (color->rgbcolor >>  8) & 0xff;
+	rgb255.b = (color->rgbcolor >>  0) & 0xff;
 	dumb_rgb_color(rgb255, colorstring);
 	break;
     }
