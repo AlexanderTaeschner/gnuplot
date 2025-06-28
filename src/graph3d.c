@@ -4344,8 +4344,11 @@ plot3d_polygons(struct surface_points *plot)
 	     ||  plot->lp_properties.pm3d_color.type == TC_DEFAULT) {
 	    double z = pm3d_assign_triangle_z(points[0].z, points[1].z, points[2].z);
 	    quad[0].c = rgb_from_gray(cb2gray(z));
+	} else if (plot->lp_properties.pm3d_color.type == TC_LT
+		&& plot->lp_properties.pm3d_color.lt == LT_BACKGROUND) {
+	    quad[0].c = LT_BACKGROUND;
 	} else
-	    quad[0].c = plot->lp_properties.pm3d_color.lt;
+	    quad[0].c = (unsigned int) plot->lp_properties.pm3d_color.lt;
 	quad[1].c = style;
 	pm3d_add_polygon( plot, quad, nv );
     }
