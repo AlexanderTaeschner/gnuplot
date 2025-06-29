@@ -1,7 +1,7 @@
 # Implementation of the old classic game "Nibbles" in gnuplot
 # This demo (ab)uses the following features of gnuplot:
 # * the "bind" command to allow user input
-# * string handling and eval
+# * arrays and function blocks
 # * flow control keywords (do, while, if)
 # * objects (rectangles and circles)
 # * complex numbers (to store coordinates)
@@ -10,9 +10,10 @@
 reset
 unset tics
 unset key
-set title "N I B B L E S" font ",20" 
+set title "N I B B L E S" font ":Bold,20"
 
 foo = rand(time(1))
+undefine foo
 
 xmin = ymin = 0
 xmax = 40
@@ -24,7 +25,7 @@ set yr [ymin:ymax]
 # initialize parameters and variables
 len = 8
 
-pause = 0.005
+pause = 0.002
 wait = 30
 
 iter = 0
@@ -56,33 +57,40 @@ bind "KP_Subtract" "wait = wait + 1"
 # initialize the snake
 dir = left
 head = xmax/2 + ymax/2 * {0,1}
+collision(p) = (real(p)<xmin) || (real(p)>=xmax) || \
+               (imag(p)<ymin) || (imag(p)>=ymax) || \
+               ((sum[i = 1:len] ((coll[i] == p) ? 1 : 0) > 0))
 
-coll_str = "coll(x,y) = (x<xmin) || (x>=xmax) || (y<ymin) || (y>=ymax) "
-
+# maximum length of the snake is half the number of cells
+maxcoll = (xmax - xmin + 1) * (ymax - ymin + 1) / 2
+array coll[maxcoll]
+do for [i=1:maxcoll] {
+	coll[i] = 0
+}
 do for [i=0:len-1] {
-	ix = int(real(head) - real(dir)*i)
-	iy = int(imag(head) - imag(dir)*i)
-	set obj 1000+(len-i-1) rect from ix, iy rto 1, 1 fc rgb "black" fs solid 
-	eval "coll_".i."(x,y) = (x == ". ix ." && y == ". iy .")"
-	coll_str = coll_str . " || coll_".i."(x,y)"
+	local ix = int(real(head) - real(dir)*i)
+	local iy = int(imag(head) - imag(dir)*i)
+	set obj 1000+(len-i-1) rect from ix, iy rto 1, 1 fc rgb "black" fs solid
+	coll[i + 1] = head - dir*i
 }
 
-eval coll_str
-
 # initialize the "cherry"
-set_cherry = \
-	"cherry = int(rand(0)*xmax) + int(rand(0)*ymax) * {0,1};" .\
-	"while (coll(real(cherry), imag(cherry))) {".\
-		"cherry = int(rand(0)*xmax) + int(rand(0)*ymax) * {0,1}".\
-	"};" .\
-	"set obj 2000 circle at real(cherry)+0.5, imag(cherry)+0.5 radius 0.4 fc rgb 'red' fs solid;"
+function $set_cherry() << EOF
+	cherry = int(rand(0)*xmax) + int(rand(0)*ymax) * I
+	while (collision(cherry)) {
+		cherry = int(rand(0)*xmax) + int(rand(0)*ymax) * I
+	}
+	set obj 2000 circle at real(cherry)+0.5, imag(cherry)+0.5 radius 0.4 fc rgb 'red' fs solid
+EOF
 
-eval set_cherry
+evaluate $set_cherry()
 
 # print score
-set_score = 'set label 2 "SCORE: ".score at 1, 1 font ",20"'
+function $set_score() << EOF
+	set label 2 "SCORE: ".score at 1, 1 font ",20"
+EOF
 
-eval set_score
+evaluate $set_score()
 
 # and finally show the initial state
 plot -1
@@ -97,52 +105,55 @@ while (alive) {
 	# update the head pointer
 	head = head + dir
 
-	ix = int(real(head))
-	iy = int(imag(head))
+	local ix = int(real(head))
+	local iy = int(imag(head))
 
-	# if the new position of the snake's head collides 
+	# if the new position of the snake's head collides
 	# with its body or the walls, exit
-	if (coll(ix, iy)) {
-		set label 1 "G A M E   O V E R !" at xmax/2, ymax/2 font ",20" center
+	if (collision(head)) {
+		set label 1 "G A M E   O V E R !" at xmax/2, ymax/2 font ":Bold,20" center
 		alive = 0
 	}
 
 	# if the snake got the cherry, we have to reposition the cherry,
-	# arrange the snake's body to grow, 
+	# arrange the snake's body to grow,
 	# update the score counter
 	# and decrease the wait time (thus making the game faster)
 	if (head == cherry) {
-		eval set_cherry
-		
+		evaluate $set_cherry()
+
 		score = score + 1
-		eval set_score
-		
-		eval "coll_".len."(x,y) = 0"
-		coll_str = coll_str . " || coll_".len."(x,y)"
-		eval coll_str
-		
+		evaluate $set_score()
+
+		coll[len + 1] = 0
 		len = len + 1
-		wait = (sqrt(5*score)-int(sqrt(5*score)) == 0) ? wait - 1 : wait 
+		wait = (sqrt(5*score)-int(sqrt(5*score)) == 0) ? wait - 1 : wait
 		wait = wait > 1 ? wait : 1
 	}
-	
+
 	# advance the snake
-	# note how we redefine the rectangle and collision function 
-	# that corresponds to the tail
+	# note how we redefine the rectangle that corresponds to the tail
 	if (alive) {
-		set obj 1000+iter rect from ix, iy rto 1, 1 fc rgb "black" fs solid 
-		eval "coll_".iter."(x,y) = (x == ". ix ." && y == ". iy .")"
+		set obj 1000+iter rect from ix, iy rto 1, 1 fc rgb "black" fs solid
+		coll[iter + 1] = head
 	}
-	
+
 	iter = (iter >= len - 1) ? 0 : iter + 1
 
 	# now that the snake is updated, allow change of direction again
 	locked = 0
-	
+
 	# and finally show the new state
 	replot
-
 }
+
+undefine xmin xmax ymin ymax
+undefine len pause wait iter score locked alive
+undefine left right up down
+undefine dir head maxcoll coll cherry
+
+undefine $set_cherry $set_score
 
 reset bind
 reset
+
