@@ -370,18 +370,25 @@ _make_palette(t_sm_palette *palette) - If argument is NULL, return
    Otherwise, allocate the palette.  (t_sm_palette is defined in
    src/color.h.)
 
-_set_color(t_colorspec *colorspec) - EAM November 2004 ***CHANGED***
-   This routine used to accept a single double value, which was 
-   interpreted as a fractional index into the current color palette.
-   Changing the parameter to a colorspec allows terminals to support
-   other methods of specifying a color. If a given driver can not
-   support a particular color request mechanism, it ignores it.
-   If (colorspec->type == TC_FRAC)  (this was the old behavior):
-   Set current color according to colorspec->value, where 0 <= value <= 1.
-   If using a palette, first map value to an integer i in the interval
-   [0...num_colors-1], then set to the ith color in the palette.
-   If (colorspec->type == TC_RGB):
-   Set current color to the rgb triple given in colorspec->lt.
+_set_color(t_colorspec *colorspec) - Each terminal should support color
+   types (colorspec->type) TC_RGB, TC_LT, and TC_FRAC if possible.
+   If a given driver can not support a particular color request mechanism,
+   it may ignore it.
+   TC_RGB: Use colorspec->rgbcolor as a 24-bit red/green/blue value in
+     low three bytes,  8-bit alpha value in top byte.
+     Not all terminals support an alpha value (transparency).
+     Some terminals may approximate or compromise by providing a color
+     from a fixed palette if the exact RGB value is not available.
+   TC_LT: Use colorspec->lt to select from a small set 4? 8? of colors.
+     This originally selected from a fixed set of terminal-specific
+     line types, or pens in the case of pen-plotters.  Current gnuplot in most
+     cases now maps "linetype" into a TC_RGB color and passes that instead.
+     However the underlying mechanism of setting some terminal-specific
+     color requested by colorspec->lt still exists.
+   TC_FRAC: Use floating point colorspec->value as a fractional index into
+     the current color palette.
+     value <= gives first color in palette.
+     value >= 1.0 gives last color in palette.
 
 _filled_polygon(int points, gpiPoint *corners) - Draw a polygon with
    the fill color set by set_color, and no border.  (gpiPoint is
