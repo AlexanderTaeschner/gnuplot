@@ -1525,7 +1525,15 @@ set_dashtype()
     c_token++;
 
     /* get tag */
-    if (END_OF_COMMAND || ((tag = int_expression()) <= 0))
+    if (END_OF_COMMAND)
+	return;
+
+    if (type_udv(c_token) == INTGR && equals(c_token+1,"("))
+	/* This resolves the ambiguous syntax in "set for [i=1:N] dashtype i (n, m)" */
+	tag = add_udv(c_token++)->udv_value.v.int_val;
+    else
+	tag = int_expression();
+    if (tag <= 0)
 	int_error(c_token, "tag must be > zero");
 
     /* Check if dashtype is already defined */
