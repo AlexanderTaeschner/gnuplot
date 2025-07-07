@@ -2074,8 +2074,10 @@ ENHsvg_OPEN(
 		fprintf(gpoutfile, " font-style=\"italic\" ");
 	}
 	if (SVG_fontSizeCur != fontsize) {
-	    SVG_fontSizeCur = fontsize;
-	    fprintf(gpoutfile, " font-size=\"%.1f\"", SVG_fontSizeCur * SVG_fontscale);
+	    /* SVG_fontSizeCur is the size we would otherwise inherit
+	     * from the group started in ENHsvg_OPEN.
+	     */
+	    fprintf(gpoutfile, " font-size=\"%.1f\"", fontsize * SVG_fontscale);
 	}
 	if (ENHsvg_x_offset != 0) {
 	    fprintf(gpoutfile, " dx=\"%.2fem\"", ENHsvg_x_offset);
