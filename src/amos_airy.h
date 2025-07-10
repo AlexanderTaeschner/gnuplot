@@ -20,5 +20,5 @@ void f_Hankel1 (union argument *x);
 void f_Hankel2 (union argument *x);
 #endif
 
-/* CEXINT is in libamos but not in libopenspecfun */
-void f_amos_cexint (union argument *x);
+/* complex expint is in libamos but not in libopenspecfun */
+void f_amos_expint (union argument *x);

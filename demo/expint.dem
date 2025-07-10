@@ -17,7 +17,8 @@ pause -1 "<cr> to continue"
 
 reset
 
-if (!strstrt(GPVAL_COMPILE_OPTIONS, "+CEXINT")) {
+if (!strstrt(GPVAL_COMPILE_OPTIONS, "+CEXINT") \
+&&  !strstrt(GPVAL_COMPILE_OPTIONS, "+ZEXINT")) {
     print "This copy of gnuplot does not support complex expint"
     set encoding save_encoding
     exit
