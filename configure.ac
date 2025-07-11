@@ -139,12 +139,12 @@ if test "${with_amos}" != no ; then
   dnl Search first for zexint and if not found search again for cexint
   AC_SEARCH_LIBS([zexint_], [amos openspecfun],
       [AC_DEFINE([HAVE_ZEXINT], 1, [define if you have Amos function zexint])
-      have_zexint=yes && LIBS="$LIBS -L/home/local/lib64"]
+      have_zexint=yes]
   )
   if test "$have_zexint" != yes; then
     AC_SEARCH_LIBS([cexint_], [amos openspecfun],
         [AC_DEFINE([HAVE_CEXINT], 1, [define if you have Amos function cexint])
-        have_cexint=yes && LIBS="$LIBS -L/home/local/lib64"]
+        have_cexint=yes]
     )
   fi
 fi
@@ -1481,7 +1481,7 @@ fi
 if test "$have_amoslibrary" = yes; then
   AC_MSG_RESULT([  Complex Airy and Bessel functions:               yes])
 else
-  AC_MSG_RESULT([  Complex Airy and Bessel functions:               no (requires libopenspec or libamos])
+  AC_MSG_RESULT([  Complex Airy and Bessel functions:               no (requires libopenspec or libamos)])
 fi
 if test "$have_zexint" = yes; then
   AC_MSG_RESULT([  Complex exponential integral zexint (libamos):   yes])
