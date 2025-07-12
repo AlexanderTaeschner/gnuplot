@@ -2642,6 +2642,7 @@ show_micro()
     SHOW_ALL_NL;
 
     fprintf(stderr, "\tmicro character for output is %s \n",
+	(use_micro && micro_user) ? micro_user :
     	(use_micro && micro) ? micro : "u");
 }
 

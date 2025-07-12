@@ -627,8 +627,11 @@ set encoding %s\n\
     if (!numeric_locale && !decimalsign)
 	fprintf(fp, "unset decimalsign\n");
 
-    fprintf(fp, "%sset micro\n", use_micro ? "" : "un");
     fprintf(fp, "%sset minussign\n", use_minus_sign ? "" : "un");
+    if (use_micro && micro_user)
+	fprintf(fp, "set micro \"%s\"\n", micro_user);
+    else
+	fprintf(fp, "%sset micro\n", use_micro ? "" : "un");
 
     fputs("set view ", fp);
     if (splot_map == TRUE)

@@ -10962,7 +10962,7 @@ Ffigure_smooth_path
  The following are _not_ affected by `reset`:
       `set term` `set output` `set loadpath` `set linetype` `set fit`
       `set encoding` `set decimalsign` `set locale` `set psdir`
-      `set overflow` `set multiplot`
+      `set overflow` `set multiplot` `set minussign` `set micro`
 
  Note that `reset` does not necessarily return settings to the state they
  were in at program entry, because the default values may have been altered by
