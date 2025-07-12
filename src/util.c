@@ -940,7 +940,7 @@ gprintf_value(
 	} /* switch */
 	/*}}} */
 
-	if (got_hash && (format != strpbrk(format,"oeEfFgG")))
+	if (got_hash && (format != strpbrk(format,"oeEfFgGhH")))
 	   int_error(NO_CARET, "Bad format character");
 
     /* change decimal '.' to the actual entry in decimalsign */
