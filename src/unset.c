@@ -90,6 +90,7 @@ static void unset_hidden3d(void);
 static void unset_histogram(void);
 static void unset_textbox_style(void);
 static void unset_historysize(void);
+static void unset_imaginary_i(void);
 static void unset_pixmaps(void);
 static void unset_pixmap(int);
 static void unset_isosamples(void);
@@ -268,6 +269,9 @@ unset_command()
 	break;
     case S_HISTORYSIZE:	/* Deprecated */
 	unset_historysize();
+	break;
+    case S_I_SYMBOL:
+	unset_imaginary_i();
 	break;
     case S_PIXMAP:
 	if (END_OF_COMMAND)
@@ -1436,6 +1440,14 @@ unset_margin(t_position *margin)
     margin->x = -1;
 }
 
+/* process 'unset imaginary_i' command */
+static void
+unset_imaginary_i()
+{
+    free(imaginary_user);
+    imaginary_user = NULL;
+}
+
 /* process 'unset micro' command */
 static void
 unset_micro()
@@ -2263,6 +2275,8 @@ reset_command()
     unset_histogram();
     unset_textbox_style();
     unset_watchpoint_style();
+
+    unset_imaginary_i();
 
     reset_hulls(1);
     reset_watches();

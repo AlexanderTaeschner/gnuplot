@@ -98,6 +98,7 @@ static void set_help(void);
 static void set_hidden3d(void);
 static void set_history(void);
 static void set_pixmap(void);
+static void set_imaginary_i(void);
 static void set_isosamples(void);
 static void set_isotropic(void);
 static void set_key(void);
@@ -320,6 +321,9 @@ set_command()
 	    break;
 	case S_PIXMAP:
 	    set_pixmap();
+	    break;
+	case S_I_SYMBOL:
+	    set_imaginary_i();
 	    break;
 	case S_ISOSAMPLES:
 	    set_isosamples();
@@ -3020,6 +3024,17 @@ set_margin(t_position *margin)
 	    margin->x = 1;
     }
 
+}
+
+/* process 'set imaginary' command */
+static void
+set_imaginary_i()
+{
+    c_token++;
+    free(imaginary_user);
+    imaginary_user = NULL;
+    if (!END_OF_COMMAND)
+	imaginary_user = try_to_get_string();
 }
 
 /* process 'set micro' command */

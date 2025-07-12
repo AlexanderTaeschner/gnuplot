@@ -215,6 +215,7 @@ const struct gen_table set_tbl[] =
     { "historysize", S_HISTORYSIZE },	/* Deprecated */
     { "his$tory", S_HISTORY },
     { "pixmap$s", S_PIXMAP },
+    { "imaginary$_i", S_I_SYMBOL },
     { "isosurf$ace", S_ISOSURFACE },
     { "iso$samples", S_ISOSAMPLES },
     { "isotropic", S_ISOTROPIC },

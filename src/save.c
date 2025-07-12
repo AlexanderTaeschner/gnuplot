@@ -632,6 +632,10 @@ set encoding %s\n\
 	fprintf(fp, "set micro \"%s\"\n", micro_user);
     else
 	fprintf(fp, "%sset micro\n", use_micro ? "" : "un");
+    if (imaginary_user)
+	fprintf(fp, "set imaginary_i \"%s\"\n", imaginary_user);
+    else
+	fprintf(fp, "set imaginary_i\n");
 
     fputs("set view ", fp);
     if (splot_map == TRUE)

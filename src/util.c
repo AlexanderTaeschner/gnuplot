@@ -63,6 +63,7 @@ const char *i_symbol = NULL;
 TBOOLEAN use_micro = FALSE;
 TBOOLEAN use_minus_sign = FALSE;
 char *micro_user = NULL;
+char *imaginary_user = NULL;
 
 /* Holds the name of the current LC_NUMERIC as set by "set decimal locale" */
 char *numeric_locale = NULL;
@@ -955,7 +956,8 @@ gprintf_value(
 			    dest += snprintf(dest, remaining_space, (vi < 0) ? " - " : " + ");
 			    dest += snprintf(dest, remaining_space, temp, fabs(vi));
 			}
-			dest += snprintf(dest, remaining_space, "i");
+			dest += snprintf(dest, remaining_space,
+					imaginary_user ? imaginary_user : "i");
 		    }
 		} else {
 		    /* complex value printed as {a, b} */
