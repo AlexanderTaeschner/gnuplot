@@ -2451,10 +2451,10 @@ void wxt_set_color(t_colorspec *colorspec)
 	} else if (colorspec->type == TC_FRAC)
 		rgb1maxcolors_from_gray( colorspec->value, &rgb1 );
 	else if (colorspec->type == TC_RGB) {
-		rgb1.r = (double) ((colorspec->lt >> 16) & 0xff)/255;
-		rgb1.g = (double) ((colorspec->lt >> 8) & 0xff)/255;
-		rgb1.b = (double) ((colorspec->lt) & 0xff)/255;
-		alpha = (double) ((colorspec->lt >> 24) & 0xff)/255;
+		rgb1.r = (double) ((colorspec->rgbcolor >> 16) & 0xff)/255;
+		rgb1.g = (double) ((colorspec->rgbcolor >> 8) & 0xff)/255;
+		rgb1.b = (double) ((colorspec->rgbcolor) & 0xff)/255;
+		alpha = (double) ((colorspec->rgbcolor >> 24) & 0xff)/255;
 	} else return;
 
 	temp_command.command = command_color;

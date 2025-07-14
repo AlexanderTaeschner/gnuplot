@@ -1023,9 +1023,9 @@ LATEX_set_color(t_colorspec *colorspec)
 
     switch (colorspec->type) {
     case TC_RGB: {
-	double r = (double)((colorspec->lt >> 16 ) & 255) / 255.;
-	double g = (double)((colorspec->lt >> 8 ) & 255) / 255.;
-	double b = (double)(colorspec->lt & 255) / 255.;
+	double r = (double)((colorspec->rgbcolor >> 16 ) & 255) / 255.;
+	double g = (double)((colorspec->rgbcolor >> 8 ) & 255) / 255.;
+	double b = (double)(colorspec->rgbcolor & 255) / 255.;
 
 	snprintf(colorstr, sizeof(colorstr), "\\color[rgb]{%3.2f,%3.2f,%3.2f}\n", r, g, b);
 	break;

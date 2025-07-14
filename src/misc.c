@@ -461,7 +461,7 @@ lf_pop()
 
 	if ((udv = get_udv_by_name("ARGV")) && udv->udv_value.type == ARRAY) {
 	    struct value *ARGV;
-	    int argv_size = lf->argv[0].v.int_val;
+	    int argv_size = lf->argv[0].v.array_header.size;
 
 	    init_array(udv, argv_size);
 	    ARGV = udv->udv_value.v.value_array;
@@ -560,14 +560,14 @@ lf_push(FILE *fp, char *name, char *cmdline)
 	    call_args[argindex] = NULL;	/* initially no args */
 	}
 	/* Save ARGV[] */
-	lf->argv[0].v.int_val = 0;
+	lf->argv[0].v.array_header.size = 0;
 	lf->argv[0].type = NOTDEFINED;
 	if ((udv = get_udv_by_name("ARGV")) && udv->udv_value.type == ARRAY) {
 	    /* When called from the command line (-c option) call_argc correctly
 	     * enumerates the entities on the command line, but they were not
 	     * previously saved in ARGV.
 	     */
-	    int saved_args = udv->udv_value.v.value_array[0].v.int_val;
+	    int saved_args = udv->udv_value.v.value_array[0].v.array_header.size;
 	    for (argindex = 0; argindex <= call_argc; argindex++) {
 		if (argindex > saved_args)
 		    break;
@@ -1058,9 +1058,13 @@ lp_parse(struct lp_style_type *lp, lp_class destination_class, TBOOLEAN allow_po
 	 * fc colorspec as a line property.  We need to parse it later as a
 	 * _fill_ property. Also prevents "plot ... fc <col1> fs <foo> lw <baz>"
 	 * from generating an error claiming redundant line properties.
+	 * The test for "fillcolor palette" allows "splot with pm3d fc palette <colormap>"
+	 * to NOT store the palette request in this_plot->lp_properties and
+	 * instead catch it later in a subsequent search for fillcolor.
 	 */
 	if ((destination_class == LP_NOFILL || destination_class == LP_ADHOC)
-	&&  (equals(c_token,"fc") || almost_equals(c_token,"fillc$olor"))) {
+	&&  (equals(c_token,"fc") || almost_equals(c_token,"fillc$olor"))
+	&&  (!almost_equals(c_token+1, "pal$ette"))) {
 	    FPRINTF((stderr, "ignoring 'fc' request\n"));
 	    break;
 	}
@@ -1440,7 +1444,7 @@ parse_colorspec(struct t_colorspec *tc, int options)
 	    c_token++;
 	} else {
 	    tc->value = 0.0;
-	    tc->lt = parse_color_name();
+	    tc->rgbcolor = parse_color_name();
 	}
     } else if (almost_equals(c_token,"pal$ette")) {
 	/* The next word could be any of {z|cb|frac|<colormap-name>}.
@@ -1488,7 +1492,7 @@ parse_colorspec(struct t_colorspec *tc, int options)
     /* New: allow to skip the rgb keyword, as in  'plot $foo lc "blue"' */
     } else if (isstring(c_token)) {
 	tc->type = TC_RGB;
-	tc->lt = parse_color_name();
+	tc->rgbcolor = parse_color_name();
 
     } else {
 	int_error(c_token, "colorspec option not recognized");
@@ -1737,7 +1741,7 @@ get_colormap(int token)
     if (type_udv(token) == ARRAY) {
 	udvt_entry *udv = add_udv(token);
 	if ((udv->udv_value.v.value_array[0].type == COLORMAP_ARRAY)
-	&&  (udv->udv_value.v.value_array[0].v.int_val >= 2))
+	&&  (udv->udv_value.v.value_array[0].v.array_header.size >= 2))
 	    colormap = udv;
     }
     return colormap;
@@ -1760,7 +1764,7 @@ pixmap_from_colormap(t_pixmap *pixmap)
     c_token++;
     free(pixmap->colormapname);
     pixmap->colormapname = gp_strdup(colormap->udv_name);
-    size = colormap->udv_value.v.value_array[0].v.int_val;
+    size = colormap->udv_value.v.value_array[0].v.array_header.size;
 
     pixmap->image_data = gp_realloc( pixmap->image_data,
 			size * 4. * sizeof(coordval), "pixmap");

@@ -640,9 +640,9 @@ TK_color(t_colorspec *colorspec)
     case TC_RGB: {
 	    int red, green, blue;
 
-	    red = (colorspec->lt >> 16) & 0xff;
-	    green = (colorspec->lt >> 8) & 0xff;
-	    blue = (colorspec->lt) & 0xff;
+	    red = (colorspec->rgbcolor >> 16) & 0xff;
+	    green = (colorspec->rgbcolor >> 8) & 0xff;
+	    blue = (colorspec->rgbcolor) & 0xff;
 	    snprintf(tmp_color, sizeof(tk_color), "#%02x%02x%02x", red, green, blue);
 	    break;
 	}

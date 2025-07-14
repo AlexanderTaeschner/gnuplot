@@ -659,24 +659,29 @@ D epi_data 1
 ## shared a single border color and linewidth taken from "set pm3d".
 ## This limitation is now removed; border properties can be specified per-plot
 ## or per-object. This change affects any scripts that expected "set pm3d" to
-## affect the borders of 3D polygons and boxes.
-#b splot with contourfill at base
+## affect the borders of 3D polygons and boxes. (in 6.0.3)
+#b splot `with contourfill at base` (in 6.0.3)
 #b Revised implementation of local variables (faster, more well-defined scope).
 ## (in 6.0.2)
+#b Input data to plot and splot can be filtered through a conditional expression
+## outside the "using" section. For example: 
+## `plot DATA using 2:3 with boxes if (stringcolumn(1) eq "ABC")`
+## (in 6.0.3)
+#b New command `save changes`  is equivalent to the old contributed external
+## script `gpsavediff`.  This command saves only the program settings, variables,
+## and functions that distinguish the current state from the program state at
+## the start of the current gnuplot session.  See `save changes`.
+## (in 6.0.3)
+#b Revised wxt terminal driver with more robust threading and error recovery.
+## (in 6.0.3)
 #b "linestyle variable"
 #b pm3d coloring for 3D polygons (e.g. Delaunay tessellation of surfaces).
 ## See `delaunay`.
-#b Filter input data to plot and splot through a conditional expression outside
-## the "using" section. For example: 
-## `plot DATA using 2:3 with boxes if (stringcolumn(1) eq "ABC")`
-#b New command `save changes`  equivalent to the old contributed external script
-## `gpsavediff`.  This command saves only the program settings, variables, and
-## functions that distinguish the current state from the program state at the
-## start of the current gnuplot session.  See `save changes`.
-#b Revised wxt terminal driver with more robust threading and error recovery.
 #b Alternatives to gdlib for handling image files as data
 #b Iteration over array contents `array A; for [e in A] { ... }` [EXPERIMENTAL]
 #b Deprecation of the "sample" keyword
+#b New numerical operation "prod" (cumulative product). See `product`.
+## Example:     N! == prod [i=1:N] i 
 #b New category of graphical objects called "marks" that allow definition
 ## of complex symbols used in plots.  See `marks`.
 #end
@@ -10957,7 +10962,7 @@ Ffigure_smooth_path
  The following are _not_ affected by `reset`:
       `set term` `set output` `set loadpath` `set linetype` `set fit`
       `set encoding` `set decimalsign` `set locale` `set psdir`
-      `set overflow` `set multiplot`
+      `set overflow` `set multiplot` `set minussign` `set micro`
 
  Note that `reset` does not necessarily return settings to the state they
  were in at program entry, because the default values may have been altered by
@@ -16734,13 +16739,16 @@ Ffigure_polar_grid
 
  The default fillstyle is `empty`.
 
- The `solid` option causes filling with a solid color, if the terminal
- supports that. The <density> parameter specifies the intensity of the
- fill color. At a <density> of 0.0, the box is empty, at <density> of 1.0,
- the inner area is of the same color as the current linetype.
- Some terminal types can vary the density continuously; others implement
- only a few levels of partial fill.  If no <density> parameter is given,
- it defaults to 1.
+ The `solid` option causes filling with a solid color.
+ The <density> parameter specifies the saturation of the fill color.
+ At <density> 0.0 the box is white (or for some terminals background color).
+ At <density> 1.0 the filled area is the same color as the current line
+ or fill color.  Some terminal types can vary the saturation continuously;
+ others implement only a few levels of partial fill.
+ If no <density> parameter is given, it defaults to 1.
+
+ `transparent solid` works similarly except that <density> is interpreted as
+ an alpha value. Density 0.0 is fully transparent; density 1.0 is solid fill.
 
  The `pattern` option causes filling to be done with a fill pattern supplied
  by the terminal driver.  The kind and number of available fill patterns

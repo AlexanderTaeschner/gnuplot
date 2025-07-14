@@ -188,7 +188,8 @@ static const struct position default_offset
 	= {character, character, character, 0., 0., 0.};
 
 static lp_style_type default_hypertext_point_style
-	= {1, LT_BLACK, 4, DASHTYPE_SOLID, 0, 0, 1.0, PTSZ_DEFAULT, DEFAULT_P_CHAR, {TC_RGB, 0x000000, 0.0}, DEFAULT_DASHPATTERN};
+	= {1, LT_BLACK, 4, DASHTYPE_SOLID, 0, 0, 1.0, PTSZ_DEFAULT, DEFAULT_P_CHAR,
+	  {.type=TC_RGB, .rgbcolor=0x000000, .value=0.0}, DEFAULT_DASHPATTERN};
 
 /******** The 'set' command ********/
 void
@@ -1524,7 +1525,15 @@ set_dashtype()
     c_token++;
 
     /* get tag */
-    if (END_OF_COMMAND || ((tag = int_expression()) <= 0))
+    if (END_OF_COMMAND)
+	return;
+
+    if (type_udv(c_token) == INTGR && equals(c_token+1,"("))
+	/* This resolves the ambiguous syntax in "set for [i=1:N] dashtype i (n, m)" */
+	tag = add_udv(c_token++)->udv_value.v.int_val;
+    else
+	tag = int_expression();
+    if (tag <= 0)
 	int_error(c_token, "tag must be > zero");
 
     /* Check if dashtype is already defined */
@@ -6216,7 +6225,7 @@ parse_label_options( struct text_label *this_label, int ndim)
     TBOOLEAN axis_label = FALSE;
     TBOOLEAN hypertext = FALSE;
     struct position offset = default_offset;
-    t_colorspec textcolor = {TC_DEFAULT,0,0.0};
+    t_colorspec textcolor = {.type=TC_DEFAULT, .lt=0, .value=0.0};
     struct lp_style_type loc_lp = DEFAULT_LP_STYLE_TYPE;
     loc_lp.flags = LP_NOT_INITIALIZED;
     if (this_label->tag == LABEL_TAG_ROTATE_IN_3D || this_label->tag == LABEL_TAG_VARIABLE_ROTATE)

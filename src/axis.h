@@ -256,7 +256,7 @@ typedef struct axis {
     double paxis_x;		/* x coordinate of parallel axis */
 } AXIS;
 
-#define DEFAULT_AXIS_TICDEF {TIC_COMPUTED, NULL, {TC_DEFAULT, 0, 0.0}, {NULL, {0.,0.,0.}, FALSE},  { character, character, character, 0., 0., 0. }, FALSE, TRUE, FALSE, FALSE }
+#define DEFAULT_AXIS_TICDEF {TIC_COMPUTED, NULL, DEFAULT_COLORSPEC, {NULL, {0.,0.,0.}, FALSE},  { character, character, character, 0., 0., 0. }, FALSE, TRUE, FALSE, FALSE }
 #define DEFAULT_AXIS_ZEROAXIS {0, LT_AXIS, 0, DASHTYPE_AXIS, 0, 0, 1.0, PTSZ_DEFAULT, DEFAULT_P_CHAR, BLACK_COLORSPEC, DEFAULT_DASHPATTERN}
 
 #define DEFAULT_AXIS_STRUCT {						    \
@@ -324,6 +324,7 @@ extern const struct ticdef default_axis_ticdef;
 /* default format for tic mark labels */
 #define DEF_FORMAT "% h"
 #define DEF_FORMAT_LATEX "$%h$"
+#define is_def_format(s) (!strcmp(s,"% h") || !strcmp(s,"% H"))
 
 /* default parse timedata string */
 #define TIMEFMT "%d/%m/%y,%H:%M"
@@ -439,9 +440,6 @@ do {									\
 
 /* 'roundoff' check tolerance: less than one hundredth of a tic mark */
 #define SIGNIF (0.01)
-/* (DFK) Watch for cancellation error near zero on axes labels */
-/* FIXME HBB 20000521: these seem not to be used much, anywhere... */
-#define CheckZero(x,tic) (fabs(x) < ((tic) * SIGNIF) ? 0.0 : (x))
 
 /* Function pointer type for callback functions to generate ticmarks */
 typedef void (*tic_callback) (struct axis *, double, char *, int, 

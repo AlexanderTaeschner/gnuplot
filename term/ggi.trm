@@ -1424,9 +1424,9 @@ GGI_set_color(struct t_colorspec *colorspec)
     double gray = colorspec->value;
 
     if (colorspec->type == TC_RGB) {
-	rgb.r = ((colorspec->lt >> 16) & 0xff) * (65535./255.);
-	rgb.g = ((colorspec->lt >> 8) & 0xff) * (65535./255.);
-	rgb.b = ((colorspec->lt) & 0xff) * (65535./255.);
+	rgb.r = ((colorspec->rgbcolor >> 16) & 0xff) * (65535./255.);
+	rgb.g = ((colorspec->rgbcolor >> 8) & 0xff) * (65535./255.);
+	rgb.b = ((colorspec->rgbcolor) & 0xff) * (65535./255.);
 	ggiSetGCForeground(GGIvisual, ggiMapColor(GGIvisual,&rgb));
     }
 

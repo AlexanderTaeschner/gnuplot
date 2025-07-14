@@ -983,7 +983,7 @@ drawgraph_d2d(LPGW lpgw, HWND hwnd, LPRECT rect)
 // Creates a print job ticket stream to define options for the next print job.
 // Note: This is derived from an MSDN example
 HRESULT
-GetPrintTicketFromDevmode(PCTSTR printerName, PDEVMODE pDevMode, WORD devModesize, LPSTREAM * pPrintTicketStream)
+GetPrintTicketFromDevmode(PCWSTR printerName, PDEVMODE pDevMode, WORD devModesize, LPSTREAM * pPrintTicketStream)
 {
 	HRESULT hr = S_OK;
 	HPTPROVIDER provider = NULL;
@@ -1014,10 +1014,15 @@ print_d2d(LPGW lpgw, DEVMODE * pDevMode, LPCTSTR szDevice, LPRECT rect)
 	ID2D1DeviceContext * pRenderTarget = lpgw->pRenderTarget;
 	IStream * jobPrintTicketStream;
 	IPrintDocumentPackageTarget * documentTarget;
+#ifdef UNICODE
+	LPCWSTR szDeviceW = szDevice;
+#else
+	LPWSTR szDeviceW = UnicodeText(szDevice, lpgw->encoding);
+#endif
 
 	// Create a print ticket, init print subsystem
 	if (SUCCEEDED(hr)) {
-		hr = GetPrintTicketFromDevmode(szDevice, pDevMode,
+		hr = GetPrintTicketFromDevmode(szDeviceW, pDevMode,
 				pDevMode->dmSize + pDevMode->dmDriverExtra, // size including private data
 				&jobPrintTicketStream);
 	}
@@ -1027,10 +1032,19 @@ print_d2d(LPGW lpgw, DEVMODE * pDevMode, LPCTSTR szDevice, LPRECT rect)
 				NULL, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&documentTargetFactory));
 	}
 	if (SUCCEEDED(hr)) {
+#ifdef UNICODE
 		hr = documentTargetFactory->CreateDocumentPackageTargetForPrintJob(
-				szDevice, lpgw->Title,
+				szDeviceW, lpgw->Title,
 				NULL, jobPrintTicketStream,
 				&documentTarget);
+#else
+		LPWSTR jobName = UnicodeText(lpgw->Title, lpgw->encoding);
+		hr = documentTargetFactory->CreateDocumentPackageTargetForPrintJob(
+				szDeviceW, jobName,
+				NULL, jobPrintTicketStream,
+				&documentTarget);
+		free(jobName);
+#endif
 	}
 
 	// Make sure that the D2D factory object and the render target are created
@@ -1128,6 +1142,9 @@ print_d2d(LPGW lpgw, DEVMODE * pDevMode, LPCTSTR szDevice, LPRECT rect)
 	}
 
 	// Clean-up
+#ifndef UNICODE
+	free(szDeviceW);
+#endif
 	SafeRelease(&pCommandList);
 	SafeRelease(&printControl);
 	SafeRelease(&jobPrintTicketStream);

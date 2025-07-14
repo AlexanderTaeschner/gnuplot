@@ -108,7 +108,7 @@ typedef enum PLOT_STYLE {
     YERRORLINES  = 18*PLOT_STYLE_BITS + (PLOT_STYLE_HAS_LINE | PLOT_STYLE_HAS_POINT | PLOT_STYLE_HAS_ERRORBAR),
     XYERRORLINES = 19*PLOT_STYLE_BITS + (PLOT_STYLE_HAS_LINE | PLOT_STYLE_HAS_POINT | PLOT_STYLE_HAS_ERRORBAR),
     FILLEDCURVES = 21*PLOT_STYLE_BITS + PLOT_STYLE_HAS_LINE + PLOT_STYLE_HAS_FILL,
-    PM3DSURFACE  = 22*PLOT_STYLE_BITS + PLOT_STYLE_HAS_FILL,
+    PM3DSURFACE  = 22*PLOT_STYLE_BITS + PLOT_STYLE_HAS_FILL + PLOT_STYLE_HAS_PM3DBORDER,
     LABELPOINTS  = 23*PLOT_STYLE_BITS + 0,
     HISTOGRAMS   = 24*PLOT_STYLE_BITS + PLOT_STYLE_HAS_FILL,
     IMAGE        = 25*PLOT_STYLE_BITS + 0,
@@ -174,6 +174,11 @@ struct fblock {
 	char **parnames;
 };
 
+struct array_header {
+	intgr_t size;			/* This array is indexed from 1 to size */
+	struct udvt_entry *parent;	/* User variable that holds this array */
+};
+
 typedef struct value {
     enum DATA_TYPES type;
     union {
@@ -183,6 +188,7 @@ typedef struct value {
 	char **data_array;
 	struct fblock functionblock;
 	struct value *value_array;
+	struct array_header array_header;	/* substructure of ARRAY value_array[0] */
 	struct vgrid *vgrid;
     } v;
 } t_value;

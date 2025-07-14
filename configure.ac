@@ -133,13 +133,20 @@ if test "${with_amos}" != no ; then
       [AC_DEFINE([HAVE_AMOS], 1, [define if you have a library of Amos special functions])
       have_amoslibrary=yes]
   )
-  dnl The Amos routine cexint (Complex exponential integral) is not in the general
-  dnl collection of Bessel functions so it may or may not be present in the same
-  dnl library as the others.
-  AC_SEARCH_LIBS([cexint_], [amos openspecfun],
-      [AC_DEFINE([HAVE_CEXINT], 1, [define if you have Amos function cexint])
-      have_cexint=yes && LIBS="$LIBS -L/home/local/lib64"]
+  dnl The Amos routines cexint and zexint (Complex exponential integral) are not
+  dnl in the general collection of Bessel functions so may or may not be present
+  dnl in the same library as the others.
+  dnl Search first for zexint and if not found search again for cexint
+  AC_SEARCH_LIBS([zexint_], [amos openspecfun],
+      [AC_DEFINE([HAVE_ZEXINT], 1, [define if you have Amos function zexint])
+      have_zexint=yes]
   )
+  if test "$have_zexint" != yes; then
+    AC_SEARCH_LIBS([cexint_], [amos openspecfun],
+        [AC_DEFINE([HAVE_CEXINT], 1, [define if you have Amos function cexint])
+        have_cexint=yes]
+    )
+  fi
 fi
 
 dnl Various programs
@@ -1474,12 +1481,14 @@ fi
 if test "$have_amoslibrary" = yes; then
   AC_MSG_RESULT([  Complex Airy and Bessel functions:               yes])
 else
-  AC_MSG_RESULT([  Complex Airy and Bessel functions:               no (requires libopenspec or libamos])
+  AC_MSG_RESULT([  Complex Airy and Bessel functions:               no (requires libopenspec or libamos)])
 fi
-if test "$have_cexint" = yes; then
+if test "$have_zexint" = yes; then
+  AC_MSG_RESULT([  Complex exponential integral zexint (libamos):   yes])
+elif test "$have_cexint" = yes; then
   AC_MSG_RESULT([  Complex exponential integral cexint (libamos):   yes])
 else
-  AC_MSG_RESULT([  Complex exponential integral cexint (libamos):   no])
+  AC_MSG_RESULT([  Complex exponential integral (libamos):          no])
 fi
 
 if test "$have_external_functions" = yes; then

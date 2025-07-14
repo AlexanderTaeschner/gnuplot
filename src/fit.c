@@ -2193,7 +2193,7 @@ fit_main()
 		if (udv->udv_value.type != ARRAY)
 		    Eex("no such array");
 		if ((1 != sscanf(s, "%d]", &index))
-		||  (index <= 0 || index > udv->udv_value.v.value_array[0].v.int_val))
+		||  (index <= 0 || index > udv->udv_value.v.value_array[0].v.array_header.size))
 		    Eex("bad array index");
 		snprintf(par_name[num_params], sizeof(par_name[0]), "%40.40s[%d]", tmp, (short)index);
 		par_udv[num_params] = &(udv->udv_value.v.value_array[index]);
@@ -2248,7 +2248,7 @@ fit_main()
 		    Eexc(c_token, "No such array");
 		c_token += 2;
 		index = int_expression();
-		if (index <= 0 || index > udv->udv_value.v.value_array[0].v.int_val)
+		if (index <= 0 || index > udv->udv_value.v.value_array[0].v.array_header.size)
 		    Eexc(c_token, "array index out of range");
 		if (!equals(c_token, "]"))
 		    Eexc(c_token, "not an array index");

@@ -1660,7 +1660,8 @@ CONTEXT_make_palette(t_sm_palette *palette)
  *
  * typedef struct t_colorspec {
  *    int    type;    // TC_ DEFAULT, LT, LINESTYLE, RGB, CB, FRAC, Z
- *    int    lt;      // used for TC_LT, TC_LINESTYLE and TC_RGB
+ *    int    lt;      // used for TC_LT, TC_LINESTYLE
+ *    unsigned rgbcolor; // TC_RGB
  *    double value;   // used for TC_CB and TC_FRAC
  * } t_colorspec;
  */
@@ -1698,9 +1699,9 @@ CONTEXT_set_color(t_colorspec *colorspec)
 
 	/* rgb color */
 	case TC_RGB:
-		r = (double)((colorspec->lt >> 16 ) & 255) / 255.;
-		g = (double)((colorspec->lt >> 8 ) & 255) / 255.;
-		b = (double)(colorspec->lt & 255) / 255.;
+		r = (double)((colorspec->rgbcolor >> 16 ) & 255) / 255.;
+		g = (double)((colorspec->rgbcolor >> 8 ) & 255) / 255.;
+		b = (double)(colorspec->rgbcolor & 255) / 255.;
 
 		fprintf(gpoutfile, "gp_set_color(rgb(%3.2f,%3.2f,%3.2f));\n", r, g, b);
 		CONTEXT_color_changed = TRUE;

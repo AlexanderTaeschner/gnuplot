@@ -1138,11 +1138,11 @@ init_gadgets()
    grid_wall[WALL_Y1_TAG].lp_properties.pm3d_color.type = TC_RGB;
    grid_wall[WALL_X1_TAG].lp_properties.pm3d_color.type = TC_RGB;
    grid_wall[WALL_Z0_TAG].lp_properties.pm3d_color.type = TC_RGB;
-   grid_wall[WALL_Y0_TAG].lp_properties.pm3d_color.lt = WALL_Y_COLOR;
-   grid_wall[WALL_X0_TAG].lp_properties.pm3d_color.lt = WALL_X_COLOR;
-   grid_wall[WALL_Y1_TAG].lp_properties.pm3d_color.lt = WALL_Y_COLOR;
-   grid_wall[WALL_X1_TAG].lp_properties.pm3d_color.lt = WALL_X_COLOR;
-   grid_wall[WALL_Z0_TAG].lp_properties.pm3d_color.lt = WALL_Z_COLOR;
+   grid_wall[WALL_Y0_TAG].lp_properties.pm3d_color.rgbcolor = WALL_Y_COLOR;
+   grid_wall[WALL_X0_TAG].lp_properties.pm3d_color.rgbcolor = WALL_X_COLOR;
+   grid_wall[WALL_Y1_TAG].lp_properties.pm3d_color.rgbcolor = WALL_Y_COLOR;
+   grid_wall[WALL_X1_TAG].lp_properties.pm3d_color.rgbcolor = WALL_X_COLOR;
+   grid_wall[WALL_Z0_TAG].lp_properties.pm3d_color.rgbcolor = WALL_Z_COLOR;
 }
 
 /*

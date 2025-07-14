@@ -1319,7 +1319,7 @@ PC_set_color(t_colorspec *colorspec)
 	break;
     }
     case TC_RGB: {
-	unsigned int rgb = colorspec->lt;
+	unsigned int rgb = colorspec->rgbcolor;
 	/* color range is 0..63 */
 	int r = ((rgb >> 16) & 0xff);
 	int g = ((rgb >>  8) & 0xff);

@@ -1874,7 +1874,7 @@ test_term()
 	textbox->opaque = TRUE;
 	textbox->noborder = TRUE;
 	textbox->fillcolor.type = TC_RGB;
-	textbox->fillcolor.lt = 0xccccee;
+	textbox->fillcolor.rgbcolor = 0xccccee;
 	/* disable extra space around text */
 	textbox->xmargin = 0;
 	textbox->ymargin = 0;
@@ -2475,6 +2475,10 @@ enhanced_recursion(
 		    int i, length;
 		    if (strlen(&(p[3])) < 4)
 			break;
+		    if (!isxdigit(p[3]) || !isxdigit(p[4]) || !isxdigit(p[5]) || !isxdigit(p[6])) {
+			int_warn(NO_CARET, "misformed unicode escape sequence %7.7s", p);
+			break;
+		    }
 		    if (sscanf(&(p[3]), "%5x", &codepoint) != 1)
 			break;
 		    length = ucs4toutf8(codepoint, utf8char);
@@ -2888,7 +2892,7 @@ recycle:
 	    lp->d_type = this->lp_properties.d_type;
 	    lp->custom_dash_pattern = this->lp_properties.custom_dash_pattern;
 
-	    /* Needed in version 5.0 to handle old terminals (pbm hpgl ...) */
+	    /* Needed by some legacy terminals (pbm hpgl ...) */
 	    /* with no support for user-specified colors */
 	    if (term && term->set_color == null_set_color)
 		lp->l_type = tag;

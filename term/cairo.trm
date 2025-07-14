@@ -128,6 +128,7 @@ enum CAIROTRM_id {
     CAIROLATEX_PDF,
     CAIROLATEX_PNG,
     CAIROLATEX_PNG_RESOLUTION,
+    CAIROTRM_HINTING,
     CAIROTRM_OTHER
 };
 
@@ -161,12 +162,13 @@ typedef struct cairo_params_t {
     enum CAIROTRM_id output;	/* format of the graphics produced by cairolatex */
     int resolution;             /* in dpi; CAIROLATEX_PNG only */
     TBOOLEAN anchor;		/* TRUE = anchor kitty output to top left */
+    float hinting;              /* hinting 0..100 */
 } cairo_params_t;
 
 #define CAIROEPS_PARAMS_DEFAULT { \
     CAIROTERM_EPS, INCHES, FALSE, FALSE, 1.0, {1.,1.,1.}, 0xffffff, \
     FALSE, BUTT, TRUE, FALSE, NULL, \
-    12, 0.5, 5*72., 3*72., 0.25, 1.0, 1.0, FALSE \
+    12, 0.5, 5*72., 3*72., 0.25, 1.0, 1.0, FALSE, 300, FALSE, 0.0 \
 }
 static cairo_params_t cairoeps_params = CAIROEPS_PARAMS_DEFAULT;
 static const cairo_params_t cairoeps_params_default = CAIROEPS_PARAMS_DEFAULT;
@@ -175,13 +177,13 @@ static const cairo_params_t cairoeps_params_default = CAIROEPS_PARAMS_DEFAULT;
 #define CAIROLATEX_PARAMS_DEFAULT { \
     CAIROTERM_LATEX, INCHES, FALSE, FALSE, 1.0, {1.,1.,1.}, 0xffffff, \
     FALSE, BUTT, TRUE, FALSE, NULL, \
-    11, 0.6, 5*72., 3*72., 0.25, 1.0, 1.0, FALSE, 300 \
+    11, 0.6, 5*72., 3*72., 0.25, 1.0, 1.0, FALSE, 300, FALSE, 0.0 \
 }
 #else
 #define CAIROLATEX_PARAMS_DEFAULT { \
     CAIROTERM_LATEX, INCHES, FALSE, FALSE, 1.0, {1.,1.,1.}, 0xffffff, \
     FALSE, BUTT, TRUE, FALSE, NULL, \
-    11, 0.6, 5*72., 3*72., 0.25, 1.0, 1.0, TRUE, 300 \
+    11, 0.6, 5*72., 3*72., 0.25, 1.0, 1.0, TRUE, 300, FALSE, 0.0 \
 }
 #endif
 static cairo_params_t cairolatex_params = CAIROLATEX_PARAMS_DEFAULT;
@@ -190,7 +192,7 @@ static const cairo_params_t cairolatex_params_default = CAIROLATEX_PARAMS_DEFAUL
 #define CAIROPDF_PARAMS_DEFAULT { \
     CAIROTERM_PDF, INCHES, FALSE, FALSE, 1.0, {1.,1.,1.}, 0xffffff, \
     FALSE, BUTT, TRUE, FALSE, NULL, \
-    12, 0.5, 5*72., 3*72., 0.25, 1.0, 1.0, FALSE \
+    12, 0.5, 5*72., 3*72., 0.25, 1.0, 1.0, FALSE, 300, FALSE, 0.0 \
 }
 static cairo_params_t cairopdf_params = CAIROPDF_PARAMS_DEFAULT;
 static const cairo_params_t cairopdf_params_default = CAIROPDF_PARAMS_DEFAULT;
@@ -198,7 +200,7 @@ static const cairo_params_t cairopdf_params_default = CAIROPDF_PARAMS_DEFAULT;
 #define CAIROPNG_PARAMS_DEFAULT { \
     CAIROTERM_PNG, PIXELS, FALSE, FALSE, 1.0, {1.,1.,1.}, 0xffffff, \
     FALSE, BUTT, FALSE, FALSE, NULL, \
-    12, 1.0, 640., 480., 1.0, 1.0, 1.0, FALSE, 0, TRUE\
+    12, 1.0, 640., 480., 1.0, 1.0, 1.0, FALSE, 0, TRUE, 100.0 \
 }
 static cairo_params_t cairopng_params = CAIROPNG_PARAMS_DEFAULT;
 static const cairo_params_t cairopng_params_default = CAIROPNG_PARAMS_DEFAULT;
@@ -254,6 +256,7 @@ static struct gen_table cairotrm_opts[] = {
     {"pdf", CAIROLATEX_PDF},
     {"png", CAIROLATEX_PNG},
     {"resolution", CAIROLATEX_PNG_RESOLUTION},
+    {"hinting", CAIROTRM_HINTING},
     {NULL, CAIROTRM_OTHER}
 };
 
@@ -266,7 +269,7 @@ TERM_PUBLIC void cairotrm_options()
 	char *s = NULL;
 	char *font_setting = NULL;
 	TBOOLEAN duplication = FALSE;
-	TBOOLEAN set_font = FALSE, set_size = FALSE;
+	TBOOLEAN set_font = FALSE, set_size = FALSE, set_hinting = FALSE;
 	TBOOLEAN set_capjoin = FALSE;
 	TBOOLEAN set_standalone = FALSE, set_header = FALSE;
 
@@ -538,6 +541,21 @@ TERM_PUBLIC void cairotrm_options()
 			    cairo_params->resolution = 300;
 			break;
 #endif /* PSLATEX_DRIVER */
+		case CAIROTRM_HINTING:
+			++c_token;
+
+			if ( strcmp(term->name,"pngcairo")
+			&&   !(!strcmp(term->name,"cairolatex") && cairo_params->output == CAIROLATEX_PNG)) {
+			    (void)real_expression();
+			    break;
+			}
+			cairo_params->hinting = real_expression();
+			if (cairo_params->hinting < 0.0)
+			    cairo_params->hinting = 0.0;
+			if (cairo_params->hinting > 100.0)
+			    cairo_params->hinting = 100.0;
+			set_hinting = TRUE;
+			break;
 
 		case CAIROTRM_OTHER:
 			/* Ignore irrelevant keywords used by other png/pdf drivers */
@@ -645,6 +663,11 @@ TERM_PUBLIC void cairotrm_options()
 	/* if (set_fontscale) */
 	{
 		snprintf(tmp_term_options, sizeof(tmp_term_options), " fontscale %.1f", cairo_params->fontscale);
+		strncat(term_options, tmp_term_options, sizeof(term_options)-strlen(term_options)-1);
+	}
+
+	if (set_hinting) {
+		snprintf(tmp_term_options, sizeof(tmp_term_options), " hinting %.0f", cairo_params->hinting);
 		strncat(term_options, tmp_term_options, sizeof(term_options)-strlen(term_options)-1);
 	}
 
@@ -814,7 +837,7 @@ void cairotrm_init()
 				plot.device_xmax /*double width_in_points*/,
 				plot.device_ymax /*double height_in_points*/);
 		/* png is bitmapped, let's do the full hinting */
-		plot.hinting = 100;
+		plot.hinting = cairo_params->hinting;
 		plot.polygons_saturate = TRUE;
 	}
 	#ifdef HAVE_CAIROEPS
@@ -882,7 +905,7 @@ void cairotrm_init()
 		switch (cairo_params->output) {
 		case CAIROLATEX_PNG:
 			/* png is bitmapped, let's do the full hinting */
-			plot.hinting = 100;
+		        plot.hinting = cairo_params->hinting;
 			plot.polygons_saturate = TRUE;
 			break;
 		default:
@@ -1353,10 +1376,10 @@ void cairotrm_set_color(t_colorspec *colorspec)
 	} else if (colorspec->type == TC_FRAC) {
 		rgb1maxcolors_from_gray( colorspec->value, &rgb1 );
 	} else if (colorspec->type == TC_RGB) {
-		rgb1.r = (double) ((colorspec->lt >> 16) & 0xff)/255;
-		rgb1.g = (double) ((colorspec->lt >> 8) & 0xff)/255;
-		rgb1.b = (double) ((colorspec->lt) & 0xff)/255;
-		alpha = (double) ((colorspec->lt >> 24) & 0xff)/255;
+		rgb1.r = (double) ((colorspec->rgbcolor >> 16) & 0xff)/255;
+		rgb1.g = (double) ((colorspec->rgbcolor >> 8) & 0xff)/255;
+		rgb1.b = (double) ((colorspec->rgbcolor) & 0xff)/255;
+		alpha = (double) ((colorspec->rgbcolor >> 24) & 0xff)/255;
 	} else return;
 
 	gp_cairo_set_color(&plot, rgb1, alpha);
@@ -1877,7 +1900,7 @@ START_HELP(pngcairo)
 "         set term pngcairo",
 "                      {{no}enhanced} {mono|color}",
 "                      {{no}transparent} {{no}crop} {background <rgbcolor>",
-"                      {font <font>} {fontscale <scale>}",
+"                      {font <font>} {fontscale <scale>} {hinting <percent>}",
 "                      {linewidth <lw>} {rounded|butt|square} {dashlength <dl>}",
 "                      {pointscale <ps>}",
 "                      {size <XX>{unit},<YY>{unit}}",
@@ -1933,7 +1956,8 @@ START_HELP(pngcairo)
 " OpenOffice Symbol fonts, and remove the Microsoft one.",
 "",
 " Rendering uses oversampling, antialiasing, and font hinting to the extent",
-" supported by the cairo and pango libraries.",
+" supported by the cairo and pango libraries. The hinting parameter (0-100)",
+" is passed to Pango but may be ignored."
 ""
 END_HELP(pngcairo)
 

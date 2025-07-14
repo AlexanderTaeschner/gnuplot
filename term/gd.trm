@@ -1345,18 +1345,18 @@ void PNG_set_color (t_colorspec *colorspec)
 	break;
 
     case TC_RGB:
-	png_state.rgb = colorspec->lt;
+	png_state.rgb = colorspec->rgbcolor;
 	if (png_state.TrueColor)
 	    png_state.color = gdImageColorExactAlpha(png_state.image,
-		(colorspec->lt >> 16) & 0xff,
-		(colorspec->lt >> 8) & 0xff,
-		 colorspec->lt & 0xff,
-		(colorspec->lt >> 25) & 0x7f);
+		(colorspec->rgbcolor >> 16) & 0xff,
+		(colorspec->rgbcolor >> 8) & 0xff,
+		 colorspec->rgbcolor & 0xff,
+		(colorspec->rgbcolor >> 25) & 0x7f);
 	else
 	    png_state.color = gdImageColorResolve(png_state.image,
-		(colorspec->lt >> 16) & 0xff,
-		(colorspec->lt >> 8) & 0xff,
-		colorspec->lt & 0xff);
+		(colorspec->rgbcolor >> 16) & 0xff,
+		(colorspec->rgbcolor >> 8) & 0xff,
+		colorspec->rgbcolor & 0xff);
 	break;
 
     case TC_FRAC:

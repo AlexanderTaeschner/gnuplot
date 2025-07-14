@@ -1275,7 +1275,7 @@ get_3ddata(struct surface_points *this_plot)
 		    if (this_plot->lp_properties.pm3d_color.type == TC_VARIABLE) {
 			struct lp_style_type lptmp;
 			load_linetype(&lptmp, (int)(v[3]));
-			color = lptmp.pm3d_color.lt;
+			color = lptmp.pm3d_color.rgbcolor;
 			color_from_column(TRUE);
 		    }
 		}
@@ -2341,7 +2341,8 @@ eval_3dplots()
 			    this_plot->lp_properties.pm3d_color.type = TC_LINESTYLE;
 			else
 			    this_plot->lp_properties.pm3d_color = fillcolor;
-		    } else if (this_plot->plot_style == POLYGONS) {
+		    } else if (this_plot->plot_style == POLYGONS
+			   ||  this_plot->plot_style == ISOSURFACE) {
 			if (set_lc && !set_fillstyle)
 			    this_plot->fill_properties.border_color
 				    = this_plot->lp_properties.pm3d_color;

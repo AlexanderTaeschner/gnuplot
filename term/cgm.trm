@@ -1672,9 +1672,9 @@ CGM_flush_polygon()
 static int
 CGM_find_nearest_color(t_colorspec *colorspec)
 {
-    int red   = (colorspec->lt >> 16) & 0xff;
-    int green = (colorspec->lt >> 8) & 0xff;
-    int blue  = colorspec->lt & 0xff;
+    int red   = (colorspec->rgbcolor >> 16) & 0xff;
+    int green = (colorspec->rgbcolor >> 8) & 0xff;
+    int blue  = colorspec->rgbcolor & 0xff;
     int closest = 0;
     int howclose = 1<<16;
     int i = 0;

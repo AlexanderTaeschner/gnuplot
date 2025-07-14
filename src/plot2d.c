@@ -804,8 +804,11 @@ get_data(struct curve_points *current_plot)
 	/* We now know that j > 0, i.e. there is some data on this input line.
 	 * However it is still possible that the user wants to skip this line
 	 * because it fails to satisfy the "plot .. if (<expr>)" condition.
-	 * FIXME: This treats filtered points as if they were missing;
-	 *        alternatively we could keep them but mark as undefined.
+	 * NOTE:
+	 *       This treats filtered points as if they were missing, except
+	 * that any side-effects from processing in df_get_readline() have
+	 * already happened.  Alternatively we could keep them but set the type
+	 * to UNDEFINED or EXCLUDERANGE.
 	 */
 	if (current_plot->if_filter_at) {
 	    struct value keep;
@@ -1525,7 +1528,7 @@ store2d_point(
     coord_type dummy_type = INRANGE;   /* sometimes we dont care about outranging */
     TBOOLEAN excluded_range = FALSE;
 
-    /* FIXME this destroys any UNDEFINED flag assigned during input */
+    /* This destroys any UNDEFINED flag assigned during input */
     cp->type = INRANGE;
 
     if (polar) {
@@ -2153,7 +2156,7 @@ store_label(
 	tl->textcolor.value = colorval;
     /* Check for optional (textcolor rgb variable) */
     else if (listhead->textcolor.type == TC_RGB && listhead->textcolor.value < 0)
-	tl->textcolor.lt = colorval;
+	tl->textcolor.rgbcolor = colorval;
     /* Check for optional (textcolor variable) */
     else if (listhead->textcolor.type == TC_VARIABLE) {
 	struct lp_style_type lptmp;
@@ -2168,7 +2171,7 @@ store_label(
 	/* Check for optional (point linecolor rgb variable) */
 	else if (listhead->lp_properties.pm3d_color.type == TC_RGB 
 		&& listhead->lp_properties.pm3d_color.value < 0)
-	    tl->lp_properties.pm3d_color.lt = colorval;
+	    tl->lp_properties.pm3d_color.rgbcolor = colorval;
 	/* Check for optional (point linecolor variable) */
 	else if (listhead->lp_properties.l_type == LT_COLORFROMCOLUMN) {
 	    struct lp_style_type lptmp;
@@ -3314,7 +3317,7 @@ eval_plots()
 	    /* Styles that use palette */
 	    if (this_plot->plot_style == SURFACEGRID) {
 		/* Used for the key sample, if nothing else */
-		t_colorspec mid_palette = {TC_FRAC, 0, 0.5};
+		t_colorspec mid_palette = {.type=TC_FRAC, .lt=0, .value=0.5};
 		this_plot->lp_properties.pm3d_color = mid_palette;
 	    }
 
@@ -3805,7 +3808,8 @@ eval_plots()
 			    AXIS *vis = axis_array[SAMPLE_AXIS].linked_to_primary->linked_to_secondary;
 			    t = eval_link_function(vis, t_min + i * t_step);
 			} else {
-			    /* Zero is often a special point in a function domain.
+			    /* Sample at exactly zero.
+			     * Zero is often a special point in a function domain.
 			     * Make sure we don't miss it due to round-off error.
 			     * See also the "sharpen" filter code.
 			     */
@@ -4379,7 +4383,7 @@ parse_plot_title(struct curve_points *this_plot, char *xtitle, char *ytitle, TBO
 	}
 
 	/* This catches both "title columnheader" and "title columnhead(foo)" */
-	/* FIXME:  but it doesn't catch "title sprintf( f(columnhead(foo)) )" */
+	/* but it wouldn't catch "title sprintf( f(columnhead(foo)) )" */
 	if (almost_equals(c_token,"col$umnheader")) {
 	    parse_1st_row_as_headers = TRUE;
 	}

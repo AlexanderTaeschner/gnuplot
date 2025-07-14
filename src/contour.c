@@ -243,7 +243,9 @@ contour(int num_isolines, struct iso_curve *iso_lines)
 	switch (contour_params.levels_kind) {
 	case LEVELS_AUTO:
 	    z = z0 + (i+1) * dz;
-	    z = CheckZero(z,dz);
+	    /* Adjust to exactly zero if it is very close */
+	    if (fabs(z) < 0.01*dz)
+		z = 0.0;
 	    if (nonlinear(&Z_AXIS))
 		z = eval_link_function((&Z_AXIS), z);
 	    break;
@@ -765,8 +767,6 @@ calc_min_max(
     /* Width and height of the grid is used as a unit length (2d-norm) */
     unit_x = x_max - x_min;
     unit_y = y_max - y_min;
-    /* FIXME HBB 20010121: 'zero' should not be used as an absolute
-     * figure to compare to data */
     unit_x = (unit_x > zero ? unit_x : zero);	/* should not be zero */
     unit_y = (unit_y > zero ? unit_y : zero);
 }

@@ -709,7 +709,7 @@ SVG_options ()
 	    continue;
 	}
 
-	/* Not used in version 5 */
+	/* ignored since version 5 */
 	if (equals(c_token, "solid") || almost_equals(c_token, "dash$ed")) {
 	    c_token++;
 	    continue;
@@ -1759,10 +1759,10 @@ SVG_set_color(t_colorspec *colorspec)
     } else if (colorspec->type == TC_FRAC) {
 	rgb255maxcolors_from_gray( colorspec->value, &rgb255 );
     } else if (colorspec->type == TC_RGB) {
-	rgb255.r = colorspec->lt >> 16 & 0xff;
-	rgb255.g = colorspec->lt >> 8 & 0xff;
-	rgb255.b = colorspec->lt & 0xff;
-	SVG_alpha = (double)(colorspec->lt >> 24 & 0xff) / 255.;
+	rgb255.r = colorspec->rgbcolor >> 16 & 0xff;
+	rgb255.g = colorspec->rgbcolor >> 8 & 0xff;
+	rgb255.b = colorspec->rgbcolor & 0xff;
+	SVG_alpha = (double)(colorspec->rgbcolor >> 24 & 0xff) / 255.;
     } else {
 	return;
     }
@@ -1817,6 +1817,19 @@ SVG_filled_polygon(int points, gpiPoint* corners)
 	    fprintf(gpoutfile," fill = '%s'", SVG_pens[0].color);
 	    break;
 	case FS_SOLID: /* solid fill */
+	    if (fillpar >= 0 && fillpar < 100) {
+		/* partial saturation;   0 -> 100 maps to white -> color */
+		double fade = fillpar * 0.01;
+		double bkg = 255. * (1 - fade);
+		unsigned char fade_red = SVG_red * fade + bkg;
+		unsigned char fade_green = SVG_green * fade + bkg;
+		unsigned char fade_blue = SVG_blue * fade + bkg;
+		fprintf(gpoutfile, "fill = 'rgb(%3d, %3d, %3d)'",
+			fade_red, fade_green, fade_blue);
+	    } else {
+		SVG_StyleFillColor();
+	    }
+	    break;
 	case FS_TRANSPARENT_SOLID:
 	    SVG_StyleFillColor();
 	    if (SVG_alpha != 0.0)
@@ -2061,8 +2074,10 @@ ENHsvg_OPEN(
 		fprintf(gpoutfile, " font-style=\"italic\" ");
 	}
 	if (SVG_fontSizeCur != fontsize) {
-	    SVG_fontSizeCur = fontsize;
-	    fprintf(gpoutfile, " font-size=\"%.1f\"", SVG_fontSizeCur * SVG_fontscale);
+	    /* SVG_fontSizeCur is the size we would otherwise inherit
+	     * from the group started in ENHsvg_OPEN.
+	     */
+	    fprintf(gpoutfile, " font-size=\"%.1f\"", fontsize * SVG_fontscale);
 	}
 	if (ENHsvg_x_offset != 0) {
 	    fprintf(gpoutfile, " dx=\"%.2fem\"", ENHsvg_x_offset);

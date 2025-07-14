@@ -802,6 +802,10 @@ disp_at(struct at_type *curr_at, int level)
 	case EVAL:
 	    fprintf(stderr, " function block %s\n", arg->udv_arg->udv_name);
 	    break;
+	case LOCK:
+	case UNLOCK:
+	    fprintf(stderr, " %s\n", arg->v_arg.v.string_val);
+	    break;
 	default:
 	    (void) putc('\n', stderr);
 	}
@@ -983,7 +987,9 @@ show_version(FILE *fp)
 #endif
 
 	    const char *have_cexint =
-#ifdef HAVE_CEXINT
+#if defined(HAVE_ZEXINT)
+		"+ZEXINT  ";
+#elif defined(HAVE_CEXINT)
 		"+CEXINT  ";
 #else
 		"";
@@ -2636,6 +2642,7 @@ show_micro()
     SHOW_ALL_NL;
 
     fprintf(stderr, "\tmicro character for output is %s \n",
+	(use_micro && micro_user) ? micro_user :
     	(use_micro && micro) ? micro : "u");
 }
 

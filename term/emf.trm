@@ -1075,9 +1075,9 @@ EMF_set_color(t_colorspec *colorspec)
 	rgb255maxcolors_from_gray(colorspec->value, &rgb255);
 	emf_color = RGB(rgb255.r, rgb255.g, rgb255.b);
     } else if (colorspec->type == TC_RGB) {
-	emf_color = RGB( colorspec->lt >> 16 & 0xff,
-			 colorspec->lt >> 8 & 0xff,
-			 colorspec->lt & 0xff );
+	emf_color = RGB( colorspec->rgbcolor >> 16 & 0xff,
+			 colorspec->rgbcolor >> 8 & 0xff,
+			 colorspec->rgbcolor & 0xff );
     }
 
     /*

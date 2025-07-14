@@ -444,9 +444,9 @@ PBM_set_color(t_colorspec *color)
 	if (color->type == TC_FRAC) {
 	    rgb255maxcolors_from_gray(color->value, &rgb255);
 	} else {
-	    rgb255.r = (color->lt >> 16) & 0xff;
-	    rgb255.g = (color->lt >>  8) & 0xff;
-	    rgb255.b = (color->lt >>  0) & 0xff;
+	    rgb255.r = (color->rgbcolor >> 16) & 0xff;
+	    rgb255.g = (color->rgbcolor >>  8) & 0xff;
+	    rgb255.b = (color->rgbcolor >>  0) & 0xff;
 	}
 	switch (pbm_mode) {
 	case PBM_MONOCHROME:

@@ -566,7 +566,7 @@ gprintf_value(
 	format = DEF_FORMAT;
 
     /* By default we wrap numbers output to latex terminals in $...$ */
-    if (!strcmp(format, DEF_FORMAT)  && !table_mode
+    if (is_def_format(format) && !table_mode
     &&  ((term->flags & TERM_IS_LATEX)))
 	format = DEF_FORMAT_LATEX;
 
@@ -650,7 +650,7 @@ gprintf_value(
 		TBOOLEAN bracket_flag = FALSE;
 		snprintf(tmp, 240, temp, x); /* magic number alert: why 240? */
 		for (i=j=0; tmp[i] && (i < LOCAL_BUFFER_SIZE); i++) {
-		    if (tmp[i]=='E' || tmp[i]=='e') {
+		    if (tmp[i] == 'E' || tmp[i] == 'e') {
 			if ((term-> flags & TERM_IS_LATEX)) {
 			    if (*format == 'h') {
 				strcpy(&tmp2[j], "\\times");
@@ -661,20 +661,28 @@ gprintf_value(
 			    }
 			} else switch (encoding) {
 			    case S_ENC_UTF8:
-				strcpy(&tmp2[j], "\xc3\x97"); /* UTF character '×' */
-				j+= 2;
+				if (*format == 'h') {
+				    strcpy(&tmp2[j], "\xc3\x97"); /* Unicode 'times sign' */
+				    j+= 2;
+				} else if ((term->flags & TERM_IS_POSTSCRIPT)) {
+				    strcpy(&tmp2[j], "\xc2\xb7"); /* Unicode 'middle dot' */
+				    j+= 2;
+				} else {
+				    strcpy(&tmp2[j], "\xE2\x8B\x85"); /* Unicode 'dot operator' */
+				    j+= 3;
+				}
 				break;
 			    case S_ENC_CP1252:
-				tmp2[j++] = (*format=='h') ? 0xd7 : 0xb7;
+				tmp2[j++] = (*format == 'h') ? 0xd7 : 0xb7;
 				break;
 			    case S_ENC_ISO8859_1:
 			    case S_ENC_ISO8859_2:
 			    case S_ENC_ISO8859_9:
 			    case S_ENC_ISO8859_15:
-				tmp2[j++] = (*format=='h') ? 0xd7 : '*';
+				tmp2[j++] = (*format == 'h') ? 0xd7 : '*';
 				break;
 			    default:
-				tmp2[j++] = (*format=='h') ? 'x' : '*';
+				tmp2[j++] = (*format == 'h') ? 'x' : '*';
 				break;
 			}
 
@@ -1540,7 +1548,7 @@ value_to_str(struct value *val, TBOOLEAN need_quotes)
 	}
     case ARRAY:
 	{
-	sprintf(s[j], "<%d element array>", (int)(val->v.value_array->v.int_val));
+	sprintf(s[j], "<%d element array>", (int)(val->v.value_array->v.array_header.size));
 	if (val->v.value_array->type == COLORMAP_ARRAY)
 	    strcat(s[j], " (colormap)");
 	break;

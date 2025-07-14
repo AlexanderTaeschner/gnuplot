@@ -3060,7 +3060,7 @@ plot_marks(struct curve_points *plot)
 
     tag = plot->marks_options.tag;
     if (tag == MARK_TYPE_VARIABLE) {
-	max_vertices = 100;	/* FIXME: what happens if this is exceded? */
+	max_vertices = 100;
     } else {
 	mark = get_mark(first_mark, tag);
 	if (!mark)
@@ -3756,7 +3756,6 @@ plot_spiderplot(struct curve_points *plot)
 	    if ((thisplot->points == NULL) || (thisplot->p_count <= i)
 	    ||  (thisplot->points[i].type == UNDEFINED)
 	    ||  isnan(thisplot->points[i].x) || isnan(thisplot->points[i].y)) {
-		/* FIXME EAM: how to exit cleanly? */
 		bad_data = TRUE;
 		break;
 	    }
@@ -5255,10 +5254,11 @@ do_polygon( int dimensions, t_object *this_object, int style, int facing )
 		quad[nv].z = p->vertex[nv].z;
 	    }
 	    /* Allow 2-sided coloring */
-	    /* FIXME: this assumes pm3d_color.type == TC_RGB
-	     *        if type == TC_LT instead this will come out off-white
-	     */
-	    quad[0].c = this_object->lp_properties.pm3d_color.lt;
+	    if (this_object->lp_properties.pm3d_color.type == TC_RGB)
+		quad[0].c = this_object->lp_properties.pm3d_color.rgbcolor;
+	    else
+		quad[0].c = this_object->lp_properties.pm3d_color.lt;
+
 	    if (this_object->lp_properties.pm3d_color.type == TC_LINESTYLE) {
 		int base_color = this_object->lp_properties.pm3d_color.lt;
 		struct coordinate triangle[3];
@@ -5273,7 +5273,7 @@ do_polygon( int dimensions, t_object *this_object, int style, int facing )
 		/* NB: This is sensitive to the order of the vertices */
 		side = pm3d_side( &(triangle[0]), &(triangle[1]), &(triangle[2]) );
 		lp_use_properties(&face, side < 0 ? base_color+1 : base_color);
-		quad[0].c = face.pm3d_color.lt;
+		quad[0].c = face.pm3d_color.rgbcolor;
 	    }
 
 	    /* NB: This is the only call site where pm3d_add_polygon() is called with
@@ -5284,9 +5284,13 @@ do_polygon( int dimensions, t_object *this_object, int style, int facing )
 	    if (1) {
 		t_colorspec *border = &this_object->fillstyle.border_color;
 		quad[1].c = style;
-		quad[2].c = (  (border->type == TC_LT && border->lt == LT_NODRAW)
-			    || (border->type == TC_DEFAULT))
-			? LT_NODRAW : border->lt;
+		if ((border->type == TC_LT && border->lt == LT_NODRAW)
+		||  (border->type == TC_DEFAULT))
+		    quad[2].c = LT_NODRAW;
+		else if (border->type == LT_BACKGROUND)
+		    quad[2].c = LT_BACKGROUND;
+		else
+		    quad[2].c = border->rgbcolor;
 		quad[3].c = this_object->lp_properties.l_width;
 	    }
 	    pm3d_add_polygon( NULL, quad, vertices );
@@ -5968,9 +5972,9 @@ process_image(void *plot, t_procimg_action action)
 			    }
 			}
 		    } else {
-			/* DJS FIXME:
-			 * Could still be visible if any of the four corners of the view port are
-			 * within the parallelogram formed by the pixel.  This is tricky geometry.
+			/* DJS:
+			 * Could still be visible if any of the four corners of the view port
+			 * are within the parallelogram formed by the pixel.
 			 */
 		    }
 
@@ -6148,7 +6152,6 @@ place_spiderplot_axes(struct curve_points *first_plot, int layer)
 	if (this_axis->ticmode) {
 	    spoke_dx = (spoke_y0 - spoke_y1) * .02;
 	    spoke_dy = (spoke_x1 - spoke_x0) * .02;
-	    /* FIXME: separate control of tic linewidth? */
 	    term_apply_lp_properties(&border_lp);
 	    this_axis->ticdef.rangelimited = FALSE;
 	    gen_tics(this_axis, spidertick_callback);

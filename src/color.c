@@ -238,7 +238,7 @@ set_rgbcolor_var(unsigned int rgbvalue)
 {
     t_colorspec color;
     color.type = TC_RGB;
-    *(unsigned int *)(&color.lt) = rgbvalue;
+    color.rgbcolor = rgbvalue;
     color.value = -1;	/* -1 flags that this came from "rgb variable" */
     apply_pm3dcolor(&color);
 }
@@ -248,7 +248,7 @@ set_rgbcolor_const(unsigned int rgbvalue)
 {
     t_colorspec color;
     color.type = TC_RGB;
-    *(unsigned int *)(&color.lt) = rgbvalue;
+    color.rgbcolor = rgbvalue;
     color.value = 0;	/* 0 flags that this is a constant color */
     apply_pm3dcolor(&color);
 }
@@ -392,10 +392,16 @@ colorbox_draw_polygon(// output
 {
     if (color_box.rotation == 'v') {
         corners[0].y = corners[1].y = xy;
-        corners[2].y = corners[3].y = GPMIN(xy_to,xy2+1);
+	if (color_box.invert)
+	    corners[2].y = corners[3].y = GPMAX(xy_to,xy2+1);
+	else
+	    corners[2].y = corners[3].y = GPMIN(xy_to,xy2+1);
     } else {
         corners[0].x = corners[3].x = xy;
-        corners[1].x = corners[2].x = GPMIN(xy_to,xy2+1);
+	if (color_box.invert)
+	    corners[1].x = corners[2].x = GPMAX(xy_to,xy2+1);
+	else
+	    corners[1].x = corners[2].x = GPMIN(xy_to,xy2+1);
     }
 
     /* print the rectangle with the given colour */
@@ -624,8 +630,10 @@ draw_inside_colorbox_bitmap_smooth()
 {
     /* The primary beneficiary of the image variant is cairo + pdf,
      * since it avoids banding artifacts in the filled_polygon variant.
+     * However, the image rendering code does not pay attention to fillstyle.
      */
-    if ((term->flags & TERM_COLORBOX_IMAGE) && !color_box.invert)
+    if ((term->flags & TERM_COLORBOX_IMAGE)
+    &&  !color_box.invert && (style_from_fill(&default_fillstyle) == FS_OPAQUE))
         draw_inside_colorbox_bitmap_smooth__image();
     else
         draw_inside_colorbox_bitmap_smooth__filled_polygon();
@@ -1063,7 +1071,7 @@ unsigned int
 rgb_from_colormap(double gray, udvt_entry *colormap)
 {
     struct value *palette = colormap->udv_value.v.value_array;
-    int size = palette[0].v.int_val;
+    int size = palette[0].v.array_header.size;
     unsigned int rgb;
 
 	rgb = (gray <= 0.0) ? palette[1].v.int_val
@@ -1086,7 +1094,7 @@ rgb_from_colorspec(struct t_colorspec *tc)
 	case TC_DEFAULT:
 		return 0;
 	case TC_RGB:
-		return tc->lt;
+		return tc->rgbcolor;
 	case TC_Z:
 		cbval = cb2gray(tc->value);
 		break;
@@ -1259,7 +1267,7 @@ set_palette_colormap()
 
     free(sm_palette.gradient);
     sm_palette.gradient = NULL;
-    actual_size = colormap->udv_value.v.value_array[0].v.int_val;
+    actual_size = colormap->udv_value.v.value_array[0].v.array_header.size;
     sm_palette.gradient = gp_alloc( actual_size*sizeof(gradient_struct), "gradient" );
     sm_palette.gradient_num = actual_size;
 

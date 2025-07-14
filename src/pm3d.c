@@ -723,16 +723,20 @@ pm3d_plot(struct surface_points *this_plot, int at_which_z)
 		    cb3 = pointsB[ii].CRD_COLOR;
 		    cb4 = pointsB[ii1].CRD_COLOR;
 		} else if (color_from_fillcolor) {
-		    /* color is set by "fc <rgbvalue>" */
-		    cb1 = cb2 = cb3 = cb4 = fillcolorspec.lt;
-		    /* pm3d fc linestyle N generates
-		     * top/bottom color difference as with hidden3d
-		     */
-		    if (fillcolorspec.type == TC_LINESTYLE) {
+		    if (fillcolorspec.type == TC_RGB) {
+			/* color is set by "fc <rgbvalue>" */
+			cb1 = cb2 = cb3 = cb4 = fillcolorspec.rgbcolor;
+		    } else if (fillcolorspec.type == TC_LINESTYLE) {
+			/* pm3d fc linestyle N generates
+			 * top/bottom color difference as with hidden3d
+			 */
 			struct lp_style_type style;
 			int side = pm3d_side( &pointsA[i], &pointsA[i1], &pointsB[ii]);
-			lp_use_properties(&style, side < 0 ? cb1 + 1 : cb1);
-			cb1 = cb2 = cb3 = cb4 = style.pm3d_color.lt;
+			int top = fillcolorspec.lt;
+			lp_use_properties(&style, side < 0 ? top + 1 : top);
+			cb1 = cb2 = cb3 = cb4 = style.pm3d_color.rgbcolor;
+		    } else {
+			cb1 = cb2 = cb3 = cb4 = fillcolorspec.lt;
 		    }
 		} else {
 		    cb1 = pointsA[i].z;
@@ -958,16 +962,20 @@ pm3d_plot(struct surface_points *this_plot, int at_which_z)
 			}
 
 			if (color_from_fillcolor) {
-			    /* color is set by "fc <rgbval>" */
-			    gray = fillcolorspec.lt;
-			    /* pm3d fc linestyle N generates
-			     * top/bottom color difference as with hidden3d
-			     */
-			    if (fillcolorspec.type == TC_LINESTYLE) {
+			    if (fillcolorspec.type == TC_RGB) {
+				/* color is set by "fc <rgbval>" */
+				gray = fillcolorspec.rgbcolor;
+			    } else if (fillcolorspec.type == TC_LINESTYLE) {
+				/* pm3d fc linestyle N generates
+				 * top/bottom color difference as with hidden3d
+				 */
 				struct lp_style_type style;
 				int side = pm3d_side( &pointsA[i], &pointsB[ii], &pointsB[ii1]);
-				lp_use_properties(&style, side < 0 ? gray + 1 : gray);
-				gray = style.pm3d_color.lt;
+				int top = fillcolorspec.lt;
+				lp_use_properties(&style, side < 0 ? top + 1 : top);
+				gray = style.pm3d_color.rgbcolor;
+			    } else {
+				gray = fillcolorspec.lt;
 			    }
 			} else if (color_from_rgbvar) {
 			    /* we were given an explicit color */
@@ -982,7 +990,6 @@ pm3d_plot(struct surface_points *this_plot, int at_which_z)
 
 			/* apply lighting model */
 			if (pm3d_shade.strength > 0) {
-			    /* FIXME: coordinate->quadrangle->coordinate seems crazy */
 			    coordinate corcorners[4];
 			    int i;
 			    for (i=0; i<4; i++) {
@@ -1248,9 +1255,9 @@ pm3d_add_polygon(struct surface_points *plot, gpdPoint corners[], int vertices)
 	/* This is the usual path for 'splot with boxes' */
 	if (pm3d_shade.strength > 0) {
 	    color_from_rgbvar = TRUE;
-	    illuminate_one_quadrangle(q, plot->lp_properties.pm3d_color.lt, color_from_rgbvar);
+	    illuminate_one_quadrangle(q, plot->lp_properties.pm3d_color.rgbcolor, color_from_rgbvar);
 	} else {
-	    q->qcolor = plot->lp_properties.pm3d_color.lt;
+	    q->qcolor = plot->lp_properties.pm3d_color.rgbcolor;
 	    q->gray = PM3D_USE_RGB_COLOR_INSTEAD_OF_GRAY;
 	}
 
@@ -1274,7 +1281,7 @@ pm3d_add_polygon(struct surface_points *plot, gpdPoint corners[], int vertices)
     } else if (plot->plot_style == ISOSURFACE
            ||  plot->plot_style == POLYGONS) {
 
-	int rgb_color = corners[0].c;
+	unsigned rgb_color = corners[0].c;
 	if (corners[0].c == LT_BACKGROUND)
 	    q->gray = PM3D_USE_BACKGROUND_INSTEAD_OF_GRAY;
 	else
@@ -1293,7 +1300,7 @@ pm3d_add_polygon(struct surface_points *plot, gpdPoint corners[], int vertices)
 	    if (pm3d_side( &v[0], &v[1], &v[2] ) < 0)
 		i += isosurface_options.inside_offset;
 	    lp_use_properties(&style, i);
-	    rgb_color = style.pm3d_color.lt;
+	    rgb_color = style.pm3d_color.rgbcolor;
 	}
 	q->qcolor = rgb_color;
 	if (pm3d_shade.strength > 0) {
@@ -1390,6 +1397,8 @@ set_plot_with_palette(int plot_num, int plot_mode)
 
 	    type = this_3dplot->lp_properties.pm3d_color.type;
 	    if (type == TC_LT || type == TC_LINESTYLE || type == TC_RGB)
+		; /* don't return yet */
+	    else if (type == TC_VARIABLE)
 		; /* don't return yet */
 	    else
 		/* TC_DEFAULT: splot x with line|lp|dot palette */

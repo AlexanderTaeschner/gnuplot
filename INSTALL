@@ -272,6 +272,18 @@ no longer require a special configuration option.
 Platform-specific tips
 ======================
 
+Version requirements
+--------------------
+  The code now uses some syntax from C99 that were not present in earlier
+  C standards.
+
+  The Makefile in the demo directory may require gnu make version 4.3
+  or newer.
+
+  We continue to see reports of font problems that arise from version
+  mismatches among the cairo/pango/harfbuzz/fontconfig libraries.
+  Gnuplot is a victim here, not the cause of the problems.
+
 Linux
 -----
 	

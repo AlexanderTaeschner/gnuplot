@@ -765,10 +765,10 @@ AQUA_set_color(t_colorspec *colorspec)
     [adapter setColorRed:color.r green:color.g blue:color.b];
     break;
   case TC_RGB:
-    color.r = (double)((colorspec->lt >> 16) & 255) / 255.;
-    color.g = (double)((colorspec->lt >> 8 ) & 255) / 255.;
-    color.b = (double)(colorspec->lt & 255) / 255.;
-    alpha   = (double)((colorspec->lt >> 24) & 255) / 255.;
+    color.r = (double)((colorspec->rgbcolor >> 16) & 255) / 255.;
+    color.g = (double)((colorspec->rgbcolor >> 8 ) & 255) / 255.;
+    color.b = (double)(colorspec->rgbcolor & 255) / 255.;
+    alpha   = (double)((colorspec->rgbcolor >> 24) & 255) / 255.;
     if (AQUA_hasAlphaSupport && (alpha > 0)) {
       alpha = 1.0 - alpha;
       [adapter setColorRed:color.r green:color.g blue:color.b alpha:alpha];

@@ -271,6 +271,7 @@ string_or_express(struct at_type **atptr)
 	    free_value(&(df_array->udv_value));
 	    make_array_permanent(&val);
 	    df_array->udv_value = val;
+	    df_array->udv_value.v.value_array[0].v.array_header.parent = df_array;
 	    return array_placeholder;
 	}
     }
@@ -523,9 +524,17 @@ parse_assignment_expression()
 	    }
 	}
 
+
+	/* assignment target */
+	m_capture(&varname,c_token,c_token);
+
+	/* Set interlock to protect the variable from corruption during assignment */
+	foo = add_action(LOCK);
+	foo->v_arg.type = STRING;
+	foo->v_arg.v.string_val = strdup(varname);
+
 	/* Push the name of the variable */
 	foo = add_action(PUSHC);
-	m_capture(&varname,c_token,c_token);
 	foo->v_arg.type = STRING;
 	foo->v_arg.v.string_val = varname;
 
@@ -536,6 +545,11 @@ parse_assignment_expression()
 	/* push the actual assignment operation */
 	foo = add_action(ASSIGN);
 	foo->v_arg.type = 0;	/* could be anything but ARRAY */
+
+	/* Note: the interlock is cleared as part of ASSIGN (f_assign) so that
+	 *       the refcount is returned to 0 just before the variable is replaced.
+	 */
+
 	return 1;
     }
 
@@ -615,6 +629,10 @@ parse_array_assignment_expression()
 	}
 
 	if (standard_at) {
+	    /* increment lock counter */
+	    foo = add_action(LOCK);
+	    foo->v_arg.type = STRING;
+	    foo->v_arg.v.string_val = strdup(varname);
 	    /* push the array name */
 	    foo = add_action(PUSHC);
 	    foo->v_arg.type = STRING;
@@ -1383,37 +1401,31 @@ parse_prod_expression()
  *    [ element1, element2, ... ]
  */
 void
-parse_array_constant( t_value *array )
+parse_array_constant( struct udvt_entry *udv )
 {
-    struct value *orig_value_array;
-    t_value *elements;
+    t_value *array = &(udv->udv_value);
     t_value *element;
-    int orig_size;
     int current_size;
     int max_size;
-    int count = 0;
+    int i = 1;
 
     if (array->type != ARRAY || !equals(c_token, "["))
 	return; /* should never happen */
 
+    /* array reference count > 0 disallows an assignment operation that would clobber it */
+    udv->udv_refcount++;
+
+    current_size = array->v.value_array[0].v.array_header.size;
+    max_size = current_size;
     c_token++;
 
-    orig_value_array = array->v.value_array;
-    orig_size = orig_value_array[0].v.int_val;
-
-    elements = gp_alloc((orig_size+1) * sizeof(t_value), "load_array");
-    elements[0] = orig_value_array[0];
-
-    current_size = orig_size;
-    max_size = current_size;
-
     while (!END_OF_COMMAND) {
-	if (count > max_size - 1) {
+	if (i > max_size) {
 	    max_size = (max_size < 10) ? 10 : 2*max_size;
-	    elements = gp_realloc( elements,
+	    array->v.value_array = gp_realloc( array->v.value_array,
 		(max_size+1) * sizeof(t_value), "load_array");
 	}
-	element = &(elements[++count]);
+	element = &(array->v.value_array[i++]);
 	if (equals(c_token,",") || equals(c_token,"]")) {
 	    element->type = NOTDEFINED;
 	} else {
@@ -1427,35 +1439,23 @@ parse_array_constant( t_value *array )
 	}
 	if (equals(c_token, "]"))
 	    break;
-	if (!equals(c_token, ",")) {
-	    free(elements);
+	if (!equals(c_token, ","))
 	    int_error(c_token, "array syntax error");
-        }
 	else
 	    c_token++;
     }
-
-    /* Guard against replacement of destination array to other thing during evaluation. */
-    if (array->type != ARRAY ||
-	orig_value_array != array->v.value_array) {
-	free(elements);
-	int_error(c_token, "destination array was overwritten during evaluation");
-    }
-
     if (current_size == 0)
-	current_size = count;
+	current_size = i-1;
+    array->v.value_array[0].v.array_header.size = current_size;
 
-    elements[0].v.int_val = current_size;
+    /* array reference count > 0 disallows an assignment operation that would clobber it */
+    udv->udv_refcount--;
 
-    if (orig_size != current_size) {
+    /* trim off excess (not strictly necessary) */
+    if (max_size > current_size) {
 	array->v.value_array = gp_realloc( array->v.value_array,
 	    (current_size+1) * sizeof(t_value), "trim array");
     }
-
-    for (int k=0; k<=count; k++)
-	array->v.value_array[k] = elements[k];
-
-    free(elements);
 
     if (!equals(c_token++,"]"))
 	int_error(c_token, "array syntax error");
@@ -1543,6 +1543,7 @@ add_udv_local(int t_num, char *name, int locality)
     udv_ptr->udv_name = gp_strdup(name);
     udv_ptr->udv_value.type = NOTDEFINED;
     udv_ptr->locality = locality;
+    udv_ptr->udv_refcount = 0;
     return udv_ptr;
 }
 
@@ -1725,7 +1726,7 @@ check_for_iteration()
 		make_array_permanent(&v);
 		iteration_array = v;
 		iteration_start = 1;
-		iteration_end = v.v.value_array[0].v.int_val;
+		iteration_end = v.v.value_array[0].v.array_header.size;
 		free_value(&(iteration_udv->udv_value));
 		if (iteration_end > 0) {
 		    /* Skip to first non-empty entry slot */
@@ -1820,7 +1821,7 @@ reevaluate_iteration_limits(t_iterator *iter)
 	    make_array_permanent(&v);
 	    iter->iteration_array = v;
 	    iter->iteration_start = 1;
-	    iter->iteration_end = v.v.value_array[0].v.int_val;
+	    iter->iteration_end = v.v.value_array[0].v.array_header.size;
 	    if (iter->iteration_end > 0) {
 		/* Skip to first non-empty entry slot */
 		while ((iter->iteration_start <= iter->iteration_end)
@@ -2107,7 +2108,8 @@ split(const char *string, const char *sep)
 	if (++thisword > size) {
 	    size = size + strlen(string)/8 + 1;
 	    array = gp_realloc(array, (size+1) * sizeof(t_value), "split");
-	    array[0].v.int_val = thisword;
+	    array[0].v.array_header.size = thisword;
+	    array[0].v.array_header.parent = NULL;
 	    for (i = thisword; i <= size; i++)
 		array[i].type = NOTDEFINED;
 	}
@@ -2148,7 +2150,7 @@ split(const char *string, const char *sep)
 
     /* Trim off any extra allocated space */
     array = gp_realloc(array, (thisword+1) * sizeof(t_value), "split");
-    array[0].v.int_val = thisword;
+    array[0].v.array_header.size = thisword;
     array[0].type = TEMP_ARRAY;
 
     return array;

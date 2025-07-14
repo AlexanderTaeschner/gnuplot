@@ -1040,10 +1040,10 @@ PSTRICKS_set_color(t_colorspec *colorspec)
 	int red, green, blue;
 	double r, g, b, alpha;
 
-	red   = (colorspec->lt >> 16) & 0xff;
-	green = (colorspec->lt >>  8) & 0xff;
-	blue  = (colorspec->lt      ) & 0xff;
-	alpha = (double) (255 - ((colorspec->lt >> 24) & 0xff)) / 255;
+	red   = (colorspec->rgbcolor >> 16) & 0xff;
+	green = (colorspec->rgbcolor >>  8) & 0xff;
+	blue  = (colorspec->rgbcolor      ) & 0xff;
+	alpha = (double) (255 - ((colorspec->rgbcolor >> 24) & 0xff)) / 255;
 	/* round to 3 digits */
 	r = 1e-3 * (int)(red   / 255. * 1000);
 	g = 1e-3 * (int)(green / 255. * 1000);

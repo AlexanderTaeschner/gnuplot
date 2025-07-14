@@ -196,7 +196,7 @@ boundary(struct curve_points *plots, int count)
 	    title_textheight += titlelin * t->v_char;
 	if (title.font)
 	    t->set_font("");
-	title_y += 0.5 * t->v_char;	/* Approximate same placement as version 5.2 */
+	title_y += 0.5 * t->v_char;
     }
 
     /* Extra space at the top for spiderplot axis label */

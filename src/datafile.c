@@ -1905,7 +1905,6 @@ df_readascii(double v[], int max)
     /* Some plot styles (e.g. PARALLELPLOT) must guarantee that every line
      * of data will return some input value even if it is missing or bad.
      * This flag will force the line to return NaN rather than being skipped.
-     * FIXME: it would be better to make this flag generic and set before entry.
      */
     TBOOLEAN df_bad_returns_NaN
 	= (df_current_plot
@@ -2468,11 +2467,8 @@ df_readascii(double v[], int max)
 	    continue;
 
 	/* output == df_no_use_specs if using was specified -
-	 * actually, smaller of df_no_use_specs and max */
-	/* FIXME EAM - In theory it might be useful for the caller to
-	 * know whether or not tic specs were read from this line, but
-	 * all callers would have to be modified to deal with it one
-	 * way or the other. */
+	 * actually, smaller of df_no_use_specs and max
+	 */
 	output -= df_no_tic_specs;
 
 	/*
@@ -5882,7 +5878,7 @@ df_generate_ascii_array_entry()
     struct value *entry;
 
     df_array_index++;
-    if (df_array_index > df_array->udv_value.v.value_array[0].v.int_val)
+    if (df_array_index > df_array->udv_value.v.value_array[0].v.array_header.size)
 	return NULL;
 
     entry = &(df_array->udv_value.v.value_array[df_array_index]);

@@ -177,7 +177,7 @@ save_variables__sub(FILE *fp)
 	    if ((udv->udv_value.type == ARRAY) && strncmp(udv->udv_name,"ARGV",4)) {
 		if (udv->udv_value.v.value_array[0].type != COLORMAP_ARRAY) {
 		    fprintf(fp,"array %s[%d] = ", udv->udv_name,
-			(int)(udv->udv_value.v.value_array[0].v.int_val));
+			(int)(udv->udv_value.v.value_array[0].v.array_header.size));
 		    save_array_content(fp, udv->udv_value.v.value_array);
 		    fprintf(fp,"\n");
 		}
@@ -208,7 +208,7 @@ save_colormaps(FILE *fp)
 	    &&  udv->udv_value.v.value_array[0].type == COLORMAP_ARRAY) {
 		    double cm_min, cm_max;
 		    fprintf(fp,"array %s[%d] colormap = ", udv->udv_name,
-			(int)(udv->udv_value.v.value_array[0].v.int_val));
+			(int)(udv->udv_value.v.value_array[0].v.array_header.size));
 		    save_array_content(fp, udv->udv_value.v.value_array);
 		    fprintf(fp,"\n");
 		    get_colormap_range(udv, &cm_min, &cm_max);
@@ -225,7 +225,7 @@ void
 save_array_content(FILE *fp, struct value *array)
 {
     int i;
-    int size = array[0].v.int_val;
+    int size = array[0].v.array_header.size;
     fprintf(fp, "[");
     for (i=1; i<=size; i++) {
 	if (array[0].type == COLORMAP_ARRAY)
@@ -627,8 +627,11 @@ set encoding %s\n\
     if (!numeric_locale && !decimalsign)
 	fprintf(fp, "unset decimalsign\n");
 
-    fprintf(fp, "%sset micro\n", use_micro ? "" : "un");
     fprintf(fp, "%sset minussign\n", use_minus_sign ? "" : "un");
+    if (use_micro && micro_user)
+	fprintf(fp, "set micro \"%s\"\n", micro_user);
+    else
+	fprintf(fp, "%sset micro\n", use_micro ? "" : "un");
 
     fputs("set view ", fp);
     if (splot_map == TRUE)
@@ -1631,13 +1634,13 @@ save_pm3dcolor(FILE *fp, const struct t_colorspec *tc)
 	case TC_FRAC: fprintf(fp," palette fraction %4.2f", tc->value);
 		      break;
 	case TC_RGB:  {
-		      const char *color = reverse_table_lookup(pm3d_color_names_tbl, tc->lt);
+		      const char *color = reverse_table_lookup(pm3d_color_names_tbl, tc->rgbcolor);
 		      if (tc->value < 0)
 		  	fprintf(fp," rgb variable ");
 		      else if (*color)
 			fprintf(fp," rgb \"%s\" ", color);
 		      else
-			fprintf(fp," rgb \"#%6.6x\" ", tc->lt);
+			fprintf(fp," rgb \"#%6.6x\" ", tc->rgbcolor);
 		      break;
 		      }
 	case TC_VARIABLE:

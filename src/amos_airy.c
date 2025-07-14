@@ -34,6 +34,12 @@
  *	6	failed to converge
  *
  * Ethan A Merritt - March 2020
+ *
+ * Changed to use zexint_ (separate variables for real and imaginary components)
+ * in preference to cexint_ (variables are double complex) if it was found by
+ * the configuration script.
+ * 
+ * Erik Luijten - July 2025
  */
 
 #include "eval.h"
@@ -59,13 +65,18 @@ extern void zbesy_( double *zr, double *zi, double *nu, int32_t *kode, int32_t *
 		    double *zbr, double *zbi, int32_t *underflow,
 		    double *wr, double *wi, int32_t *ierr);
 
-#if defined(HAVE_CEXINT) && defined(HAVE_COMPLEX_H)
-#include <complex.h>
-#include <util.h>	/* for int_error() */
-
-extern void cexint_( double complex *z, int32_t *norder, int32_t *kode,
+#if defined(HAVE_COMPLEX_H)
+  #include <complex.h>
+  #include <util.h>	/* for int_error() */
+  #if defined(HAVE_ZEXINT)
+	extern void zexint_( double *zreal, double *zimag, int32_t *norder, int32_t *kode,
+		     double *tol, int32_t *length,
+		     double *cyreal, double *cyimag, int32_t *ierr);
+  #elif defined(HAVE_CEXINT)
+	extern void cexint_( double complex *z, int32_t *norder, int32_t *kode,
 		     double *tol, int32_t *length,
 		     double complex *cy, int32_t *ierr);
+  #endif
 #endif
 
 void
@@ -404,10 +415,10 @@ f_amos_BesselY(union argument *arg)
     push(&a);
 }
 
-#if defined(HAVE_CEXINT) && defined(HAVE_COMPLEX_H)
+#if defined(HAVE_COMPLEX_H) && (defined(HAVE_CEXINT) || defined(HAVE_ZEXINT))
 
 void
-f_amos_cexint(union argument *arg)
+f_amos_expint(union argument *arg)
 {
     struct value a;
     double complex z, cy;
@@ -442,10 +453,19 @@ f_amos_cexint(union argument *arg)
 	cy = cexp(-z)/z;
 	push(Gcomplex(&a, creal(cy), cimag(cy)));
 	return;
+    } else {
+	/* Fortran calling conventions! */
+#ifdef HAVE_ZEXINT
+	double zreal, zimag, cyreal, cyimag;
+	zreal = creal(z);
+	zimag = cimag(z);
+	zexint_( &zreal, &zimag, &norder, &kode, &tolerance, &length, &cyreal, &cyimag, &ierr);
+	Gcomplex(&a, cyreal, cyimag);
+#else
+	cexint_( &z, &norder, &kode, &tolerance, &length, &cy, &ierr );
+	Gcomplex(&a, creal(cy), cimag(cy));
+#endif
     }
-
-    /* Fortran calling conventions! */
-    cexint_( &z, &norder, &kode, &tolerance, &length, &cy, &ierr );
 
     /* ierr == 2 means underflow, in which case cy has already been set to 0 */
     if (ierr == 1 || ierr > 2) {
@@ -453,8 +473,6 @@ f_amos_cexint(union argument *arg)
 		norder, creal(z), cimag(z), ierr));
 	undefined = TRUE;
 	Gcomplex(&a, not_a_number(), 0.0);
-    } else {
-	Gcomplex(&a, creal(cy), cimag(cy));
     }
 
     push(&a);

@@ -949,8 +949,8 @@ void qt_set_color(t_colorspec* colorspec)
 		qt->out << GEPenColor << color;
 	}
 	else if (colorspec->type == TC_RGB) {
-		QColor color = QRgb(colorspec->lt);
-		int alpha = (colorspec->lt >> 24) & 0xff;
+		QColor color = QRgb(colorspec->rgbcolor);
+		int alpha = (colorspec->rgbcolor >> 24) & 0xff;
 		if (alpha > 0)
 			color.setAlpha(255-alpha);
 		qt->out << GEPenColor << color;

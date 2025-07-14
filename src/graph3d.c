@@ -1462,6 +1462,16 @@ do_3dplot(
 		    key_sample_fill(xl, yl, this_plot);
 		    break;
 
+		case PM3DSURFACE: {
+			t_colorspec fillcolorspec = this_plot->fill_properties.border_color;
+			if ((fillcolorspec.type == TC_RGB && fillcolorspec.value >= 0 )
+			||  fillcolorspec.type == TC_LINESTYLE) {
+				apply_pm3dcolor(&this_plot->fill_properties.border_color);
+				key_sample_fill(xl, yl, this_plot);
+			}
+		    break;
+		}
+
 		case PLOT_STYLE_NONE:
 		    /* cannot happen */
 		default:
@@ -1770,7 +1780,7 @@ plot3d_impulses(struct surface_points *plot)
     int colortype = plot->lp_properties.pm3d_color.type;
 
     if (colortype == TC_RGB)
-	set_rgbcolor_const(plot->lp_properties.pm3d_color.lt);
+	set_rgbcolor_const(plot->lp_properties.pm3d_color.rgbcolor);
 
     while (icrvs) {
 	struct coordinate *points = icrvs->points;
@@ -2176,7 +2186,7 @@ plot3d_points(struct surface_points *plot)
 
 	/* Apply constant color outside of the loop */
 	if (colortype == TC_RGB)
-	    set_rgbcolor_const( plot->lp_properties.pm3d_color.lt );
+	    set_rgbcolor_const( plot->lp_properties.pm3d_color.rgbcolor );
 
 	for (i = 0; i < icrvs->p_count; i++) {
 
@@ -2216,7 +2226,7 @@ plot3d_points(struct surface_points *plot)
 			/* Retrace the border if the style requests it */
 			if (need_fill_border(fillstyle)) {
 			    do_arc(x, y, radius, 0., 360., 0, FALSE);
-			    set_rgbcolor_const(plot->lp_properties.pm3d_color.lt);
+			    set_rgbcolor_const(plot->lp_properties.pm3d_color.rgbcolor);
 			}
 			continue;
 		    }
@@ -2448,8 +2458,6 @@ check_corner_height(
 {
     if (p->type != INRANGE)
 	return;
-    /* FIXME HBB 20010121: don't compare 'zero' to data values in
-     * absolute terms. */
     if ((fabs(p->x - X_AXIS.min) < zero || fabs(p->x - X_AXIS.max) < zero) &&
 	(fabs(p->y - Y_AXIS.min) < zero || fabs(p->y - Y_AXIS.max) < zero)) {
 	int x = MAP_HEIGHT_X(p->x);
@@ -3803,8 +3811,29 @@ key_sample_fill(int xl, int yl, struct surface_points *this_plot)
 	return;
     }
 
-    /* solid-fill rectangle in current color */
-    (term->fillbox)(style,x,y,w,h);
+    /* Plot style 'pm3d fc linestyle N' wants key sample with top/bottom color */
+    if (this_plot->plot_style == PM3DSURFACE
+    &&  fs->border_color.type == TC_LINESTYLE
+    &&  fs->border_color.lt != fs->border_color.lt+1) {
+	gpiPoint tri[3];
+	struct lp_style_type lp;
+	/* top color */
+	lp_use_properties(&lp, fs->border_color.lt);
+	term_apply_lp_properties(&lp);
+	tri[0].style = style;
+	tri[0].x = x;   tri[0].y = y;
+	tri[1].x = x+w; tri[1].y = y+h;
+	tri[2].x = x; tri[2].y = y+h;
+	(term->filled_polygon)(3,tri);
+	/* bottom color */
+	lp_use_properties(&lp, fs->border_color.lt+1);
+	term_apply_lp_properties(&lp);
+	tri[2].x = x+w; tri[2].y = y;
+	(term->filled_polygon)(3,tri);
+    } else {
+	/* solid-fill rectangle in current color */
+	(term->fillbox)(style,x,y,w,h);
+    }
 
     /* Some plot styles never want a border in the key sample */
     if (this_plot->plot_style == ZERRORFILL || this_plot->plot_style == FILLEDCURVES)
@@ -3822,6 +3851,8 @@ key_sample_fill(int xl, int yl, struct surface_points *this_plot)
     else if ((this_plot->plot_style & PLOT_STYLE_HAS_PM3DBORDER)) {
 	if (pm3d.border.l_type != LT_NODRAW && pm3d.border.l_type != LT_DEFAULT)
 	    term_apply_lp_properties(&pm3d.border);
+	else if (this_plot->plot_style == PM3DSURFACE)
+	    return;
     } else {
 
     /* Should not happen */
@@ -4189,7 +4220,7 @@ plot3d_boxes(struct surface_points *plot)
 
 	    /* Copy variable color value into plot header for pm3d_add_quadrangle */
 	    if (plot->pm3d_color_from_column)
-		plot->lp_properties.pm3d_color.lt =  points[i].CRD_COLOR;
+		plot->lp_properties.pm3d_color.rgbcolor =  points[i].CRD_COLOR;
 
 	    /* Construct and store single pm3d rectangle (front of box) */
 	    /* Z	corner1	corner2	*/
@@ -4313,8 +4344,11 @@ plot3d_polygons(struct surface_points *plot)
 	     ||  plot->lp_properties.pm3d_color.type == TC_DEFAULT) {
 	    double z = pm3d_assign_triangle_z(points[0].z, points[1].z, points[2].z);
 	    quad[0].c = rgb_from_gray(cb2gray(z));
+	} else if (plot->lp_properties.pm3d_color.type == TC_LT
+		&& plot->lp_properties.pm3d_color.lt == LT_BACKGROUND) {
+	    quad[0].c = LT_BACKGROUND;
 	} else
-	    quad[0].c = plot->lp_properties.pm3d_color.lt;
+	    quad[0].c = plot->lp_properties.pm3d_color.rgbcolor;
 	quad[1].c = style;
 	pm3d_add_polygon( plot, quad, nv );
     }
@@ -4382,10 +4416,10 @@ plot3d_contourfill(struct surface_points *plot)
 		slice[level].color.value = -1;
 		if (contourfill.firstlinetype > 0) {
 		    lp_use_properties(&contour_lp, contourfill.firstlinetype + level);
-		    slice[level].color.lt = rgb_from_colorspec(&contour_lp.pm3d_color);
+		    slice[level].color.rgbcolor = rgb_from_colorspec(&contour_lp.pm3d_color);
 		} else {
 		    double zmid = slice[level].zlow + zinc/2.;
-		    slice[level].color.lt = rgb_from_gray(cb2gray(zmid));
+		    slice[level].color.rgbcolor = rgb_from_gray(cb2gray(zmid));
 		}
 	    }
 	    break;
@@ -4407,10 +4441,10 @@ plot3d_contourfill(struct surface_points *plot)
 		slice[level].color.value = -1;
 		if (contourfill.firstlinetype > 0) {
 		    lp_use_properties(&contour_lp, contourfill.firstlinetype + level);
-		    slice[level].color.lt = rgb_from_colorspec(&contour_lp.pm3d_color);
+		    slice[level].color.rgbcolor = rgb_from_colorspec(&contour_lp.pm3d_color);
 		} else {
 		    double zmid = (slice[level].zlow + slice[level].zhigh) / 2.;
-		    slice[level].color.lt = rgb_from_gray(cb2gray(zmid));
+		    slice[level].color.rgbcolor = rgb_from_gray(cb2gray(zmid));
 		}
 	    }
 	    break;

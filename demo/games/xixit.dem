@@ -7,14 +7,15 @@ fs = GPVAL_TERM eq "x11" ? 20 : GPVAL_TERM eq "qt" || GPVAL_TERM eq "windows" ? 
 reset
 unset tics
 unset key
-set title "X I X I T" font ",".fs
+set title "X I X I T" font ":Bold,".fs
 
 set label 1 \
-	"Keys:\n\nLeft/Right: Move\n\nDown: Drop\n\nA/S: Rotate\n\n".\
+	"{/:Bold Keys}\n\nLeft/Right: Move\n\nDown: Drop\n\nA/S: Rotate\n\n".\
 	"+/-: Speed\n\np: Pause/Unpause\n\nEsc: Quit" \
-	at graph -0.5, 0.95 font ",".fs center
+	at graph -0.4, 0.95 font ",".fs center
 
 foo = rand(time(1))
+undefine foo
 
 xmin = ymin = 0
 xmax = 8
@@ -28,15 +29,6 @@ set size ratio -1
 P = 1/4.
 Q = sqrt(3)/4
 R = 2/5.
-
-# definition of "gems"
-max_kinds = 5
-
-objt_1 = "oi=%d; ox=%d; oy=%d; set obj oi circle at ox, oy radius 0.4 fc rgb '#bf0000' fs solid border lc rgb '#7f0000';"
-objt_2 = "oi=%d; ox=%d; oy=%d; set obj oi rect center ox, oy size 0.8,0.8 fc rgb '#00bf00' fs solid border lc rgb '#007f00'"
-objt_3 = "oi=%d; ox=%d; oy=%d; set obj oi poly from ox-Q, oy-P to ox, oy+Q to ox+Q, oy-P to ox-Q, oy-P fs solid border lc rgb '#0000bf' fc rgb '#00007f'"
-objt_4 = "oi=%d; ox=%d; oy=%d; set obj oi poly from ox-Q, oy+P to ox, oy-Q to ox+Q, oy+P to ox-Q, oy+P fs solid border lc rgb '#afafaf' fc rgb '#5f5f5f'"
-objt_5 = "oi=%d; ox=%d; oy=%d; set obj oi poly from ox-R, oy to ox, oy+R to ox+R, oy to ox, oy-R to ox-R, oy fs solid border lc rgb '#af00af' fc rgb '#6f006f'"
 
 # initializing constants and variables
 pause = 0.005
@@ -58,7 +50,6 @@ alive = 1
 
 do_redraw = 0
 
-found = 0
 check_for_more = 0
 cascade_bonus = 1
 
@@ -67,164 +58,203 @@ left  = {-1,  0}
 down  = { 0, -1}
 up    = { 0,  1}
 
-# For every point of the grid
-# there is a block_x_y variable for storing which kind of gem
-# occupies that block, and a del_x_y variable which will be set 
-# by check_threes if that particular gem is to be eliminated 
-# in the current iteration.
-# Additionally, there is one bottom_x variable for each column,
-# telling how high the stack of stationary gems is in that column.
-# We have to put up with these because gnuplot doesn't have arrays.
+# The blocks[] array variable stores for every point of the grid the
+# kind of that gem occupies that position. The dels[] array indicates
+# if that particular gem is to be eliminated in the current iteration
+# and will be set by the $check_threes() function.
+# Additionally, there is the bottoms[] array variable, indicating how
+# high the stack of stationary gems is for each column.
+# Since gnuplot does not have multi-dimensional arrays, we use
+# accessor functions block(i,j), del(i,j).
 
-block(i, j) = sprintf("block_%d_%d", int(i), int(j))
-del(i, j)   = sprintf("del_%d_%d",   int(i), int(j))
-bottom(i)   = sprintf("bottom_%d",   int(i))
+array blocks[(xmax - xmin + 1) * (ymax - ymin + 1)]
+array dels[(xmax - xmin + 1) * (ymax - ymin + 1)]
+array bottoms[xmax - xmin + 1]
+xyindex(i, j) = (int(i) - xmin + 1) + (int(j) - ymin) * (xmax - xmin + 1)
+xindex(i) = int(i) - xmin + 1
+block(i, j) = blocks[xyindex(i, j)]
+del(i, j)   = dels[xyindex(i, j)]
+#initialize
 do for [i=xmin:xmax] {
 	do for [j=ymin:ymax] {
-		eval block(i, j)." = 0"
-		eval del(i, j).  " = 0"
+		blocks[xyindex(i, j)] = 0
+		dels[xyindex(i, j)]  = 0
 	}
-	eval bottom(i)." = 0" 
+	bottoms[xindex(i)] = 0
 }
 
-
-# hack
-bottom_100 = 100
+#this is the current block of gems
+array tc[3]
+current = 0
 
 # keybindings
-bind "Right"       "locked = 1; key_action = move_right"
-bind "Left"        "locked = 1; key_action = move_left"
-bind "Down"        "locked = 1; key_action = move_down"
-bind "Up"          "foo = 1"                             # normally it would scroll the plot area up, 
-                                                         # disable it here (dummy command required)
-bind "a"           "locked = 1; key_action = rotate"     # rotate
-bind "s"           "locked = 1; key_action = unrotate"   # unrotate
+bind "Right"       "locked = 1; key_action = 'move_right'"
+bind "Left"        "locked = 1; key_action = 'move_left'"
+bind "Down"        "locked = 1; key_action = 'move_down'"
+bind "Up"          "{ }"                                   # normally it would scroll the plot area up,
+                                                           # disable it here (dummy command required)
+bind "a"           "locked = 1; key_action = 'rotate'"     # rotate
+bind "s"           "locked = 1; key_action = 'unrotate'"   # unrotate
 bind "p"           "paused = !paused"
 
 bind "Escape"      "alive = 0"
 bind "KP_Add"      "wait = wait > 1 ? wait - 1 : 1"
 bind "KP_Subtract" "wait = wait + 1"
+bind "+"           "wait = wait > 1 ? wait - 1 : 1"
+bind "-"           "wait = wait + 1"
 
 # "procedures" and "functions"
-get_bot_id(x) = sprintf("%d",int(x<=xmax && x>=xmin ? x : 100))
+function $key_action << EOF
+	if (key_action eq "move_right") {
+		bottom = real(current) < xmax ? bottoms[xindex(real(current+right))] : 100
+		current = real(current) < xmax && imag(current) > bottom ? current + right : current
+	} else if (key_action eq "move_left") {
+		bottom = real(current) > xmin ? bottoms[xindex(real(current+left))] : 100
+		current = real(current) > xmin && imag(current) > bottom ? current + left  : current
+	} else if (key_action eq "move_down") {
+		evaluate $move_down()
+	} else if (key_action eq "rotate") {
+		local temp = tc[1]; tc[1] = tc[2]; tc[2] = tc[3]; tc[3] = temp
+	} else if (key_action eq "unrotate") {
+		local temp = tc[1]; tc[1] = tc[3]; tc[3] = tc[2]; tc[2] = temp
+	}
+	evaluate $redraw()
+EOF
 
-move_right = \
-	"eval 'bottom = bottom_'.get_bot_id(real(current+right));".\
-	"current = real(current) < xmax && imag(current) > bottom ? current + right : current;".\
-	"eval redraw"
+function $move_down() << EOF
+	local space_left = $is_space_left()
+	current = space_left ? current + down : current
+	return space_left
+EOF
 
-move_left = \
-	"eval 'bottom = bottom_'.get_bot_id(real(current+left));".\
-	"current = real(current) > xmin && imag(current) > bottom ? current + left  : current;".\
-	"eval redraw;"
+function $redraw() << EOF
+	do_redraw = 1
+	do for [i=0:2] {
+		evaluate $gem(tc[i+1], 10+i, real(current), imag(current)+i)
+	}
+EOF
 
-move_down = "eval is_space_left; current = space_left ? current + down  : current; eval redraw"
+function $is_space_left << EOF
+	bottom = bottoms[xindex(real(current))]
+	return imag(current) > bottom
+EOF
 
-rotate   = "temp = tc_0; tc_0 = tc_1; tc_1 = tc_2; tc_2 = temp; eval redraw"
-unrotate = "temp = tc_0; tc_0 = tc_2; tc_2 = tc_1; tc_1 = temp; eval redraw"
-redraw   = \
-	"do_redraw = 1;".\
-	"do for [i=0:2] {".\
-		"eval 'tc=tc_'.i;".\
-		"eval 'objt=objt_'.tc;".\
-		"eval sprintf(objt, 10+i, real(current), imag(current)+i);".\
-	"}"
+function $make_current_permanent() << EOF
+	do for [i=0:2] {
+		local tc_ = tc[i+1]
+		local ix = int(real(current))
+		local iy = int(imag(current)+i)
+		evaluate $gem(tc_, 1000+100*ix+iy, ix, iy)
+		blocks[xyindex(ix, iy)] = tc_
+		bottoms[xindex(ix)] = bottoms[xindex(ix)] + 1
+	}
+EOF
 
-is_space_left = "eval 'bottom = '.bottom(real(current)); space_left = imag(current) > bottom"
+function $init_next() << EOF
+	current = int(xmax/2) + (ymax-2) * I
+	tc[1] = int(1+rand(0)*max_kinds)
+	tc[2] = int(1+rand(0)*max_kinds)
+	tc[3] = int(1+rand(0)*max_kinds)
+EOF
 
-make_current_permanent = \
-	"do for [i=0:2] {".\
-		"eval 'tc=tc_'.i;".\
-		"eval 'objt=objt_'.tc;".\
-		"ix = int(real(current));".\
-		"iy = int(imag(current)+i);".\
-		"eval sprintf(objt, 1000+100*ix+iy, ix, iy);".\
-		"eval block(ix, iy).' = tc';".\
-		"eval bottom(ix).' = '.bottom(ix).' + 1';".\
-	"}"
+function $check_threes_single(check_dir) << EOF
+	local xc = real(check_dir)
+	local yc = imag(check_dir)
+	local xmin_ = xc>0 ? xmin : xmin - xc*2
+	local xmax_ = xc<0 ? xmax : xmax - xc*2
+	local ymin_ = yc>0 ? ymin : ymin - yc*2
+	local ymax_ = yc<0 ? ymax : ymax - yc*2
+	local found = 0
+	do for [i=xmin_:xmax_] {
+		do for [j=ymin_:ymax_] {
+			local is_equal = block(i, j) \
+							&& block(i, j) == block(i+xc, j+yc) \
+							&& block(i, j) == block(i+xc*2, j+yc*2)
+			if (is_equal) {
+				dels[xyindex(i,      j     )] = 1
+				dels[xyindex(i+xc,   j+yc  )] = 1
+				dels[xyindex(i+xc*2, j+yc*2)] = 1
+				score = score + 3 * cascade_bonus
+				evaluate $level_up()
+				found = 1
+			}
+		}
+	}
+	return found
+EOF
 
+function $check_threes() << EOF
+	return $check_threes_single(right     ) || \
+	       $check_threes_single(right + up) || \
+	       $check_threes_single(up        ) || \
+	       $check_threes_single(left + up )
+EOF
 
-init_next = \
-	"current = int(xmax/2) + (ymax-2) * {0,1};".\
-	"tc_0 = int(1+rand(0)*max_kinds);".\
-	"tc_1 = int(1+rand(0)*max_kinds);".\
-	"tc_2 = int(1+rand(0)*max_kinds);"
+function $delete_threes() << EOF
+	do for [i=xmin:xmax] {
+		bottom = bottoms[xindex(i)]
+		local j = ymin
+		while (j < bottom) {
+			local del = del(i, j)
+			if (del) {
+				do for [k=j:bottom-1] {
+					blocks[xyindex(i, k)] = block(i, k+1)
+					  dels[xyindex(i, k)] =   del(i, k+1)
+					local block = block(i, k)
+					if (block) {
+						evaluate $gem(block, 1000+100*i+k, i, k)
+					}
+				}
+				unset obj 1000+100*i+(bottom-1)
+				blocks[xyindex(i, bottom-1)] = 0
+				  dels[xyindex(i, bottom-1)] = 0
+				bottoms[xindex(i)] = bottoms[xindex(i)] - 1
+				bottom = bottom - 1
+			} else {
+				j = j + 1
+			}
+		}
+	}
+EOF
 
-check_threes_single = \
-	"xc = real(check_dir); yc = imag(check_dir);".\
-	"xmin_ = xc>0 ? xmin : xmin - xc*2;".\
-	"xmax_ = xc<0 ? xmax : xmax - xc*2;".\
-	"ymin_ = yc>0 ? ymin : ymin - yc*2;".\
-	"ymax_ = yc<0 ? ymax : ymax - yc*2;".\
-	"do for [i=xmin_:xmax_] {".\
-		"do for [j=ymin_:ymax_] {".\
-			"eval 'is_equal =   '.block(i, j).' ".\
-							"&& '.block(i, j).' == '.block(i+xc, j+yc).' ".\
-							"&& '.block(i, j).' == '.block(i+xc*2, j+yc*2);".\
-			"if (is_equal) {".\
-				"eval del(i,      j     ).' = 1';".\
-				"eval del(i+xc,   j+yc  ).' = 1';".\
-				"eval del(i+xc*2, j+yc*2).' = 1';".\
-				"score = score + 3 * cascade_bonus;".\
-				"eval level_up;".\
-				"found = 1;".\
-			"}".\
-		"}".\
-	"}"
+function $level_up << EOF
+	if (score > level_limit(level) && wait > 1) {
+		wait = wait - 1
+		level = level + 1
+	}
+EOF
 
-check_threes = \
-	"check_dir = right     ; eval check_threes_single;".\
-	"check_dir = right + up; eval check_threes_single;".\
-	"check_dir =         up; eval check_threes_single;".\
-	"check_dir = left  + up; eval check_threes_single;"
+function $game_over() << EOF
+	set label 2 'G A M E   O V E R !' at xmax/2, ymax/2 font ':Bold,'.fs center
+	alive = 0
+EOF
 
-delete_threes = \
-	"do for [i=xmin:xmax] {".\
-		"eval 'bottom = '.bottom(i);".\
-		"j = ymin;".\
-		"while (j < bottom) {".\
-			"eval 'del = '.del(i, j);".\
-			"if (del) {".\
-				"do for [k=j:bottom-1] {".\
-					"eval block(i, k).' = '.block(i, k+1);".\
-					"eval   del(i, k).' = '.  del(i, k+1);".\
-					"eval 'block = '.block(i, k);".\
-					"if (block) {".\
-						"eval 'objt=objt_'.block;".\
-						"eval sprintf(objt, 1000+100*i+k, i, k);".\
-					"}".\
-				"}".\
-				"eval 'unset obj 1000+100*'.i.'+'.(bottom-1);".\
-				"eval block(i, bottom-1).' = 0';".\
-				"eval   del(i, bottom-1).' = 0';".\
-				"eval bottom(i).' = '.bottom(i).' - 1';".\
-				"bottom = bottom - 1;".\
-			"} else {".\
-				"j = j + 1;".\
-			"}".\
-		"}".\
-	"}"
+function $show_score(sc, l) << EOF
+	set label 3 sprintf("{/:Bold Level}\n\n%5d\n\n{/:Bold Score}\n\n%5d", l, sc) at graph 1.05, 0.95 font ','.fs
+EOF
 
-level_up = \
-	"if (score > level_limit(level) && wait > 1) {".\
-		"wait = wait - 1;".\
-		"level = level + 1;".\
-	"}" 
-	
-game_over = \
-	"set label 2 'G A M E   O V E R !' at xmax/2, ymax/2 font ','.fs center;".\
-	"alive = 0"
+# definition of "gems"
+max_kinds = 5
 
-
-
-show_score(sc, l) = \
-	sprintf("set label 3 'LEVEL:\n\n%5d\n\nSCORE:\n\n%5d' at graph 1.05, 0.95 font ','.fs", l, sc)
+function $gem(type, oi, ox, oy) << EOF
+	if (type == 1) {
+		set obj oi circle at ox, oy radius 0.4 fc rgb '#bf0000' fs solid border lc rgb '#7f0000'
+	} else if (type == 2) {
+		set obj oi rect center ox, oy size 0.8,0.8 fc rgb '#00bf00' fs solid border lc rgb '#007f00'
+	} else if (type == 3) {
+		set obj oi poly from ox-Q, oy-P to ox, oy+Q to ox+Q, oy-P to ox-Q, oy-P fs solid border lc rgb '#0000bf' fc rgb '#00007f'
+	} else if (type == 4) {
+		set obj oi poly from ox-Q, oy+P to ox, oy-Q to ox+Q, oy+P to ox-Q, oy+P fs solid border lc rgb '#afafaf' fc rgb '#5f5f5f'
+	} else if (type == 5) {
+		set obj oi poly from ox-R, oy to ox, oy+R to ox+R, oy to ox, oy-R to ox-R, oy fs solid border lc rgb '#af00af' fc rgb '#6f006f'
+	}
+EOF
 
 # set up initial state
-eval show_score(score, level)
-eval init_next
+evaluate $show_score(score, level)
+evaluate $init_next()
 
-eval redraw
+evaluate $redraw()
 
 # finally show the initial state
 plot -1
@@ -234,19 +264,17 @@ while (alive) {
 	pause pause
 	if (!paused) {
 		if (locked) {
-			eval key_action
+			evaluate $key_action()
 			locked = 0
 		}
 
 		if (check_for_more) {
-			eval check_threes
-			if (found) {
+			if ($check_threes()) {
 				pause pause*10
-				eval delete_threes
-				eval show_score(score, level)
+				evaluate $delete_threes()
+				evaluate $show_score(score, level)
 				check_for_more = 1
 				cascade_bonus = cascade_bonus * 2
-				found = 0
 			} else {
 				check_for_more = 0
 				cascade_bonus = 1
@@ -255,21 +283,17 @@ while (alive) {
 			if (iter >= wait) {
 				iter = 0
 				# gravity
-				eval move_down
-				if (!space_left) {
-					eval make_current_permanent
-					eval init_next
-					eval is_space_left
-					if (!space_left) {
-						eval game_over
+				if (!$move_down()) {
+					evaluate $make_current_permanent()
+					evaluate $init_next()
+					if (!$is_space_left()) {
+						evaluate $game_over()
 					}
-					eval check_threes
-					if (found) {
-						eval delete_threes
-						eval show_score(score, level)
+					if ($check_threes()) {
+						evaluate $delete_threes()
+						evaluate $show_score(score, level)
 						check_for_more = 1
 						cascade_bonus = cascade_bonus * 2
-						found = 0
 					}
 				}
 				do_redraw = 1
@@ -281,7 +305,7 @@ while (alive) {
 
 		# and finally show the new state if needed
 		if (do_redraw) {
-			eval redraw
+			evaluate $redraw()
 			do_redraw = 0
 			replot
 		}
@@ -289,8 +313,22 @@ while (alive) {
 }
 
 # clean up
-undef block*
-undef del*
-undef bottom*
+undef fs
+undef xmin xmax ymin ymax
+undef P Q R
+undef pause wait
+undef iter score level
+undef locked key_action paused
+undef alive do_redraw check_for_more cascade_bonus
+undef right left down up
+undef blocks dels bottom bottoms
+undef tc current max_kinds
+
+undef $gem $key_action $move_down $redraw
+undef $make_current_permanent $is_space_left
+undef $init_next
+undef $check_threes $check_threes_single $delete_threes
+undef $level_up $game_over $show_score
+
 reset bind
 reset

@@ -567,9 +567,9 @@ ansi_bg_colorstring(t_colorspec * color)
 	unsigned n;
 	static char colorstring[32];
 
-	rgb255.r = (color->lt >> 16) & 0xff;
-	rgb255.g = (color->lt >>  8) & 0xff;
-	rgb255.b = (color->lt >>  0) & 0xff;
+	rgb255.r = (color->rgbcolor >> 16) & 0xff;
+	rgb255.g = (color->rgbcolor >>  8) & 0xff;
+	rgb255.b = (color->rgbcolor >>  0) & 0xff;
 	n = nearest_ansi(rgb255);
 	if (n < 8) {
 	    sprintf(colorstring, "\033[%im", 40 + (n % 8));
@@ -681,7 +681,7 @@ BLOCK_text()
     if (BLOCK_background != BLOCK_BGTRANSPARENT) {
 	t_colorspec color;
 	color.type = TC_RGB,
-	color.lt = BLOCK_background;
+	color.rgbcolor = BLOCK_background;
 	strcpy(bg_str, ansi_bg_colorstring(&color));
     }
 #endif
@@ -755,9 +755,9 @@ BLOCK_text()
 		    if (n == cellx * celly) {
 			t_colorspec color;
 			color.type = TC_RGB;
-			color.lt = ((unsigned) sqrt(r / n) << 16) +
-				   ((unsigned) sqrt(g / n) <<  8) +
-				   ((unsigned) sqrt(b / n));
+			color.rgbcolor = ((unsigned) sqrt(r / n) << 16) +
+				       ((unsigned) sqrt(g / n) <<  8) +
+				       ((unsigned) sqrt(b / n));
 			c = ansi_bg_colorstring(&color);
 			if (c != NULL && strcmp(bg_str, c) != 0) {
 			    strcpy((char *) s, c);
@@ -915,7 +915,7 @@ BLOCK_text()
 
 		    // Set background color.
 		    color.type = TC_RGB;
-		    color.lt = ((unsigned) sqrt(r2 / m) << 16) +
+		    color.rgbcolor = ((unsigned) sqrt(r2 / m) << 16) +
 			       ((unsigned) sqrt(g2 / m) <<  8) +
 			       ((unsigned) sqrt(b2 / m));
 		    c = ansi_bg_colorstring(&color);
@@ -940,9 +940,9 @@ BLOCK_text()
 
 		    // average charcell color
 		    color.type = TC_RGB;
-		    color.lt = ((unsigned) sqrt(r / n) << 16) +
-		               ((unsigned) sqrt(g / n) <<  8) +
-		               ((unsigned) sqrt(b / n));
+		    color.rgbcolor = ((unsigned) sqrt(r / n) << 16) +
+				   ((unsigned) sqrt(g / n) <<  8) +
+				   ((unsigned) sqrt(b / n));
 		    c = ansi_colorstring(&color, &dumb_prev_color);
 		    if (c[0] != NUL) {
 			strcpy((char *) s, c);
@@ -1288,9 +1288,9 @@ BLOCK_set_color(t_colorspec *color)
 	    b_setvalue(((color->lt & 0xffffff) << 1) + 1);
 	} else {
 	    rgb255_color rgb255;
-	    rgb255.r = (color->lt >> 16) & 0xff;
-	    rgb255.g = (color->lt >>  8) & 0xff;
-	    rgb255.b = (color->lt >>  0) & 0xff;
+	    rgb255.r = (color->rgbcolor >> 16) & 0xff;
+	    rgb255.g = (color->rgbcolor >>  8) & 0xff;
+	    rgb255.b = (color->rgbcolor >>  0) & 0xff;
 	    if (dumb_colormode == DUMB_ANSI256)
 		b_setvalue((to_ansi256(&rgb255) << 1) + 1);
 	    else

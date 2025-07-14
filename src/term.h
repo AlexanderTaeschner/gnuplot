@@ -234,7 +234,9 @@
 
 /* Roland DXY800A plotter */
 /* #include "dxy.trm" */
-/* QMS/EXCL laserprinter (Talaris 1590 and others) */
+
+/* QMS and TALARIS laser printers, last seen about 2004 */
+/* #include "qms.trm" */
 /* #include "excl.trm" */
 
 /* fig graphics */
@@ -283,9 +285,6 @@
 #ifdef POSTSCRIPT_DRIVER
 #include "post.trm"
 #endif
-
-/* QMS laser printers */
-/* #include "qms.trm" */
 
 /* W3C Scalable Vector Graphics file */
 #include "svg.trm"
