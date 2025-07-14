@@ -1,4 +1,4 @@
-version: 6.1.0-{build}
+version: 6.1.0-20250715-{build}
 branches:
   only:
   - main
