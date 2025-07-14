@@ -540,4 +540,7 @@ int term_waitforinput(int options);
 /* shared routined to add backslash in front of reserved characters */
 char *escape_reserved_chars(const char *str, const char *reserved);
 
+/* replace escape sequences with the characters they represent */
+char *expand_unicode_escapes(char *text);
+
 #endif /* GNUPLOT_TERM_API_H */

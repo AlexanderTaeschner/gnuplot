@@ -240,7 +240,6 @@ static void PUTTEXT_null(unsigned int, unsigned int, const char *);
 static TBOOLEAN sanity_check_font_size(void);
 
 static int strlen_tex(const char *);
-static char *expand_unicode_escapes(char *text);
 
 static char *stylefont(const char *fontname, TBOOLEAN isbold, TBOOLEAN isitalic);
 
@@ -850,7 +849,7 @@ write_multiline(
  * NB: Returned string must be consumed before this routine is called again
  *     (static char *out)
  */
-static char *
+char *
 expand_unicode_escapes(char *text)
 {
     static char *out = NULL;

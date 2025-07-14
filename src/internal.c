@@ -1550,6 +1550,7 @@ f_range(union argument *arg)
 {
     struct value beg, end, full;
     struct value result;
+    char *expanded_string;
     int ibeg, iend;
 
     (void) arg;			/* avoid -Wunused warning */
@@ -1582,16 +1583,18 @@ f_range(union argument *arg)
     if (full.type != STRING)
 	int_error(NO_CARET, "internal error: substring range operator applied to non-STRING type");
 
-    if (iend > gp_strlen(full.v.string_val))
-	iend = gp_strlen(full.v.string_val);
+    expanded_string = expand_unicode_escapes(full.v.string_val);
+
+    if (iend > gp_strlen(expanded_string))
+	iend = gp_strlen(expanded_string);
     if (ibeg < 1)
 	ibeg = 1;
 
     if (ibeg > iend) {
 	push(Gstring(&result, ""));
     } else {
-	char *begp = gp_strchrn(full.v.string_val,ibeg-1);
-	char *endp = gp_strchrn(full.v.string_val,iend);
+	char *begp = gp_strchrn(expanded_string,ibeg-1);
+	char *endp = gp_strchrn(expanded_string,iend);
 	*endp = '\0';
 	push(Gstring(&result, begp));
     }
