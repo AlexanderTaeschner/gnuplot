@@ -644,8 +644,8 @@ D epi_data 1
  reported on startup or by `gnuplot --version`.
 
  Here is a partial list of features under development that have not yet
- appeared in a stable release. Items near the top of the list will probably
- be back-ported to an incremental update of the stable version (6.0.x).
+ appeared in a stable release. Items near the top of the list may be
+ back-ported to an incremental update of the stable version (6.0.x).
  Items near the bottom of the list may not appear in a stable release before
  version 6.2.
 #start
@@ -687,6 +687,8 @@ D epi_data 1
 #b Unicode escape sequences are accepted in "noenhanced" strings.
 ## Unicode escape sequences are expanded during substring evaluation.
 ## See `escape sequences`.
+#b New gprintf format specifiers %C and %Ci to output complex values.
+## See `gprintf complex` and `imaginary_i`.
 #end
 
 2 Demos and Online Examples
@@ -1157,9 +1159,9 @@ C  need @ in table, so end and restart the table !
  online unicode demo.
 ^ </a>
 
- Note that Unicode escape codes are stored in a string without interpretation,
- and later replaced by the character they represent when the string is printed
- or evaluated during substring processing.  Thus after defining a string
+ Note that Unicode escape codes are stored in a string without interpretation.
+ The escape code is replaced by the character it represents when the string is
+ printed or evaluated during substring processing.  Thus after defining a string
  S = "A + \U+03A3 B", S[5:5] evaluates to "Σ" rather than "\",
  but (S eq S[1:*]) evaluates to FALSE because S holds the unprocessed escape
  sequence while evaluation of S[1:*] replaces the escape sequence with the
@@ -12753,14 +12755,15 @@ D heatmap_points 3
  as do the gnuplot commands `set format`, `set timestamp`, and others. These
  format specifiers are not the same as those used by the standard C-language
  routine sprintf(). gprintf() accepts only a single variable to be formatted.
+ See `gprintf numeric`, `gprintf time`, and `gprintf complex`.
  Gnuplot also provides an sprintf("format",x1,x2,...) routine if you prefer.
- For a list of gnuplot's format options, see `format specifiers`.
 4 format specifiers
 ?commands set format specifiers
 ?set format specifiers
 ?format specifiers
 ?format_specifiers
- The acceptable formats (if not in time/date mode) are:
+?gprintf numeric
+ The gprintf numeric formats (not for time/date mode) are:
 
 @start table - first is interactive cleartext form
        Format       Explanation
@@ -12770,6 +12773,7 @@ D heatmap_points 3
        %h or %H     like %g with "x10^{%S}" or "*10^{%S}" instead of "e%S"
        %x or %X     hex
        %o or %O     octal
+       %C or %Ci    complex value
        %t           mantissa to base 10
        %l           mantissa to base of current logscale
        %s           mantissa to base of current logscale; scientific power
@@ -12790,6 +12794,7 @@ D heatmap_points 3
 #\verb@%h@ or \verb@%H@ & like \verb@%g with "x10^{%S}" or "*10^{%S}" instead of "e%S"@ \\
 #\verb@%x@ or \verb@%X@ & hex \\
 #\verb@%o@ or \verb@%O@ & octal \\
+#\verb@%C@ or \verb@%Ci@ & complex value \\
 #\verb@%t@ & mantissa to base 10 \\
 #\verb@%l@ & mantissa to base of current logscale \\
 #\verb@%s@ & mantissa to base of current logscale; scientific power \\
@@ -12809,6 +12814,7 @@ D heatmap_points 3
 %%h or %H@like %g with "x10^{%S}" or "*10^{%S}" instead of "e%S"
 %%x or %X@hex
 %%o or %O@octal
+%%C or %Ci@complex value
 %%t@mantissa to base 10
 %%l@mantissa to base of current logscale
 %%s@mantissa to base of current logscale; scientific power
@@ -12836,6 +12842,7 @@ D heatmap_points 3
 ^<tr>    <td><tt>%h</tt> or <tt>%H</tt></td>    <td><tt>%g</tt> with "x10^{%S}" or "*10^{%S}" instead of "e%S"</td></tr>
 ^<tr>    <td><tt>%x</tt> or <tt>%X</tt></td>    <td>hex</td></tr>
 ^<tr>    <td><tt>%o</tt> or <tt>%O</tt></td>    <td>octal</td></tr>
+^<tr>    <td><tt>%C</tt> or <tt>%ci</tt></td>    <td>complex value</td></tr>
 ^<tr>    <td><tt>%t</tt></td>    <td>mantissa to base 10</td></tr>
 ^<tr>    <td><tt>%l</tt></td>    <td>mantissa to base of current logscale</td></tr>
 ^<tr>    <td><tt>%s</tt></td>    <td>mantissa to base of current logscale; scientific power</td></tr>
@@ -12889,6 +12896,29 @@ D heatmap_points 3
  If the data type for the axis is time/date, the format string must contain
  valid codes for the 'strftime' function (outside of `gnuplot`, type "man
  strftime").  See `set timefmt` for a list of the allowed input format codes.
+4 Complex format specifiers
+?gprintf complex
+ gprintf offers two format specifiers, %C and %Ci, to print a complex value.
+ Both apply format %g separately to the real and imaginary components using
+ any optional field modifiers that were given.
+
+ Suppose complex Z = {1.2, -3.4}.
+      gprintf("%C", Z) produces the string "{1.2, -3.4}"
+      gprintf("%Ci", Z) produces the string "1.2 - 3.4i"
+
+ The output of "%Ci" can be further customized by the command `set imaginary_i`
+ to replace the character "i" that follows the imaginary component with a
+ different character or character sequence.
+ See `imaginary_i`.
+
+ Examples:
+      Z = {1.2222, 0.3333}
+      gprintf("%.2C", Z)            # {1.2, 0.33}
+      gprintf("%.3Ci", Z)           # 1.22 + 0.333i
+      set imaginary_i "{/Times*0.5 im}"
+      gprintf("[%Ci]", Z)           # [1.2222 + 0.3333im]
+      gprintf("[%.1Ci]", -Z)        # [-1 - 0.3im]
+
 4 time/date specifiers
 ?commands set format date_specifiers
 ?commands set format time_specifiers
@@ -12898,11 +12928,10 @@ D heatmap_points 3
 ?set time_specifiers
 ?date_specifiers
 ?time_specifiers
+?gprintf time
  There are two groups of time format specifiers: time/date and relative time.
  These may be used to generate axis tic labels or to encode time in a string.
- See `set xtics time`, `strftime`, `strptime`.
-
- The time/date formats are
+ See `set xtics time`, `strftime`, `strptime`. The time/date formats are
 
 @start table - first is interactive cleartext form
        Format       Explanation
@@ -12933,7 +12962,7 @@ D heatmap_points 3
        %Y           year, 4-digit
        %z           timezone, [+-]hh:mm
        %Z           timezone name, ignored string
-#\begin{tabular}{|cl|} \hline
+#\begin{longtable}{|cl|} \hline
 #\multicolumn{2}{|c|}{Date Specifiers}\\
 #\hline \hline
 #Format & Explanation \\ \hline
@@ -12964,6 +12993,9 @@ D heatmap_points 3
 #\verb@%Y@ & year, 4-digit \\
 #\verb@%z@ & timezone, [+-]hh:mm \\
 #\verb@%Z@ & timezone name, ignored string \\
+#\hline \end{longtable}
+#%% begin dummy tabular because the @end processing wants to end one
+#\begin{tabular}{|lcl|}
 %c l .
 %Format@Explanation
 %_
@@ -13331,6 +13363,62 @@ D hidden 6
  by removing earlier instances of the current command.
 
  Default settings: `set history size 500 numbers trim`.
+3 imaginary_i
+?commands set imaginary_i
+?set imaginary_i
+?imaginary_i
+ Syntax:
+      set imaginary_i {"<character string>"}
+
+ The gprintf format specifier %Ci prints a complex value {A,B} as A + Bi
+ (see `gprintf complex`). The command `set imaginary_i "<character string>"`
+ modifies the action of %Ci by replacing the character "i" with the
+ character string requested. Common conventions for this string are shown in
+ the table below.  If no character string is given, the default is restored.
+
+@start table
+  character string          Result          Convention
+                            A + Bi          default
+  "\imath"                  A + Bi          may be necessary for LaTeX output
+  "{/:Italic i}"            A + Bi          gnuplot enhanced text markup
+  "\U+2148"                 A + Bⅈ          Unicode DOUBLE-STRUCK ITALIC SMALL I
+  "\U+1D456"                A + B𝑖          Unicode MATHEMATICAL ITALIC SMALL I
+  "im"                      A + Bim         Julia
+  "j"                       A + Bj          Numpy
+
+#\begin{tabular}{|lll|} \hline
+#character string & result & convention \\
+#\hline
+#\verb~   ~ & A+Bi & default \\
+#\verb~"\imath"~ & {$A+B\imath$} & may or may not be necessary for LaTeX output \\
+#\verb~"{/:Italic i}"~ & A + B{\emph i} & gnuplot enhanced text markup \\
+#\verb~"\U+2148"~ & A + Bⅈ & Unicode DOUBLE-STRUCK ITALIC SMALL I \\
+#\verb~"\U+1D456"~ & A + B$i$ & Unicode MATHEMATICAL ITALIC SMALL I \\
+#\verb~"im"~ & A + Bim & Julia \\
+#\verb~"j"~ & A + Bj & Numpy \\
+#
+@end table
+
+^<table align="center" border="1" rules="groups" frame="hsides" cellpadding="3">
+^<colgroup>
+^  <col align="left">
+^  <col align="left">
+^  <col align="left">
+^</colgroup>
+^<thead>
+^<tr>    <th>character string</th>  <th>result</th>  <th>convention</th> </tr>
+^</thead>
+^<tbody>
+^<tr>  <td></td>    <td>A+Bi</td>  <td>default</td> </tr>
+^<tr>  <td>"\imath"</td>    <td><em>A+Bi</em></td>  <td>may or may not be necessary for LaTeX</td> </tr>
+^<tr>  <td>"{/:Italic i}"</td>    <td>A+B<em>i</em></td>  <td>gnuplot enhanced text markup</td> </tr>
+^<tr>  <td>"\U+2148"</td>    <td>A+Bⅈ</td>  <td>Unicode DOUBLE-STRUCK ITALIC SMALL I</td> </tr>
+^<tr>  <td>"\U+1D456"</td>    <td>A+B𝑖</td>  <td>Unicode MATHEMATICAL ITALIC SMALL I</td> </tr>
+^<tr>  <td>"im"</td>    <td>A+Bim</td>  <td>Julia</td> </tr>
+^<tr>  <td>"j"</td>    <td>A+Bj</td>  <td>Numpy</td> </tr>
+^</tbody>
+^</table>
+
 3 isosamples
 ?commands set isosamples
 ?commands show isosamples
