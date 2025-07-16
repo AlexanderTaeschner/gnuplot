@@ -4,7 +4,7 @@
 
 % Add '[a4paper]' before '{article}' to load settings for A4-paper
 % See below if you add 11pt or 12pt
-   \documentclass[10pt,twoside]{article}
+   \documentclass[11pt,twoside]{article}
    \usepackage{toc_entr}
 
 % imakeidx must come before hyperref (makeidx doesn't care)
@@ -33,7 +33,7 @@
     % These commands are for use with lualatex
     % The default CM fonts are missing many unicode characters
     \usepackage{fontspec}
-    \setmainfont{Free Serif}
+    \setmainfont{Free Serif} % could use TeX Gyre Termes
     \setmonofont{Free Mono}
     \usepackage{unicode-math}
 \else\ifxetex
@@ -199,7 +199,7 @@
 
   \vspace{2ex}
 
-%  January 2025  Version 6.1
+%  July 2025  Version 6.1
    Version {\gpVersion} (development snapshot)
 
    \end{center}

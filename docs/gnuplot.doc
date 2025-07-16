@@ -4083,7 +4083,7 @@ Ffigure_newsyntax
 
  For an example of the format as provided in a file or datablock see
  `marks examples annotation` or `marks examples windbarbs`.
-#TeX \newpage
+
 3 Marks examples
 ?marks examples
  The examples below illustrate a variety of ways that marks can be used.
@@ -4171,6 +4171,7 @@ Ffigure_markscatter1
  definition or the plot command, it is inherited from the global properties
  in `set style fill`.  If no fillcolor is provided, it follows the default
  sequence of plot colors.
+#TeX \vspace{1.1cm}
 
       set object 1 rectangle from graph 0,0 to graph 1,1
       set object 1 fillstyle solid fc "gray" behind
@@ -4185,6 +4186,7 @@ Ffigure_markscatter1
 Ffigure_markscatter2
  The second plot provides both a fillcolor and a stroke color in the plot
  command.  The key entries then need a different fill color.
+#TeX \vspace{1.5cm}
 
       set style fill solid
       plot $setosa     with marks mt 1 ps 1.5 lw 2 notitle \
@@ -4283,7 +4285,6 @@ Ffigure_windbarbs
  windbarbs.dem 
 ^ </a>
 D windbarbs 1
-
       #
       # Windbarbs representing 5, 25, and 50 knot wind speed
       # rotated and uniformly scaled by the 5-column form of the plot command
@@ -7120,7 +7121,6 @@ Ffigure_xyerrorbars
  An additional input column (5th or 7th) may be used to provide variable color.
  This style does not permit variable point properties.
 
-#TeX \newpage
 2 xerrorlines
 ?plotting styles xerrorlines
 ?style xerrorlines
@@ -13880,10 +13880,10 @@ Ffigure_multiple_keys
  a single legend for the component panels in a multiplot.
         set multiplot layout 3,2 columnsfirst
         set style data boxes
-        plot $D using 0:6  lt 1 title at 0.75, 0.20
-        plot $D using 0:12 lt 2 title at 0.75, 0.17
-        plot $D using 0:13 lt 3 title at 0.75, 0.14
-        plot $D using 0:14 lt 4 title at 0.75, 0.11
+        plot $D using 0:6  lt 1 title at .75, .20
+        plot $D using 0:12 lt 2 title at .75, .17
+        plot $D using 0:13 lt 3 title at .75, .14
+        plot $D using 0:14 lt 4 title at .75, .11
         set label 1 at screen 0.75, screen 0.22 "Custom combined key area"
         plot $D using 0:($6+$12+$13+$14) with linespoints title "total"
         unset multiplot
