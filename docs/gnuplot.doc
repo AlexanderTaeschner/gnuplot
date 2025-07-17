@@ -440,11 +440,11 @@ D viridis 1
       unset print
 
 #start
-#b EXPERIMENTAL. The `replot` command will check to see if the most recent
-## plot command was part of a completed multiplot.  If so, it will execute
-## `remultiplot` instead of reexecuting that single plot command.
-#b EXPERIMENTAL. Mousing operations while a multiplot is displayed will also
-## now automatically treat a replot/refresh request as `remultiplot`.
+#b The `replot` command will check to see if the most recent plot command
+## was part of a completed multiplot.  If so, it will execute `remultiplot`
+## instead of reexecuting that single plot command.
+#b Mousing operations while a multiplot is displayed will also automatically
+## treat a replot/refresh request as `remultiplot`.
 ## However the mouse coordinate readout and thus zoom/pan operations are
 ## still based solely on the axis settings for the final component plot,
 ## as was the case in earlier gnuplot versions.  Because the commands stored
@@ -688,7 +688,7 @@ D epi_data 1
 ## Unicode escape sequences are expanded during substring evaluation.
 ## See `escape sequences`.
 #b New gprintf format specifiers %C and %Ci to output complex values.
-## See `gprintf complex` and `imaginary_i`.
+## See `gprintf complex` and `imaginary_i`. [EXPERIMENTAL]
 #end
 
 2 Demos and Online Examples
@@ -6676,8 +6676,6 @@ Ffigure_mask
  Although it is not shown here, a single mask can include multiple polygonal
  regions.
 
- The masking commands are EXPERIMENTAL. Details may change in a future release.
-
 2 parallelaxes
 Ffigure_parallel
 ?plotting styles parallelaxes
@@ -7446,8 +7444,8 @@ Ffigure_zerror
  special tokens $0, $1, ... $9 with the literal contents of <param-1> ...
  That older mechanism is no longer supported.
 
- EXPERIMENTAL:  Function blocks (new in this version) provide a more flexible
- alternative to `call`.  See `function blocks`.
+ Function blocks (new in this version) provide a more flexible alternative
+ to `call`.  See `function blocks`.
  
 3 ARGV[ ]
 ?argv
@@ -8331,9 +8329,6 @@ Ffigure_zerror
 #TeX }
 #TeX \end{minipage}
 #TeX \end{center}
-
- Use of function blocks is EXPERIMENTAL.
- Details may change before inclusion in a release version.
 #TeX \newpage
 2 help
 ?commands help
@@ -8494,11 +8489,10 @@ Ffigure_zerror
  arguments to `gnuplot`.  These are loaded in the order specified, and
  then `gnuplot` exits.
 
- EXPERIMENTAL:  It is also possible to execute commands from lines of text
- stored internally. See `function blocks`. A function block may be defined
- in-line or in an external file. Once the function block has been defined
- the commands may be executed repeatedly using `evaluate` on the internal
- copy rather than reloading the file.
+ It is also possible to execute commands from lines of text stored internally.
+ See `function blocks`. A function block may be defined in-line or read from a
+ file. The commands in a function block may be executed repeatedly using
+ `evaluate` on the internal copy rather than reloading a file.
 
 2 local
 ?local
@@ -10910,8 +10904,8 @@ Ffigure_smooth_path
  the datablock named $GPVAL_LAST_MULTIPLOT during generation of the previous
  multiplot.  See `new multiplots`.
 
- EXPERIMENTAL: `remultiplot` is invoked implicitly from `replot` if the
- immediately preceding plot command was part of a completed multiplot.
+ `remultiplot` is invoked implicitly from `replot` if the immediately preceding
+ plot command was part of a completed multiplot.
 
 2 replot
 ?commands replot
@@ -10947,7 +10941,6 @@ Ffigure_smooth_path
  a datablock $GPVAL_LAST_MULTIPLOT.  They can be replayed to regenerate the
  entire multiplot using the new command `remultiplot`.
 
- EXPERIMENTAL (details may change in a subsequent gnuplot version):
  If the previously drawn plot was part of a multiplot, the `replot` command
  is now automatically treated as `remultiplot`.  Several caveats apply.
  See `new multiplots`, `remultiplot`.
@@ -12900,7 +12893,7 @@ D heatmap_points 3
 ?gprintf complex
  gprintf offers two format specifiers, %C and %Ci, to print a complex value.
  Both apply format %g separately to the real and imaginary components using
- any optional field modifiers that were given.
+ any optional field modifiers that were given. [EXPERIMENTAL]
 
  Suppose complex Z = {1.2, -3.4}.
       gprintf("%C", Z) produces the string "{1.2, -3.4}"
@@ -15932,10 +15925,9 @@ D viridis 1
  options are possible.  This allows you to use separate coloring schemes for
  different surfaces in the same plot.
  
- EXPERIMENTAL: This gnuplot version introduces an option `zclip` that
- clips the generated surface smoothly at a pair of limiting z values.
- The example below animates gradual removal of the top portion of a
- two-color 3D surface.
+ gnuplot version introduces an option `zclip` that clips the generated surface
+ smoothly at a pair of limiting z values.  The example below animates gradual
+ removal of the top portion of a two-color 3D surface.
       set style line 101 lc "gray"
       set style line 102 lc "blue"
       set pm3d depthorder
