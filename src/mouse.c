@@ -63,6 +63,7 @@
 #include "hidden3d.h"
 #include "multiplot.h"	/* EXPERIMENTAL */
 #include "plot.h"	/* for interactive */
+#include "internal.h"
 
 #ifdef USE_WATCHPOINTS
 # include "watch.h"
@@ -583,7 +584,21 @@ GetAnnotateString(char *s, size_t len, double x, double y, int mode, char *fmt)
 	else
 	    sprintf(s, "theta: %.1f%s  r: %g", theta, degree_sign, r);
     } else if ((mode == MOUSE_COORDINATES_ALT) && fmt) {
-	snprintf(s, len, fmt, x, y);	/* user defined format */
+	struct value vfmt, vx, vy, vn;
+	struct value readout;
+	readout.type = NOTDEFINED;
+	push(Gstring(&vfmt, fmt));
+	push(Gcomplex(&vx, x, 0));
+	push(Gcomplex(&vy, y, 0));
+	push(Ginteger(&vn, 3));
+	f_sprintf((union argument *)NULL);
+	pop(&readout);
+	if (readout.type != STRING)
+	    int_error(NO_CARET, "internal error: mouseformat did not return a string");
+	if (strlen(readout.v.string_val) + 1 > len)
+	    int_warn(NO_CARET, "truncated mouseformat output string");
+	snprintf(s, len, "%s", readout.v.string_val);
+	gpfree_string(&readout);
     } else if (mode == MOUSE_COORDINATES_FUNCTION) {
 	/* EXPERIMENTAL !!! */
 	t_value original_x, original_y;
