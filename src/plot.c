@@ -402,8 +402,10 @@ main(int argc_orig, char **argv)
     /* "pi" is hard-wired as the first variable */
     (void) add_udv_by_name("GNUTERM");
     (void) add_udv_by_name("I");
+    (void) add_udv_by_name("Inf");
     (void) add_udv_by_name("NaN");
     init_constants();
+    /* user-defined variables start immediately after NaN */
     udv_user_head = &(udv_NaN->next_udv);
 
     init_memory();
@@ -743,6 +745,8 @@ init_constants()
     (void) Gcomplex(&(udv_NaN->udv_value), not_a_number(), 0.0);
     udv_I = get_udv_by_name("I");
     (void) Gcomplex(&(udv_I->udv_value), 0.0, 1.0);
+    udv_Inf = get_udv_by_name("Inf");
+    (void) Gcomplex(&(udv_Inf->udv_value), INFINITY, 0.0);
 }
 
 /*

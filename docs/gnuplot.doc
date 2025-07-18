@@ -511,6 +511,7 @@ D epi_data 1
 
 3 Other new features
 ?new other_features
+ For features added since version 6.0, see `development`.
 #start
 #b `Time units for setting major and minor tics.`
 ## Both major and minor tics along a time axis now accept tic intervals given
@@ -689,6 +690,7 @@ D epi_data 1
 ## See `escape sequences`.
 #b New gprintf format specifiers %C and %Ci to output complex values.
 ## See `gprintf complex` and `imaginary_i`. [EXPERIMENTAL]
+#b Document that the program offers predefined variables I, Inf, and NaN
 #end
 
 2 Demos and Online Examples
@@ -3329,6 +3331,9 @@ C ... and restart the table:
 ?user-defined variables
 ?user-defined
 ?variables
+?Inf
+?NaN
+?pi
  New user-defined variables and functions of one through twelve variables may
  be declared and used anywhere, including on the `plot` command itself.
 
@@ -3363,12 +3368,13 @@ C ... and restart the table:
 
 =NaN
 =pi
- Note that the variables `pi` (3.14159...) and `NaN` (IEEE "Not a Number") are
- already defined.  You can redefine these to something else if you really need
- to. The original values can be recovered by setting:
+=Inf
+ Variables `pi` (3.14159...), `Inf` (INFINITY), and `NaN` (IEEE "Not a Number")
+ are defined at program entry.  You can redefine these to something else if you
+ really need to. The original values can be recovered by `reset session` or by
+ setting:
 
-       NaN = GPVAL_NaN
-       pi  = GPVAL_pi
+       pi  = GPVAL_pi;  Inf = GPVAL_Inf;  NaN = GPVAL_NaN
 
  Other variables may be defined under various gnuplot operations like mousing in
  interactive terminals or fitting; see `gnuplot-defined variables` for details.
