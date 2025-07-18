@@ -2598,8 +2598,7 @@ C 4 weekdata_cdc
 ?invibeta
  The inverse incomplete beta function `invibeta(a,b,p)` returns the value
  z such that p = ibeta(a,b,z).  a, b are limited to positive real values
- and p is in the interval [0,1].  Note that as a, b approach zero
-#TeX ($\lessapprox 0.05$)
+ and p is in the interval [0,1].  Note that as a, b approach zero (≲0.05)
  invibeta() approaches 1.0 and its relative accuracy is limited by
  floating point precision.
 
