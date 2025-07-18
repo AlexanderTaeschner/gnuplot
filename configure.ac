@@ -159,7 +159,7 @@ AC_ARG_WITH(latex,[  --without-latex         disable installation of latex suppo
 if test "$with_latex" = yes; then
   AC_CHECK_PROGS(PLAINTEX, tex, no)
   AC_CHECK_PROGS(LATEX, latex latex2e, no)
-  AC_CHECK_PROGS(PDFLATEX, pdflatex, no)
+  AC_CHECK_PROGS(PDFLATEX, lualatex pdflatex, no)
   test "$PLAINTEX" = "no" -o "$LATEX" = no -o "$PDFLATEX" = "no" && with_latex="no"
 else
     PLAINTEX="no"
