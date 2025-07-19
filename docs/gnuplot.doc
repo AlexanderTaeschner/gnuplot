@@ -2074,12 +2074,14 @@ C 4 FresnelS
 %_
 4 gprintf
 ?expressions functions gprintf
-#gprintf("format",x,...) & any & string result from applying gnuplot's format parser \\
-%gprintf("format",x,...)@any@string result from applying gnuplot's format parser
- `gprintf("format",x)` applies gnuplot's own format specifiers to the single
- variable x and returns the resulting string. If you want standard C-language
- format specifiers, you must instead use `sprintf("format",x)`.
- See `format specifiers`.
+?gprintf
+#gprintf("format",x) & any & string result from applying gnuplot's format parser \\
+%gprintf("format",x)@any@string result from applying gnuplot's format parser
+ The string function gprintf("format",x) uses gnuplot's own format specifiers,
+ which are not the same as those used by the C-language routine sprintf().
+ gprintf() accepts only a single numeric variable to be formatted and returns
+ the resulting string.  See `format numeric`.
+ Gnuplot also provides an sprintf("format",x1,x2,...) routine if you prefer.
 4 sprintf
 ?expressions functions sprintf
 ?sprintf
@@ -11974,9 +11976,9 @@ D discrete 3
  border line style for drawing the border of the color box.
 
  The axis of the color box is called `cb` and it is controlled by means of the
- usual axes commands, i.e. `set/unset/show` with `cbrange`, `[m]cbtics`,
- `format cb`, `grid [m]cb`, `cblabel`, and perhaps even `cbdata`, `[no]cbdtics`,
- `[no]cbmtics`.
+ usual axes commands, i.e. `set/unset/show` with target properties `cbrange`,
+ `[m]cbtics`, `format cb`, `grid [m]cb`, `cblabel`, and perhaps even `cbdata`,
+ `[no]cbdtics`, `[no]cbmtics`.
 
  `set colorbox` without any parameter switches the position to default.
  `unset colorbox` resets the default parameters for the colorbox and switches
@@ -12705,8 +12707,7 @@ D heatmap_points 3
 ?set format
 ?show format
 ?format
-?format cb
- The format of the tic-mark labels can be set with the `set format` command
+ The format of the axis tic-mark labels can be set with the `set format` command
  or with the `set tics format` or individual `set {axis}tics format` commands.
  For information on using an explicit format for input data see `using format`.
 
@@ -12720,10 +12721,17 @@ D heatmap_points 3
        set format y "%.2f"
        set ytics format "%.2f"
 
- The length of the string is restricted to 100 characters.  The default format
- is "% h", "$%h$" for LaTeX terminals. Other formats such as "%.2f" or "%3.0em"
- are often desirable. "set format" with no following string will restore the
- default.
+ The format type (numeric, timedate, or geographic) controls interpretation
+ of the format string.  Numeric formats are handled by gnuplot's `gprintf`
+ routine. See `format numeric`.  This is the default unless the axis has
+ been marked as representing time or geographic coordinates.
+ See `set xdata time`, `format time_specifiers`, `geographic`.
+
+ The length of the format string is restricted to 100 characters.
+ The default format is "% h", except that LaTeX terminals use  "$%h$".
+ You can modify this to provide units or a different numeric format,
+ for example 'set xtics format "%.2f MHz"'.
+ "set format" with no following string will restore the default.
 
  If the empty string "" is given, tics will have no labels, although the tic
  mark will still be plotted.  To eliminate the tic marks, use `unset xtics` or
@@ -12742,21 +12750,15 @@ D heatmap_points 3
 ^ <a href="http://www.gnuplot.info/demo/electron.html">
  electron demo (electron.dem).
 ^ </a>
-4 gprintf
-?gprintf
- The string function gprintf("format",x) uses gnuplot's own format specifiers,
- as do the gnuplot commands `set format`, `set timestamp`, and others. These
- format specifiers are not the same as those used by the standard C-language
- routine sprintf(). gprintf() accepts only a single variable to be formatted.
- See `gprintf numeric`, `gprintf time`, and `gprintf complex`.
- Gnuplot also provides an sprintf("format",x1,x2,...) routine if you prefer.
-4 format specifiers
-?commands set format specifiers
-?set format specifiers
-?format specifiers
-?format_specifiers
-?gprintf numeric
- The gprintf numeric formats (not for time/date mode) are:
+
+4 numeric format specifiers
+?set format numeric
+?format numeric
+?numeric
+ Numeric format specifiers are interpreted by gnuplot's gprintf function.
+ These specifiers are based on, but are not the same as, the formats used
+ by sprintf.  Axis tic-marks use these formats unless the axis has been set
+ to represent time/date or geographic coordinate data (see `set xdata`).
 
 @start table - first is interactive cleartext form
        Format       Explanation
@@ -12784,7 +12786,7 @@ D heatmap_points 3
 #\verb@%f@ & floating point notation \\
 #\verb@%e@ or \verb@%E@ & exponential notation; an "e" or "E" before the power \\
 #\verb@%g@ or \verb@%G@ & the shorter of \verb@%e@ (or \verb@%E@) and \verb@%f@ \\
-#\verb@%h@ or \verb@%H@ & like \verb@%g with "x10^{%S}" or "*10^{%S}" instead of "e%S"@ \\
+#\verb@%h@ or \verb@%H@ & like \verb@%g@ with \verb@"x10^{%S}"@ or \verb@"*10^{%S}"@ instead of "e\verb@%S@" \\
 #\verb@%x@ or \verb@%X@ & hex \\
 #\verb@%o@ or \verb@%O@ & octal \\
 #\verb@%C@ or \verb@%Ci@ & complex value \\
@@ -12870,6 +12872,8 @@ D heatmap_points 3
  others; in case of doubt, check the appropriate documentation and
  then experiment.
 
+ Complex values may be formatted using "%C" or "%Ci" (see `gprintf complex`).
+
  Examples:
        set format y "%t"; set ytics (5,10)          # "5.0" and "1.0"
        set format y "%s"; set ytics (500,1000)      # "500" and "1.0"
@@ -12886,10 +12890,10 @@ D heatmap_points 3
  There are some problem cases that arise when numbers like 9.999 are printed
  with a format that requires both rounding and a power.
 
- If the data type for the axis is time/date, the format string must contain
- valid codes for the 'strftime' function (outside of `gnuplot`, type "man
- strftime").  See `set timefmt` for a list of the allowed input format codes.
-4 Complex format specifiers
+5 Complex format specifiers
+?set format numeric complex
+?format numeric complex
+?numeric complex
 ?gprintf complex
  gprintf offers two format specifiers, %C and %Ci, to print a complex value.
  Both apply format %g separately to the real and imaginary components using
@@ -12917,11 +12921,14 @@ D heatmap_points 3
 ?commands set format time_specifiers
 ?set format date_specifiers
 ?set format time_specifiers
-?set date_specifiers
-?set time_specifiers
+?format date_specifiers
+?format time_specifiers
 ?date_specifiers
 ?time_specifiers
-?gprintf time
+ These format specifiers are used to generate axis tic-mark labels if the
+ axis represents time data.  See `set xdata time`.
+ They are also used by the gnuplot's strftime function.
+
  There are two groups of time format specifiers: time/date and relative time.
  These may be used to generate axis tic labels or to encode time in a string.
  See `set xtics time`, `strftime`, `strptime`. The time/date formats are
@@ -13115,15 +13122,12 @@ D heatmap_points 3
  width.  The %S, and %t formats also accept a precision specifier so that
  fractional hours/minutes/seconds can be written.
 
-5 Examples
-?commands set format date_specifiers examples
-?commands set format time_specifiers examples
-?set format date_specifiers examples
-?set format time_specifiers examples
-?set date_specifiers examples
-?set time_specifiers examples
-?date_specifiers examples
-?time_specifiers examples
+4 Examples
+?commands set format examples
+?set format examples
+?format date_specifiers examples
+?format time_specifiers examples
+?format examples
 
  Examples of date format:
 
@@ -14393,7 +14397,7 @@ Ffigure_multiple_keys
  axis tick labels uses a lower case u as a prefix to indicate "micro" (10^-6).
  The `set micro` command tells gnuplot to use a different typographic
  character (unicode U+00B5).  The byte sequence used to represent this character
- depends on the current encoding.  See `format specifiers`, `encoding`.
+ depends on the current encoding.  See `format numeric`, `encoding`.
 
  If the current encoding default is not satisfactory, you can provide a
  character string that generates the desired representation.  This is mostly
@@ -18581,6 +18585,9 @@ Ffigure_walls
 ?commands set xtics geographic
 ?set xtics geographic
 ?geographic
+?format geographic
+?set xdata geographic
+?set format geographic
  `set xtics geographic` indicates that x-axis values are to be interpreted as
  a geographic coordinate measured in degrees.  Use `set xtics format` or
  `set format x` to specify the appearance of the axis tick labels.
