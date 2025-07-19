@@ -20,7 +20,7 @@ C
 ^  James R. Van Zandt, Alex Woo, Johannes Zellner<br>
 ^</p>
 ^<p align="center">  Copyright (C) 1986 - 1993, 1998 - 2004   Thomas Williams, Colin Kelley<br>
-^     Copyright (C) 2004 - 2024 various authors</p>
+^     Copyright (C) 2004 - 2025 various authors</p>
 ^<p align="center">   Mailing list for comments: <tt>gnuplot-info@lists.sourceforge.net</tt><br>
 ^   Gnuplot <a href="http://www.gnuplot.info"> home page </a><br>
 ^      Issue trackers: &nbsp;
@@ -32,7 +32,7 @@ C
 ?copyright
 ?license
      Copyright (C) 1986 - 1993, 1998, 2004, 2007  Thomas Williams, Colin Kelley
-     Copyright (C) 2004-2024  various authors
+     Copyright (C) 2004-2025  various authors
 
  Permission to use, copy, and distribute this software and its
  documentation for any purpose with or without fee is hereby granted,
@@ -2722,6 +2722,7 @@ C 4 weekdata_cdc
  Note that fractional seconds, if any, cannot be retrieved via tm_sec().
  The components may be accessed individually using the functions
 #start
+#0
 #b `tm_hour(t)` integer hour in the range 0--23
 #b `tm_mday(t)` integer day of month in the range 1--31
 #b `tm_min(t)`  integer minute in the range 0--59
@@ -3991,9 +3992,9 @@ Ffigure_newsyntax
  by "set linetype".
 
  Linetype 0 is a terminal-dependent linetype used by the program as the default
- for axis lines (see "zeroaxis").  It is always a dotted line if the terminal
- supports this.  For terminals that do not support a separate dashtype property
- this may be the only way to get a dotted line.
+ for axis and grid lines.  See "zeroaxis" and "grid".  It is always a dotted
+ line if the terminal supports this.  For terminals that do not support a
+ separate dashtype property this may be the only way to get a dotted line.
 
  Linetype -1 is the basic linetype.  It corresponds to a solid line with
  width 1.0 in foreground color (normally black).  The program uses this as the
@@ -12715,18 +12716,17 @@ D heatmap_points 3
  The `fontpath` directory is relevant only for embedding fonts in
  postscript output produced by the postscript terminal.
  It has no effect on other gnuplot terminals.
- If you are not embedding fonts you do not need this command, and even if you
+ If you are not embedding fonts you do not need this command. Even if you
  are embedding fonts you only need it for fonts that cannot be found via
- the other paths below.
-
- Earlier versions of gnuplot tried to emulate a font manager by tracking
- multiple directory trees containing fonts.
- This is now replaced by a search in the following places:
- (1) an absolute path given in the `set term postscript fontfile` command
- (2) the current directory
- (3) any of the directories specified by `set loadpath`
- (4) the directory specified by `set fontpath`
- (5) the directory provided in environmental variable GNUPLOT_FONTPATH
+ the other paths below. The search order is
+#start
+#0
+#b an absolute path given in the `set term postscript fontfile` command
+#b the current directory
+#b any of the directories specified by `set loadpath`
+#b the directory specified by `set fontpath`
+#b the directory provided in environmental variable GNUPLOT_FONTPATH
+#end
 
  Note: The search path for fonts specified by filename for the libgd terminals
  (png gif jpeg sixel) is controlled by environmental variable GDFONTPATH.
@@ -12783,6 +12783,7 @@ D heatmap_points 3
 4 numeric format specifiers
 ?set format numeric
 ?format numeric
+?gprintf numeric
 ?numeric
  Numeric format specifiers are interpreted by gnuplot's gprintf function.
  These specifiers are based on, but are not the same as, the formats used

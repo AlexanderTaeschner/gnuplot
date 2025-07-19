@@ -217,16 +217,18 @@ process_line( char *line, FILE *b)
 		(void) fputs(line + 1, b);	/* copy directly */
 	    else {
 		/* Itemized list outside of table */
-		if (line[1] == 's')
+		if (line[1] == 's')		// #start
 		    (void) fputs("\\begin{itemize}\\setlength{\\itemsep}{0pt}\n", b);
-		else if (line[1] == 'e')
+		else if (line[1] == '0')	// #0separation (less vertical spacing)
+		    (void) fputs("\\setlength{\\itemsep}{-0.5em}\n", b);
+		else if (line[1] == 'e')	// #end
 		    (void) fputs("\\end{itemize}\n", b);
-		else if (line[1] == 'b') {
+		else if (line[1] == 'b') {	// #b
 		    /* Bullet */
 		    fprintf(b, "\\item\n");
 		    puttex(line+2, b);
 		}
-		else if (line[1] == '#') {
+		else if (line[1] == '#') {	// ##
 		    /* Continuation of bulleted line */
 		    puttex(line+2, b);
 		}
