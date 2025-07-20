@@ -1112,6 +1112,22 @@ sharpen(struct curve_points *plot)
 	}
     }
 
+    /* A common glitch is failure to sample at x=0. Add a point there */
+    for (int i = 1; i < oldcount; i++) {
+	if (signbit(p[i-1].x) != signbit(p[i].x)) {
+	    struct value a;
+	    Gcomplex( &(plot->plot_function.dummy_values[0]), 0.0, 0.0 );
+	    evaluate_at(plot->plot_function.at, &a);
+	    p[newcount] = p[i];	/* copy any other properties */
+	    p[newcount].x = 0.0;
+	    p[newcount].y = real(&a);
+	    if (!inrange(p[newcount].y, y_axis->min, y_axis->max))
+		p[newcount].type = OUTRANGE;
+	    newcount++;
+	    break;
+	}
+    }
+
     /* Look for vertical jumps in a possible step function.
      * This test may add unnecessary points at the left and right plot
      * boundaries but otherwise it would miss steps near the edge.

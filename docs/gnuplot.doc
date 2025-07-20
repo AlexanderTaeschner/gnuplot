@@ -9498,6 +9498,10 @@ D delaunay 1
  truncated to apparent minimal y values between 0.02 and 0.20. 
  Adding the "sharpen" keyword produces instead a correct representation of
  the function with periodic sharp minima that reach y=0.
+
+ The sharpen filter also looks for vertical discontinuities, such as the
+ vertical edges in a step function, and tries to place extra points immediately
+ to either side of the edge so that it is not misrepresented as a diagonal line.
 D sharpen 1
 
 5 if
