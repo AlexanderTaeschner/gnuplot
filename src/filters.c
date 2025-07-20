@@ -74,6 +74,7 @@
 static int do_curve_cleanup(struct coordinate *point, int npoints);
 static void winnow_interior_points (struct curve_points *plot, t_cluster *cluster);
 static double fpp_SG5(struct coordinate *p);
+static void bisect_jump( struct curve_points *plot, double *x1, double *y1, double *x2, double *y2);
 static void cluster_stats(struct coordinate *points, t_cluster *cluster);
 
 /* Variables related to clustering
@@ -1044,9 +1045,13 @@ cluster_stats( struct coordinate *points, t_cluster *cluster )
 }
 
 /*
- * The "sharpen" filter looks for truncated extrema in the function being plotted.
- * The true local extremum is found by bisection and added to the set of
- * points being plotted.
+ * The "sharpen" filter looks for two types of feature in a function that
+ * are likely to be missed or degraded unless the sampling is very fine.
+ * 1) Vertical jumps in a step function
+ * 2) Sharp extrema that appear truncuated because the true max or min does
+ * not lie on a sampled point.
+ * The edge or true local extremum is found by bisection and added to the
+ * set of points being plotted.
  *
  * Motivation:
  * If the function being plotted has a sharp extremum that lies between
@@ -1068,14 +1073,13 @@ cluster_stats( struct coordinate *points, t_cluster *cluster )
  * - Add the new point next to the original point i
  *
  * Ethan A Merritt Dec 2022
- *
- * TODO:
- * - Diagnose and warn that finer sampling might help?
+ * July 2025 - added code to handle step functions
  */
 void
 sharpen(struct curve_points *plot)
 {
     struct axis *y_axis = &axis_array[plot->y_axis];
+    int oldcount = plot->p_count;
     int newcount = plot->p_count;
     struct coordinate *p;
 
@@ -1084,7 +1088,7 @@ sharpen(struct curve_points *plot)
 	return;
 
     /* Make more than enough room for new points */
-    cp_extend(plot, 1.5 * plot->p_count);
+    cp_extend(plot, 3 * plot->p_count);
     p = plot->points;
 
     /* We expect that sharpened peaks may go to +/- Infinity
@@ -1095,7 +1099,7 @@ sharpen(struct curve_points *plot)
      * If there are other UNDEFINED points we set y to 0 so that they
      * do not cause the f'' approximation to blow up.
      */
-    for (int i = 0; i < plot->p_count; i++) {
+    for (int i = 0; i < oldcount; i++) {
 	if (p[i].type == UNDEFINED) {
 	    if (p[i].y >= VERYLARGE) {
 		p[i].type = OUTRANGE;
@@ -1108,6 +1112,39 @@ sharpen(struct curve_points *plot)
 	}
     }
 
+    /* Look for vertical jumps in a possible step function.
+     * This test may add unnecessary points at the left and right plot
+     * boundaries but otherwise it would miss steps near the edge.
+     */
+    for (int i=0; i < oldcount-1; i++) {
+	TBOOLEAN step = (  ((i == 0) || (p[i-1].y == p[i].y))
+			&& ((i == oldcount-2) || (p[i+1].y == p[i+2].y))
+			&& (p[i].y != p[i+1].y));
+	if (step) {
+	    double x1 = p[i].x;
+	    double y1 = p[i].y;
+	    double x2 = p[i+1].x;
+	    double y2 = p[i+1].y;
+
+	    bisect_jump( plot, &x1, &y1, &x2, &y2 );
+	    p[newcount] = p[i];	/* copy any other properties */
+	    p[newcount].x = x1;
+	    p[newcount].y = y1;
+	    newcount++;
+	    p[newcount] = p[i+1];	/* copy any other properties */
+	    p[newcount].x = x2;
+	    p[newcount].y = y2;
+	    newcount++;
+	}
+    }
+    /* Leave any new points at the end where they will not confuse
+     * the search for extrema.
+     *    plot->p_count = newcount;
+     *    gp_qsort(plot->points, newcount, sizeof(struct coordinate), compare_x);
+     */
+    if (newcount > oldcount)
+	FPRINTF((stderr, "\t%d points after looking for steps\n", newcount));
+
     /* Look for minima in a sliding window */
     /* This is a very simple test; it may not be sufficient
      *   f(i) is lower than its neighbors
@@ -1115,6 +1152,11 @@ sharpen(struct curve_points *plot)
      */
     for (int i = 4; i < plot->p_count-4; i++) {
 	TBOOLEAN criterion = FALSE;
+	TBOOLEAN step = ((p[i-2].y == p[i-1].y) && (p[i+1].y == p[i+2].y));
+	if (p[i].type == UNDEFINED || p[i-1].type == UNDEFINED || p[i+1].type == UNDEFINED)
+	    continue;
+	if (step)
+	    continue;
 	criterion = (fpp_SG5(&p[i-2]) < 0 || fpp_SG5(&p[i+2]) < 0);
 
 	if (p[i].y <= p[i-1].y && p[i].y <= p[i+1].y
@@ -1143,6 +1185,9 @@ sharpen(struct curve_points *plot)
     /* Equivalent search for maxima */
     for (int i = 4; i < plot->p_count-4; i++) {
 	TBOOLEAN criterion = FALSE;
+	TBOOLEAN step = ((p[i-2].y == p[i-1].y) && (p[i+1].y == p[i+2].y));
+	if (step)
+	    continue;
 	if (p[i].type == UNDEFINED || p[i-1].type == UNDEFINED || p[i+1].type == UNDEFINED)
 	    continue;
 	criterion = (fpp_SG5(&p[i-2]) > 0 || fpp_SG5(&p[i+2]) > 0);
@@ -1171,6 +1216,7 @@ sharpen(struct curve_points *plot)
     if (newcount > plot->p_count) {
 	plot->p_count = newcount;
 	gp_qsort(plot->points, newcount, sizeof(struct coordinate), compare_x);
+	FPRINTF((stderr, "\t%d points after sharpening\n", newcount));
     }
 }
 
@@ -1193,6 +1239,35 @@ fpp_SG5( struct coordinate *p )
     return fpp;
 }
 
+/* Zero in on a suspected vertical jump in a step function.
+ * We are given two points x1, x2 spanning the edge.
+ * We iteratively create a new point x3 that bisects x1 and x2
+ * and use it to replace whichever of x1 or x2 matches its y value.
+ */
+static void
+bisect_jump( struct curve_points *plot, double *x1, double *y1, double *x2, double *y2 )
+{
+    struct value a;
+    double tolerance = fabs(*x2 - *x1) / 100.;	/* arbitrary; could be smaller */
+    double x3 = (*x1 + *x2) / 2.;
+    double y3 = 0.0;
+    double ymid = (*y1 + *y2) / 2.;
+
+    while (fabs(x3 - *x1) > tolerance) {
+	Gcomplex( &(plot->plot_function.dummy_values[0]), x3, 0 );
+	evaluate_at(plot->plot_function.at, &a);
+	y3 = real(&a);
+	if ( ((*y1 > ymid) && (y3 > ymid))
+	||   ((*y1 < ymid) && (y3 < ymid))) {
+	    *x1 = x3;
+	    *y1 = y3;
+	} else {
+	    *x2 = x3;
+	    *y2 = y3;
+	}
+	x3 = (*x1 + *x2) / 2.;
+    }
+}
 
 #ifdef WITH_CHI_SHAPES
 
