@@ -685,9 +685,10 @@ D epi_data 1
 ## Example:     N! == prod [i=1:N] i 
 #b New category of graphical objects called "marks" that allow definition
 ## of complex symbols used in plots.  See `marks`.
-#b Unicode escape sequences are accepted in "noenhanced" strings.
+#b See `escape sequences`.
+## Unicode escape sequences are accepted in both "enhanced" and "noenhanced" text.
 ## Unicode escape sequences are expanded during substring evaluation.
-## See `escape sequences`.
+## Octal escape sequences are required to contain exactly three digits.
 #b New gprintf format specifiers %C and %Ci to output complex values.
 ## See `gprintf complex` and `imaginary_i`. [EXPERIMENTAL]
 #b Document that the program offers predefined variables I, Inf, and NaN
@@ -1139,15 +1140,22 @@ C  need @ in table, so end and restart the table !
 ?escape sequences
 ?enhanced text escape sequences
 ?unicode
- The backslash character \ is used to escape single byte character codes or
- Unicode entry points.
+ The backslash character \ introduces an escape sequence representing a single
+ character.
 
- The form \ooo (where ooo is a 3 character octal value) can be used to index a
- known character code in a specific font encoding.  For example the Adobe Symbol
- font uses a custom encoding in which octal 245 represents the infinity symbol.
+ The form \X, where X is any single character, is handled differently in single-
+ and double- quoted strings.  See `quotes`. The "\X" is used verbatim in
+ single-quoted non-enhanced text. In double-quoted text "\X" becomes "X"
+ except for the special cases \n (newline) \r (return) and \t (tab).
+
+ The form \ooo, where ooo is a 3 digit octal value, can be used to index a
+ known character code in a specific font encoding.  This is mostly useful for
+ the PostScript terminal because it cannot easily handle UTF-8 encoding.
+ For example, PostScript output historically relied on the Adobe Symbol font,
+ which uses a custom encoding in which octal 245 represents the infinity symbol.
  You could embed this in an enhanced text string by giving the font name and the
- character code "{/Symbol \245}".  This is mostly useful for the PostScript
- terminal, which cannot easily handle UTF-8 encoding.
+ character code "{/Symbol \245}".  This mechanism may also remain useful to
+ access characters in non-UTF8 fonts or locales.
 
  You can specify a character by its Unicode code point as \U+hhhh, where hhhh
  is the 4 or 5 character hexadecimal code point. For example the code point for
@@ -1161,13 +1169,22 @@ C  need @ in table, so end and restart the table !
  online unicode demo.
 ^ </a>
 
- Note that Unicode escape codes are stored in a string without interpretation.
- The escape code is replaced by the character it represents when the string is
- printed or evaluated during substring processing.  Thus after defining a string
- S = "A + \U+03A3 B", S[5:5] evaluates to "Σ" rather than "\",
- but (S eq S[1:*]) evaluates to FALSE because S holds the unprocessed escape
- sequence while evaluation of S[1:*] replaces the escape sequence with the
- UTF-8 byte sequence for Σ.  Both will display as "A + Σ B" when used in a plot.
+ Since Unicode codepoints may consist of either 4 or 5 characters, the syntax
+ would become ambiguous if a 4 character escape were immediately followed by
+ another character than might be misinterpreted as being part of a 5 digit code.
+ In such a case you must separate the escape sequence from the next character.
+      Example:  Create a label "α1 + α2"
+      enhanced text:      set label "{\U+03B1}1 + {\U+03B1}2"   enhanced
+      non-enhanced text:  set label "\U+03B1\1 + \U+03B1\2"   noenhanced
+
+ Note that Unicode escape sequences are stored in a string without
+ interpretation.  The escape sequence is replaced by the character it represents
+ when the string is printed or evaluated during substring processing.
+ Thus after defining a string S = "A + \U+03A3 B", S[5:5] evaluates to "Σ"
+ rather than "\", but (S eq S[1:*]) evaluates to FALSE because S holds the
+ unprocessed escape sequence while evaluation of S[1:*] replaces the escape
+ sequence with the UTF-8 byte sequence for Σ.
+ Both will display as "A + Σ B" when used in a plot.
 
 2 Environment
 ?environment
@@ -4901,35 +4918,26 @@ Ffigure_parametric_marks
  Gnuplot uses three forms of quote marks for delimiting text strings,
  double-quote (ascii 34), single-quote (ascii 39), and backquote (ascii 96).
 
- Filenames may be entered with either single- or double-quotes.  In this
- manual the command examples generally single-quote filenames and double-quote
- other string tokens for clarity.
-
+ File names may be entered in either single or double quotes.
  String constants and text strings used for labels, titles, or other plot
- elements may be enclosed in either single quotes or double quotes. Further
- processing of the quoted text depends on the choice of quote marks.
+ elements may be enclosed in either single quotes or double quotes.
+ Further processing of the quoted text depends on the choice of quote marks.
 
- Backslash processing of special characters like \n (newline) and
- \345 (octal character code) is performed only for double-quoted strings.
- In single-quoted strings, backslashes are just ordinary characters.  To get
- a single-quote (ascii 39) in a single-quoted string, it must be doubled.
- Thus the strings "d\" s' b\\" and 'd" s'' b\' are completely equivalent.
- However, unicode escape sequences \U+xxxx are processed for both
- single-quoted and double-quoted strings.
-
- Text justification is the same for each line of a multi-line string.
- Thus the center-justified string
-       "This is the first line of text.\nThis is the second line."
- will produce
-                        This is the first line of text.
-                           This is the second line.
- but
-       'This is the first line of text.\nThis is the second line.'
- will produce
-           This is the first line of text.\nThis is the second line.
-
- Enhanced text processing is performed for both double-quoted text and
- single-quoted text.  See `enhanced text`.
+ Single and double quoted strings differ as follows
+#start
+#b Backslash processing of special characters \n (newline) \r (return) and
+## \t (tab) is performed only for double-quoted strings.
+#b In single-quoted strings, backslashes are just ordinary characters.
+## To get a single-quote in a single-quoted string, it must be doubled.
+## Thus the strings "d\" s' b\\" and 'd" s'' b\' are completely equivalent.
+#b Unicode escape sequences \U+xxxx are processed for both single-quoted and
+## double-quoted strings.
+#b Enhanced text processing can be used for both double-quoted text and
+## single-quoted text.
+#b Octal escape sequences \ooo are processed in single-quoted strings only
+## if enhanced text is enabled.  Octal escapes are always process in
+## double-quoted strings.
+#end
 
  Back-quotes are used to enclose system commands for substitution into the
  command line.  See `substitution`.
