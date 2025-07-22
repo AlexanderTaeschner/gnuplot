@@ -1670,7 +1670,7 @@ end\n\
     struct termentry *t = term;
     int i;
     time_t now;
-    char *timedate;
+    char timedate[128];
 
     ps_common_uses_fonts = uses_fonts;
     ps_common_xoff = xoff;
@@ -1679,8 +1679,7 @@ end\n\
     ps_page = 0;
 
     time(&now);
-    timedate=asctime(localtime(&now));
-    timedate[strlen(timedate)-1]='\0';
+    strftime(timedate, sizeof(timedate), "%a %b %d %H:%M    %Y", localtime(&now));
 
 #ifdef PSLATEX_DRIVER
     /* Set files for (e)ps(la)tex terminals */
