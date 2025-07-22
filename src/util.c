@@ -1415,6 +1415,16 @@ parse_esc(char *instr)
 		 * Keep backslash; translation will be handled elsewhere.
 		 */
 		*t++ = '\\';
+
+		/* A trailing escaped char must not be merged into the codepoint.
+		 * I would prefer to insert a zero width space (U+200B) but that
+		 * would violate the assumption that len(t) < len(s).
+		 * The compromise is ascii control character "unit separator".
+		 */
+		if (isxdigit(s[2]) && isxdigit(s[3]) && isxdigit(s[4]) && isxdigit(s[5])
+		&&  (s[6] == '\\') && isxdigit(s[7])) {
+		    s[6] = '\037';
+		}
 	    }
 	} else if (df_separators && *s == '\"' && *(s+1) == '\"') {
 	    /* For parsing CSV strings with quoted quotes */

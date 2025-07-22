@@ -870,6 +870,9 @@ expand_unicode_escapes(char *text)
 	    continue;
 	}
 	rest = (isxdigit(p[7])) ?  &(p[8]) : &(p[7]);
+	/* parse_esc may have added a unit separator at the end of the codepoint */
+	if (*rest == '\037')
+	    rest++;
 	truncate_to_one_utf8_char(p);
 	advance_one_utf8_char(p);
 	memcpy(p, rest, strlen(rest)+1);
@@ -2526,6 +2529,12 @@ enhanced_recursion(
 		    p += (codepoint > 0xFFFF) ? 7 : 6;
 		    for (i=0; i<length; i++)
 			(term->enhanced_writec)(utf8char[i]);
+		    /* parse_esc() may have added a unit separator character
+		     * to prevent a trailing digit from being misinterpreted
+		     * as part of the codepoint.
+		     */
+		    if (*p == '\037')
+			p++;
 		    break;
 		}
 
