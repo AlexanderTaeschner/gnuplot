@@ -2542,18 +2542,15 @@ enhanced_recursion(
 
 	    /* Enhanced mode always uses \xyz as an octal character representation
 	     * but each terminal type must give us the actual output format wanted.
-	     * pdf.trm wanted the raw character code, which is why we use strtol();
-	     * most other terminal types want some variant of "\\%o".
+	     * Most terminal types want either "%c" or "\\%o".
 	     */
-	    if (p[1] >= '0' && p[1] <= '7') {
+	    if ((p[1] >= '0' && p[1] <= '3')
+	    &&  (p[2] >= '0' && p[2] <= '7')
+	    &&  (p[3] >= '0' && p[3] <= '7')) {
 		char *e, escape[16], octal[4] = {'\0','\0','\0','\0'};
-
 		octal[0] = *(++p);
-		if (p[1] >= '0' && p[1] <= '7') {
-		    octal[1] = *(++p);
-		    if (p[1] >= '0' && p[1] <= '7')
-			octal[2] = *(++p);
-		}
+		octal[1] = *(++p);
+		octal[2] = *(++p);
 		sprintf(escape, enhanced_escape_format, strtol(octal,NULL,8));
 		for (e=escape; *e; e++) {
 		    (term->enhanced_writec)(*e);
