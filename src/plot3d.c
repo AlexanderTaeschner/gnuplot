@@ -1169,7 +1169,11 @@ get_3ddata(struct surface_points *this_plot)
 		    color = z;
 		else
 		    color = v[varcol];
-		color_from_column(TRUE);
+		if (this_plot->lp_properties.pm3d_color.type == TC_RGB
+		&&  this_plot->lp_properties.pm3d_color.value >= 0.0)
+		    color_from_column(FALSE);
+		else
+		    color_from_column(TRUE);
 
 	    } else if (this_plot->plot_style == VECTOR) {
 		/* We already enforced that j >= 6 */
