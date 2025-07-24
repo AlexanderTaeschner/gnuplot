@@ -1495,6 +1495,7 @@ void
 f_strlen(union argument *arg)
 {
     struct value a, result;
+    char *expanded_string;
 
     (void) arg;
     (void) pop(&a);
@@ -1502,8 +1503,10 @@ f_strlen(union argument *arg)
     if (a.type != STRING)
 	int_error(NO_CARET, "internal error : strlen of non-STRING argument");
 
-    (void) Ginteger(&result, (int)gp_strlen(a.v.string_val));
+    expanded_string = expand_unicode_escapes(a.v.string_val);
+    Ginteger(&result, (int)gp_strlen(expanded_string));
     gpfree_string(&a);
+    free(expanded_string);
     push(&result);
 }
 
@@ -1512,6 +1515,7 @@ f_strstrt(union argument *arg)
 {
     struct value needle, haystack, result;
     char *start;
+    char *expanded_string;
     int hit = 0;
 
     (void) arg;
@@ -1520,6 +1524,14 @@ f_strstrt(union argument *arg)
 
     if (needle.type != STRING || haystack.type != STRING)
 	int_error(NO_CARET, "internal error : non-STRING argument to strstrt");
+
+    /* Convert escape sequences in both needle and haystack */
+    expanded_string = expand_unicode_escapes(needle.v.string_val);
+    free(needle.v.string_val);
+    needle.v.string_val = expanded_string;
+    expanded_string = expand_unicode_escapes(haystack.v.string_val);
+    free(haystack.v.string_val);
+    haystack.v.string_val = expanded_string;
 
     start = strstr(haystack.v.string_val, needle.v.string_val);
     if (start == 0) {
@@ -1598,6 +1610,7 @@ f_range(union argument *arg)
 	*endp = '\0';
 	push(Gstring(&result, begp));
     }
+    free(expanded_string);
     gpfree_string(&full);
 }
 

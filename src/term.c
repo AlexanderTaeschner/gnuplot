@@ -770,18 +770,20 @@ write_multiline(
     const char *font)           /* NULL or "" means use default */
 {
     struct termentry *t = term;
-    char *p = text;
+    char *expanded_text;
+    char *p;
 
-    if (!p)
+    if (!text)
 	return;
 
-    /* EAM 9-Feb-2003 - Set font before calculating sizes */
+    /* Set font before calculating sizes */
     if (font && *font)
 	(*t->set_font) (font);
 
     if (vert != JUST_TOP) {
 	/* count lines and adjust y */
 	int lines = 0;          /* number of linefeeds - one fewer than lines */
+	p = text;
 	while (*p) {
 	    if (*p++ == '\n')
 		++lines;
@@ -793,7 +795,8 @@ write_multiline(
     }
 
     /* Replace unicode escape sequences with utf8 byte sequence */
-    text = expand_unicode_escapes(text);
+    expanded_text = expand_unicode_escapes(text);
+    p = text = expanded_text;
 
     for (;;) {                  /* we will explicitly break out */
 
@@ -835,6 +838,8 @@ write_multiline(
 	text = p + 1;
     }                           /* unconditional branch back to the for(;;) - just a goto ! */
 
+    free(expanded_text);
+
     if (font && *font)
 	(*t->set_font) ("");
 
@@ -846,22 +851,20 @@ write_multiline(
  * four bytes, which is always less than the seven character escape sequence,
  * so the substitution can be done in place.
  * If the current encoding is not utf8, do nothing.
- * NB: Returned string must be consumed before this routine is called again
- *     (static char *out)
+ * NB: Returned string must be freed by caller
  */
 char *
 expand_unicode_escapes(char *text)
 {
-    static char *out = NULL;
+    char *out = strdup(text);
     char *p, *rest;
 
     if (encoding != S_ENC_UTF8)
-	return text;
+	return out;
     if ((p = strstr(text, "\\U+")) == NULL)
-	return text;
+	return out;
 
-    free(out);
-    p = out = strdup(text);
+    p = out;
 
     while ( (p = strstr(p, "\\U+")) != NULL) {
 	if (!isxdigit(p[3]) || !isxdigit(p[4]) || !isxdigit(p[5]) || !isxdigit(p[6])) {
