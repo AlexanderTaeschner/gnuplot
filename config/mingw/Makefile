@@ -129,6 +129,8 @@ MOUSE=1
 
 # Build qt terminal?
 #QT=1
+# Uncomment to build with Qt6 instead of Qt5
+#QT6=1
 # specify QT installation directory
 #QT_DIR = /c/Qt/5.2.1/mingw48_32
 ifndef MINGW64
@@ -143,6 +145,13 @@ QT_DIR = /mingw32
 else
 QT_DIR = /mingw64
 endif
+endif
+ifdef QT6
+QT_INCLUDE = $(QT_DIR)/include/qt6
+QT_BIN = $(QT_DIR)/share/qt6/bin
+else
+QT_INCLUDE = $(QT_DIR)/include
+QT_BIN = $(QT_DIR)/bin
 endif
 
 # Uncomment the following line to select the lua/tikz terminal
@@ -224,7 +233,11 @@ ifdef CLANG64
 CFLAGS += -fcolor-diagnostics -fansi-escape-codes
 CWFLAGS += -Wno-incompatible-ms-struct -Wno-ignored-attributes
 CWFLAGS += -Wno-infinite-recursion
+ifdef QT6
+CXXFLAGS += -std=c++17
+else
 CXXFLAGS += -std=c++11
+endif
 endif
 ifdef MINGW64
 # This does not seem to work even if GCC_COLORS is set.
@@ -482,10 +495,17 @@ ifdef WXT
 endif
 
 ifdef QT
+ifdef QT6
+	QT_LIBS = -lQt6Core -lQt6Gui -lQt6Network -lQt6Svg -lQt6Widgets -lQt6PrintSupport -lQt6Core5Compat
+else
 	QT_LIBS = -lQt5Core -lQt5Gui -lQt5Network -lQt5Svg -lQt5Widgets -lQt5PrintSupport -lqtmain
-	QT_CXXFLAGS =  -I$(QT_DIR)/include -I$(QT_DIR)/include/Qt -I$(QT_DIR)/include/QtCore -I$(QT_DIR)/include/QtGui
-	QT_CXXFLAGS += -I$(QT_DIR)/include/QtWidgets -I$(QT_DIR)/include/QtNetwork
-	QT_CXXFLAGS += -I$(QT_DIR)/include/QtSvg -DQTGNUPLOT_DATA_DIR=\"$(GNUPLOT_QT_DIR)\"
+endif
+	QT_CXXFLAGS =  -I$(QT_INCLUDE) -I$(QT_INCLUDE)/Qt -I$(QT_INCLUDE)/QtCore -I$(QT_INCLUDE)/QtGui
+	QT_CXXFLAGS += -I$(QT_INCLUDE)/QtWidgets -I$(QT_INCLUDE)/QtNetwork -I$(QT_INCLUDE)/QtSvg
+ifdef QT6
+	QT_CXXFLAGS += -I$(QT_INCLUDE)/QTCore5Compat
+endif
+	QT_CXXFLAGS += -DQTGNUPLOT_DATA_DIR=\"$(GNUPLOT_QT_DIR)\"
 	QT_LDFLAGS = -L$(QT_DIR)/lib
 
 	CFLAGS += -DQTTERM -DQT_NO_OPENGL
@@ -501,10 +521,10 @@ ifdef QT
 		moc_QtGnuplotWidget.o moc_QtGnuplotScene.o \
 		moc_QtGnuplotEvent.o qrc_QtGnuplotResource.o
 
-	MOC = $(QT_DIR)/bin/moc
-	UIC = $(QT_DIR)/bin/uic
-	RCC = $(QT_DIR)/bin/rcc
-	LRELEASE = $(QT_DIR)/bin/lrelease
+	MOC = $(QT_BIN)/moc
+	UIC = $(QT_BIN)/uic
+	RCC = $(QT_BIN)/rcc
+	LRELEASE = $(QT_BIN)/lrelease
 	QT_FILES_TARGETS  = qrc_QtGnuplotResource.cpp ui_QtGnuplotSettings.h moc_QtGnuplotWindow.cpp moc_QtGnuplotApplication.cpp 
 	QT_FILES_TARGETS += moc_QtGnuplotWidget.cpp moc_QtGnuplotScene.cpp moc_QtGnuplotEvent.cpp
 	QT_TRANSLATION = qtgnuplot_fr.qm qtgnuplot_ja.qm
