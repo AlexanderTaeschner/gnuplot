@@ -513,6 +513,11 @@ pm3d_plot(struct surface_points *this_plot, int at_which_z)
 	color_from_fillcolor = TRUE;
     }
 
+    if ((this_plot->plot_style == PM3DSURFACE) || pm3d.implicit) {
+	if (fillcolorspec.type == TC_LT)
+	    color_from_fillcolor = TRUE;
+    }
+
     if (this_plot->lp_properties.colormap)
 	private_colormap = this_plot->lp_properties.colormap;
 
@@ -831,6 +836,8 @@ pm3d_plot(struct surface_points *this_plot, int at_which_z)
 			set_rgbcolor_var(rgb_from_colormap(gray, private_colormap));
 		    else
 			set_color(gray);
+		    if (color_from_fillcolor && fillcolorspec.lt == LT_BACKGROUND)
+			set_color(not_a_number());
 		}
 	      }
 	    }
@@ -1042,6 +1049,8 @@ pm3d_plot(struct surface_points *this_plot, int at_which_z)
 			    } else {
 				qp->gray = gray;
 			    }
+			    if (color_from_fillcolor && fillcolorspec.lt == LT_BACKGROUND)
+				qp->gray = PM3D_USE_BACKGROUND_INSTEAD_OF_GRAY;
 			    qp->index = this_plot->zclip_index;
 			    qp->type = QUAD_TYPE_NORMAL;
 #ifdef WITH_2ND_SORTKEY
@@ -1055,6 +1064,8 @@ pm3d_plot(struct surface_points *this_plot, int at_which_z)
 				set_rgbcolor_var(rgb_from_colormap(gray, private_colormap));
 			    else
 				set_color(gray);
+			    if (color_from_fillcolor && fillcolorspec.lt == LT_BACKGROUND)
+				set_color(not_a_number());
 			    filled_polygon(this_plot, this_plot->zclip_index, corners, 4);
 			}
 		    }
@@ -1082,6 +1093,8 @@ pm3d_plot(struct surface_points *this_plot, int at_which_z)
 		    } else {
 			qp->gray = gray;
 		    }
+		    if (color_from_fillcolor && fillcolorspec.lt == LT_BACKGROUND)
+			qp->gray = PM3D_USE_BACKGROUND_INSTEAD_OF_GRAY;
 		    qp->index = this_plot->zclip_index;
 		    qp->type = QUAD_TYPE_NORMAL;
 #ifdef WITH_2ND_SORTKEY

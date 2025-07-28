@@ -2209,7 +2209,7 @@ eval_3dplots()
 			    parse_fillstyle(&this_plot->fill_properties);
 			    set_fillstyle = TRUE;
 			}
-			if (this_plot->plot_style == PM3DSURFACE)
+			if ((this_plot->plot_style == PM3DSURFACE) || pm3d.implicit)
 			    this_plot->fill_properties.border_color.type = TC_DEFAULT;
 			if (equals(c_token,"fc") || almost_equals(c_token,"fillc$olor")) {
 			    parse_colorspec(&fillcolor, TC_VARIABLE);
