@@ -483,6 +483,7 @@ pm3d_plot(struct surface_points *this_plot, int at_which_z)
     struct coordinate *pointsA, *pointsB;
     struct iso_curve **scan_array;
     int scan_array_n;
+    int tile_side = 1;
     double avgC, gray = 0;
     double cb1, cb2, cb3, cb4;
     gpdPoint corners[4];
@@ -737,9 +738,9 @@ pm3d_plot(struct surface_points *this_plot, int at_which_z)
 			 * top/bottom color difference as with hidden3d
 			 */
 			struct lp_style_type style;
-			int side = pm3d_side( &pointsA[i], &pointsA[i1], &pointsB[ii]);
 			int top = fillcolorspec.lt;
-			lp_use_properties(&style, side < 0 ? top + 1 : top);
+			tile_side = pm3d_side( &pointsA[i], &pointsA[i1], &pointsB[ii]);
+			lp_use_properties(&style, tile_side < 0 ? top + 1 : top);
 			cb1 = cb2 = cb3 = cb4 = style.pm3d_color.rgbcolor;
 		    } else {
 			cb1 = cb2 = cb3 = cb4 = fillcolorspec.lt;
@@ -934,9 +935,8 @@ pm3d_plot(struct surface_points *this_plot, int at_which_z)
 				 * top/bottom color difference as with hidden3d
 				 */
 				struct lp_style_type style;
-				int side = pm3d_side( &pointsA[i], &pointsB[ii], &pointsB[ii1]);
 				int top = fillcolorspec.lt;
-				lp_use_properties(&style, side < 0 ? top + 1 : top);
+				lp_use_properties(&style, tile_side < 0 ? top + 1 : top);
 				gray = style.pm3d_color.rgbcolor;
 			    } else {
 				gray = fillcolorspec.lt;
