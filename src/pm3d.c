@@ -84,6 +84,7 @@ static double harmean4(double, double, double, double);
 static double median4(double, double, double, double);
 static double rms4(double, double, double, double);
 static void pm3d_plot(struct surface_points *, int);
+static double pm3d_average_color( double cb1, double cb2, double cb3, double cb4 );
 static void pm3d_rearrange_part(struct iso_curve *, const int, struct iso_curve ***, int *);
 static int apply_lighting_model(struct coordinate *, struct coordinate *,
 				struct coordinate *, struct coordinate *,
@@ -749,51 +750,14 @@ pm3d_plot(struct surface_points *this_plot, int at_which_z)
 		    cb3 = pointsB[ii].z;
 		    cb4 = pointsB[ii1].z;
 		}
-		/* Fancy averages of RGB color make no sense */
-		if (color_from_rgbvar) {
-		    unsigned int r, g, b, a;
-		    unsigned int u1 = cb1;
-		    unsigned int u2 = cb2;
-		    unsigned int u3 = cb3;
-		    unsigned int u4 = cb4;
-		    switch (pm3d.which_corner_color) {
-			default:
-			    r = (u1&0xff0000) + (u2&0xff0000) + (u3&0xff0000) + (u4&0xff0000);
-			    g = (u1&0xff00) + (u2&0xff00) + (u3&0xff00) + (u4&0xff00);
-			    b = (u1&0xff) + (u2&0xff) + (u3&0xff) + (u4&0xff);
-			    avgC = ((r>>2)&0xff0000) + ((g>>2)&0xff00) + ((b>>2)&0xff);
-			    a = ((u1>>24)&0xff) + ((u2>>24)&0xff) + ((u3>>24)&0xff) + ((u4>>24)&0xff);
-			    avgC += (a<<22)&0xff000000;
-			    break;
-			case PM3D_WHICHCORNER_C1: avgC = cb1; break;
-			case PM3D_WHICHCORNER_C2: avgC = cb2; break;
-			case PM3D_WHICHCORNER_C3: avgC = cb3; break;
-			case PM3D_WHICHCORNER_C4: avgC = cb4; break;
-		    }
 
-		/* But many different averages are possible for gray values */
-		} else  {
-		    switch (pm3d.which_corner_color) {
-			default:
-			case PM3D_WHICHCORNER_MEAN: avgC = (cb1 + cb2 + cb3 + cb4) * 0.25; break;
-			case PM3D_WHICHCORNER_GEOMEAN: avgC = geomean4(cb1, cb2, cb3, cb4); break;
-			case PM3D_WHICHCORNER_HARMEAN: avgC = harmean4(cb1, cb2, cb3, cb4); break;
-			case PM3D_WHICHCORNER_MEDIAN: avgC = median4(cb1, cb2, cb3, cb4); break;
-			case PM3D_WHICHCORNER_MIN: avgC = minimum4(cb1, cb2, cb3, cb4); break;
-			case PM3D_WHICHCORNER_MAX: avgC = maximum4(cb1, cb2, cb3, cb4); break;
-			case PM3D_WHICHCORNER_RMS: avgC = rms4(cb1, cb2, cb3, cb4); break;
-			case PM3D_WHICHCORNER_C1: avgC = cb1; break;
-			case PM3D_WHICHCORNER_C2: avgC = cb2; break;
-			case PM3D_WHICHCORNER_C3: avgC = cb3; break;
-			case PM3D_WHICHCORNER_C4: avgC = cb4; break;
-		    }
-		}
+		avgC = pm3d_average_color(cb1, cb2, cb3, cb4);
 
 		/* The value is out of range, but we didn't figure it out until now */
 		if (isnan(avgC))
 		    continue;
 
-		/* Option to not drawn quadrangles with cb out of range */
+		/* Option to not draw quadrangles with cb out of range */
 		if (pm3d.no_clipcb && (avgC > CB_AXIS.max || avgC < CB_AXIS.min))
 		    continue;
 
@@ -953,23 +917,16 @@ pm3d_plot(struct surface_points *this_plot, int at_which_z)
 			    cb3 = corners[2].z;
 			    cb4 = corners[3].z;
 			}
-			switch (pm3d.which_corner_color) {
-			    default:
-			    case PM3D_WHICHCORNER_MEAN: avgC = (cb1 + cb2 + cb3 + cb4) * 0.25; break;
-			    case PM3D_WHICHCORNER_GEOMEAN: avgC = geomean4(cb1, cb2, cb3, cb4); break;
-			    case PM3D_WHICHCORNER_HARMEAN: avgC = harmean4(cb1, cb2, cb3, cb4); break;
-			    case PM3D_WHICHCORNER_MEDIAN: avgC = median4(cb1, cb2, cb3, cb4); break;
-			    case PM3D_WHICHCORNER_MIN: avgC = minimum4(cb1, cb2, cb3, cb4); break;
-			    case PM3D_WHICHCORNER_MAX: avgC = maximum4(cb1, cb2, cb3, cb4); break;
-			    case PM3D_WHICHCORNER_RMS: avgC = rms4(cb1, cb2, cb3, cb4); break;
-			    case PM3D_WHICHCORNER_C1: avgC = cb1; break;
-			    case PM3D_WHICHCORNER_C2: avgC = cb2; break;
-			    case PM3D_WHICHCORNER_C3: avgC = cb3; break;
-			    case PM3D_WHICHCORNER_C4: avgC = cb4; break;
-			}
+
+			avgC = pm3d_average_color(cb1, cb2, cb3, cb4);
 
 			if (color_from_fillcolor) {
-			    if (fillcolorspec.type == TC_RGB) {
+			    if (color_from_column) {
+				/* color is set by "fc rgbvariable"
+				 * keep the color of the original tile
+				 */
+				gray = pointsA[i].CRD_COLOR;
+			    } else if (fillcolorspec.type == TC_RGB) {
 				/* color is set by "fc <rgbval>" */
 				gray = fillcolorspec.rgbcolor;
 			    } else if (fillcolorspec.type == TC_LINESTYLE) {
@@ -1121,6 +1078,57 @@ pm3d_plot(struct surface_points *this_plot, int at_which_z)
     if (pm3d.direction != PM3D_DEPTH)
 	term->layer(TERM_LAYER_END_PM3D_MAP);
 }				/* end of pm3d splotting mode */
+
+/*
+ * Each corner of a pm3d quadrangle has a color property.
+ * Select or average these to get an overall color for the tile.
+ */
+static double
+pm3d_average_color( double cb1, double cb2, double cb3, double cb4 )
+{
+    double avgC;
+
+    /* Fancy averages of RGB color make no sense */
+    if (color_from_rgbvar) {
+	unsigned int r, g, b, a;
+	unsigned int u1 = cb1;
+	unsigned int u2 = cb2;
+	unsigned int u3 = cb3;
+	unsigned int u4 = cb4;
+	switch (pm3d.which_corner_color) {
+	    default:
+		r = (u1&0xff0000) + (u2&0xff0000) + (u3&0xff0000) + (u4&0xff0000);
+		g = (u1&0xff00) + (u2&0xff00) + (u3&0xff00) + (u4&0xff00);
+		b = (u1&0xff) + (u2&0xff) + (u3&0xff) + (u4&0xff);
+		avgC = ((r>>2)&0xff0000) + ((g>>2)&0xff00) + ((b>>2)&0xff);
+		a = ((u1>>24)&0xff) + ((u2>>24)&0xff) + ((u3>>24)&0xff) + ((u4>>24)&0xff);
+		avgC += (a<<22)&0xff000000;
+		break;
+	    case PM3D_WHICHCORNER_C1: avgC = cb1; break;
+	    case PM3D_WHICHCORNER_C2: avgC = cb2; break;
+	    case PM3D_WHICHCORNER_C3: avgC = cb3; break;
+	    case PM3D_WHICHCORNER_C4: avgC = cb4; break;
+	}
+    return avgC;
+    }
+
+    /* But many different averages are possible for gray values */
+    switch (pm3d.which_corner_color) {
+	default:
+	case PM3D_WHICHCORNER_MEAN: avgC = (cb1 + cb2 + cb3 + cb4) * 0.25; break;
+	case PM3D_WHICHCORNER_GEOMEAN: avgC = geomean4(cb1, cb2, cb3, cb4); break;
+	case PM3D_WHICHCORNER_HARMEAN: avgC = harmean4(cb1, cb2, cb3, cb4); break;
+	case PM3D_WHICHCORNER_MEDIAN: avgC = median4(cb1, cb2, cb3, cb4); break;
+	case PM3D_WHICHCORNER_MIN: avgC = minimum4(cb1, cb2, cb3, cb4); break;
+	case PM3D_WHICHCORNER_MAX: avgC = maximum4(cb1, cb2, cb3, cb4); break;
+	case PM3D_WHICHCORNER_RMS: avgC = rms4(cb1, cb2, cb3, cb4); break;
+	case PM3D_WHICHCORNER_C1: avgC = cb1; break;
+	case PM3D_WHICHCORNER_C2: avgC = cb2; break;
+	case PM3D_WHICHCORNER_C3: avgC = cb3; break;
+	case PM3D_WHICHCORNER_C4: avgC = cb4; break;
+    }
+    return avgC;
+}
 
 /*
  * Adapt pm3d color assignment code to apply to triangles
