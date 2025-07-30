@@ -270,6 +270,7 @@ void f_palette(union argument *);
  */
 unsigned int rgb_from_colorspec(struct t_colorspec *tc);
 unsigned int rgb_from_gray( double gray );
+unsigned int rgb_from_linetype(int lt);
 
 /*
  * Support for colormaps (named palettes)

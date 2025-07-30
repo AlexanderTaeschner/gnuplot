@@ -729,6 +729,10 @@ pm3d_plot(struct surface_points *this_plot, int at_which_z)
 		    cb2 = pointsA[i1].CRD_COLOR;
 		    cb3 = pointsB[ii].CRD_COLOR;
 		    cb4 = pointsB[ii1].CRD_COLOR;
+		    if (fillcolorspec.type == TC_VARIABLE) {
+			cb1 = cb2 = cb3 = cb4 = rgb_from_linetype( (int)cb1 );
+			color_from_rgbvar = TRUE;
+		    }
 		} else if (color_from_fillcolor) {
 		    if (fillcolorspec.type == TC_RGB) {
 			/* color is set by "fc <rgbvalue>" */
@@ -761,7 +765,6 @@ pm3d_plot(struct surface_points *this_plot, int at_which_z)
 		/* Option to not draw quadrangles with cb out of range */
 		if (pm3d.no_clipcb && (avgC > CB_AXIS.max || avgC < CB_AXIS.min))
 		    continue;
-
 		if (color_from_rgbvar) /* we were given an RGB color */
 			gray = avgC;
 		else if (private_colormap)
@@ -912,6 +915,10 @@ pm3d_plot(struct surface_points *this_plot, int at_which_z)
 			    cb2 = corners[1].c;
 			    cb3 = corners[2].c;
 			    cb4 = corners[3].c;
+			    if (fillcolorspec.type == TC_VARIABLE) {
+				cb1 = cb2 = cb3 = cb4 = rgb_from_linetype( (int)cb1 );
+				color_from_rgbvar = TRUE;
+			    }
 			} else {
 			    cb1 = corners[0].z;
 			    cb2 = corners[1].z;

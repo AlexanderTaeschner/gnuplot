@@ -1232,10 +1232,9 @@ get_3ddata(struct surface_points *this_plot)
 		    color = rgb_from_colormap(gray, this_plot->lp_properties.colormap);
 
 		} else if (this_plot->lp_properties.l_type == LT_COLORFROMCOLUMN) {
-		    struct lp_style_type lptmp;
-		    load_linetype(&lptmp, (int)v[--j]);
+		    int lt = v[--j];
 		    color_from_column(TRUE);
-		    color = rgb_from_colorspec( &lptmp.pm3d_color );
+		    color = rgb_from_linetype(lt);
 		}
 
 		if (j >= 4) {
@@ -1261,9 +1260,8 @@ get_3ddata(struct surface_points *this_plot)
 	    } else if (this_plot->plot_style == POLYGONS) {
 		if (j >= 4) {
 		    if (this_plot->lp_properties.l_type == LT_COLORFROMCOLUMN) {
-			struct lp_style_type lptmp;
-			load_linetype(&lptmp, (int)(v[3]));
-			color = rgb_from_colorspec( &lptmp.pm3d_color );
+			int lt = v[3];
+			color = rgb_from_linetype(lt);
 			color_from_column(TRUE);
 		    }
 		    /* This handles "with polygons fc rgb variable".
