@@ -9060,8 +9060,8 @@ Ffigure_zerror
                           {if (<expression>)}
 
  The modifiers `binary`, `index`, `every`, `skip`, `using`, `smooth`, `bins`,
- `mask`, `convexhull`, `concavehull`, `zsort`, and `if` are discussed
- separately.
+ `mask`, `convexhull`, `concavehull`, `volatile`, `zsort`, and `if` are
+ discussed separately.
  In brief:
 #start
 #b `skip N` tells the program to ignore N lines at the start of the input file
@@ -12854,7 +12854,7 @@ D heatmap_points 3
 ^<tr>    <td><tt>%h</tt> or <tt>%H</tt></td>    <td><tt>%g</tt> with "x10^{%S}" or "*10^{%S}" instead of "e%S"</td></tr>
 ^<tr>    <td><tt>%x</tt> or <tt>%X</tt></td>    <td>hex</td></tr>
 ^<tr>    <td><tt>%o</tt> or <tt>%O</tt></td>    <td>octal</td></tr>
-^<tr>    <td><tt>%C</tt> or <tt>%ci</tt></td>    <td>complex value</td></tr>
+^<tr>    <td><tt>%C</tt> or <tt>%Ci</tt></td>    <td>complex value</td></tr>
 ^<tr>    <td><tt>%t</tt></td>    <td>mantissa to base 10</td></tr>
 ^<tr>    <td><tt>%l</tt></td>    <td>mantissa to base of current logscale</td></tr>
 ^<tr>    <td><tt>%s</tt></td>    <td>mantissa to base of current logscale; scientific power</td></tr>
@@ -17396,7 +17396,7 @@ Ffigure_polar_grid
  settings while `set term pop` restores it together with all its previously
  selected options.  This helps in printing, for instance, when switching
  among different terminals---previous options don't have to be repeated.
- When gnuplot is started, the default terminal or that from a from `startup`
+ When gnuplot is started, the default terminal or that from `startup`
  file is pushed automatically. Therefore portable scripts can rely on
  `set term pop` to restore the default terminal on a given platform unless
  another terminal has been pushed explicitly.
