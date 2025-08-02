@@ -3134,8 +3134,10 @@ KITTYGD_text()
     image_do_crop();
 
     /* The 'anchor' option makes each plot write in place rather than scrolling */
-    if (png_state.anchor)
+    if (png_state.anchor) {
 	fprintf(gpoutfile,  "\033[H");
+	fprintf(gpoutfile,  "\033[0J");
+    }
 
     kitty_init(KITTY_FORMAT_PNG);
     b64 = gp_alloc(sizeof(base64s), "base64s");

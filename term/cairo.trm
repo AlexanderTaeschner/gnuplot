@@ -1127,20 +1127,22 @@ void cairotrm_text()
 		}
 #ifdef HAVE_KITTY_TERM
         } else if (strcmp(term->name, "kittycairo") == 0) {
-          base64s *b64;
-          cairo_surface_t *surface = cairo_get_target(plot.cr);
-          /* TODO: crop */
+	    base64s *b64;
+	    cairo_surface_t *surface = cairo_get_target(plot.cr);
+	    /* TODO: crop */
 	  /* Draw starting at top left of screen */
-	  if (cairo_params->anchor)
+	    if (cairo_params->anchor) {
 		fprintf(gpoutfile,  "\033[H");
-          kitty_init(KITTY_FORMAT_PNG);
-          b64 = gp_alloc(sizeof(base64s), "base64s");
-          init_base64_state_data(b64, kitty_writechar, NULL);
-          cairo_surface_write_to_png_stream(surface, cairo_write_base64_callback, b64);
-          piecemeal_write_base64_data_finish(b64);
-          free(b64);
-          kitty_flush(FALSE);
-          fputc('\n', gpoutfile);
+		fprintf(gpoutfile,  "\033[0J");
+	    }
+	    kitty_init(KITTY_FORMAT_PNG);
+	    b64 = gp_alloc(sizeof(base64s), "base64s");
+	    init_base64_state_data(b64, kitty_writechar, NULL);
+	    cairo_surface_write_to_png_stream(surface, cairo_write_base64_callback, b64);
+	    piecemeal_write_base64_data_finish(b64);
+	    free(b64);
+	    kitty_flush(FALSE);
+	    fputc('\n', gpoutfile);
 #endif
         }
 
