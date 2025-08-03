@@ -1022,9 +1022,23 @@ UpdateStatuslineWithMouseSetting(mouse_setting_t * ms)
     char s0[256], *sp;
     s0[0] = 0;
 
-/* This suppresses mouse coordinate update after a ^C */
+#if (0)
+    /* This suppresses mouse coordinate update after a ^C */
+
+    /* History:
+     *	This check was present in version 4,
+     *	disabled in versions 5.0 and 5.2 with a comment that
+     *	any terminal driver that cared should check for itself,
+     *	and then reenabled in 5.4 without comment when similar checks
+     *  were added elsewhere.
+     * Jul 2025:
+     *	The loss of mousing after ^C is annoying.
+     *	Disable this check again (as it was in 5.0 - 5.2) with
+     *	the intent to find a terminal-specific fix if needed.
+     */
     if (!term_initialised)
 	return;
+#endif
 
     if (!ms->on)
 	return;
