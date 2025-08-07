@@ -713,6 +713,17 @@ PNG_options()
 	term->put_text = ENHGD_put_text;
     }
 
+    /* Default to full terminal width; leave 1/4 height underneath for commands */
+    if ((strcmp(term->name, "kittygd") == 0)) {
+	int xpixels, ypixels;
+	term_get_termsize( &xpixels, &ypixels );
+	if (xpixels > 0 && ypixels > 0) {
+	    PNG_XMAX = term->xmax = xpixels;
+	    PNG_YMAX = term->ymax = ypixels * 0.75;
+	    term->h_tic = term->v_tic = 10;
+	}
+    }
+
     while (!END_OF_COMMAND) {
 	switch(lookup_table(&PNG_opts[0],c_token)) {
 	case PNG_TRANSPARENT:
@@ -3135,8 +3146,8 @@ KITTYGD_text()
 
     /* The 'anchor' option makes each plot write in place rather than scrolling */
     if (png_state.anchor) {
-	fprintf(gpoutfile,  "\033[H");
 	fprintf(gpoutfile,  "\033[0J");
+	fprintf(gpoutfile,  "\033[H");
     }
 
     kitty_init(KITTY_FORMAT_PNG);
@@ -3151,6 +3162,8 @@ KITTYGD_text()
     piecemeal_write_base64_data_finish(b64);
     free(b64);
     kitty_flush(FALSE);
+    if (png_state.anchor)
+	fprintf(gpoutfile,  "\033[0J");
     fputc('\n', gpoutfile);
     gdImageDestroy(png_state.image);
 }

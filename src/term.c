@@ -218,6 +218,7 @@ static double term_pointsize=1;
 
 static void term_suspend(void);
 static void term_close_output(void);
+static void term_get_termsize(int *xsize, int *ysize);
 
 static void null_linewidth(double);
 static void do_point(unsigned int x, unsigned int y, int number);
@@ -496,6 +497,27 @@ term_initialise()
 	setlocale(LC_NUMERIC, "C");
 #endif
     }
+}
+
+/*
+ * The kitty terminals (kittycairo and kittygd) would like to default to
+ * using the full width of the terminal.  Use an ioctl to query fd 0
+ * on the assumption that it is STDIN and it is connected to the user's
+ * terminal window.
+ */
+static void
+term_get_termsize(int *xsize, int *ysize)
+{
+#ifdef HAVE_SYS_IOCTL_H
+# include <sys/ioctl.h>
+    struct winsize sz;
+    int ierr = ioctl(0, TIOCGWINSZ, &sz);
+    if (ierr >= 0 && sz.ws_xpixel > 0 && sz.ws_ypixel > 0) {
+	*xsize = sz.ws_xpixel;
+	*ysize = sz.ws_ypixel;
+    } else
+#endif
+    *xsize = *ysize = 0;
 }
 
 
