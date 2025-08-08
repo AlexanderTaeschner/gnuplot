@@ -2067,6 +2067,8 @@ reset_command()
     if (equals(c_token, "session")) {
 	clear_mark();
 	clear_udf_list();
+	if (in_multiplot)
+	    multiplot_end();
 	init_constants();
 	init_session();
 	reset_mouse();
