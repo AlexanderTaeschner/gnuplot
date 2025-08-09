@@ -897,10 +897,10 @@ AS_IF([test "x${with_bitmap_terminals}" = "xyes"],,
           [ Define to disable terminals that depend on code in bitmap.c ]))
 AM_CONDITIONAL(BUILD_BITMAP, test "${with_bitmap_terminals}" = yes)
 
-dnl  Allow to disable support for tektronix terminal emulators
+dnl  Allow to include support for tektronix terminal emulators
 AC_ARG_WITH(tektronix,dnl
-[  --without-tektronix      tektronix terminal emulators (default enabled)])
-AS_IF([test "x${with_tektronix}" != "xno"],
+[  --with-tektronix         tektronix terminal emulators ])
+AS_IF([test "x${with_tektronix}" = "xyes"],
   AC_DEFINE(WITH_TEKTRONIX,1,
           [ Define to include support for tektronix terminal emulators ],))
 
@@ -1033,10 +1033,12 @@ AC_ARG_ENABLE(watchpoints,dnl
 dnl Enable callable blocks of gnuplot code treated as functions
 AC_ARG_ENABLE(function-blocks,dnl
 [  --enable-function-blocks include support for defining a function as a here document],
-  [if test "$enableval" = yes; then
+  [if test "$enableval" != no; then
     AC_DEFINE(USE_FUNCTIONBLOCKS, 1,
                [ Define to support defining a function as a here document])
-   fi]
+   fi],
+    AC_DEFINE(USE_FUNCTIONBLOCKS, 1,
+               [ Define to support defining a function as a here document])
    )
 
 dnl Enable parsing of deprecated syntax
@@ -1260,10 +1262,10 @@ AC_MSG_RESULT([              hp500c hpdj hpljii hppj starc])
 AC_MSG_RESULT([    other:    block pbm ])
 AC_MSG_RESULT([])
 
-if test "$with_tektronix" = no; then
-  AC_MSG_RESULT([  Tektronix terminal emulators: no ( --with-tektronix to enable)])
-else
+if test "$with_tektronix" = yes; then
   AC_MSG_RESULT([  Tektronix terminal emulators: yes ( --without-tektronix to disable)])
+else
+  AC_MSG_RESULT([  Tektronix terminal emulators: no ( --with-tektronix to enable)])
 fi
 AC_MSG_RESULT([    tek410x tek40 vttek xterm kc_tek40 km_tek40 selanar bitgraph])
 AC_MSG_RESULT([    sixeltek (not needed for sixel graphics output to vt100-series emulators)])
@@ -1521,7 +1523,7 @@ else
   AC_MSG_RESULT([  Support for polar gridded surfaces:              no (--enable-polar-grid to enable)])
 fi
 
-if test "$enable_function_blocks" = yes; then
+if test "$enable_function_blocks" != no; then
   AC_MSG_RESULT([  Support function blocks:                         yes])
 else
   AC_MSG_RESULT([  Support function blocks:                         no (--enable-function-blocks to enable)])
