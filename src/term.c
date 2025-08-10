@@ -524,6 +524,14 @@ term_get_termsize(int *xsize, int *ysize)
 void
 term_start_plot()
 {
+    if (term_force_init) {
+	/* Used by kitty and webp terminals to support animation
+	 * (successive frames must start with a blank image).
+	 */
+	term->init();
+	term_force_init = FALSE;
+    } else
+
     if (!term_initialised)
 	term_initialise();
 

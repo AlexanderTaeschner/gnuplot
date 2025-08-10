@@ -71,6 +71,7 @@ TERM_PUBLIC void cairotrm_set_color(t_colorspec *colorspec);
 TERM_PUBLIC void cairotrm_filled_polygon(int n, gpiPoint * corners);
 TERM_PUBLIC void cairotrm_boxed_text(unsigned int x, unsigned int y, int option);
 TERM_PUBLIC void cairotrm_dashtype(int type, t_dashtype *custom_dash_pattern);
+TERM_PUBLIC void cairotrm_layer(t_termlayer layer);
 
 #ifdef HAVE_WEBP
 TERM_PUBLIC void WEBP_options(int);	/* We call it from cairotrm_options */
@@ -1477,6 +1478,24 @@ void cairotrm_dashtype(int type, t_dashtype *custom_dash_pattern)
 	gp_cairo_set_dashtype(&plot, type, custom_dash_pattern);
 }
 
+/*
+ * Used only by the kitty terminal
+ */
+void cairotrm_layer(t_termlayer layer)
+{
+	/* This causes the current foreground of the plot area to be
+	 * cleared at the start of the next plot.
+	 * Good for animation on a transparent background.
+	 * But multiplots _want_ the superposition; that's their whole point.
+	 */
+	if (layer == TERM_LAYER_END_TEXT) {
+	    if (strncmp(term->name, "kitty",5))
+		return;
+	    if (cairo_params->transparent && !in_multiplot)
+		term_force_init = TRUE;
+	}
+}
+
 #endif /* TERM_BODY */
 
 #ifdef TERM_TABLE
@@ -1620,7 +1639,8 @@ TERM_TABLE_START (kittycairo_driver)
     cairotrm_make_palette, 0 /* cairotrm_previous_palette */, cairotrm_set_color, cairotrm_filled_polygon
     , cairotrm_image
     , cairotrm_enhanced_open, cairotrm_enhanced_flush, cairotrm_enhanced_writec
-    , 0, 0, 1.0
+    , cairotrm_layer
+    , 0, 1.0
     , NULL /* hypertext */
     , cairotrm_boxed_text
     , NULL /* modify_plots */
