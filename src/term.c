@@ -900,7 +900,7 @@ expand_unicode_escapes(char *text)
 	    rest++;
 	truncate_to_one_utf8_char(p);
 	advance_one_utf8_char(p);
-	memcpy(p, rest, strlen(rest)+1);
+	memmove(p, rest, strlen(rest)+1);
     }
 
     FPRINTF((stderr, "replacing \"%s\" with \"%s\"\n", text, out));
