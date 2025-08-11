@@ -75,11 +75,6 @@
  *	- terminal options are handled by the pngcairo terminal except
  *	  for animation properties delay <milliseconds> loop <repeat-count>
  *        and quality <integer value 1..100>
- *	- the WebPAnimEncoder API seems to lack an mechanism for setting
- *	  dispose_method to something that properly handles a transparent background.
- *	  This causes successive frames to generate ghost images.
- *	  The utility program webpmux can be used to fix this by post-processing
- *	  the animation file.
  */
 
 #include "driver.h"
@@ -93,6 +88,7 @@ TERM_PUBLIC void WEBP_options(int);
 TERM_PUBLIC void WEBP_init(void);
 TERM_PUBLIC void WEBP_text(void);
 TERM_PUBLIC void WEBP_reset(void);
+TERM_PUBLIC void WEBP_layer(t_termlayer layer);
 #endif /* TERM_PROTO */
 
 #ifdef TERM_BODY
@@ -261,14 +257,15 @@ void WEBP_text()
 
     /* Animation */
     if (webp_params.animate) {
+	FPRINTF((stderr, "WEBP_text: animate frame %d\n", webp_params.frame));
 
 	if (webp_params.frame == 0) {
 	    /* Initialize the animation */
 	    WebPAnimEncoderOptionsInit(&wp_enc_options);
 	    wp_enc_options.anim_params.loop_count = webp_params.loop;
-//	    wp_enc_options.anim_params.bgcolor = cairo_params->rgb_bkgnd;
-//	    if (cairo_params->transparent)
-//		wp_enc_options.anim_params.bgcolor &= 0x00ffffff;
+	    wp_enc_options.anim_params.bgcolor = cairo_params->rgb_bkgnd;
+	    if (cairo_params->transparent)
+		wp_enc_options.anim_params.bgcolor &= 0x00ffffff;
 //	    wp_enc_options.verbose = 1;
 
 	    wp_enc = WebPAnimEncoderNew( picture.width, picture.height, &wp_enc_options);
@@ -277,9 +274,6 @@ void WEBP_text()
 		int_error(NO_CARET, "webp: failed to initialize encoder");
 	    }
 	}
-
-	/* Cairo already did this unless the "transparent" options was set */
-	/* WebPBlendAlpha(&picture, webp_params.background); */
 
 	/* Add this frame to the animation */
 	timestamp_ms = webp_params.frame * webp_params.delay;
@@ -290,6 +284,19 @@ void WEBP_text()
 	webp_params.frame++;
     }
 
+}
+
+/*
+ * The forced re-initialization is so that plots on a transparent
+ * background replace each other rather than superimposing.
+ */
+TERM_PUBLIC void
+WEBP_layer(t_termlayer layer)
+{
+    if (layer == TERM_LAYER_END_TEXT) {
+	if (!in_multiplot)
+	    term_force_init = TRUE;
+    }
 }
 
 /*
@@ -351,7 +358,8 @@ TERM_TABLE_START (webp_driver)
     , cairotrm_make_palette, 0 /* cairotrm_previous_palette */, cairotrm_set_color, cairotrm_filled_polygon
     , cairotrm_image
     , cairotrm_enhanced_open, cairotrm_enhanced_flush, cairotrm_enhanced_writec
-    , 0, 0, 1.0
+    , WEBP_layer
+    , 0, 1.0
     , NULL /* hypertext */
     , cairotrm_boxed_text
     , NULL /* modify_plots */
