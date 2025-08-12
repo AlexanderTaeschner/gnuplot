@@ -3819,7 +3819,7 @@ key_sample_fill(int xl, int yl, struct surface_points *this_plot)
 	struct lp_style_type lp;
 	/* top color */
 	lp_use_properties(&lp, fs->border_color.lt);
-	term_apply_lp_properties(&lp);
+	apply_pm3dcolor(&lp.pm3d_color);
 	tri[0].style = style;
 	tri[0].x = x;   tri[0].y = y;
 	tri[1].x = x+w; tri[1].y = y+h;
@@ -3827,7 +3827,7 @@ key_sample_fill(int xl, int yl, struct surface_points *this_plot)
 	(term->filled_polygon)(3,tri);
 	/* bottom color */
 	lp_use_properties(&lp, fs->border_color.lt+1);
-	term_apply_lp_properties(&lp);
+	apply_pm3dcolor(&lp.pm3d_color);
 	tri[2].x = x+w; tri[2].y = y;
 	(term->filled_polygon)(3,tri);
     } else {
