@@ -79,8 +79,6 @@ typedef enum en_edge_position {
 #define FALSE    0
 #endif
 
-#define MAX_POINTS_PER_CNTR 	100
-
 #define SQR(x)  ((x) * (x))
 
 typedef struct edge_struct {
@@ -103,9 +101,12 @@ typedef struct cntr_struct {
 } cntr_struct;
 
 static struct gnuplot_contours *contour_list = NULL;
-static double crnt_cntr[MAX_POINTS_PER_CNTR * 2];
 static int crnt_cntr_pt_index = 0;
 static double contour_level = 0.0;
+
+/* Dynamic storage for contour lines */
+static double *crnt_cntr = NULL;
+static int max_alloc_cntr = 0;
 
 /* Linear, Cubic interp., Bspline: */
 static t_contour_kind interp_kind = CONTOUR_KIND_LINEAR;
@@ -302,14 +303,10 @@ contour(int num_isolines, struct iso_curve *iso_lines)
 static void
 add_cntr_point(double x, double y)
 {
-    int index;
-
-    if (crnt_cntr_pt_index >= MAX_POINTS_PER_CNTR - 1) {
-	index = crnt_cntr_pt_index - 1;
-	end_crnt_cntr();
-	crnt_cntr[0] = crnt_cntr[index * 2];
-	crnt_cntr[1] = crnt_cntr[index * 2 + 1];
-	crnt_cntr_pt_index = 1;	/* Keep the last point as first of this one. */
+    if (crnt_cntr_pt_index >= max_alloc_cntr - 1) {
+	max_alloc_cntr += 100;
+	crnt_cntr = gp_realloc(crnt_cntr, 2 * max_alloc_cntr * sizeof(double),
+				"dynamic contours");
     }
     crnt_cntr[crnt_cntr_pt_index * 2] = x;
     crnt_cntr[crnt_cntr_pt_index * 2 + 1] = y;
@@ -1064,6 +1061,20 @@ count_contour(cntr_struct *p_cntr)
 	p_cntr = p_cntr->next;
     }
     return count;
+}
+
+/*
+ * Free dynamic storage used to generate contour segments
+ */
+void
+unset_contour()
+{
+    draw_contour = CONTOUR_NONE;
+    if (max_alloc_cntr > 0)
+	free(crnt_cntr);
+    max_alloc_cntr = 0;
+    crnt_cntr = NULL;
+    crnt_cntr_pt_index = 0;
 }
 
 /*
