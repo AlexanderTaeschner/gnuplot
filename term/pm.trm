@@ -800,6 +800,9 @@ PM_layer(t_termlayer layer)
 {
     PM_send_msg(SET_LAYER);
     PM_send_int(layer);
+    /* The kittycairo and webp terminals now use this flag also */
+    if (layer == TERM_LAYER_END_TEXT)
+	term_force_init = TRUE;
 }
 
 
