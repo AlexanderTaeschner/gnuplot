@@ -18,8 +18,9 @@
 #	 make install
 #
 # This makefile was tested with 
-#   MSYS, MinGW32 and Microsoft HTML Help 1.4 SDK.
-#   MSYS2, MinGW-w64
+#   MSYS, MinGW32
+#   MSYS2/MINGW64, MSYS2/CLANG64, MinGW-w64
+#   Microsoft HTML Help 1.4 SDK and the Free Pascal Help Compiler
 
 
 #
@@ -46,12 +47,12 @@ VARIANT = PLAIN
 
 # Set-up your compiler environment
 #
-# Define if you are using MSYS2/MinGW64 instead of MSYS/MinGW
-MINGW64=1
+# Define if you are using MSYS2/MINGW64 instead of MSYS/MinGW
+#MINGW64=1
 # Define if you want a 32bit version (even using a 64bit compiler)
 #M32=1
-# Define if you use clang instead of gcc, requires MINGW64
-#CLANG=1
+# Define if you use clang instead of gcc, requires MSYS2/CLANG64
+CLANG64=1
 # Use the colorgcc frontend explicitly
 #COLORGCC=1
 # Specify the path to the compiler unless it is already in PATH
@@ -128,16 +129,29 @@ MOUSE=1
 
 # Build qt terminal?
 #QT=1
+# Uncomment to build with Qt6 instead of Qt5
+#QT6=1
 # specify QT installation directory
 #QT_DIR = /c/Qt/5.2.1/mingw48_32
 ifndef MINGW64
+ifndef CLANG64
 QT_DIR = /d/Source/Qt-5.2.1-mingw/5.2.1/mingw48_32
+else
+QT_DIR = /clang64
+endif
 else
 ifdef M32
 QT_DIR = /mingw32
 else
 QT_DIR = /mingw64
 endif
+endif
+ifdef QT6
+QT_INCLUDE = $(QT_DIR)/include/qt6
+QT_BIN = $(QT_DIR)/share/qt6/bin
+else
+QT_INCLUDE = $(QT_DIR)/include
+QT_BIN = $(QT_DIR)/bin
 endif
 
 # Uncomment the following line to select the lua/tikz terminal
@@ -215,11 +229,15 @@ DESTDIR = "$(PROGRAMFILES)/gnuplot"
 # Do you want some special optimization / flags?
 #CFLAGS +=
 CWFLAGS += -Wno-unused-function
-ifdef CLANG
+ifdef CLANG64
 CFLAGS += -fcolor-diagnostics -fansi-escape-codes
 CWFLAGS += -Wno-incompatible-ms-struct -Wno-ignored-attributes
 CWFLAGS += -Wno-infinite-recursion
+ifdef QT6
+CXXFLAGS += -std=c++17
+else
 CXXFLAGS += -std=c++11
+endif
 endif
 ifdef MINGW64
 # This does not seem to work even if GCC_COLORS is set.
@@ -227,12 +245,16 @@ ifdef MINGW64
 endif
 
 # To compile the .chm file you need the Microsoft HTML Help 1.4 SDK
-# It can be obtained here:
+# It used to be available here (broken link):
 # http://go.microsoft.com/fwlink/?LinkId=154968
 # We need to explicitly set the correct path here since we also need
 # adjust the include and library paths.
 HHWPATH = $(PROGRAMFILES32)/HTML\ Help\ Workshop/
 HHC = $(HHWPATH)hhc
+
+# Alternatively, you can install the free and open source Pascal compiler
+HHC = C:/FPC/3.2.2/bin/i386-win32/chmcmd.exe
+CHMEXTRA = -DFPC
 
 # Choose which resource compiler you want to use (GNU windres or MS rc):
 GNU_RC = 1
@@ -292,7 +314,7 @@ M32=1
 endif
 endif
 
-ifndef CLANG
+ifndef CLANG64
 ifdef COLORGCC
 CC=$(CCPATH)color-gcc
 CXX=$(CCPATH)color-g++
@@ -305,7 +327,7 @@ CC = gcc
 CXX = g++
 endif
 endif
-else # CLANG
+else # CLANG64
 CC = $(CCPATH)clang
 CXX = $(CCPATH)clang++
 endif
@@ -473,10 +495,17 @@ ifdef WXT
 endif
 
 ifdef QT
+ifdef QT6
+	QT_LIBS = -lQt6Core -lQt6Gui -lQt6Network -lQt6Svg -lQt6Widgets -lQt6PrintSupport -lQt6Core5Compat
+else
 	QT_LIBS = -lQt5Core -lQt5Gui -lQt5Network -lQt5Svg -lQt5Widgets -lQt5PrintSupport -lqtmain
-	QT_CXXFLAGS =  -I$(QT_DIR)/include -I$(QT_DIR)/include/Qt -I$(QT_DIR)/include/QtCore -I$(QT_DIR)/include/QtGui
-	QT_CXXFLAGS += -I$(QT_DIR)/include/QtWidgets -I$(QT_DIR)/include/QtNetwork
-	QT_CXXFLAGS += -I$(QT_DIR)/include/QtSvg -DQTGNUPLOT_DATA_DIR=\"$(GNUPLOT_QT_DIR)\"
+endif
+	QT_CXXFLAGS =  -I$(QT_INCLUDE) -I$(QT_INCLUDE)/Qt -I$(QT_INCLUDE)/QtCore -I$(QT_INCLUDE)/QtGui
+	QT_CXXFLAGS += -I$(QT_INCLUDE)/QtWidgets -I$(QT_INCLUDE)/QtNetwork -I$(QT_INCLUDE)/QtSvg
+ifdef QT6
+	QT_CXXFLAGS += -I$(QT_INCLUDE)/QTCore5Compat
+endif
+	QT_CXXFLAGS += -DQTGNUPLOT_DATA_DIR=\"$(GNUPLOT_QT_DIR)\"
 	QT_LDFLAGS = -L$(QT_DIR)/lib
 
 	CFLAGS += -DQTTERM -DQT_NO_OPENGL
@@ -492,10 +521,10 @@ ifdef QT
 		moc_QtGnuplotWidget.o moc_QtGnuplotScene.o \
 		moc_QtGnuplotEvent.o qrc_QtGnuplotResource.o
 
-	MOC = $(QT_DIR)/bin/moc
-	UIC = $(QT_DIR)/bin/uic
-	RCC = $(QT_DIR)/bin/rcc
-	LRELEASE = $(QT_DIR)/bin/lrelease
+	MOC = $(QT_BIN)/moc
+	UIC = $(QT_BIN)/uic
+	RCC = $(QT_BIN)/rcc
+	LRELEASE = $(QT_BIN)/lrelease
 	QT_FILES_TARGETS  = qrc_QtGnuplotResource.cpp ui_QtGnuplotSettings.h moc_QtGnuplotWindow.cpp moc_QtGnuplotApplication.cpp 
 	QT_FILES_TARGETS += moc_QtGnuplotWidget.cpp moc_QtGnuplotScene.cpp moc_QtGnuplotEvent.cpp
 	QT_TRANSLATION = qtgnuplot_fr.qm qtgnuplot_ja.qm
@@ -835,6 +864,7 @@ $(BUILDHELPFILE): doc2html.exe $(D)gnuplot.doc $(D)windows/wgnuplot.hhp $(D)wind
 	./doc2html $(D)gnuplot.doc $(D)windows/
 	-./$(TARGET) -d -e "winhelp=1; cd '$(D)'" plotstyles.gnu
 	-./$(TARGET) -d -e "winhelp=1; cd '$(D)'" morefigures.gnu
+	-$(CP) $(D)html/*.png $(D)windows/
 	-$(HHC) $(D)windows/wgnuplot.hhp
 
 $(HELPFILE): $(BUILDHELPFILE)
@@ -842,14 +872,22 @@ $(HELPFILE): $(BUILDHELPFILE)
 
 htmlhelp.def: /c/Windows/System32/hhctrl.ocx
 ifndef MINGW64
+ifndef CLANG64
 	pexports $^ > $@
+else
+	gendef - $^ > $@
+endif
 else
 	gendef - $^ > $@
 endif
 
 prntvpt.def: /c/Windows/System32/prntvpt.dll
 ifndef MINGW64
+ifndef CLANG64
 	pexports $^ > $@
+else
+	gendef - $^ > $@
+endif
 else
 	gendef - $^ > $@
 endif
@@ -895,6 +933,7 @@ wgnuplot-ja.chm: $(JASRC) doc2html-ja.exe \
 	# Build help file
 	-./$(TARGET) -d -e "winhelp=1; cd '$(JAD)'" plotstyles.gnu
 	-./$(TARGET) -d -e "winhelp=1; cd '$(JAD)'" morefigures.gnu
+	-$(CP) $(D)html/*.png $(JADW)
 	-$(HHC) $(JADW)wgnuplot.hhp
 	cp $(JADW)wgnuplot.chm $(HELPFILEJA)
 
@@ -902,12 +941,14 @@ doc2html.exe: $(CORETERM) $(D)windows/doc2html.c $(D)termdoc.c $(D)xref.c versio
 	$(LD) $(LDFLAGS) -o $@ -DWINDOWS_NO_GUI \
 	    -DVERSION_MAJOR='"$(MAINVERSION)"' -DPATCHLEVEL='"$(PATCHLEVEL)"' \
 	    $(CFLAGS_DOCS) -I. -I$(D:/=) -I$(T:/=) \
+	    $(CHMEXTRA) \
 	    $(D)windows/doc2html.c $(D)termdoc.c $(D)xref.c
 
 doc2html-ja.exe: $(JASRC) $(D)windows/doc2html.c $(D)termdoc.c $(D)xref.c version.o $(LUA_HELP)
 	$(LD) $(LDFLAGS) -o $@ -DWINDOWS_NO_GUI \
 	    -DVERSION_MAJOR='"$(MAINVERSION)"' -DPATCHLEVEL='"$(PATCHLEVEL)"' \
 	    -DJAPANESE_DOC $(CFLAGS_DOCS) -I. -I$(JAD) -I$(JA)/term \
+	    $(CHMEXTRA) \
 	    $(D)windows/doc2html.c $(D)termdoc.c $(D)xref.c
 
 doc2ms.exe: $(D)doc2ms.c $(D)termdoc.c $(D)xref.c version.o $(LUA_HELP)

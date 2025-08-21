@@ -77,7 +77,6 @@ static void unset_fillstyle(void);
 static void unset_clip(void);
 static void unset_cntrparam(void);
 static void unset_cntrlabel(void);
-static void unset_contour(void);
 static void unset_contourfill(void);
 static void unset_dashtype(void);
 static void unset_dgrid3d(void);
@@ -90,6 +89,7 @@ static void unset_hidden3d(void);
 static void unset_histogram(void);
 static void unset_textbox_style(void);
 static void unset_historysize(void);
+static void unset_imaginary_i(void);
 static void unset_pixmaps(void);
 static void unset_pixmap(int);
 static void unset_isosamples(void);
@@ -268,6 +268,9 @@ unset_command()
 	break;
     case S_HISTORYSIZE:	/* Deprecated */
 	unset_historysize();
+	break;
+    case S_I_SYMBOL:
+	unset_imaginary_i();
 	break;
     case S_PIXMAP:
 	if (END_OF_COMMAND)
@@ -974,14 +977,6 @@ unset_contourfill()
     contourfill.firstlinetype = -1;
 }
 
-/* process 'unset contour' command */
-static void
-unset_contour()
-{
-    draw_contour = CONTOUR_NONE;
-}
-
-
 /* process 'unset dashtype' command */
 static void
 unset_dashtype()
@@ -1434,6 +1429,14 @@ unset_margin(t_position *margin)
 {
     margin->scalex = character;
     margin->x = -1;
+}
+
+/* process 'unset imaginary_i' command */
+static void
+unset_imaginary_i()
+{
+    free(imaginary_user);
+    imaginary_user = NULL;
 }
 
 /* process 'unset micro' command */
@@ -2055,6 +2058,8 @@ reset_command()
     if (equals(c_token, "session")) {
 	clear_mark();
 	clear_udf_list();
+	if (in_multiplot)
+	    multiplot_end();
 	init_constants();
 	init_session();
 	reset_mouse();
@@ -2263,6 +2268,8 @@ reset_command()
     unset_histogram();
     unset_textbox_style();
     unset_watchpoint_style();
+
+    unset_imaginary_i();
 
     reset_hulls(1);
     reset_watches();

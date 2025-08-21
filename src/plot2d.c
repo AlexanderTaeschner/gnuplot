@@ -3186,6 +3186,9 @@ eval_plots()
 			this_plot->fill_properties = default_fillstyle;
 			this_plot->fill_properties.fillpattern = pattern_num;
 		    }
+		    if (this_plot->plot_style == MARKS) {
+			this_plot->fill_properties.border_color.type = TC_DEFAULT;
+		    }
 		    parse_fillstyle(&this_plot->fill_properties);
 		}
 		if ((this_plot->fill_properties.fillstyle == FS_PATTERN)

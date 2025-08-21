@@ -163,7 +163,7 @@ static bool qt_optionEnhanced = true;
 static bool qt_optionPersist  = false;
 static bool qt_optionRaise    = true;
 static bool qt_optionCtrl     = false;
-static bool qt_optionRounded  = true; 
+static bool qt_optionRounded  = true;
 static bool qt_optionAntiAlias  = true;
 static bool qt_optionReplotOnResize  = true;
 static bool qt_optionDash     = true;
@@ -173,10 +173,10 @@ static double qt_optionFontSize = 10.0;
 static double qt_optionDashLength = 1.0;
 static double qt_optionLineWidth = 1.0;
 
-static int qt_optionctrlq = -1;	         // tristate -1 = not set 0 = false 1 = true 
-static int qt_optionrounded = -1;	 // tristate -1 = not set 0 = false 1 = true 
-static int qt_optionantialias = -1;	 // tristate -1 = not set 0 = false 1 = true 
-static int qt_optionreplotonresize = -1; // tristate -1 = not set 0 = false 1 = true 
+static int qt_optionctrlq = -1;	         // tristate -1 = not set 0 = false 1 = true
+static int qt_optionrounded = -1;	 // tristate -1 = not set 0 = false 1 = true
+static int qt_optionantialias = -1;	 // tristate -1 = not set 0 = false 1 = true
+static int qt_optionreplotonresize = -1; // tristate -1 = not set 0 = false 1 = true
 
 /* Encapsulates all Qt options that have a constructor and destructor. */
 struct QtOption {
@@ -496,6 +496,7 @@ void qt_sendFont()
 	{
 		qt->out << GEFontMetricRequest;
 		qt_flushOutBuffer();
+
 		bool receivedFontProps = false;
 		int waitcount = 0;
 		while (!receivedFontProps)
@@ -1205,7 +1206,7 @@ int qt_waitforinput(int options)
 
 		// Process pending qt events
 		if ((idx_socket != -1) && // (qt != NULL)) &&
-			(qt->socket.waitForReadyRead(0)) && (qt->socket.bytesAvailable() >= (int)sizeof(gp_event_t)))
+			(qt->socket.waitForReadyRead(10)) && (qt->socket.bytesAvailable() >= (int)sizeof(gp_event_t)))
 			waitResult = idx_socket; // data already available
 
 		// Wait for a new event
@@ -1227,7 +1228,7 @@ int qt_waitforinput(int options)
 			}
 
 		} else if ((waitResult == idx_socket) && (idx_socket != -1)) { // qt terminal
-			qt->socket.waitForReadyRead(0);
+			qt->socket.waitForReadyRead(10);
 			// Temporary event for mouse move events. If several consecutive move events
 			// are received, only transmit the last one.
 			gp_event_t tempEvent;

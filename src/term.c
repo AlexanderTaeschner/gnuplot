@@ -218,6 +218,7 @@ static double term_pointsize=1;
 
 static void term_suspend(void);
 static void term_close_output(void);
+static void term_get_termsize(int *xsize, int *ysize);
 
 static void null_linewidth(double);
 static void do_point(unsigned int x, unsigned int y, int number);
@@ -498,10 +499,39 @@ term_initialise()
     }
 }
 
+/*
+ * The kitty terminals (kittycairo and kittygd) would like to default to
+ * using the full width of the terminal.  Use an ioctl to query fd 0
+ * on the assumption that it is STDIN and it is connected to the user's
+ * terminal window.
+ */
+static void
+term_get_termsize(int *xsize, int *ysize)
+{
+#ifdef HAVE_SYS_IOCTL_H
+# include <sys/ioctl.h>
+    struct winsize sz;
+    int ierr = ioctl(0, TIOCGWINSZ, &sz);
+    if (ierr >= 0 && sz.ws_xpixel > 0 && sz.ws_ypixel > 0) {
+	*xsize = sz.ws_xpixel;
+	*ysize = sz.ws_ypixel;
+    } else
+#endif
+    *xsize = *ysize = 0;
+}
+
 
 void
 term_start_plot()
 {
+    if (term_force_init) {
+	/* Used by kitty and webp terminals to support animation
+	 * (successive frames must start with a blank image).
+	 */
+	term->init();
+	term_force_init = FALSE;
+    } else
+
     if (!term_initialised)
 	term_initialise();
 
@@ -770,18 +800,20 @@ write_multiline(
     const char *font)           /* NULL or "" means use default */
 {
     struct termentry *t = term;
-    char *p = text;
+    char *expanded_text;
+    char *p;
 
-    if (!p)
+    if (!text)
 	return;
 
-    /* EAM 9-Feb-2003 - Set font before calculating sizes */
+    /* Set font before calculating sizes */
     if (font && *font)
 	(*t->set_font) (font);
 
     if (vert != JUST_TOP) {
 	/* count lines and adjust y */
 	int lines = 0;          /* number of linefeeds - one fewer than lines */
+	p = text;
 	while (*p) {
 	    if (*p++ == '\n')
 		++lines;
@@ -791,6 +823,10 @@ write_multiline(
 	else
 	    y += (vert * lines * t->v_char) / 2;
     }
+
+    /* Replace unicode escape sequences with utf8 byte sequence */
+    expanded_text = expand_unicode_escapes(text);
+    p = text = expanded_text;
 
     for (;;) {                  /* we will explicitly break out */
 
@@ -832,11 +868,52 @@ write_multiline(
 	text = p + 1;
     }                           /* unconditional branch back to the for(;;) - just a goto ! */
 
+    free(expanded_text);
+
     if (font && *font)
 	(*t->set_font) ("");
 
 }
 
+/*
+ * Replace unicode escape sequences \U+xxxx with the corresponding
+ * UTF-8 byte sequences.  Note that a utf8 character encoding is no longer than
+ * four bytes, which is always less than the seven character escape sequence,
+ * so the substitution can be done in place.
+ * If the current encoding is not utf8, do nothing.
+ * NB: Returned string must be freed by caller
+ */
+char *
+expand_unicode_escapes(char *text)
+{
+    char *out = strdup(text);
+    char *p, *rest;
+
+    if (encoding != S_ENC_UTF8)
+	return out;
+    if ((p = strstr(text, "\\U+")) == NULL)
+	return out;
+
+    p = out;
+
+    while ( (p = strstr(p, "\\U+")) != NULL) {
+	if (!isxdigit(p[3]) || !isxdigit(p[4]) || !isxdigit(p[5]) || !isxdigit(p[6])) {
+	    int_warn(NO_CARET, "misformed unicode escape sequence %7.7s", p);
+	    p += 7;
+	    continue;
+	}
+	rest = (isxdigit(p[7])) ?  &(p[8]) : &(p[7]);
+	/* parse_esc may have added a unit separator at the end of the codepoint */
+	if (*rest == '\037')
+	    rest++;
+	truncate_to_one_utf8_char(p);
+	advance_one_utf8_char(p);
+	memmove(p, rest, strlen(rest)+1);
+    }
+
+    FPRINTF((stderr, "replacing \"%s\" with \"%s\"\n", text, out));
+    return out;
+}
 
 static void
 do_point(unsigned int x, unsigned int y, int number)
@@ -2485,6 +2562,12 @@ enhanced_recursion(
 		    p += (codepoint > 0xFFFF) ? 7 : 6;
 		    for (i=0; i<length; i++)
 			(term->enhanced_writec)(utf8char[i]);
+		    /* parse_esc() may have added a unit separator character
+		     * to prevent a trailing digit from being misinterpreted
+		     * as part of the codepoint.
+		     */
+		    if (*p == '\037')
+			p++;
 		    break;
 		}
 
@@ -2501,18 +2584,15 @@ enhanced_recursion(
 
 	    /* Enhanced mode always uses \xyz as an octal character representation
 	     * but each terminal type must give us the actual output format wanted.
-	     * pdf.trm wanted the raw character code, which is why we use strtol();
-	     * most other terminal types want some variant of "\\%o".
+	     * Most terminal types want either "%c" or "\\%o".
 	     */
-	    if (p[1] >= '0' && p[1] <= '7') {
+	    if ((p[1] >= '0' && p[1] <= '3')
+	    &&  (p[2] >= '0' && p[2] <= '7')
+	    &&  (p[3] >= '0' && p[3] <= '7')) {
 		char *e, escape[16], octal[4] = {'\0','\0','\0','\0'};
-
 		octal[0] = *(++p);
-		if (p[1] >= '0' && p[1] <= '7') {
-		    octal[1] = *(++p);
-		    if (p[1] >= '0' && p[1] <= '7')
-			octal[2] = *(++p);
-		}
+		octal[1] = *(++p);
+		octal[2] = *(++p);
 		sprintf(escape, enhanced_escape_format, strtol(octal,NULL,8));
 		for (e=escape; *e; e++) {
 		    (term->enhanced_writec)(*e);

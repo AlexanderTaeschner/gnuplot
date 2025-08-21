@@ -87,6 +87,7 @@ extern dynarray dyn_contour_levels_list;
 /* Prototypes of functions exported by contour.c */
 
 struct gnuplot_contours *contour(int num_isolines, struct iso_curve *iso_lines);
+void unset_contour(void);
 
 
 #endif /* GNUPLOT_CONTOUR_H */

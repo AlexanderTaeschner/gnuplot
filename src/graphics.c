@@ -1759,10 +1759,10 @@ plot_betweencurves(struct curve_points *plot)
 	if (polar) {
 	    double ox = map_x(0);
 	    double oy = map_y(0);
-	    double plx = map_x(plot->points[istart].x);
-	    double ply = map_y(plot->points[istart].y);
-	    double pux = map_x(plot->points[istart].xhigh);
-	    double puy = map_y(plot->points[istart].yhigh);
+	    double plx = map_x(plot->points[i].x);
+	    double ply = map_y(plot->points[i].y);
+	    double pux = map_x(plot->points[i].xhigh);
+	    double puy = map_y(plot->points[i].yhigh);
 	    double drl = (plx-ox)*(plx-ox) + (ply-oy)*(ply-oy);
 	    double dru = (pux-ox)*(pux-ox) + (puy-oy)*(puy-oy);
 
@@ -1772,7 +1772,7 @@ plot_betweencurves(struct curve_points *plot)
 	}
 
 	if (!finish) {
-	    /* EAM 19-July-2007  Special case for polar plots. */
+	    /* Special case for polar plots. */
 	    if (polar) {
 		/* Find intersection of the two lines.                   */
 		/* Probably could use this code in the general case too. */
@@ -1782,9 +1782,10 @@ plot_betweencurves(struct curve_points *plot)
 		double d = yu1 - xu1 * C;
 		xmid = (d-b) / (A-C);
 		ymid = A * xmid + b;
-
-		if ((x1-xmid)*(xmid-x2) > 0)
-		    finish=2;
+		if ((x1-xmid) == 0 && (xmid-x2) == 0)
+		    /* nothing */;
+		else if ((x1-xmid)*(xmid-x2) >= 0)
+		    finish = 2;
 	    } else if ((yu1-yl1) == 0 && (yu2-yl2) == 0) {
 		/* nothing */
 	    } else if ((yu1-yl1)*(yu2-yl2) <= 0) {
@@ -1793,7 +1794,7 @@ plot_betweencurves(struct curve_points *plot)
 		     / ((yu1-yl1) + (yl2-yu2));
 		ymid = yu1 + (yu2-yu1)*(xmid-x1)/(x2-x1);
 
-		finish=2;
+		finish = 2;
 	    }
 	}
 

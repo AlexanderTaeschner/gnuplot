@@ -58,6 +58,7 @@ static RETSIGTYPE fpe(int an_int);
 /* Global variables exported by this module */
 struct udvt_entry udv_pi = { NULL, "pi", {INTGR, {0} } };
 struct udvt_entry *udv_I;
+struct udvt_entry *udv_Inf;
 struct udvt_entry *udv_NaN;
 /* first in linked list */
 struct udvt_entry *first_udv = &udv_pi;
@@ -1176,8 +1177,9 @@ update_gpval_variables(int context)
 
 	fill_gpval_string("GPVAL_ENCODING", encoding_names[encoding]);
 
-	/* Permanent copy of user-clobberable variables pi and NaN */
+	/* Permanent copy of user-clobberable variables pi, Inf, and NaN */
 	fill_gpval_float("GPVAL_pi", M_PI);
+	fill_gpval_float("GPVAL_Inf", INFINITY);
 	fill_gpval_float("GPVAL_NaN", not_a_number());
 
 	/* System information */

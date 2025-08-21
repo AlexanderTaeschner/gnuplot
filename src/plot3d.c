@@ -1169,7 +1169,11 @@ get_3ddata(struct surface_points *this_plot)
 		    color = z;
 		else
 		    color = v[varcol];
-		color_from_column(TRUE);
+		if (this_plot->lp_properties.pm3d_color.type == TC_RGB
+		&&  this_plot->lp_properties.pm3d_color.value >= 0.0)
+		    color_from_column(FALSE);
+		else
+		    color_from_column(TRUE);
 
 	    } else if (this_plot->plot_style == VECTOR) {
 		/* We already enforced that j >= 6 */
@@ -1228,10 +1232,9 @@ get_3ddata(struct surface_points *this_plot)
 		    color = rgb_from_colormap(gray, this_plot->lp_properties.colormap);
 
 		} else if (this_plot->lp_properties.l_type == LT_COLORFROMCOLUMN) {
-		    struct lp_style_type lptmp;
-		    load_linetype(&lptmp, (int)v[--j]);
+		    int lt = v[--j];
 		    color_from_column(TRUE);
-		    color = rgb_from_colorspec( &lptmp.pm3d_color );
+		    color = rgb_from_linetype(lt);
 		}
 
 		if (j >= 4) {
@@ -1257,9 +1260,8 @@ get_3ddata(struct surface_points *this_plot)
 	    } else if (this_plot->plot_style == POLYGONS) {
 		if (j >= 4) {
 		    if (this_plot->lp_properties.l_type == LT_COLORFROMCOLUMN) {
-			struct lp_style_type lptmp;
-			load_linetype(&lptmp, (int)(v[3]));
-			color = rgb_from_colorspec( &lptmp.pm3d_color );
+			int lt = v[3];
+			color = rgb_from_linetype(lt);
 			color_from_column(TRUE);
 		    }
 		    /* This handles "with polygons fc rgb variable".
@@ -2205,7 +2207,7 @@ eval_3dplots()
 			    parse_fillstyle(&this_plot->fill_properties);
 			    set_fillstyle = TRUE;
 			}
-			if (this_plot->plot_style == PM3DSURFACE)
+			if ((this_plot->plot_style == PM3DSURFACE) || pm3d.implicit)
 			    this_plot->fill_properties.border_color.type = TC_DEFAULT;
 			if (equals(c_token,"fc") || almost_equals(c_token,"fillc$olor")) {
 			    parse_colorspec(&fillcolor, TC_VARIABLE);
@@ -2967,6 +2969,9 @@ eval_3dplots()
 	    ||  this_plot->plot_style == IMAGE
 	    ||  this_plot->plot_style == RGBIMAGE
 	    ||  this_plot->plot_style == RGBA_IMAGE)
+		continue;
+	    if ((this_plot->plot_style == POLYGONS)
+	    ||  (this_plot->plot_style == FILLEDCURVES))
 		continue;
 	    if (this_plot->plot_type == NODATA)
 		continue;

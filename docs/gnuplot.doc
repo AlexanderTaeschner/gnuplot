@@ -440,11 +440,11 @@ D viridis 1
       unset print
 
 #start
-#b EXPERIMENTAL. The `replot` command will check to see if the most recent
-## plot command was part of a completed multiplot.  If so, it will execute
-## `remultiplot` instead of reexecuting that single plot command.
-#b EXPERIMENTAL. Mousing operations while a multiplot is displayed will also
-## now automatically treat a replot/refresh request as `remultiplot`.
+#b The `replot` command will check to see if the most recent plot command
+## was part of a completed multiplot.  If so, it will execute `remultiplot`
+## instead of reexecuting that single plot command.
+#b Mousing operations while a multiplot is displayed will also automatically
+## treat a replot/refresh request as `remultiplot`.
 ## However the mouse coordinate readout and thus zoom/pan operations are
 ## still based solely on the axis settings for the final component plot,
 ## as was the case in earlier gnuplot versions.  Because the commands stored
@@ -511,6 +511,7 @@ D epi_data 1
 
 3 Other new features
 ?new other_features
+ For features added since version 6.0, see `development`.
 #start
 #b `Time units for setting major and minor tics.`
 ## Both major and minor tics along a time axis now accept tic intervals given
@@ -644,8 +645,8 @@ D epi_data 1
  reported on startup or by `gnuplot --version`.
 
  Here is a partial list of features under development that have not yet
- appeared in a stable release. Items near the top of the list will probably
- be back-ported to an incremental update of the stable version (6.0.x).
+ appeared in a stable release. Items near the top of the list may be
+ back-ported to an incremental update of the stable version (6.0.x).
  Items near the bottom of the list may not appear in a stable release before
  version 6.2.
 #start
@@ -684,6 +685,13 @@ D epi_data 1
 ## Example:     N! == prod [i=1:N] i 
 #b New category of graphical objects called "marks" that allow definition
 ## of complex symbols used in plots.  See `marks`.
+#b See `escape sequences`.
+## Unicode escape sequences are accepted in both "enhanced" and "noenhanced" text.
+## Unicode escape sequences are expanded during substring evaluation.
+## Octal escape sequences are required to contain exactly three digits.
+#b New gprintf format specifiers %C and %Ci to output complex values.
+## See `gprintf complex` and `imaginary_i`. [EXPERIMENTAL]
+#b Document that the program offers predefined variables I, Inf, and NaN
 #end
 
 2 Demos and Online Examples
@@ -1132,15 +1140,22 @@ C  need @ in table, so end and restart the table !
 ?escape sequences
 ?enhanced text escape sequences
 ?unicode
- The backslash character \ is used to escape single byte character codes or
- Unicode entry points.
+ The backslash character \ introduces an escape sequence representing a single
+ character.
 
- The form \ooo (where ooo is a 3 character octal value) can be used to index a
- known character code in a specific font encoding.  For example the Adobe Symbol
- font uses a custom encoding in which octal 245 represents the infinity symbol.
+ The form \X, where X is any single character, is handled differently in single-
+ and double- quoted strings.  See `quotes`. The "\X" is used verbatim in
+ single-quoted non-enhanced text. In double-quoted text "\X" becomes "X"
+ except for the special cases \n (newline) \r (return) and \t (tab).
+
+ The form \ooo, where ooo is a 3 digit octal value, can be used to index a
+ known character code in a specific font encoding.  This is mostly useful for
+ the PostScript terminal because it cannot easily handle UTF-8 encoding.
+ For example, PostScript output historically relied on the Adobe Symbol font,
+ which uses a custom encoding in which octal 245 represents the infinity symbol.
  You could embed this in an enhanced text string by giving the font name and the
- character code "{/Symbol \245}".  This is mostly useful for the PostScript
- terminal, which cannot easily handle UTF-8 encoding.
+ character code "{/Symbol \245}".  This mechanism may also remain useful to
+ access characters in non-UTF8 fonts or locales.
 
  You can specify a character by its Unicode code point as \U+hhhh, where hhhh
  is the 4 or 5 character hexadecimal code point. For example the code point for
@@ -1149,10 +1164,27 @@ C  need @ in table, so end and restart the table !
  is not needed for printable special characters since they are handled in a
  text string like any other character. However it is useful for combining forms
  or supplemental diacritical marks (e.g. an arrow over a letter to represent
- a vector).  See `set encoding`, `utf8`, and the
-^ <a href="http://www.gnuplot.info/demo_5.4/unicode.html">
+ a vector).  See `utf8`, `string encoding`, and the
+^ <a href="http://www.gnuplot.info/demo/unicode.html">
  online unicode demo.
 ^ </a>
+
+ Since Unicode codepoints may consist of either 4 or 5 characters, the syntax
+ would become ambiguous if a 4 character escape were immediately followed by
+ another character than might be misinterpreted as being part of a 5 digit code.
+ In such a case you must separate the escape sequence from the next character.
+      Example:  Create a label "α1 + α2"
+      enhanced text:      set label "{\U+03B1}1 + {\U+03B1}2"   enhanced
+      non-enhanced text:  set label "\U+03B1\1 + \U+03B1\2"   noenhanced
+
+ Note that Unicode escape sequences are stored in a string without
+ interpretation.  The escape sequence is replaced by the character it represents
+ when the string is printed or evaluated during substring processing.
+ Thus after defining a string S = "A + \U+03A3 B", S[5:5] evaluates to "Σ"
+ rather than "\", but (S eq S[1:*]) evaluates to FALSE because S holds the
+ unprocessed escape sequence while evaluation of S[1:*] replaces the escape
+ sequence with the UTF-8 byte sequence for Σ.
+ Both will display as "A + Σ B" when used in a plot.
 
 2 Environment
 ?environment
@@ -2061,12 +2093,14 @@ C 4 FresnelS
 %_
 4 gprintf
 ?expressions functions gprintf
-#gprintf("format",x,...) & any & string result from applying gnuplot's format parser \\
-%gprintf("format",x,...)@any@string result from applying gnuplot's format parser
- `gprintf("format",x)` applies gnuplot's own format specifiers to the single
- variable x and returns the resulting string. If you want standard C-language
- format specifiers, you must instead use `sprintf("format",x)`.
- See `format specifiers`.
+?gprintf
+#gprintf("format",x) & any & string result from applying gnuplot's format parser \\
+%gprintf("format",x)@any@string result from applying gnuplot's format parser
+ The string function gprintf("format",x) uses gnuplot's own format specifiers,
+ which are not the same as those used by the C-language routine sprintf().
+ gprintf() accepts only a single numeric variable to be formatted and returns
+ the resulting string.  See `format numeric`.
+ Gnuplot also provides an sprintf("format",x1,x2,...) routine if you prefer.
 4 sprintf
 ?expressions functions sprintf
 ?sprintf
@@ -2581,8 +2615,7 @@ C 4 weekdata_cdc
 ?invibeta
  The inverse incomplete beta function `invibeta(a,b,p)` returns the value
  z such that p = ibeta(a,b,z).  a, b are limited to positive real values
- and p is in the interval [0,1].  Note that as a, b approach zero
-#TeX ($\lessapprox 0.05$)
+ and p is in the interval [0,1].  Note that as a, b approach zero (≲0.05)
  invibeta() approaches 1.0 and its relative accuracy is limited by
  floating point precision.
 
@@ -3314,6 +3347,9 @@ C ... and restart the table:
 ?user-defined variables
 ?user-defined
 ?variables
+?Inf
+?NaN
+?pi
  New user-defined variables and functions of one through twelve variables may
  be declared and used anywhere, including on the `plot` command itself.
 
@@ -3348,12 +3384,13 @@ C ... and restart the table:
 
 =NaN
 =pi
- Note that the variables `pi` (3.14159...) and `NaN` (IEEE "Not a Number") are
- already defined.  You can redefine these to something else if you really need
- to. The original values can be recovered by setting:
+=Inf
+ Variables `pi` (3.14159...), `Inf` (INFINITY), and `NaN` (IEEE "Not a Number")
+ are defined at program entry.  You can redefine these to something else if you
+ really need to. The original values can be recovered by `reset session` or by
+ setting:
 
-       NaN = GPVAL_NaN
-       pi  = GPVAL_pi
+       pi  = GPVAL_pi;  Inf = GPVAL_Inf;  NaN = GPVAL_NaN
 
  Other variables may be defined under various gnuplot operations like mousing in
  interactive terminals or fitting; see `gnuplot-defined variables` for details.
@@ -4070,7 +4107,7 @@ Ffigure_newsyntax
 
  For an example of the format as provided in a file or datablock see
  `marks examples annotation` or `marks examples windbarbs`.
-#TeX \newpage
+
 3 Marks examples
 ?marks examples
  The examples below illustrate a variety of ways that marks can be used.
@@ -4158,6 +4195,7 @@ Ffigure_markscatter1
  definition or the plot command, it is inherited from the global properties
  in `set style fill`.  If no fillcolor is provided, it follows the default
  sequence of plot colors.
+#TeX \vspace{1.1cm}
 
       set object 1 rectangle from graph 0,0 to graph 1,1
       set object 1 fillstyle solid fc "gray" behind
@@ -4172,6 +4210,7 @@ Ffigure_markscatter1
 Ffigure_markscatter2
  The second plot provides both a fillcolor and a stroke color in the plot
  command.  The key entries then need a different fill color.
+#TeX \vspace{1.5cm}
 
       set style fill solid
       plot $setosa     with marks mt 1 ps 1.5 lw 2 notitle \
@@ -4270,7 +4309,6 @@ Ffigure_windbarbs
  windbarbs.dem 
 ^ </a>
 D windbarbs 1
-
       #
       # Windbarbs representing 5, 25, and 50 knot wind speed
       # rotated and uniformly scaled by the 5-column form of the plot command
@@ -4880,33 +4918,26 @@ Ffigure_parametric_marks
  Gnuplot uses three forms of quote marks for delimiting text strings,
  double-quote (ascii 34), single-quote (ascii 39), and backquote (ascii 96).
 
- Filenames may be entered with either single- or double-quotes.  In this
- manual the command examples generally single-quote filenames and double-quote
- other string tokens for clarity.
-
+ File names may be entered in either single or double quotes.
  String constants and text strings used for labels, titles, or other plot
- elements may be enclosed in either single quotes or double quotes. Further
- processing of the quoted text depends on the choice of quote marks.
+ elements may be enclosed in either single quotes or double quotes.
+ Further processing of the quoted text depends on the choice of quote marks.
 
- Backslash processing of special characters like \n (newline) and
- \345 (octal character code) is performed only for double-quoted strings.
- In single-quoted strings, backslashes are just ordinary characters.  To get
- a single-quote (ascii 39) in a single-quoted string, it must be doubled.
- Thus the strings "d\" s' b\\" and 'd" s'' b\' are completely equivalent.
-
- Text justification is the same for each line of a multi-line string.
- Thus the center-justified string
-       "This is the first line of text.\nThis is the second line."
- will produce
-                        This is the first line of text.
-                           This is the second line.
- but
-       'This is the first line of text.\nThis is the second line.'
- will produce
-           This is the first line of text.\nThis is the second line.
-
- Enhanced text processing is performed for both double-quoted text and
- single-quoted text.  See `enhanced text`.
+ Single and double quoted strings differ as follows
+#start
+#b Backslash processing of special characters \n (newline) \r (return) and
+## \t (tab) is performed only for double-quoted strings.
+#b In single-quoted strings, backslashes are just ordinary characters.
+## To get a single-quote in a single-quoted string, it must be doubled.
+## Thus the strings "d\" s' b\\" and 'd" s'' b\' are completely equivalent.
+#b Unicode escape sequences \U+xxxx are processed for both single-quoted and
+## double-quoted strings.
+#b Enhanced text processing can be used for both double-quoted text and
+## single-quoted text.
+#b Octal escape sequences \ooo are processed in single-quoted strings only
+## if enhanced text is enabled.  Octal escapes are always process in
+## double-quoted strings.
+#end
 
  Back-quotes are used to enclose system commands for substitution into the
  command line.  See `substitution`.
@@ -6660,8 +6691,6 @@ Ffigure_mask
  Although it is not shown here, a single mask can include multiple polygonal
  regions.
 
- The masking commands are EXPERIMENTAL. Details may change in a future release.
-
 2 parallelaxes
 Ffigure_parallel
 ?plotting styles parallelaxes
@@ -7105,7 +7134,6 @@ Ffigure_xyerrorbars
  An additional input column (5th or 7th) may be used to provide variable color.
  This style does not permit variable point properties.
 
-#TeX \newpage
 2 xerrorlines
 ?plotting styles xerrorlines
 ?style xerrorlines
@@ -7431,8 +7459,8 @@ Ffigure_zerror
  special tokens $0, $1, ... $9 with the literal contents of <param-1> ...
  That older mechanism is no longer supported.
 
- EXPERIMENTAL:  Function blocks (new in this version) provide a more flexible
- alternative to `call`.  See `function blocks`.
+ Function blocks (new in this version) provide a more flexible alternative
+ to `call`.  See `function blocks`.
  
 3 ARGV[ ]
 ?argv
@@ -8316,9 +8344,6 @@ Ffigure_zerror
 #TeX }
 #TeX \end{minipage}
 #TeX \end{center}
-
- Use of function blocks is EXPERIMENTAL.
- Details may change before inclusion in a release version.
 #TeX \newpage
 2 help
 ?commands help
@@ -8479,11 +8504,10 @@ Ffigure_zerror
  arguments to `gnuplot`.  These are loaded in the order specified, and
  then `gnuplot` exits.
 
- EXPERIMENTAL:  It is also possible to execute commands from lines of text
- stored internally. See `function blocks`. A function block may be defined
- in-line or in an external file. Once the function block has been defined
- the commands may be executed repeatedly using `evaluate` on the internal
- copy rather than reloading the file.
+ It is also possible to execute commands from lines of text stored internally.
+ See `function blocks`. A function block may be defined in-line or read from a
+ file. The commands in a function block may be executed repeatedly using
+ `evaluate` on the internal copy rather than reloading a file.
 
 2 local
 ?local
@@ -9036,8 +9060,8 @@ Ffigure_zerror
                           {if (<expression>)}
 
  The modifiers `binary`, `index`, `every`, `skip`, `using`, `smooth`, `bins`,
- `mask`, `convexhull`, `concavehull`, `zsort`, and `if` are discussed
- separately.
+ `mask`, `convexhull`, `concavehull`, `volatile`, `zsort`, and `if` are
+ discussed separately.
  In brief:
 #start
 #b `skip N` tells the program to ignore N lines at the start of the input file
@@ -9482,6 +9506,10 @@ D delaunay 1
  truncated to apparent minimal y values between 0.02 and 0.20. 
  Adding the "sharpen" keyword produces instead a correct representation of
  the function with periodic sharp minima that reach y=0.
+
+ The sharpen filter also looks for vertical discontinuities, such as the
+ vertical edges in a step function, and tries to place extra points immediately
+ to either side of the edge so that it is not misrepresented as a diagonal line.
 D sharpen 1
 
 5 if
@@ -10895,8 +10923,8 @@ Ffigure_smooth_path
  the datablock named $GPVAL_LAST_MULTIPLOT during generation of the previous
  multiplot.  See `new multiplots`.
 
- EXPERIMENTAL: `remultiplot` is invoked implicitly from `replot` if the
- immediately preceding plot command was part of a completed multiplot.
+ `remultiplot` is invoked implicitly from `replot` if the immediately preceding
+ plot command was part of a completed multiplot.
 
 2 replot
 ?commands replot
@@ -10932,7 +10960,6 @@ Ffigure_smooth_path
  a datablock $GPVAL_LAST_MULTIPLOT.  They can be replayed to regenerate the
  entire multiplot using the new command `remultiplot`.
 
- EXPERIMENTAL (details may change in a subsequent gnuplot version):
  If the previously drawn plot was part of a multiplot, the `replot` command
  is now automatically treated as `remultiplot`.  Several caveats apply.
  See `new multiplots`, `remultiplot`.
@@ -11966,9 +11993,9 @@ D discrete 3
  border line style for drawing the border of the color box.
 
  The axis of the color box is called `cb` and it is controlled by means of the
- usual axes commands, i.e. `set/unset/show` with `cbrange`, `[m]cbtics`,
- `format cb`, `grid [m]cb`, `cblabel`, and perhaps even `cbdata`, `[no]cbdtics`,
- `[no]cbmtics`.
+ usual axes commands, i.e. `set/unset/show` with target properties `cbrange`,
+ `[m]cbtics`, `format cb`, `grid [m]cb`, `cblabel`, and perhaps even `cbdata`,
+ `[no]cbdtics`, `[no]cbmtics`.
 
  `set colorbox` without any parameter switches the position to default.
  `unset colorbox` resets the default parameters for the colorbox and switches
@@ -12697,8 +12724,7 @@ D heatmap_points 3
 ?set format
 ?show format
 ?format
-?format cb
- The format of the tic-mark labels can be set with the `set format` command
+ The format of the axis tic-mark labels can be set with the `set format` command
  or with the `set tics format` or individual `set {axis}tics format` commands.
  For information on using an explicit format for input data see `using format`.
 
@@ -12712,10 +12738,17 @@ D heatmap_points 3
        set format y "%.2f"
        set ytics format "%.2f"
 
- The length of the string is restricted to 100 characters.  The default format
- is "% h", "$%h$" for LaTeX terminals. Other formats such as "%.2f" or "%3.0em"
- are often desirable. "set format" with no following string will restore the
- default.
+ The format type (numeric, timedate, or geographic) controls interpretation
+ of the format string.  Numeric formats are handled by gnuplot's `gprintf`
+ routine. See `format numeric`.  This is the default unless the axis has
+ been marked as representing time or geographic coordinates.
+ See `set xdata time`, `format time_specifiers`, `geographic`.
+
+ The length of the format string is restricted to 100 characters.
+ The default format is "% h", except that LaTeX terminals use  "$%h$".
+ You can modify this to provide units or a different numeric format,
+ for example 'set xtics format "%.2f MHz"'.
+ "set format" with no following string will restore the default.
 
  If the empty string "" is given, tics will have no labels, although the tic
  mark will still be plotted.  To eliminate the tic marks, use `unset xtics` or
@@ -12734,20 +12767,15 @@ D heatmap_points 3
 ^ <a href="http://www.gnuplot.info/demo/electron.html">
  electron demo (electron.dem).
 ^ </a>
-4 gprintf
-?gprintf
- The string function gprintf("format",x) uses gnuplot's own format specifiers,
- as do the gnuplot commands `set format`, `set timestamp`, and others. These
- format specifiers are not the same as those used by the standard C-language
- routine sprintf(). gprintf() accepts only a single variable to be formatted.
- Gnuplot also provides an sprintf("format",x1,x2,...) routine if you prefer.
- For a list of gnuplot's format options, see `format specifiers`.
-4 format specifiers
-?commands set format specifiers
-?set format specifiers
-?format specifiers
-?format_specifiers
- The acceptable formats (if not in time/date mode) are:
+
+4 numeric format specifiers
+?set format numeric
+?format numeric
+?numeric
+ Numeric format specifiers are interpreted by gnuplot's gprintf function.
+ These specifiers are based on, but are not the same as, the formats used
+ by sprintf.  Axis tic-marks use these formats unless the axis has been set
+ to represent time/date or geographic coordinate data (see `set xdata`).
 
 @start table - first is interactive cleartext form
        Format       Explanation
@@ -12757,6 +12785,7 @@ D heatmap_points 3
        %h or %H     like %g with "x10^{%S}" or "*10^{%S}" instead of "e%S"
        %x or %X     hex
        %o or %O     octal
+       %C or %Ci    complex value
        %t           mantissa to base 10
        %l           mantissa to base of current logscale
        %s           mantissa to base of current logscale; scientific power
@@ -12774,9 +12803,10 @@ D heatmap_points 3
 #\verb@%f@ & floating point notation \\
 #\verb@%e@ or \verb@%E@ & exponential notation; an "e" or "E" before the power \\
 #\verb@%g@ or \verb@%G@ & the shorter of \verb@%e@ (or \verb@%E@) and \verb@%f@ \\
-#\verb@%h@ or \verb@%H@ & like \verb@%g with "x10^{%S}" or "*10^{%S}" instead of "e%S"@ \\
+#\verb@%h@ or \verb@%H@ & like \verb@%g@ with \verb@"x10^{%S}"@ or \verb@"*10^{%S}"@ instead of "e\verb@%S@" \\
 #\verb@%x@ or \verb@%X@ & hex \\
 #\verb@%o@ or \verb@%O@ & octal \\
+#\verb@%C@ or \verb@%Ci@ & complex value \\
 #\verb@%t@ & mantissa to base 10 \\
 #\verb@%l@ & mantissa to base of current logscale \\
 #\verb@%s@ & mantissa to base of current logscale; scientific power \\
@@ -12796,6 +12826,7 @@ D heatmap_points 3
 %%h or %H@like %g with "x10^{%S}" or "*10^{%S}" instead of "e%S"
 %%x or %X@hex
 %%o or %O@octal
+%%C or %Ci@complex value
 %%t@mantissa to base 10
 %%l@mantissa to base of current logscale
 %%s@mantissa to base of current logscale; scientific power
@@ -12823,6 +12854,7 @@ D heatmap_points 3
 ^<tr>    <td><tt>%h</tt> or <tt>%H</tt></td>    <td><tt>%g</tt> with "x10^{%S}" or "*10^{%S}" instead of "e%S"</td></tr>
 ^<tr>    <td><tt>%x</tt> or <tt>%X</tt></td>    <td>hex</td></tr>
 ^<tr>    <td><tt>%o</tt> or <tt>%O</tt></td>    <td>octal</td></tr>
+^<tr>    <td><tt>%C</tt> or <tt>%Ci</tt></td>    <td>complex value</td></tr>
 ^<tr>    <td><tt>%t</tt></td>    <td>mantissa to base 10</td></tr>
 ^<tr>    <td><tt>%l</tt></td>    <td>mantissa to base of current logscale</td></tr>
 ^<tr>    <td><tt>%s</tt></td>    <td>mantissa to base of current logscale; scientific power</td></tr>
@@ -12857,6 +12889,8 @@ D heatmap_points 3
  others; in case of doubt, check the appropriate documentation and
  then experiment.
 
+ Complex values may be formatted using "%C" or "%Ci" (see `gprintf complex`).
+
  Examples:
        set format y "%t"; set ytics (5,10)          # "5.0" and "1.0"
        set format y "%s"; set ytics (500,1000)      # "500" and "1.0"
@@ -12873,23 +12907,48 @@ D heatmap_points 3
  There are some problem cases that arise when numbers like 9.999 are printed
  with a format that requires both rounding and a power.
 
- If the data type for the axis is time/date, the format string must contain
- valid codes for the 'strftime' function (outside of `gnuplot`, type "man
- strftime").  See `set timefmt` for a list of the allowed input format codes.
+5 Complex format specifiers
+?set format numeric complex
+?format numeric complex
+?numeric complex
+?gprintf complex
+ gprintf offers two format specifiers, %C and %Ci, to print a complex value.
+ Both apply format %g separately to the real and imaginary components using
+ any optional field modifiers that were given. [EXPERIMENTAL]
+
+ Suppose complex Z = {1.2, -3.4}.
+      gprintf("%C", Z) produces the string "{1.2, -3.4}"
+      gprintf("%Ci", Z) produces the string "1.2 - 3.4i"
+
+ The output of "%Ci" can be further customized by the command `set imaginary_i`
+ to replace the character "i" that follows the imaginary component with a
+ different character or character sequence.
+ See `imaginary_i`.
+
+ Examples:
+      Z = {1.2222, 0.3333}
+      gprintf("%.2C", Z)            # {1.2, 0.33}
+      gprintf("%.3Ci", Z)           # 1.22 + 0.333i
+      set imaginary_i "{/Times*0.5 im}"
+      gprintf("[%Ci]", Z)           # [1.2222 + 0.3333im]
+      gprintf("[%.1Ci]", -Z)        # [-1 - 0.3im]
+
 4 time/date specifiers
 ?commands set format date_specifiers
 ?commands set format time_specifiers
 ?set format date_specifiers
 ?set format time_specifiers
-?set date_specifiers
-?set time_specifiers
+?format date_specifiers
+?format time_specifiers
 ?date_specifiers
 ?time_specifiers
+ These format specifiers are used to generate axis tic-mark labels if the
+ axis represents time data.  See `set xdata time`.
+ They are also used by the gnuplot's strftime function.
+
  There are two groups of time format specifiers: time/date and relative time.
  These may be used to generate axis tic labels or to encode time in a string.
- See `set xtics time`, `strftime`, `strptime`.
-
- The time/date formats are
+ See `set xtics time`, `strftime`, `strptime`. The time/date formats are
 
 @start table - first is interactive cleartext form
        Format       Explanation
@@ -12920,7 +12979,7 @@ D heatmap_points 3
        %Y           year, 4-digit
        %z           timezone, [+-]hh:mm
        %Z           timezone name, ignored string
-#\begin{tabular}{|cl|} \hline
+#\begin{longtable}{|cl|} \hline
 #\multicolumn{2}{|c|}{Date Specifiers}\\
 #\hline \hline
 #Format & Explanation \\ \hline
@@ -12951,6 +13010,9 @@ D heatmap_points 3
 #\verb@%Y@ & year, 4-digit \\
 #\verb@%z@ & timezone, [+-]hh:mm \\
 #\verb@%Z@ & timezone name, ignored string \\
+#\hline \end{longtable}
+#%% begin dummy tabular because the @end processing wants to end one
+#\begin{tabular}{|lcl|}
 %c l .
 %Format@Explanation
 %_
@@ -13077,15 +13139,12 @@ D heatmap_points 3
  width.  The %S, and %t formats also accept a precision specifier so that
  fractional hours/minutes/seconds can be written.
 
-5 Examples
-?commands set format date_specifiers examples
-?commands set format time_specifiers examples
-?set format date_specifiers examples
-?set format time_specifiers examples
-?set date_specifiers examples
-?set time_specifiers examples
-?date_specifiers examples
-?time_specifiers examples
+4 Examples
+?commands set format examples
+?set format examples
+?format date_specifiers examples
+?format time_specifiers examples
+?format examples
 
  Examples of date format:
 
@@ -13318,6 +13377,62 @@ D hidden 6
  by removing earlier instances of the current command.
 
  Default settings: `set history size 500 numbers trim`.
+3 imaginary_i
+?commands set imaginary_i
+?set imaginary_i
+?imaginary_i
+ Syntax:
+      set imaginary_i {"<character string>"}
+
+ The gprintf format specifier %Ci prints a complex value {A,B} as A + Bi
+ (see `gprintf complex`). The command `set imaginary_i "<character string>"`
+ modifies the action of %Ci by replacing the character "i" with the
+ character string requested. Common conventions for this string are shown in
+ the table below.  If no character string is given, the default is restored.
+
+@start table
+  character string          Result          Convention
+                            A + Bi          default
+  "\imath"                  A + Bi          may be necessary for LaTeX output
+  "{/:Italic i}"            A + Bi          gnuplot enhanced text markup
+  "\U+2148"                 A + Bⅈ          Unicode DOUBLE-STRUCK ITALIC SMALL I
+  "\U+1D456"                A + B𝑖          Unicode MATHEMATICAL ITALIC SMALL I
+  "im"                      A + Bim         Julia
+  "j"                       A + Bj          Numpy
+
+#\begin{tabular}{|lll|} \hline
+#character string & result & convention \\
+#\hline
+#\verb~   ~ & A+Bi & default \\
+#\verb~"\imath"~ & {$A+B\imath$} & may or may not be necessary for LaTeX output \\
+#\verb~"{/:Italic i}"~ & A + B{\emph i} & gnuplot enhanced text markup \\
+#\verb~"\U+2148"~ & A + Bⅈ & Unicode DOUBLE-STRUCK ITALIC SMALL I \\
+#\verb~"\U+1D456"~ & A + B$i$ & Unicode MATHEMATICAL ITALIC SMALL I \\
+#\verb~"im"~ & A + Bim & Julia \\
+#\verb~"j"~ & A + Bj & Numpy \\
+#
+@end table
+
+^<table align="center" border="1" rules="groups" frame="hsides" cellpadding="3">
+^<colgroup>
+^  <col align="left">
+^  <col align="left">
+^  <col align="left">
+^</colgroup>
+^<thead>
+^<tr>    <th>character string</th>  <th>result</th>  <th>convention</th> </tr>
+^</thead>
+^<tbody>
+^<tr>  <td></td>    <td>A+Bi</td>  <td>default</td> </tr>
+^<tr>  <td>"\imath"</td>    <td><em>A+Bi</em></td>  <td>may or may not be necessary for LaTeX</td> </tr>
+^<tr>  <td>"{/:Italic i}"</td>    <td>A+B<em>i</em></td>  <td>gnuplot enhanced text markup</td> </tr>
+^<tr>  <td>"\U+2148"</td>    <td>A+Bⅈ</td>  <td>Unicode DOUBLE-STRUCK ITALIC SMALL I</td> </tr>
+^<tr>  <td>"\U+1D456"</td>    <td>A+B𝑖</td>  <td>Unicode MATHEMATICAL ITALIC SMALL I</td> </tr>
+^<tr>  <td>"im"</td>    <td>A+Bim</td>  <td>Julia</td> </tr>
+^<tr>  <td>"j"</td>    <td>A+Bj</td>  <td>Numpy</td> </tr>
+^</tbody>
+^</table>
+
 3 isosamples
 ?commands set isosamples
 ?commands show isosamples
@@ -13779,10 +13894,10 @@ Ffigure_multiple_keys
  a single legend for the component panels in a multiplot.
         set multiplot layout 3,2 columnsfirst
         set style data boxes
-        plot $D using 0:6  lt 1 title at 0.75, 0.20
-        plot $D using 0:12 lt 2 title at 0.75, 0.17
-        plot $D using 0:13 lt 3 title at 0.75, 0.14
-        plot $D using 0:14 lt 4 title at 0.75, 0.11
+        plot $D using 0:6  lt 1 title at .75, .20
+        plot $D using 0:12 lt 2 title at .75, .17
+        plot $D using 0:13 lt 3 title at .75, .14
+        plot $D using 0:14 lt 4 title at .75, .11
         set label 1 at screen 0.75, screen 0.22 "Custom combined key area"
         plot $D using 0:($6+$12+$13+$14) with linespoints title "total"
         unset multiplot
@@ -14299,7 +14414,7 @@ Ffigure_multiple_keys
  axis tick labels uses a lower case u as a prefix to indicate "micro" (10^-6).
  The `set micro` command tells gnuplot to use a different typographic
  character (unicode U+00B5).  The byte sequence used to represent this character
- depends on the current encoding.  See `format specifiers`, `encoding`.
+ depends on the current encoding.  See `format numeric`, `encoding`.
 
  If the current encoding default is not satisfactory, you can provide a
  character string that generates the desired representation.  This is mostly
@@ -15831,10 +15946,9 @@ D viridis 1
  options are possible.  This allows you to use separate coloring schemes for
  different surfaces in the same plot.
  
- EXPERIMENTAL: This gnuplot version introduces an option `zclip` that
- clips the generated surface smoothly at a pair of limiting z values.
- The example below animates gradual removal of the top portion of a
- two-color 3D surface.
+ gnuplot version introduces an option `zclip` that clips the generated surface
+ smoothly at a pair of limiting z values.  The example below animates gradual
+ removal of the top portion of a two-color 3D surface.
       set style line 101 lc "gray"
       set style line 102 lc "blue"
       set pm3d depthorder
@@ -17282,7 +17396,7 @@ Ffigure_polar_grid
  settings while `set term pop` restores it together with all its previously
  selected options.  This helps in printing, for instance, when switching
  among different terminals---previous options don't have to be repeated.
- When gnuplot is started, the default terminal or that from a from `startup`
+ When gnuplot is started, the default terminal or that from `startup`
  file is pushed automatically. Therefore portable scripts can rely on
  `set term pop` to restore the default terminal on a given platform unless
  another terminal has been pushed explicitly.
@@ -18488,6 +18602,9 @@ Ffigure_walls
 ?commands set xtics geographic
 ?set xtics geographic
 ?geographic
+?format geographic
+?set xdata geographic
+?set format geographic
  `set xtics geographic` indicates that x-axis values are to be interpreted as
  a geographic coordinate measured in degrees.  Use `set xtics format` or
  `set format x` to specify the appearance of the axis tick labels.

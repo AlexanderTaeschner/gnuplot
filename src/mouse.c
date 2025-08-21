@@ -63,6 +63,7 @@
 #include "hidden3d.h"
 #include "multiplot.h"	/* EXPERIMENTAL */
 #include "plot.h"	/* for interactive */
+#include "internal.h"
 
 #ifdef USE_WATCHPOINTS
 # include "watch.h"
@@ -583,7 +584,21 @@ GetAnnotateString(char *s, size_t len, double x, double y, int mode, char *fmt)
 	else
 	    sprintf(s, "theta: %.1f%s  r: %g", theta, degree_sign, r);
     } else if ((mode == MOUSE_COORDINATES_ALT) && fmt) {
-	snprintf(s, len, fmt, x, y);	/* user defined format */
+	struct value vfmt, vx, vy, vn;
+	struct value readout;
+	readout.type = NOTDEFINED;
+	push(Gstring(&vfmt, fmt));
+	push(Gcomplex(&vx, x, 0));
+	push(Gcomplex(&vy, y, 0));
+	push(Ginteger(&vn, 3));
+	f_sprintf((union argument *)NULL);
+	pop(&readout);
+	if (readout.type != STRING)
+	    int_error(NO_CARET, "internal error: mouseformat did not return a string");
+	if (strlen(readout.v.string_val) + 1 > len)
+	    int_warn(NO_CARET, "truncated mouseformat output string");
+	snprintf(s, len, "%s", readout.v.string_val);
+	gpfree_string(&readout);
     } else if (mode == MOUSE_COORDINATES_FUNCTION) {
 	/* EXPERIMENTAL !!! */
 	t_value original_x, original_y;
@@ -1007,9 +1022,23 @@ UpdateStatuslineWithMouseSetting(mouse_setting_t * ms)
     char s0[256], *sp;
     s0[0] = 0;
 
-/* This suppresses mouse coordinate update after a ^C */
+#if (0)
+    /* This suppresses mouse coordinate update after a ^C */
+
+    /* History:
+     *	This check was present in version 4,
+     *	disabled in versions 5.0 and 5.2 with a comment that
+     *	any terminal driver that cared should check for itself,
+     *	and then reenabled in 5.4 without comment when similar checks
+     *  were added elsewhere.
+     * Jul 2025:
+     *	The loss of mousing after ^C is annoying.
+     *	Disable this check again (as it was in 5.0 - 5.2) with
+     *	the intent to find a terminal-specific fix if needed.
+     */
     if (!term_initialised)
 	return;
+#endif
 
     if (!ms->on)
 	return;

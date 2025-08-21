@@ -6,6 +6,7 @@ Table of contents:
     * More details about ./configure --with-PACKAGE[=OPTION]
     * Inclusion of optional features --enable-FEATURE
     * Platform-specific tips
+        version requirements
         linux Ubuntu
 	macOS homebrew
 	Windows MSDOS
@@ -275,7 +276,8 @@ Platform-specific tips
 Version requirements
 --------------------
   The code now uses some syntax from C99 that were not present in earlier
-  C standards.
+  C standards.  Older compilers may not support anonymous unions (not
+  in the standard until C11).
 
   The Makefile in the demo directory may require gnu make version 4.3
   or newer.
@@ -288,7 +290,7 @@ Linux
 -----
 	
   lua: ./configure may fail to find lua support if the package configuration
-  tool is installed as "lua5.1" or "lua5.3" rather than "lua".  If necessary,
+  tool is installed as "lua5.3" or "lua5.4" rather than "lua".  If necessary,
   you can fix this by adding a symlink prior to running ./configure
 
 	ln -s /usr/lib/pkgconfig/lua5.3.pc  /usr/lib/pkgconfig/lua.pc
@@ -297,9 +299,6 @@ Linux
   fail to include "-lX11" in the string provided for auto-configuration.
   You may have to add this manually when configuring gnuplot:
       TERMLIBS="-lX11" ./configure
-  Note that some people have reported runtime problems with wxgtk 3.0.
-  If you have the option of linking to libraries for wxgtk 2.8 instead,
-  this may be preferable.  The -lX11 flag is not need in this case.
 
 Ubuntu
 ------
@@ -536,9 +535,6 @@ If defined, the environment variable GNUHELP is used for the name of
 the .gih help file, otherwise HELPFILE (defined in makefile or
 command.c) is used.
 
-The VMS version looks for the logical name GNUPLOT$HELP to locate the
-help library.
-
 The usual system-wide environment variable is used to locate a command
 line shell to be used for executing commands and starting sub-shells.
 On all versions of Windows and OS/2 the variable looked at is COMSPEC.
@@ -551,15 +547,17 @@ overridden by the environmental variable GNUPLOT_DRIVER_DIR.
 
 GDFONTPATH is the directory where the libgd terminals (jpeg png gif)
 search for fonts.  You should set it to directory where files like
-arial.ttf and Symbol.pfa exist.
+arial.ttf and Symbol.pfa exist.  Not needed for newer libgd versions.
 
-GNUPLOT_DEFAULT_GDFONT is the default font to be used by the png and
-jpeg terminal types. This must either be a full path to the font file
-or the face name of a font found in the GDFONTPATH search path.
+GNUPLOT_DEFAULT_GDFONT is the default font to be used by the libgd
+terminals (jpeg png gif sixel kitty). This must either be a full path
+to the font file or the face name of a font found in the GDFONTPATH
+search path.  Not needed for newer libgd versions.
 
 GNUPLOT_FONTPATH is used by the postscript driver as search path for
 postscript (Adobe Type 1 and Type 2) fonts (only needed if you want
 to embed a copy of the font in the output file, which is not common).
+Not needed for newer libgd versions.
 
 GNUPLOT_PS_DIR is used by the postscript driver to use external prologue
 files. Depending on the build process, gnuplot contains either a builtin

@@ -1378,8 +1378,7 @@ START_HELP(pstricks)
 " for the `pstricks` package with traditional tex/latex or xelatex is",
 " produced.",
 "",
-" The old `hacktext` option has been replaced by the new default format (%h),",
-" see `format specifiers`.",
+" The old `hacktext` option has been replaced by the new default format %h.",
 "",
 " Transparency requires support by Ghostscript or conversion to PDF."
 END_HELP(pstricks)

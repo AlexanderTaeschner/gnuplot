@@ -1120,6 +1120,17 @@ rgb_from_colorspec(struct t_colorspec *tc)
 }
 
 /*
+ * Extract the rgb color of a known line type
+ */
+unsigned int
+rgb_from_linetype(int lt)
+{
+    struct lp_style_type lptmp;
+    load_linetype(&lptmp, lt);
+    return rgb_from_colorspec( &lptmp.pm3d_color );
+}
+
+/*
  * "set palette" routines (moved from set.c)
  */
 

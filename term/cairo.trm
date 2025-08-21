@@ -71,6 +71,7 @@ TERM_PUBLIC void cairotrm_set_color(t_colorspec *colorspec);
 TERM_PUBLIC void cairotrm_filled_polygon(int n, gpiPoint * corners);
 TERM_PUBLIC void cairotrm_boxed_text(unsigned int x, unsigned int y, int option);
 TERM_PUBLIC void cairotrm_dashtype(int type, t_dashtype *custom_dash_pattern);
+TERM_PUBLIC void cairotrm_layer(t_termlayer layer);
 
 #ifdef HAVE_WEBP
 TERM_PUBLIC void WEBP_options(int);	/* We call it from cairotrm_options */
@@ -276,9 +277,18 @@ TERM_PUBLIC void cairotrm_options()
 	char tmp_term_options[MAX_LINE_LEN+1] = "";
 
 	/* Initialize terminal-dependent values */
-	if ((strcmp(term->name, "pngcairo") == 0) || (strcmp(term->name, "kittycairo") == 0)) {
+	if ((strcmp(term->name, "pngcairo") == 0)) {
 	    cairo_params = &cairopng_params;
 	    cairo_params_default = &cairopng_params_default;
+	} else if ((strcmp(term->name, "kittycairo") == 0)) {
+	    int xpixels, ypixels;
+	    cairo_params = &cairopng_params;
+	    cairo_params_default = &cairopng_params_default;
+	    term_get_termsize( &xpixels, &ypixels );
+	    if (xpixels > 0 && ypixels > 0) {
+		cairo_params->width = xpixels;
+		cairo_params->height = ypixels * 0.75;
+	    }
 	} else if (strcmp(term->name, "epscairo") == 0) {
 	    cairo_params = &cairoeps_params;
 	    cairo_params_default = &cairoeps_params_default;
@@ -745,6 +755,7 @@ TERM_PUBLIC void cairotrm_options()
 	if (strcmp(term->name, "webp") == 0)
 	    WEBP_options(1);
 #endif
+
 }
 
 #ifdef HAVE_CAIROEPS
@@ -1127,20 +1138,24 @@ void cairotrm_text()
 		}
 #ifdef HAVE_KITTY_TERM
         } else if (strcmp(term->name, "kittycairo") == 0) {
-          base64s *b64;
-          cairo_surface_t *surface = cairo_get_target(plot.cr);
-          /* TODO: crop */
+	    base64s *b64;
+	    cairo_surface_t *surface = cairo_get_target(plot.cr);
+	    /* TODO: crop */
 	  /* Draw starting at top left of screen */
-	  if (cairo_params->anchor)
+	    if (cairo_params->anchor) {
+		fprintf(gpoutfile,  "\033[0J");
 		fprintf(gpoutfile,  "\033[H");
-          kitty_init(KITTY_FORMAT_PNG);
-          b64 = gp_alloc(sizeof(base64s), "base64s");
-          init_base64_state_data(b64, kitty_writechar, NULL);
-          cairo_surface_write_to_png_stream(surface, cairo_write_base64_callback, b64);
-          piecemeal_write_base64_data_finish(b64);
-          free(b64);
-          kitty_flush(FALSE);
-          fputc('\n', gpoutfile);
+	    }
+	    kitty_init(KITTY_FORMAT_PNG);
+	    b64 = gp_alloc(sizeof(base64s), "base64s");
+	    init_base64_state_data(b64, kitty_writechar, NULL);
+	    cairo_surface_write_to_png_stream(surface, cairo_write_base64_callback, b64);
+	    piecemeal_write_base64_data_finish(b64);
+	    free(b64);
+	    kitty_flush(FALSE);
+	    if (cairo_params->anchor)
+		fprintf(gpoutfile,  "\033[0J");
+	    fputc('\n', gpoutfile);
 #endif
         }
 
@@ -1463,6 +1478,24 @@ void cairotrm_dashtype(int type, t_dashtype *custom_dash_pattern)
 	gp_cairo_set_dashtype(&plot, type, custom_dash_pattern);
 }
 
+/*
+ * Used only by the kitty terminal
+ */
+void cairotrm_layer(t_termlayer layer)
+{
+	/* This causes the current foreground of the plot area to be
+	 * cleared at the start of the next plot.
+	 * Good for animation on a transparent background.
+	 * But multiplots _want_ the superposition; that's their whole point.
+	 */
+	if (layer == TERM_LAYER_END_TEXT) {
+	    if (strncmp(term->name, "kitty",5))
+		return;
+	    if (cairo_params->transparent && !in_multiplot)
+		term_force_init = TRUE;
+	}
+}
+
 #endif /* TERM_BODY */
 
 #ifdef TERM_TABLE
@@ -1606,7 +1639,8 @@ TERM_TABLE_START (kittycairo_driver)
     cairotrm_make_palette, 0 /* cairotrm_previous_palette */, cairotrm_set_color, cairotrm_filled_polygon
     , cairotrm_image
     , cairotrm_enhanced_open, cairotrm_enhanced_flush, cairotrm_enhanced_writec
-    , 0, 0, 1.0
+    , cairotrm_layer
+    , 0, 1.0
     , NULL /* hypertext */
     , cairotrm_boxed_text
     , NULL /* modify_plots */

@@ -59,9 +59,11 @@ char degree_sign[8] = "°";
 /* encoding-specific characters used by gprintf() */
 const char *micro = NULL;
 const char *minus_sign = NULL;
+const char *i_symbol = NULL;
 TBOOLEAN use_micro = FALSE;
 TBOOLEAN use_minus_sign = FALSE;
 char *micro_user = NULL;
+char *imaginary_user = NULL;
 
 /* Holds the name of the current LC_NUMERIC as set by "set decimal locale" */
 char *numeric_locale = NULL;
@@ -935,12 +937,45 @@ gprintf_value(
 		break;
 	    }
 	    /*}}} */
+	    /*{{{  C or Ci --- complex value */
+	case 'C':
+	    {
+		double vr = real(v);
+		double vi = imag(v);
+		t[0] = 'g';
+		t[1] = '\0';
+		if (format[1] == 'i') {
+		    format++;
+		    /* complex value printed as a + bi */
+		    if (vr != 0.0 || vi == 0.0)
+			dest += snprintf(dest, remaining_space, temp, vr);
+		    if (vi != 0.0) {
+			if (vr == 0.0) {
+			    dest += snprintf(dest, remaining_space, temp, vi);
+			} else {
+			    dest += snprintf(dest, remaining_space, (vi < 0) ? " - " : " + ");
+			    dest += snprintf(dest, remaining_space, temp, fabs(vi));
+			}
+			dest += snprintf(dest, remaining_space,
+					imaginary_user ? imaginary_user : "i");
+		    }
+		} else {
+		    /* complex value printed as {a, b} */
+		    dest += snprintf(dest, remaining_space, "{");
+		    dest += snprintf(dest, remaining_space, temp, vr);
+		    dest += snprintf(dest, remaining_space, ", ");
+		    dest += snprintf(dest, remaining_space, temp, vi);
+		    dest += snprintf(dest, remaining_space, "}");
+		}
+		break;
+	    }
+	    /*}}} */
 	default:
 	   int_error(NO_CARET, "Bad format character");
 	} /* switch */
 	/*}}} */
 
-	if (got_hash && (format != strpbrk(format,"oeEfFgG")))
+	if (got_hash && (format != strpbrk(format,"oeEfFgGhHC")))
 	   int_error(NO_CARET, "Bad format character");
 
     /* change decimal '.' to the actual entry in decimalsign */
@@ -1359,15 +1394,20 @@ parse_esc(char *instr)
 	    } else if (*s == '\"') {
 		*t++ = '\"';
 		s++;
-	    } else if (*s >= '0' && *s <= '7') {
+	    } else if (*s >= '0' && *s <= '3') {
+		/* Jul 2025 - only accept octal escape sequences of the form \ooo
+		 * (exactly three numeric characters).  This was always documented
+		 * to be the case, but the code accepted 1-4 characters, not three.
+		 */
 		int i, n;
-		char *octal = (*s == '0' ? "%4o%n" : "%3o%n");
-		if (sscanf(s, octal, &i, &n) > 0) {
+		if ((sscanf(s, "%3o%n", &i, &n) > 0) &&  (n == 3)) {
 		    *t++ = i;
 		    s += n;
 		} else {
-		    /* int_error("illegal octal number ", c_token); */
-		    *t++ = '\\';
+		    /* Invalid octal escape sequence.
+		     * FIXME: Keep the backslash or not???
+		     */
+//		    *t++ = '\\';
 		    *t++ = *s++;
 		}
 	    } else if (s[0] == 'U' && s[1] == '+') {
@@ -1375,6 +1415,16 @@ parse_esc(char *instr)
 		 * Keep backslash; translation will be handled elsewhere.
 		 */
 		*t++ = '\\';
+
+		/* A trailing escaped char must not be merged into the codepoint.
+		 * I would prefer to insert a zero width space (U+200B) but that
+		 * would violate the assumption that len(t) < len(s).
+		 * The compromise is ascii control character "unit separator".
+		 */
+		if (isxdigit(s[2]) && isxdigit(s[3]) && isxdigit(s[4]) && isxdigit(s[5])
+		&&  (s[6] == '\\') && isxdigit(s[7])) {
+		    s[6] = '\037';
+		}
 	    }
 	} else if (df_separators && *s == '\"' && *(s+1) == '\"') {
 	    /* For parsing CSV strings with quoted quotes */

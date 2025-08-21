@@ -200,7 +200,6 @@ gnuplot.pdf: gnuplot.tex $(srcdir)/titlepag.tex $(srcdir)/toc_entr.sty pdf_figur
 	$(AM_V_GEN)if test $(PDFLATEX) != no ; then \
 	  TEXINPUTS=.:$(srcdir):$(top_srcdir):${TEXINPUTS}: $(PDFLATEX) $< ; \
 	  TEXINPUTS=.:$(srcdir):$(top_srcdir):${TEXINPUTS}: $(PDFLATEX) $< ; \
-	  TEXINPUTS=.:$(srcdir):$(top_srcdir):${TEXINPUTS}: $(PDFLATEX) $< ; \
 	  makeindex gnuplot ; \
 	  TEXINPUTS=.:$(srcdir):$(top_srcdir):${TEXINPUTS}: $(PDFLATEX) $< ; \
 	  rm -f gnuplot.idx gnuplot.ilg gnuplot.ind ; \

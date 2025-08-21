@@ -713,6 +713,17 @@ PNG_options()
 	term->put_text = ENHGD_put_text;
     }
 
+    /* Default to full terminal width; leave 1/4 height underneath for commands */
+    if ((strcmp(term->name, "kittygd") == 0)) {
+	int xpixels, ypixels;
+	term_get_termsize( &xpixels, &ypixels );
+	if (xpixels > 0 && ypixels > 0) {
+	    PNG_XMAX = term->xmax = xpixels;
+	    PNG_YMAX = term->ymax = ypixels * 0.75;
+	    term->h_tic = term->v_tic = 10;
+	}
+    }
+
     while (!END_OF_COMMAND) {
 	switch(lookup_table(&PNG_opts[0],c_token)) {
 	case PNG_TRANSPARENT:
@@ -2873,7 +2884,6 @@ START_HELP(gif)
 "?set term gif animate",
 "?term gif animate",
 "?gif animate",
-"?animate",
 "",
 "       set term gif animate {delay <d>} {loop <n>} {{no}optimize}}",
 "",
@@ -2896,26 +2906,10 @@ START_HELP(gif)
 "      }",
 "      unset output",
 "",
-"3 optimize",
-"?set term gif animate optimize",
-"?gif animate optimize",
-"      set term gif animate optimize",
-"",
 " The `optimize` option [DEPRECATED] is passed to the gd library when the",
-" output file is opened. It has two effects on the animation.",
-"",
-" 1) A single color map is used for the entire animation. This requires",
-" that all colors used in any frame of the animation are already",
-" defined in the first frame.",
-"",
-" 2) If possible, only the portions of a frame that differ from the",
-" previous frame are stored in the animation file.  This space saving",
-" may not be possible if the animation uses transparency.",
-"",
-" Both of these optimizations are intended to produce a smaller output file,",
-" but the decrease in size is probably only significant for long animations.",
-" Caveat: The implementation of optimization in libgd is known to be buggy.",
-" Therefore use of this option in gnuplot is not recommended.",
+" output file is opened. It attempts to reduce the size of the output file",
+" by saving incremental changes rather than full frames.",
+" Caveat: The implementation is known to be buggy. Do not use.",
 "",
 "2 fonts",
 "?set term gif fonts",
@@ -3134,8 +3128,10 @@ KITTYGD_text()
     image_do_crop();
 
     /* The 'anchor' option makes each plot write in place rather than scrolling */
-    if (png_state.anchor)
+    if (png_state.anchor) {
+	fprintf(gpoutfile,  "\033[0J");
 	fprintf(gpoutfile,  "\033[H");
+    }
 
     kitty_init(KITTY_FORMAT_PNG);
     b64 = gp_alloc(sizeof(base64s), "base64s");
@@ -3149,6 +3145,8 @@ KITTYGD_text()
     piecemeal_write_base64_data_finish(b64);
     free(b64);
     kitty_flush(FALSE);
+    if (png_state.anchor)
+	fprintf(gpoutfile,  "\033[0J");
     fputc('\n', gpoutfile);
     gdImageDestroy(png_state.image);
 }
