@@ -3987,7 +3987,19 @@ Ffigure_newsyntax
 =bgnd
 =background
 =black
- A few special (non-numerical) linetypes are recognized.
+ Two special numerical linetypes are worth mentioning. These cannot be modified
+ by "set linetype".
+
+ Linetype 0 is a terminal-dependent linetype used by the program as the default
+ for axis lines (see "zeroaxis").  It is always a dotted line if the terminal
+ supports this.  For terminals that do not support a separate dashtype property
+ this may be the only way to get a dotted line.
+
+ Linetype -1 is the basic linetype.  It corresponds to a solid line with
+ width 1.0 in foreground color (normally black).  The program uses this as the
+ default for many plot elements (plot borders, label text, arrows).
+
+ The program also recognizes a few non-numerical linetypes.
 
  `lt black` specifies a solid black line.
 

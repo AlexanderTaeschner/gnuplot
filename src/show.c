@@ -173,7 +173,7 @@ static void show_plot(void);
 static void show_variables(void);
 
 static void show_linestyle(int tag);
-static void show_linetype(struct linestyle_def *listhead, int tag);
+static void show_linetype(struct linestyle_def *listhead);
 static void show_arrowstyle(int tag);
 static void show_arrow(int tag);
 
@@ -326,16 +326,13 @@ show_command()
 	show_linestyle(tag);
 	break;
     case S_LINETYPE:
-	CHECK_TAG_GT_ZERO;
-	show_linetype(first_perm_linestyle, tag);
+	show_linetype(first_perm_linestyle);
 	break;
     case S_MONOCHROME:
 	fprintf(stderr,"monochrome mode is %s\n", monochrome ? "active" : "not active");
-	if (equals(c_token,"lt") || almost_equals(c_token,"linet$ype")) {
+	if (equals(c_token,"lt") || almost_equals(c_token,"linet$ype"))
 	    c_token++;
-	    CHECK_TAG_GT_ZERO;
-	}
-	show_linetype(first_mono_linestyle, tag);
+	show_linetype(first_mono_linestyle);
 	break;
     case S_DASHTYPE:
 	CHECK_TAG_GT_ZERO;
@@ -3415,17 +3412,26 @@ show_linestyle(int tag)
 
 /* Show linetype number <tag> (0 means show all) */
 static void
-show_linetype(struct linestyle_def *listhead, int tag)
+show_linetype(struct linestyle_def *listhead)
 {
     struct linestyle_def *this_linestyle;
     TBOOLEAN showed = FALSE;
     int recycle_count = 0;
+    int tag = 0;	/* default to show all defined linetypes */
+
+    if (!END_OF_COMMAND)
+	tag = int_expression();
+    if (tag <= 0) {
+	tag = 0;
+	fprintf(stderr, "\n\tlinetype  0   default zeroaxis (terminal-specific, dotted if possible)");
+    }
+    (void) putc('\n',stderr);
 
     for (this_linestyle = listhead; this_linestyle != NULL;
 	 this_linestyle = this_linestyle->next) {
 	if (tag == 0 || tag == this_linestyle->tag) {
 	    showed = TRUE;
-	    fprintf(stderr, "\tlinetype %d, ", this_linestyle->tag);
+	    fprintf(stderr, "\tlinetype %2d, ", this_linestyle->tag);
 	    save_linetype(stderr, &(this_linestyle->lp_properties), TRUE);
 	    fputc('\n', stderr);
 	}
@@ -3438,9 +3444,12 @@ show_linetype(struct linestyle_def *listhead, int tag)
     else if (listhead == first_mono_linestyle)
 	recycle_count = mono_recycle_count;
 
-    if (tag == 0 && recycle_count > 0)
-	fprintf(stderr, "\tLinetypes repeat every %d unless explicitly defined\n",
-		recycle_count);
+    if (tag == 0 && recycle_count > 0) {
+	fprintf(stderr,
+		"\tlinetypes > %d cyclically repeat the line properties, but not point properties,\n"
+		"\t              of linetypes 1-%d unless explicitly set otherwise\n",
+		recycle_count, recycle_count);
+    }
 }
 
 
