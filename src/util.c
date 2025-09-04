@@ -956,7 +956,7 @@ gprintf_value(
 			    dest += snprintf(dest, remaining_space, (vi < 0) ? " - " : " + ");
 			    dest += snprintf(dest, remaining_space, temp, fabs(vi));
 			}
-			dest += snprintf(dest, remaining_space,
+			dest += snprintf(dest, remaining_space, "%s",
 					imaginary_user ? imaginary_user : "i");
 		    }
 		} else {
