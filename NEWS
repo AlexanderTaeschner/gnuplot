@@ -1,31 +1,20 @@
-Jan 2023
-========
-End of version 5 development (no current plan to release a version 5.6).
-Freeze the current state as branch-5-5-end
+===============================================================================
+The NEWS file is intended to list recent changes to the stable release version.
+Thus the actively updated NEWS file is in the stable branch of the repository,
+currently branch-6-0-stable.  The file you are reading here is a placeholder.
 
-Development will continue in a new branch 6.1, based off 6.0 stable
+The "Development Branch" section of the user manual contains a partial list of
+features under development. Some have been back-ported to an incremental update
+of the stable version (6.0.x). Items near the bottom of the list may not appear
+in a stable release before version 6.2.
+===============================================================================
 
-
-Changes not in 5.4 (will be in 6.0)
-===================================
-* NEW weighted and unweighted cubic spline smoothing for 3D "splot with lines"
-* NEW smoothing options for "plot with filledcurves {above|below|between}"
-* NEW "set palette save <name>" creates a named colormap from the current palette
-* NEW "splot ... with pm3d fc palette <name>" uses a saved colormap
-* NEW "plot ... with image fc palette <name>" uses a saved colormap
-* NEW support XDG base directory as location for gnuplotrc preferences file
-* NEW up to 256 colors with the sixeltek terminal
-* NEW keyword "smooth kdensity period <val>"
-* NEW if ... else if ... else
-* NEW terminal "blocks" uses pseudo-graphics for terminal mode graphics
-* NEW terminal webp generates single frames or full animation in webp encoding
-* NEW "set palette file" accepts datablocks; also accepts 24-bit RGB colors
-* CHANGE account for font size when estimating string extents
-* CHANGE "stats <non-existant file>" yields a testable non-fatal error
-* CHANGE criterion for fallback to default axes in 'plot with ellipse'
-* CHANGE deprecate special case of 'with boxerrorbars" flagged by boxwidth = -2
-* CHANGE wgnuplot menu files use UTF-8 encoding
-* CHANGE gdlib png terminal defaults to truecolor, antialiasing, butt linecaps
+Version 6.0
+===========
+  Release 6.0 patchlevel 0		 29 December 2023
+  Too many changes between version 5 and version 6 to list here.
+  See the version 6.0 release notes or the New Features in Version 6
+  section of the user manual.
 
 Changes in 5.4
 ==============

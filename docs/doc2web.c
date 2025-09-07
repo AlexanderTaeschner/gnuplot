@@ -594,7 +594,10 @@ process_line(char *line, FILE *b, FILE *d)
 			sidebar(b, 1);
 			file_has_sidebar = TRUE;
 #endif
-			fprintf(b, "<h1>Gnuplot %s %s</h1>\n", VERSION_MAJOR, sectionname);
+			if (strcmp(sectionname, "NewFeatures") == 0)
+			    fprintf(b, "<h1>New features in version 6</h1>\n");
+			else
+			    fprintf(b, "<h1>Gnuplot %s %s</h1>\n", VERSION_MAJOR, sectionname);
 		    } else {
 			header(b, &line2[2]);
 			fprintf(b, "<h2>%s</h2>\n", &line2[2]);
