@@ -1,0 +1,10 @@
+This tutorial covered obsolete latex terminal variants that were
+deprecated and are no longer in the gnuplot distribution package.
+So the tutorial is obsolete and anyhow cannot be built from the
+current gnuplot source because the terminal drivers are gone.
+
+The functional replacement for the old tutorial is the demo
+subdirectory:   "make latex_demo"
+Source:
+    	$top_srcdir/demo/latex_demo.tex
+
