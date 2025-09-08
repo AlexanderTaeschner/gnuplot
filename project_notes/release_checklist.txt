@@ -1,3 +1,11 @@
+This is a check list I go through when preparing a release.
+Many of the items are here because I messed up on a particular release
+and added a check to avoid making the same mistake again.
+Of course there may remain things that could go wrong even if
+all these checks are made.
+ - Ethan
+
+
 Release packaging
 =================
 
@@ -52,6 +60,10 @@ Release
 	FAQ gnuplot_6.pdf gnuplot-ja.pdf html
 
 - Notify  newsgroup, developer list, LWN
+
+- Other gnuplot developers may upload platform-specific binaries built from
+  the source tarball.  Check back later to see if the readme file should
+  be modified to explain what they are.
 
 Git Tag for minor release
 =========================
