@@ -1,0 +1,78 @@
+Release packaging
+=================
+
+- check current date and copyright dates in
+	docs/titlepag.tex docs/title-ja.tex
+	src/version.c
+	RELEASE_NOTES
+- for a minor release, make sure that the list of new features, changes,
+  and bug fixes from NEWS are also reported in RELEASE_NOTES.
+
+- update FAQ.pdf and place a copy in the top level directory
+- make src/makefile.all
+
+- change PATCHLEVEL
+- check version string in src/version.c       should be "6.0" not "6.0.3"
+- check patchlevel in src/version.c           should be "3" not "6.0.3"
+- also AC_INIT and VERSION_MAJOR at the head of configure.ac
+- also in RELEASE_NOTES
+- modify gnuplot.doc to point to latest release notes
+- confirm that RELEASE=1 in config/mingw/Makefile
+- ./prepare
+- ./configure       (needed for next step, but specific configuration is not relevant)
+
+- make distcheck    (local checks and build)
+
+Staging
+=======
+
+- rename tarball to something like gnuplot-6.0.3-testing.tar.gz
+- upload this to the "testing" folder on SourceForge together with
+  a readme file that explains any specific points that might be
+  important and planned release timeline.
+- notify the gnuplot-beta mailing list and request feedback on success/failure
+  of the testing tarball on other platforms (MacOS, Windows, M4, ...).
+- Wait for feedback 
+	- if everything seems good, use the original tarball for release
+	- if not, either fix the problem and prepare a new tarball
+          or warn that this is a known issue in the Release Notes
+
+Release
+=======
+- create a new release directory on SourceForge
+	- depending on confidence level, set the directory to "staging"
+	  so that you have 3 days to get it right before it goes public
+	- upload release tarball, user manual, release notes, and readme
+
+- make ReleaseNotes.html  (uses txt2html)
+  cp ReleaseNotes.html ReleaseNotes_6_0_3.html
+  Update News and Release Notes on web site
+
+- Update web site docs 
+	FAQ gnuplot_6.pdf gnuplot-ja.pdf html
+
+- Notify  newsgroup, developer list, LWN
+
+Git Tag for minor release
+=========================
+ git commit <whatever was done to finalize release>
+ git push
+ git tag -a 6.0.3 -m "Release 6.0.3" HEAD
+ git show 6.0.3
+ git push origin 6.0.3
+
+After the dust settles (minor release)
+======================================
+ Bump minor version to next alpha, e.g. 3 -> 4alpha
+   in PATCHLEVEL src/version.c configure.ac
+ Start next section of NEWS, RELEASE_NOTES
+
+Git branch procedure (major release)
+====================================
+ git checkout master <where we want to branch from>
+ git branch branch-6-2-stable
+ git checkout branch-6-2-stable
+ git tag -a 6.2 -m "Branch point for 6.2" HEAD
+ <edit and commit all relevant files>
+ git push -u origin branch-6-2-stable
+

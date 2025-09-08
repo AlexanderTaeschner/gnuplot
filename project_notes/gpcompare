@@ -1,0 +1,31 @@
+#!/bin/csh
+#
+# Look for changed output when gnuplot demos are run through a pair of
+# gnuplot binaries that differ by some known change, for instance
+# a proposed bugfix.
+#
+# GNUPLOT_LIB must point to the directory holding the gnuplot demos.
+#
+# It is intended that this script is run from the src directory from
+# which the post-change binary was built.  If that isn't the case
+# you will need to change the second run command below.
+
+# pre-change binary is in /usr/local/bin
+/usr/local/bin/gnuplot -e 'set term post color' all.dem < /bin/yes > all_0.ps
+
+# post-change binary is in .
+./gnuplot -e 'set term post color' all.dem < /bin/yes > all_1.ps
+
+#
+printf "\n## now compare the results ##\n\n"
+#
+diff -urp all_0.ps all_1.ps
+#
+printf "\n## Sections ##\n\n"
+#
+diff -urp all_0.ps all_1.ps | grep '@@'
+#
+printf "\ndiffstat old/new"
+#
+diff -urp all_0.ps all_1.ps | diffstat
+

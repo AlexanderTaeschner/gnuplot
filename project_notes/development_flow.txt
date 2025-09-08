@@ -1,0 +1,71 @@
+Different projects use different flows for project development.
+I don't claim this is the best one, but it was the closest I could
+come to adapting the previous gnuplot project flow when it switched
+to using git instead of cvs.
+
+Repository structure
+====================
+
+- The "master" branch of the git repository is for development.
+  Currently this reports itself as version 6.1
+
+- Each major release gets a separate "stable" branch.
+  Currently this is branch-6-0-stable.
+
+- Minor version release points in the stable branch are marked with tags:
+  6.0.0 6.0.1 6.0.2 and so on.  The tag should mark the point in the git
+  history that corresponds to what is in the distribution source tarball.
+
+New features
+============
+
+- Create a local branch off "master" to work in.
+- If the feature introduces a new "set" command, there should be
+  a matching "show" command and possibly an "unset" command.
+  Make sure an appropriate "set" command is invoked by "reset"
+  and output by "save".
+- When the new code is working and passes regression testing,
+  rebase this branch from master before merging locally.
+- Document the new feature.  There is a bullet-point list for new
+  features in gnuplot.doc, and it may want a whole new section that
+  describes it in more detail.
+- Create a demo that can also serve as a unit test for the new code.
+  Add the demo to "all.dem" so that it is included in regression tests.
+  [Optional] Add the demo, or create a separate one, for inclusion in
+  the online gallery.
+
+Bug fixes
+=========
+
+- Fix the bug in the development version first.  If the bug came from the
+  issue tracker on SourceForge, note the issue number (e.g. Bug #2999) in
+  the commit message.
+- Run regression tests to make sure that fixing one problem did not
+  introduce other new problems.
+- If the bug also affects the stable version, cherry-pick it from the
+  master branch into the stable branch.
+  Run regression tests in the stable branch also.
+  For fixes that are non-trivial, add a line to NEWS in the stable branch.
+- If the bug affects only the development version, then when the fix is
+  committed it can be marked "closed - fixed" on the issue tracker.
+- If the bug affects the stable version, when the fix is committed to the
+  stable branch it can be marked "pending - fixed" on the issue tracker,
+  indicating that the fix will appear in the next incremental release.
+
+Regression testing
+==================
+
+- In theory the full set of demos in .../demo/all.dem exercises all the code.
+  That isn't really true because some options and settings may interact,
+  but are only run separately.  That's life.
+- At a minimum "make check" should run without error.
+- If there is a new demo, it should run without error on all terminals.
+- For changes or fixes that are not terminal-specific, the script
+  "gpcompare" may be useful.  You may have to edit it so that it invokes
+  appropriate pre-change and post-change gnuplot binaries.
+  The script runs all.dem through the postscript terminal to create files
+  all_0.ps (from the pre-change binary) and all_1.ps (from the post-change binary).
+  It then looks for differences between the two output files and prints a 
+  summary.  If you are testing for possible unintended side effects of a new
+  feature you could comment out the call to the corresponding new demo in
+  all.dem so that no changes are expected between the two output files.
