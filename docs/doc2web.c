@@ -476,8 +476,8 @@ process_line(char *line, FILE *b, FILE *d)
 		fprintf(b, "<p align=\"center\">\n");
 		para = FALSE;
 	    }
-	    fprintf(b, "<a href=\"http://gnuplot.info/demo_6.1/%s.html\">\n", demo);
-            fprintf(b, "<img class=\"demo\" src=\"http://gnuplot.info/demo_6.1/%s.%d.png\" ", demo, figure);
+	    fprintf(b, "<a href=\"http://www.gnuplot.info/demo_6.1/%s.html\">\n", demo);
+            fprintf(b, "<img class=\"demo\" src=\"http://www.gnuplot.info/demo_6.1/%s.%d.png\" ", demo, figure);
             fprintf(b, "alt=\"%s demo\" \\>\n", demo);
 	    fprintf(b, "</a>\n");
             break;

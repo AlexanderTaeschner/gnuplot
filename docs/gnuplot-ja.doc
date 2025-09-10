@@ -29,7 +29,7 @@ C で書かれているが、それを HTML 名前参照形式に変更している。
 ^<p align="center">  Copyright (C) 1986 - 1993, 1998 - 2004   Thomas Williams, Colin Kelley<br>
 ^     Copyright (C) 2004 - 2024 various authors</p>
 ^<p align="center">   Mailing list for comments: <tt>gnuplot-info@lists.sourceforge.net</tt><br>
-^   Gnuplot <a href="http://gnuplot.info"> home page </a><br>
+^   Gnuplot <a href="http://www.gnuplot.info"> home page </a><br>
 ^      Issue trackers: &nbsp;
 ^<a href="https://sourceforge.net/p/gnuplot/bugs"> bugs </a> &nbsp;&nbsp;
 ^<a href="https://sourceforge.net/p/gnuplot/feature-requests"> feature requests </a>
@@ -756,8 +756,8 @@ D epi_data 1
  `gnuplot` の配布物の `demo` ディレクトリ内には、多くのサンプルが収めら
  れています。これらのサンプルの png, svg, canvas 出力形式による出力を、
  以下のネット上で見ることもできます:
-^ <a href="http://gnuplot.info/demos/">
-   http://gnuplot.info/demos
+^ <a href="http://www.gnuplot.info/demos/">
+   http://www.gnuplot.info/demos
 ^ </a>
  そこでは、各デモを作成するコマンドがグラフの隣りに表示されますし、その
  gnuplot スクリプトをダウンロードすることもできますので、それを保存し同

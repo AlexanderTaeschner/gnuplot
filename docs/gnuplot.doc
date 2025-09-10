@@ -22,7 +22,7 @@ C
 ^<p align="center">  Copyright (C) 1986 - 1993, 1998 - 2004   Thomas Williams, Colin Kelley<br>
 ^     Copyright (C) 2004 - 2024 various authors</p>
 ^<p align="center">   Mailing list for comments: <tt>gnuplot-info@lists.sourceforge.net</tt><br>
-^   Gnuplot <a href="http://gnuplot.info"> home page </a><br>
+^   Gnuplot <a href="http://www.gnuplot.info"> home page </a><br>
 ^      Issue trackers: &nbsp;
 ^<a href="https://sourceforge.net/p/gnuplot/bugs"> bugs </a> &nbsp;&nbsp;
 ^<a href="https://sourceforge.net/p/gnuplot/feature-requests"> feature requests </a>
@@ -701,8 +701,8 @@ D epi_data 1
  The `gnuplot` distribution contains a collection of examples in the `demo`
  directory. You can browse on-line versions of these examples produced by the
  png, svg, and canvas terminals at
-^ <a href="http://gnuplot.info/demos/">
-   http://gnuplot.info/demos
+^ <a href="http://www.gnuplot.info/demos/">
+   http://www.gnuplot.info/demos
 ^ </a>
  The commands that produced each demo plot are shown next to the plot, and
  the corresponding gnuplot script can be downloaded to serve as a model for
