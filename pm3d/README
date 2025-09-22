@@ -1,3 +1,12 @@
+The content of this subdirectory is mostly of historical interest.
+It is not included in gnuplot distribution packages.
+
+The basic pm3d code was merged into gnuplot long ago.
+The scripts in this collection were written to clean up, simplify,
+or add color features to PostScript files produced by gnuplot+pm3d.
+These capabilities are now supported directly in gnuplot,
+and are not limited to PostScript output.
+
 Subdirectories:
     contrib/scripts - contributions using pm3d (colour points, 
 		      compress pm3d postscript file, ...);
