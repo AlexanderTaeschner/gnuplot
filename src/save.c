@@ -186,6 +186,7 @@ save_variables__sub(FILE *fp)
 		 && strncmp(udv->udv_name,"MOUSE_",6)
 		 && strncmp(udv->udv_name,"$",1)
 		 && (strncmp(udv->udv_name,"ARG",3) || (strlen(udv->udv_name) != 4))
+		 && strncmp(udv->udv_name,"Inf",4)
 		 && strncmp(udv->udv_name,"NaN",4)) {
 		    fprintf(fp, "%s = ", udv->udv_name);
 		    disp_value(fp, &(udv->udv_value), TRUE);
