@@ -1718,6 +1718,9 @@ link_command()
 	} else {
 	    int_error(c_token,"expecting x2 or y2");
 	}
+	if (equals(command_token-1, "unset")) {
+	    /* Cleanup will be done below */
+	}
 	/* This catches the sequence "set nonlinear x; set link x2" */
 	if (primary_axis->linked_to_primary)
 	    int_error(NO_CARET, "You must clear nonlinear x or y before linking it");
@@ -1742,14 +1745,8 @@ link_command()
     }
 
     /* Initialize the action tables for the mapping function[s] */
-    if (!primary_axis->link_udf) {
-	primary_axis->link_udf = gp_alloc(sizeof(udft_entry),"link_at");
-	memset(primary_axis->link_udf, 0, sizeof(udft_entry));
-    }
-    if (!secondary_axis->link_udf) {
-	secondary_axis->link_udf = gp_alloc(sizeof(udft_entry),"link_at");
-	memset(secondary_axis->link_udf, 0, sizeof(udft_entry));
-    }
+    init_axis_links(primary_axis);
+    init_axis_links(secondary_axis);
 
     if (equals(c_token,"via")) {
 	parse_link_via(secondary_axis->link_udf);

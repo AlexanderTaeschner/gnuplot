@@ -32,6 +32,7 @@
 
 #include "setshow.h"
 
+#include "alloc.h"
 #include "axis.h"
 #include "command.h"
 #include "contour.h"
@@ -2026,6 +2027,15 @@ free_axis_struct(struct axis *this_axis)
 	unset_axislabel_or_title(&this_axis->label);
 	if (this_axis->zeroaxis != &default_axis_zeroaxis)
 	    free(this_axis->zeroaxis);
+}
+
+void
+init_axis_links(struct axis *this_axis)
+{
+    if (!this_axis->link_udf) {
+	this_axis->link_udf = gp_alloc(sizeof(udft_entry),"link_at");
+	memset(this_axis->link_udf, 0, sizeof(udft_entry));
+    }
 }
 
 /******** The 'reset' command ********/

@@ -2071,6 +2071,8 @@ void
 sanity_check_log_tics( int axis_index )
 {
     struct axis *axis = &axis_array[axis_index];
+    if (axis->ticmode == NO_TICS)
+	return;
     if (axis->log) {
 	axis->ticdef.force_linear_tics = FALSE;
 	axis_tic_count = 0;			/* reset counter for actual number of tics */
