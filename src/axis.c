@@ -273,6 +273,9 @@ axis_name(AXIS_INDEX axis)
 void
 init_sample_range(AXIS *axis, enum PLOT_TYPE plot_type)
 {
+    /* Special case: x2 linked to logscale x1 */
+    if (axis->forced_log_link > 0)
+	axis -= (SECOND_X_AXIS - FIRST_X_AXIS);
     axis_array[SAMPLE_AXIS].range_flags = 0;
     axis_array[SAMPLE_AXIS].min = axis->min;
     axis_array[SAMPLE_AXIS].max = axis->max;
@@ -930,10 +933,12 @@ setup_tics(struct axis *this, int max)
 	}
     }
 
-    /* HBB 20000506: if no tics required for this axis, do
-     * nothing. This used to be done exactly before each call of
-     * setup_tics, anyway... */
-    if (! this->ticmode)
+    /* If no tics required for this axis, do nothing */
+    if (!this->ticmode)
+	return;
+
+    /* Special case: x2 linked to logscale x1 */
+    if (this->forced_log_link > 0)
 	return;
 
     if (ticdef->type == TIC_SERIES) {
@@ -1131,6 +1136,16 @@ gen_tics(struct axis *this, tic_callback callback)
 	switch (def->type) {
 	case TIC_SERIES:
 	    if (this->log && this->index != POLAR_AXIS) {
+		struct axis *primary = this;
+		if (this->linked_to_primary)
+		    primary = this->linked_to_primary;
+		/* Special case: x2 linked to logscale x1 */
+		if (this->forced_log_link > 0) {
+		    this -= (SECOND_X_AXIS - FIRST_X_AXIS);
+		    primary = this->linked_to_primary;
+		    if (!primary)
+			int_error(NO_CARET, "log axis with broken link");
+		}
 		/* we can tolerate start <= 0 if step and end > 0 */
 		if (def->def.series.end <= 0 || def->def.series.incr <= 0)
 		    return;	/* just quietly ignore */
@@ -1149,15 +1164,15 @@ gen_tics(struct axis *this, tic_callback callback)
 		     */
 		    if (start <= 0) {
 			start = step;
-			while (start > this->linked_to_primary->min)
+			while (start > primary->min)
 			    start -= step;
 		    } else {
-			start = eval_link_function(this->linked_to_primary, start);
+			start = eval_link_function(primary, start);
 		    }
-		    step  = eval_link_function(this->linked_to_primary, step);
-		    end   = eval_link_function(this->linked_to_primary, end);
-		    lmin = this->linked_to_primary->min;
-		    lmax = this->linked_to_primary->max;
+		    step  = eval_link_function(primary, step);
+		    end   = eval_link_function(primary, end);
+		    lmin = primary->min;
+		    lmax = primary->max;
 		}
 	    } else {
 		start = def->def.series.start;
@@ -1173,9 +1188,13 @@ gen_tics(struct axis *this, tic_callback callback)
 	    }
 	    break;
 	case TIC_COMPUTED:
+	    /* Special case: x2 linked to logscale x1 */
+	    if (this->forced_log_link > 0)
+		this -= (SECOND_X_AXIS - FIRST_X_AXIS);
 	    if (this->log
 	    && (!this->ticdef.logscaling || this->ticdef.force_linear_tics)) {
-		FPRINTF((stderr,"special case (log axis but linear tic intervals)\n"));
+		FPRINTF((stderr,"special case (log %s axis but linear tic intervals)\n",
+			axis_name(this->index)));
 	    } else if (nonlinear(this)) {
 		lmin = this->linked_to_primary->min;
 		lmax = this->linked_to_primary->max;
@@ -2730,10 +2749,15 @@ get_shadow_axis(AXIS *axis)
 void
 extend_primary_ticrange(AXIS *axis)
 {
-    AXIS *primary = axis->linked_to_primary;
-    TBOOLEAN autoextend_min = (axis->autoscale & AUTOSCALE_MIN)
+    AXIS *primary;
+    TBOOLEAN autoextend_min, autoextend_max;
+   
+    primary = axis->linked_to_primary;
+    if (!primary)	/* Special case: x2 linked to logscale x1 */
+	return;
+    autoextend_min = (axis->autoscale & AUTOSCALE_MIN)
 	&& !(axis->autoscale & AUTOSCALE_FIXMIN);
-    TBOOLEAN autoextend_max = (axis->autoscale & AUTOSCALE_MAX)
+    autoextend_max = (axis->autoscale & AUTOSCALE_MAX)
 	&& !(axis->autoscale & AUTOSCALE_FIXMAX);
 
     if (axis->ticdef.logscaling) {
@@ -2769,6 +2793,25 @@ update_primary_axis_range(struct axis *secondary)
 	/* nonlinear axis (secondary is visible; primary is hidden) */
 	primary->min = eval_link_function(primary, secondary->min);
 	primary->max = eval_link_function(primary, secondary->max);
+    }
+
+    /* Special case: x2 linked to logscale x1 */
+    if (secondary->forced_log_link < 0) {
+	/* This is merging the user-visible limits from x1 into x2 */
+	struct axis *forced_link = secondary + (SECOND_X_AXIS - FIRST_X_AXIS);
+	if (forced_link->min > secondary->min)
+	    forced_link->min = secondary->min;
+	if (forced_link->max < secondary->max)
+	    forced_link->max = secondary->max;
+    }
+    if (secondary->forced_log_link > 0) {
+	/* This is merging the user-visible limits from x2 into x1 */ 
+	struct axis *forced_link = secondary - (SECOND_X_AXIS - FIRST_X_AXIS);
+	if (forced_link->min > secondary->min)
+	    forced_link->min = secondary->min;
+	if (forced_link->max < secondary->max)
+	    forced_link->max = secondary->max;
+	update_primary_axis_range(forced_link);
     }
 }
 
@@ -2838,6 +2881,10 @@ map_x_double(double value)
 {
     AXIS *xaxis = &axis_array[x_axis];
 
+    /* Special case: x2 linked to logscale x1 */
+    if (xaxis->forced_log_link > 0)
+	xaxis = &axis_array[FIRST_X_AXIS];
+
     if (xaxis->linked_to_primary) {
 	AXIS *primary = xaxis->linked_to_primary;
 	if (primary->link_udf->at) {
@@ -2863,6 +2910,10 @@ double
 map_y_double(double value)
 {
     AXIS *yaxis = &axis_array[y_axis];
+
+    /* Special case: y2 linked to logscale y1 */
+    if (yaxis->forced_log_link > 0)
+	yaxis = &axis_array[FIRST_Y_AXIS];
 
     if (yaxis->linked_to_primary) {
 	AXIS *primary = yaxis->linked_to_primary;

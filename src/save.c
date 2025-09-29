@@ -1524,6 +1524,8 @@ save_link(FILE *fp, AXIS *this_axis)
 	    fprintf(fp, "inverse %s ", this_axis->linked_to_primary->link_udf->definition);
 	fputs("\n", fp);
     }
+    if (this_axis->forced_log_link)
+	fprintf(fp, "set link %s # forced log link\n", axis_name(this_axis->index));
 }
 
 void

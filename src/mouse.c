@@ -479,12 +479,16 @@ MousePosToGraphPosReal(int xx, int yy, double *x, double *y, double *x2, double 
     &&  secondary->linked_to_primary->index == -FIRST_X_AXIS) {
 	*x = axis_mapback(secondary->linked_to_primary, xx);
 	*x = eval_link_function(secondary, *x);
+	if (secondary->forced_log_link < 0)
+	    *x2 = *x;
     }
     secondary = &axis_array[FIRST_Y_AXIS];
     if (secondary->linked_to_primary
     &&  secondary->linked_to_primary->index == -FIRST_Y_AXIS) {
 	*y = axis_mapback(secondary->linked_to_primary, yy);
 	*y = eval_link_function(secondary, *y);
+	if (secondary->forced_log_link < 0)
+	    *y2 = *y;
     }
     secondary = &axis_array[SECOND_X_AXIS];
     if (secondary->linked_to_primary

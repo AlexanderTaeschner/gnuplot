@@ -4114,7 +4114,8 @@ eval_plots()
 	    axis_array[SECOND_Y_AXIS].min = axis_array[SECOND_Y_AXIS].set_min;
 	    axis_array[SECOND_Y_AXIS].max = axis_array[SECOND_Y_AXIS].set_max;
 	}
-	if (axis_array[SECOND_Y_AXIS].linked_to_primary) {
+	if (axis_array[SECOND_Y_AXIS].linked_to_primary
+	||  axis_array[SECOND_Y_AXIS].forced_log_link) {
 	    axis_checked_extend_empty_range(SECOND_Y_AXIS, "all points y2 value undefined!");
 	    update_primary_axis_range(&axis_array[SECOND_Y_AXIS]);
 	    extend_autoscaled_log_axis(&axis_array[SECOND_Y_AXIS]);

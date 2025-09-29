@@ -1718,12 +1718,25 @@ link_command()
 	} else {
 	    int_error(c_token,"expecting x2 or y2");
 	}
+
 	if (equals(command_token-1, "unset")) {
 	    /* Cleanup will be done below */
 	}
-	/* This catches the sequence "set nonlinear x; set link x2" */
-	if (primary_axis->linked_to_primary)
-	    int_error(NO_CARET, "You must clear nonlinear x or y before linking it");
+	/* This catches the sequence "set {log|nonlinear} x; set link x2" */
+	else if (primary_axis->linked_to_primary) {
+	    if (primary_axis->log) {
+		memcpy(secondary_axis, primary_axis, AXIS_CLONE_SIZE);
+		memcpy(&(secondary_axis->ticdef), &(primary_axis->ticdef), sizeof(t_ticdef));
+		secondary_axis->forced_log_link = 1;
+		primary_axis->forced_log_link = -1;
+		secondary_axis->linked_to_primary = NULL;
+		c_token++;
+		return;
+	    } else {
+		/* This catches the sequence "set nonlinear x; set link x2" */
+		int_error(NO_CARET, "You must clear nonlinear x or y before linking it");
+	    }
+	}
 	/* This catches the sequence "set nonlinear x2; set link x2" */
 	if (secondary_axis->linked_to_primary && secondary_axis->linked_to_primary->index <= 0)
 	    int_error(NO_CARET, "You must clear nonlinear x2 or y2 before linking it");
@@ -1733,6 +1746,8 @@ link_command()
     /* "unset link {x|y}" command */
     if (equals(command_token-1,"unset")) {
 	primary_axis->linked_to_secondary = NULL;
+	secondary_axis->forced_log_link = 0;
+	primary_axis->forced_log_link = 0;
 	if (secondary_axis->linked_to_primary == NULL)
 	    /* It wasn't linked anyhow */
 	    return;

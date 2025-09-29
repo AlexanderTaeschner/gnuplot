@@ -1407,6 +1407,8 @@ unset_logscale()
 	    if (!isalpha((unsigned char)axis_name(axis)[0]))
 		continue;
 	    if (axis_array[axis].log) {
+		if (axis_array[axis].forced_log_link < 0)
+		    set_for_axis[axis + SECOND_X_AXIS - FIRST_X_AXIS] = TRUE;
 		sprintf(command, "unset nonlinear %s", axis_name(axis));
 		do_string(command); 
 		axis_array[axis].log = FALSE;

@@ -212,11 +212,11 @@ typedef struct axis {
 
 /* log axis control */
     TBOOLEAN log;		/* log axis stuff: flag "islog?" */
+    int8_t forced_log_link;	/* if "set link" to logscale x/y: x1/y1: -1  x2/y2: 1 */
     double base;		/* logarithm base value */
     double log_base;		/* ln(base), for easier computations */
 
-/* linked axis information (used only by x2, y2)
- * If axes are linked, the primary axis info will be cloned into the
+/* If axes are linked, the primary axis info will be cloned into the
  * secondary axis only up to this point in the structure.
  */
     struct axis *linked_to_primary;	/* Set only in a secondary axis */
@@ -271,7 +271,8 @@ typedef struct axis {
 	0, 0,   		/* terminal lower and upper coords */	    \
 	0.,        		/* terminal scale */			    \
 	0,        		/* zero axis position */		    \
-	FALSE, 10.0, 0.0,	/* log, base, log(base) */		    \
+	FALSE, 0,		/* log, forced_log_link */		    \
+	10.0, 0.0,		/* base, log(base) */			    \
 	NULL, NULL,		/* linked_to_primary, linked_to_secondary */\
 	NULL,      		/* link function */                         \
 	NO_TICS,		/* tic output positions (border, mirror) */ \
