@@ -8,11 +8,13 @@ install:
   - cd C:\Tools\vcpkg
 #  - git clean -f -d -x
 #  - del /S /Q C:\tools\vcpkg\installed
-  - git pull
+  - git fetch --tags
+  - git checkout 2025.09.17
   - .\bootstrap-vcpkg.bat
   - .\vcpkg.exe install --recurse fontconfig:%PLATFORM%-windows
   - .\vcpkg.exe install --recurse harfbuzz[core,freetype]:%PLATFORM%-windows
   - .\vcpkg.exe install --recurse gettext[core,tools]:x64-windows
+  - .\vcpkg.exe install --recurse glib:%PLATFORM%-windows
   - .\vcpkg.exe install --recurse cairo[core,fontconfig,freetype,gobject]:%PLATFORM%-windows
   - .\vcpkg.exe install --recurse pango:%PLATFORM%-windows
   - .\vcpkg.exe install --recurse libgd:%PLATFORM%-windows
