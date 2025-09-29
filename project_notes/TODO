@@ -8,8 +8,11 @@ COMMANDS:
 DOCUMENTATION:
 ==============
 
- -- Improve the documentation on fonts
+ -- Improve the documentation on font handling
  -- More figures in the manual
+	split figure generation across multiple scripts so that
+	docs/plotstyles.gnu does not become impossibly large
+ -- pipe output of "help" through pager
 
 PLATFORMS:
 ==========
@@ -26,9 +29,6 @@ GNUPLOT TOOLS LIBRARY:
 
 Make a library (e.g. usr/local/gnuplot/scripts/, .../gnuplot/bin) of 
 (a) gnuplot scripts, and (b) shell scripts relevant for gnuplot:
-
--- enclose script "gpsavediff" that diff's output of gnuplot's "save" command 
-and default setup after "reset" 
 
 INSTALLATION --- LINUX:
 =======================
@@ -92,6 +92,10 @@ Terminals
 - possible updates for
 	dxy aquaterm
 - outboard driver for wxt
+- qt: UTF8 conversion should be done on the core side of the core <-> terminal API.
+	As it is now the program cannot handle unicode escape sequences if the
+	core code is running in a non-UTF8 locale.
+- dark mode for interactive teminals
 
 Fitting
 -------
@@ -123,7 +127,17 @@ Features
 - FIR filters
    Add a new class of smoothing operations that would allow user-provided
    Savitzky–Golay filters. Smoothed value at point x[i] would be calculated
-   as     i+n/2
+   as
+          i+n/2
       Sum        Weight[j] * y[j]
         j=i-n/2
+   Implementing this via a sliding window into the data being plotted would
+   make it easier to refer to or filter based on previous and subsequent
+   data points.  E.g.
+	# skip duplicate points (same x coordinate)
+	plot $FOO using 1:2:3 if (column(1) != previous(1))
+- Better integration of hidden3d and pm3d processing
+	Could pm3d quadangles and hidden3d line segments be merged, sorted,
+	and rendered together rather than separately?
+- Mousing in all subplotes of a multiplot
 

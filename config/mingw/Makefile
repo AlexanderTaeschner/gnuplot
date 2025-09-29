@@ -1157,7 +1157,7 @@ veryclean: clean
 	-$(RM) $(HELPFILE) $(HELPFILEJA) wgnuplot.chw wgnuplot.gid wgnuplot.mnu
 	$(RM) gnuplot.ps gnuplot.pdf
 	-$(RM) gnuplot-ja.pdf
-	-$(RM) tutorial.pdf faq.pdf
+	-$(RM) faq.pdf
 	$(RM) ps_fontfile_doc.pdf ps_fontfile_doc.ps ps_guide.pdf
 	$(RM) ps_symbols.ps ps_symbols.pdf
 	$(RM) $(M)binary[123] $(M)fit.log $(M)soundfit.par

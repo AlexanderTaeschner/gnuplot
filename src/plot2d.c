@@ -1218,12 +1218,13 @@ get_data(struct curve_points *current_plot)
 			case SMOOTH_NONE:
 			case SMOOTH_CSPLINES:
 			case SMOOTH_SBEZIER:
+			case SMOOTH_BEZIER:
 			    break;
 			case SMOOTH_ACSPLINES:
 			    w = (j > 3) ? v[3] : 1.0;
 			    break;
 			default:
-			    int_warn(NO_CARET, "use csplines, acsplines or sbezier to smooth non-closed filledcurves");
+			    int_warn(NO_CARET, "use csplines, acsplines, bezier or sbezier to smooth non-closed filledcurves");
 			    current_plot->plot_smooth = SMOOTH_NONE;
 			    break;
 		    }

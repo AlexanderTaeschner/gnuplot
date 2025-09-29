@@ -956,7 +956,7 @@ gprintf_value(
 			    dest += snprintf(dest, remaining_space, (vi < 0) ? " - " : " + ");
 			    dest += snprintf(dest, remaining_space, temp, fabs(vi));
 			}
-			dest += snprintf(dest, remaining_space,
+			dest += snprintf(dest, remaining_space, "%s",
 					imaginary_user ? imaginary_user : "i");
 		    }
 		} else {
@@ -1639,7 +1639,8 @@ num_to_str(double r)
     sprintf(s[j], "%.15g", r);
     if (strchr(s[j], '.') == NULL &&
 	strchr(s[j], 'e') == NULL &&
-	strchr(s[j], 'E') == NULL)
+	strchr(s[j], 'E') == NULL &&
+	!isinf(r))
 	strcat(s[j], ".0");
 
     return s[j];

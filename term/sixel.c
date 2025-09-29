@@ -616,7 +616,7 @@ gdImageSixel(gdImagePtr im, FILE *out, int maxPalet, int optTrue, int optFill)
     if ( !optTrue )
 	Histogram(im, back);
 
-    fprintf(out_fp, "\033Pq\"1;1;%d;%d\n", map_width, map_height);
+    fprintf(out_fp, "\033P9;1q\"1;1;%d;%d\n", map_width, map_height);
 
 #ifdef USE_SIXEL_INITPAL
     if ( !optTrue ) {

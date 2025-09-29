@@ -1,0 +1,71 @@
+
+===================================================
+Posted to the gnuplot developer list on 21-Sep-2009
+===================================================
+
+
+Date: Mon Sep 21 15:29:34 2009
+ From: Clark Gaylord <cgaylord@vt.edu>
+ CC: gnuplot-beta@lists.sourceforge.net
+ 
+This was going to be just a quick note about our 
+"pre-production/production" web content design, but I started rummaging 
+around through the archives and thought I'd go ahead a document the 
+history for reference. Sorry for the lack of brevity. --ckg
+
+The design for managing the web content is that the sourceforge site is 
+considered "pre-production" which then gets to the "production" 
+gnuplot.info site once/day. It was originally intended that the 
+sourceforge project would be the primary site for gnuplot *development* 
+(which I established 1 February 2000; HBB joined in April 2000). The 
+idea was that we could work with the web site effectively on a 
+"pre-prod" server (now this is sourceforge), which then is occasionally 
+in a state of flux, and automatically this will get rolled into 
+production once per day. There is a very small risk that the state of 
+flux would happen at the moment of sync, and this is obviously a pretty 
+cheesy design. However, it was a very easy way to give us a "poor man's 
+CMS", and the content has never had a "must be updated in fifteen 
+minutes because CNN is running a story that is going to give us $4M 
+RIGHT NOW!" nature. More importantly, the only thing we must do to 
+perform a major rewrite of the web site is to break the mirror while we 
+work on it (or if we wanted to have a real "development" web site 
+distinct from the public facing web site).
+
+I think we may have had www.gnuplot.vt.edu canonical in February 1999 
+(ftp was started in 1998), prior to the gnuplot.org domain. I picked up 
+the content from Alex Woo in late 1998, and I think Lars ran the old 
+cmpc1 ftp server. That was about when we started having this 
+staging/production environment. I think Lars Hecking had the primary 
+content shortly after we set up the gnuplot.org domain, and he operated 
+until 2004 when we migrated web content to sourceforge. John Turner had 
+the gnuplot.org domain between 1998 and 2001, when we lost it and I 
+registered gnuplot.info, both of which have always been hosted at 
+Virginia Tech. gnuplot.info came on the air 3 Jan 2002. In 2000, I 
+created the sourceforge space to support gnuplot *development* (that's 
+why the project is named "gnuplot development") and give us a CVS home. 
+Mailing lists were migrated from Dartmouth to sourceforge in 2003. We 
+started using sourceforge as our pre-production web site in late 2004, 
+when Lars had to move off of his server at ucc.ie.
+
+The suitability of the various options is arguable. Sourceforge tends to 
+have a more "high availability" server environment (we "think" ....) 
+Though there have certainly been plenty of issues with sourceforge over 
+the last decade, this is much more true of a single server that some guy 
+(i.e. me) takes care of (actually, the server has the support from a 
+"team" of sysadmins, currently at the Virginia Tech Transportation 
+Institute http://www.vtti.vt.edu/ ). VT is better connected to the 
+research and international communities due to its involvement in 
+Internet2 and National Lambda Rail, but this is from a strictly 
+"performance" perspective not necessarily based on path redundancy, etc. 
+So, from that perspective you could argue either way. It really is about 
+having the ability for developers to work on the site without having to 
+worry so much about breaking it temporarily.
+
+Of course if we were to lose the VT hosting option someday I would not 
+mind using sourceforge if necessary, though I would probably first look 
+for something to replicate the existing design.
+
+Anyway, I hope that explains why we have it set up this way and it makes 
+sense.
+
+--ckg
