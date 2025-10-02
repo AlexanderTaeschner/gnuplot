@@ -239,7 +239,8 @@ AC_CHECK_HEADERS(dirent.h errno.h float.h langinfo.h limits.h locale.h math.h \
   dlfcn.h dl.h
 )
 
-AC_HEADER_STDBOOL
+dnl obsolete in c99
+dnl AC_HEADER_STDBOOL
 
 if test "$ac_cv_header_sys_stat_h" = yes; then
   AC_HEADER_STAT
