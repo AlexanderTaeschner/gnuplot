@@ -99,6 +99,13 @@
  * patches by Masahito Yamaga <ma@yama-ga.com>
  */
 
+/* These includes apparently must come before the X11 includes
+ * in order to make c17 and c23 happy.
+ */
+#include "syscfg.h"
+#include "stdfn.h"
+#include "gp_types.h"
+
 #include <X11/Xos.h>
 #include <X11/Xlib.h>
 #include <X11/Xresource.h>
@@ -111,9 +118,6 @@
 #include <X11/XKBlib.h>	/* for XkbKeycodeToKeysym */
 
 #include <assert.h>
-#include "syscfg.h"
-#include "stdfn.h"
-#include "gp_types.h"
 #include "term_api.h"
 #include "gplt_x11.h"
 #include "version.h"
