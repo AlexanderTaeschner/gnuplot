@@ -337,17 +337,6 @@ typedef RETSIGTYPE (*sigfunc) (void);
 #define SORTFUNC_ARGS const generic *
 #endif
 
-/* Macros for string concatenation */
-#ifdef HAVE_STRINGIZE
-/* ANSI version */
-# define CONCAT(x,y) x##y
-# define CONCAT3(x,y,z) x##y##z
-#else
-/* K&R version */
-# define CONCAT(x,y) x/**/y
-# define CONCAT3(x,y,z) x/**/y/**/z
-#endif
-
 /* Windows needs to redefine stdin/stdout functions */
 #if defined(_WIN32) && !defined(WINDOWS_NO_GUI)
 # include "win/wtext.h"
