@@ -1286,8 +1286,8 @@ installer:
 ifndef M32
 	sed -i \
 	    -e "s/@INSTALLER@/gp$(SHORTVERSION)-win64-setup/" \
-	    -e 's/^\(ArchitecturesAllowed\)=/\1=x64/g' \
-	    -e 's/^\(ArchitecturesInstallIn64BitMode\)=/\1=x64/g' \
+	    -e 's/^\(ArchitecturesAllowed\)=/\1=x64compatible/g' \
+	    -e 's/^\(ArchitecturesInstallIn64BitMode\)=/\1=x64compatible/g' \
 	    ./dist/gnuplot.iss
 else
 	sed -i \
