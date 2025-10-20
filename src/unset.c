@@ -2076,7 +2076,6 @@ reset_command()
 	init_constants();
 	init_session();
 	reset_mouse();
-	reset_since_last_plot = TRUE;
 	return;
     }
 
@@ -2123,7 +2122,9 @@ reset_command()
      * suppress some of the commentary output by the individual
      * unset_...() routines. */
     interactive = FALSE;
+#ifdef USE_MOUSE
     reset_since_last_plot = TRUE;
+#endif
 
     unset_samples();
     unset_isosamples();
@@ -2359,5 +2360,6 @@ reset_mouse()
     mouse_alt_string = NULL;
     mouse_mode = MOUSE_COORDINATES_REAL;
     mouse_setting = default_mouse_setting;
+    reset_since_last_plot = TRUE;
 #endif
 }
