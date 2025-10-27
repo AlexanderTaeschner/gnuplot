@@ -72,8 +72,6 @@ typedef struct hist {
 extern int history_length;
 extern int history_base;
 
-void using_history(void);
-void clear_history(void);
 void add_history(char *line);
 int read_history(char *);
 int write_history(char *);
@@ -83,9 +81,7 @@ HIST_ENTRY * history_get(int offset);
 HIST_ENTRY * current_history(void);
 HIST_ENTRY * previous_history(void);
 HIST_ENTRY * next_history(void);
-HIST_ENTRY * replace_history_entry(int which, const char *line, histdata_t data);
 HIST_ENTRY * remove_history(int which);
-histdata_t free_history_entry(HIST_ENTRY *histent);
 int history_search(const char *string, int direction);
 int history_search_prefix(const char *string, int direction);
 #endif

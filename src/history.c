@@ -99,31 +99,6 @@ read_history(char *filename)
 }
 
 
-void
-using_history(void)
-{
-    /* Nothing to do. */
-}
-
-
-void
-clear_history(void)
-{
-    HIST_ENTRY * entry = history;
-
-    while (entry != NULL) {
-	HIST_ENTRY * prev = entry->prev;
-	free(entry->line);
-	free(entry);
-	entry = prev;
-    }
-
-    history_length = 0;
-    cur_entry = NULL;
-    history = NULL;
-}
-
-
 int
 where_history(void)
 {
@@ -229,31 +204,6 @@ next_history(void)
 
 
 HIST_ENTRY *
-replace_history_entry(int which, const char *line, histdata_t data)
-{
-    HIST_ENTRY * entry = history_get(which + 1);
-    HIST_ENTRY * prev_entry;
-
-    if (entry == NULL)
-	return NULL;
-
-    /* save contents: allocate new entry */
-    prev_entry = (HIST_ENTRY *) malloc(sizeof(HIST_ENTRY));
-    if (entry != NULL) {
-	memset(prev_entry, 0, sizeof(HIST_ENTRY));
-	prev_entry->line = entry->line;
-	prev_entry->data = entry->data;
-    }
-
-    /* set new value */
-    entry->line = gp_strdup(line);
-    entry->data = data;
-
-    return prev_entry;
-}
-
-
-HIST_ENTRY *
 remove_history(int which)
 {
     HIST_ENTRY * entry;
@@ -277,23 +227,6 @@ remove_history(int which)
     history_length--;
 
     return entry;
-}
-#endif
-
-
-#if defined(READLINE) || defined(HAVE_LIBEDITLINE)
-histdata_t 
-free_history_entry(HIST_ENTRY *histent)
-{
-    histdata_t data;
-
-    if (histent == NULL)
-	return NULL;
-
-    data = histent->data;
-    free((void *)(histent->line));
-    free(histent);
-    return data;
 }
 #endif
 

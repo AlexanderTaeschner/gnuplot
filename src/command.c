@@ -3641,8 +3641,6 @@ rlgets(char *s, size_t n, const char *prompt)
 	if (line && *line) {
 #  if defined(READLINE) || defined(HAVE_LIBREADLINE)
 	    int found;
-	    /* Initialize readline history functions */
-	    using_history();
 
 	    /* search in the history for entries containing line.
 	     * They may have other tokens before and after line, hence
@@ -3667,7 +3665,6 @@ rlgets(char *s, size_t n, const char *prompt)
 	    if (!is_history_command(line)) {
 		/* deleting history entries does not work, so suppress adjacent duplicates only */
 		int found = 0;
-		using_history();
 
 		if (!history_full)
 		    found = history_search(line, -1);

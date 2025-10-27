@@ -300,7 +300,6 @@ main(int argc_orig, char **argv)
      * instead of readline) */
     rl_readline_name = "Gnuplot";
     rl_terminal_name = getenv("TERM");
-    using_history();
 
     #if !defined(MISSING_RL_TILDE_EXPANSION)
     rl_complete_with_tilde_expansion = 1;
