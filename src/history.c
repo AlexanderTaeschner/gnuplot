@@ -38,11 +38,6 @@
 #include "plot.h"
 #include "util.h"
 
-/* Local prototypes */
-#ifdef USE_READLINE
-static void write_history_list(const int num, const char *const filename, const char *mode);
-#endif
-
 /* Public variables */
 
 int gnuplot_history_size = HISTORY_SIZE;
@@ -50,6 +45,8 @@ TBOOLEAN history_quiet = FALSE;
 TBOOLEAN history_full = FALSE;
 
 #if defined(READLINE) || (defined(GNUPLOT_HISTORY) && !defined(USE_READLINE))
+
+/* history functions of built-in readline */
 
 struct hist *history = NULL;	/* last entry in the history list, no history yet */
 struct hist *cur_entry = NULL;
@@ -59,7 +56,7 @@ int history_base = 1;
 
 /* add line to the history */
 void
-add_history(char *line)
+add_history(const char *line)
 {
     struct hist *entry;
 
@@ -75,16 +72,6 @@ add_history(char *line)
 	cur_entry = entry;
     history = entry;
     history_length++;
-}
-
-
-/* write history to a file
- */
-int
-write_history(char *filename)
-{
-    write_history_n(0, filename, "w");
-    return 0;
 }
 
 
@@ -110,8 +97,6 @@ history_get(int offset)
     return NULL;
 }
 
-
-/* Built-in readline */
 
 int
 where_history(void)
@@ -192,10 +177,8 @@ next_history(void)
     else
 	return NULL;
 }
-#endif
 
 
-#ifdef READLINE
 HIST_ENTRY *
 remove_history(int which)
 {
@@ -221,7 +204,7 @@ remove_history(int which)
 
     return entry;
 }
-#endif
+#endif // defined(READLINE) || (defined(GNUPLOT_HISTORY) && !defined(USE_READLINE))
 
 
 #if defined(READLINE) || defined(HAVE_WINEDITLINE) || (defined(GNUPLOT_HISTORY) && !defined(USE_READLINE))
@@ -275,9 +258,11 @@ history_search_prefix(const char *string, int direction)
     history_set_pos(start);
     return -1;
 }
-#endif
+#endif // defined(READLINE) || defined(HAVE_WINEDITLINE) || (defined(GNUPLOT_HISTORY) && !defined(USE_READLINE))
 
 #if defined(GNUPLOT_HISTORY) && (defined(READLINE) || !defined(USE_READLINE))
+
+/* functions of built-in readline to read/write history file */
 
 /* routine to read history entries from a file,
  * this complements write_history and is necessary for
@@ -317,10 +302,21 @@ read_history(const char *filename)
 	return errno;
     }
 }
+
+
+/* write history to a file
+ */
+int
+write_history(char *filename)
+{
+    write_history_n(0, filename, "w");
+    return 0;
+}
 #endif
 
 
 #if defined(USE_READLINE) || defined(GNUPLOT_HISTORY)
+
 /* Save history to file, or write to stdout or pipe.
  * For pipes, only "|" works, pipes starting with ">" get a strange 
  * filename like in the non-readline version.
@@ -477,4 +473,4 @@ history_find_all(char *cmd)
     return number;
 }
 
-#endif /* READLINE */
+#endif // defined(USE_READLINE) || defined(GNUPLOT_HISTORY)

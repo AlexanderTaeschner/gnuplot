@@ -57,7 +57,13 @@ typedef struct hist {
     struct hist *next;
 } HIST_ENTRY;
 
-void add_history(char *line);
+void add_history(const char *line);
+#endif
+
+
+#if defined(GNUPLOT_HISTORY) && (defined(READLINE) || !defined(USE_READLINE))
+/* functions of built-in readline to read/write history file */
+
 int read_history(const char *);
 int write_history(char *);
 #endif
@@ -76,7 +82,7 @@ int write_history(char *);
 # include <editline/readline.h>
 
 
-#elif defined(READLINE)
+#elif defined(READLINE) || defined(GNUPLOT_HISTORY)
 /* gnuplot's built-in replacement history functions
 */
 

@@ -3617,6 +3617,48 @@ is_history_command(const char *line)
 }
 
 
+/* add line to history file if enabled */
+static void
+add_line_to_history(const char *line)
+{
+#if defined(USE_READLINE) || defined(GNUPLOT_HISTORY)
+#ifdef HAVE_LIBEDITLINE
+    if (!is_history_command(line)) {
+	/* deleting history entries does not work, so suppress adjacent duplicates only */
+	int found = 0;
+
+	if (!history_full)
+	    found = history_search(line, -1);
+	if (found <= 0)
+	    add_history(line);
+    }
+#else
+    int found;
+
+    /* search in the history for entries containing line.
+     * They may have other tokens before and after line, hence
+     * the check on strcmp below. */
+    if (!is_history_command(line)) {
+	if (!history_full) {
+	    found = history_search(line, -1);
+	    if (found != -1 && !strcmp(current_history()->line,line)) {
+		/* this line is already in the history, remove the earlier entry */
+		HIST_ENTRY *removed = remove_history(where_history());
+		/* according to history docs we are supposed to free the stuff */
+		if (removed) {
+		    free(removed->line);
+		    free(removed->data);
+		    free(removed);
+		}
+	    }
+	}
+	add_history(line);
+    }
+#endif // HAVE_LIBEDITLINE
+#endif // defined(USE_READLINE) || defined(GNUPLOT_HISTORY)
+}
+
+
 # ifdef USE_READLINE
 /* keep some compilers happy */
 static char *rlgets(char *s, size_t n, const char *prompt);
@@ -3638,41 +3680,8 @@ rlgets(char *s, size_t n, const char *prompt)
 	line = readline((interactive) ? prompt : "");
 	leftover = 0;
 	/* If it's not an EOF */
-	if (line && *line) {
-#  if defined(READLINE) || defined(HAVE_LIBREADLINE)
-	    int found;
-
-	    /* search in the history for entries containing line.
-	     * They may have other tokens before and after line, hence
-	     * the check on strcmp below. */
-	    if (!is_history_command(line)) {
-		if (!history_full) {
-		    found = history_search(line, -1);
-		    if (found != -1 && !strcmp(current_history()->line,line)) {
-			/* this line is already in the history, remove the earlier entry */
-			HIST_ENTRY *removed = remove_history(where_history());
-			/* according to history docs we are supposed to free the stuff */
-			if (removed) {
-			    free(removed->line);
-			    free(removed->data);
-			    free(removed);
-			}
-		    }
-		}
-		add_history(line);
-	    }
-#  elif defined(HAVE_LIBEDITLINE)
-	    if (!is_history_command(line)) {
-		/* deleting history entries does not work, so suppress adjacent duplicates only */
-		int found = 0;
-
-		if (!history_full)
-		    found = history_search(line, -1);
-		if (found <= 0)
-		    add_history(line);
-	    }
-#  endif
-	}
+	if (line && *line)
+	    add_line_to_history(line);
     }
     if (line) {
 	/* s will be NUL-terminated here */
@@ -3838,7 +3847,15 @@ gp_get_string(char * buffer, size_t len, const char * prompt)
     if (interactive)
 	PUT_STRING(prompt);
 
-    return GET_STRING(buffer, len);
+    char *line = GET_STRING(buffer, len);
+
+    if (interactive && line) {
+	line[strcspn(line, "\n")] = '\0';
+	if (*line != '\0')
+	    add_line_to_history(line);
+    }
+
+    return line;
 # endif
 }
 
