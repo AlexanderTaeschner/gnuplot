@@ -49,9 +49,7 @@ int gnuplot_history_size = HISTORY_SIZE;
 TBOOLEAN history_quiet = FALSE;
 TBOOLEAN history_full = FALSE;
 
-#if defined(READLINE)
-
-/* Built-in readline */
+#if defined(READLINE) || (defined(GNUPLOT_HISTORY) && !defined(USE_READLINE))
 
 struct hist *history = NULL;	/* last entry in the history list, no history yet */
 struct hist *cur_entry = NULL;
@@ -90,14 +88,33 @@ write_history(char *filename)
 }
 
 
-/* routine to read history entries from a file
- */
-int
-read_history(char *filename)
+HIST_ENTRY *
+history_get(int offset)
 {
-    return gp_read_history(filename);
-}
+    struct hist *entry = history;  /* last_entry */
+    int hist_index = history_length - 1;
+    int hist_ofs = offset - history_base;
 
+   if ((hist_ofs < 0) || (hist_ofs >= history_length) || (history == NULL))
+	return NULL;
+
+    /* find the current history entry and count backwards */
+    /* seek backwards */
+    while (entry != NULL) {
+	if (hist_index == hist_ofs)
+	    return entry;
+	entry = entry->prev;
+	hist_index--;
+    }
+
+    return NULL;
+}
+#endif
+
+
+#if defined(READLINE)
+
+/* Built-in readline */
 
 int
 where_history(void)
@@ -148,29 +165,6 @@ history_set_pos(int offset)
 	hist_index--;
     }
     return 0;
-}
-
-
-HIST_ENTRY *
-history_get(int offset)
-{
-    struct hist *entry = history;  /* last_entry */
-    int hist_index = history_length - 1;
-    int hist_ofs = offset - history_base;
-
-   if ((hist_ofs < 0) || (hist_ofs >= history_length) || (history == NULL))
-	return NULL;
-
-    /* find the current history entry and count backwards */
-    /* seek backwards */
-    while (entry != NULL) {
-	if (hist_index == hist_ofs)
-	    return entry;
-	entry = entry->prev;
-	hist_index--;
-    }
-
-    return NULL;
 }
 
 
@@ -284,14 +278,14 @@ history_search_prefix(const char *string, int direction)
 }
 #endif
 
-#ifdef GNUPLOT_HISTORY
+#if defined(GNUPLOT_HISTORY) && (defined(READLINE) || !defined(USE_READLINE))
 
 /* routine to read history entries from a file,
  * this complements write_history and is necessary for
  * saving of history when we are not using libreadline
  */
 int
-gp_read_history(const char *filename)
+read_history(const char *filename)
 {
     FILE *hist_file;
 
@@ -327,8 +321,7 @@ gp_read_history(const char *filename)
 #endif
 
 
-#ifdef USE_READLINE
-
+#if defined(USE_READLINE) || defined(GNUPLOT_HISTORY)
 /* Save history to file, or write to stdout or pipe.
  * For pipes, only "|" works, pipes starting with ">" get a strange 
  * filename like in the non-readline version.

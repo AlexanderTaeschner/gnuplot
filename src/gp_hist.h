@@ -43,6 +43,26 @@ extern int gnuplot_history_size;
 extern TBOOLEAN history_quiet;
 extern TBOOLEAN history_full;
 
+#if defined(READLINE) || (defined(GNUPLOT_HISTORY) && !defined(USE_READLINE))
+/* gnuplot's built-in replacement history functions
+ * also used with gnuplot history file enabled without any readline
+*/
+
+typedef void * histdata_t;
+
+typedef struct hist {
+    char *line;
+    histdata_t data;
+    struct hist *prev;
+    struct hist *next;
+} HIST_ENTRY;
+
+void add_history(char *line);
+int read_history(const char *);
+int write_history(char *);
+#endif
+
+
 /* GNU readline
  */
 #if defined(HAVE_LIBREADLINE)
@@ -60,24 +80,7 @@ extern TBOOLEAN history_full;
 /* gnuplot's built-in replacement history functions
 */
 
-typedef void * histdata_t;
-
-typedef struct hist {
-    char *line;
-    histdata_t data;
-    struct hist *prev;
-    struct hist *next;
-} HIST_ENTRY;
-
-extern int history_length;
-extern int history_base;
-
-void add_history(char *line);
-int read_history(char *);
-int write_history(char *);
 int where_history(void);
-int history_set_pos(int offset);
-HIST_ENTRY * history_get(int offset);
 HIST_ENTRY * current_history(void);
 HIST_ENTRY * previous_history(void);
 HIST_ENTRY * next_history(void);
@@ -87,12 +90,15 @@ int history_search_prefix(const char *string, int direction);
 #endif
 
 
+#if defined(USE_READLINE) || defined(GNUPLOT_HISTORY)
+void write_history_n(const int, const char *, const char *);
+#endif
+
+
 #ifdef USE_READLINE
 
 /* extra functions provided by history.c */
 
-int gp_read_history(const char *filename);
-void write_history_n(const int, const char *, const char *);
 const char *history_find(char *);
 const char *history_find_by_number(int);
 int history_find_all(char *);
