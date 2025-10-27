@@ -109,10 +109,7 @@ history_get(int offset)
 
     return NULL;
 }
-#endif
 
-
-#if defined(READLINE)
 
 /* Built-in readline */
 
@@ -195,8 +192,10 @@ next_history(void)
     else
 	return NULL;
 }
+#endif
 
 
+#ifdef READLINE
 HIST_ENTRY *
 remove_history(int which)
 {
@@ -225,7 +224,7 @@ remove_history(int which)
 #endif
 
 
-#if defined(READLINE) || defined(HAVE_WINEDITLINE)
+#if defined(READLINE) || defined(HAVE_WINEDITLINE) || (defined(GNUPLOT_HISTORY) && !defined(USE_READLINE))
 int
 history_search(const char *string, int direction)
 {
@@ -388,10 +387,7 @@ write_history_n(const int n, const char *filename, const char *mode)
 {
     write_history_list(n, filename, mode);
 }
-#endif
 
-
-#ifdef USE_READLINE
 
 /* finds and returns a command from the history list by number */
 const char *

@@ -91,14 +91,10 @@ int history_search_prefix(const char *string, int direction);
 
 
 #if defined(USE_READLINE) || defined(GNUPLOT_HISTORY)
-void write_history_n(const int, const char *, const char *);
-#endif
-
-
-#ifdef USE_READLINE
 
 /* extra functions provided by history.c */
 
+void write_history_n(const int, const char *, const char *);
 const char *history_find(char *);
 const char *history_find_by_number(int);
 int history_find_all(char *);

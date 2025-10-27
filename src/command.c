@@ -1312,7 +1312,7 @@ exit_command()
 void
 history_command()
 {
-#ifdef USE_READLINE
+#if defined(USE_READLINE) || defined(GNUPLOT_HISTORY)
     c_token++;
 
     if (!END_OF_COMMAND && equals(c_token,"?")) {
@@ -1386,7 +1386,7 @@ history_command()
 #else
     c_token++;
     int_warn(NO_CARET, "This copy of gnuplot was built without support for command history.");
-#endif /* defined(USE_READLINE) */
+#endif /* defined(USE_READLINE) || defined(GNUPLOT_HISTORY) */
 }
 
 #define REPLACE_ELSE(tok)             \
