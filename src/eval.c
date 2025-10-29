@@ -381,28 +381,7 @@ magnitude(struct value *val)
     case INTGR:
 	return (fabs((double)val->v.int_val));
     case CMPLX:
-	{
-	    /* The straightforward implementation sqrt(r*r+i*i)
-	     * over-/underflows if either r or i is very large or very
-	     * small. This implementation avoids over-/underflows from
-	     * squaring large/small numbers whenever possible.  It
-	     * only over-/underflows if the correct result would, too.
-	     * CAVEAT: sqrt(1+x*x) can still have accuracy
-	     * problems. */
-	    double abs_r = fabs(val->v.cmplx_val.real);
-	    double abs_i = fabs(val->v.cmplx_val.imag);
-	    double quotient;
-
-	    if (abs_i == 0)
-	    	return abs_r;
-	    if (abs_r > abs_i) {
-		quotient = abs_i / abs_r;
-		return abs_r * sqrt(1 + quotient*quotient);
-	    } else {
-		quotient = abs_r / abs_i;
-		return abs_i * sqrt(1 + quotient*quotient);
-	    }
-	}
+	return hypot( val->v.cmplx_val.real, val->v.cmplx_val.imag );
     default:
 	int_error(NO_CARET, "unknown type in magnitude()");
     }
@@ -420,14 +399,10 @@ angle(struct value *val)
     case INTGR:
 	return ((val->v.int_val >= 0) ? 0.0 : M_PI);
     case CMPLX:
-	if (val->v.cmplx_val.imag == 0.0) {
-	    if (val->v.cmplx_val.real >= 0.0)
-		return (0.0);
-	    else
-		return (M_PI);
-	}
-	return (atan2(val->v.cmplx_val.imag,
-		      val->v.cmplx_val.real));
+	if (val->v.cmplx_val.imag == 0.0)
+	    return ((val->v.cmplx_val.real >= 0.0) ? 0.0 : M_PI);
+	else
+	    return (atan2(val->v.cmplx_val.imag, val->v.cmplx_val.real));
     default:
 	int_error(NO_CARET, "unknown type in angle()");
     }
