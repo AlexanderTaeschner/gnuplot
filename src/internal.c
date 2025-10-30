@@ -32,6 +32,9 @@
 
 
 #include "internal.h"
+#ifdef HAVE_COMPLEX_FUNCS
+#include <complex.h>
+#endif
 
 #include "stdfn.h"
 #include "alloc.h"
@@ -1237,160 +1240,138 @@ f_mod(union argument *arg)
     }
 }
 
-
 void
 f_power(union argument *arg)
 {
     struct value a, b, result;
     int i;
-    double mag, ang;
 
     (void) arg;			/* avoid -Wunused warning */
     (void) pop(&b);
     (void) pop(&a);		/* now find a**b */
 
-    switch (a.type) {
-    case INTGR:
-	switch (b.type) {
-	case INTGR:
-	    if (a.v.int_val == 0) {
-		if (b.v.int_val < 0)
-		    undefined = TRUE;
-		(void) Ginteger(&result, b.v.int_val == 0 ? 1 : 0);
-		break;
-	    } else if (b.v.int_val == 0) {
-		(void) Ginteger(&result, 1);
-		break;
-	    } else if (b.v.int_val > 0) {
-		/* deal with overflow by empirical check */
-		intgr_t tprev, t;
-		intgr_t tmag = labs(a.v.int_val);
-		tprev = t = 1;
-		for (i = 0; i < b.v.int_val; i++) {
-		    tprev = t;
-		    t *= tmag;
-		    if (t < tprev)
-			goto integer_power_overflow;
-		}
-		if (a.v.int_val < 0) {
-		    if ((0x1 & b.v.int_val) == 0x1)
-			t = -t;
-		}
-		(void) Ginteger(&result, t);
-		break;
-	    }
-	integer_power_overflow:
-	    if (overflow_handling == INT64_OVERFLOW_NAN) {
-		/* result of integer overflow is NaN */
-		(void) Gcomplex(&result, not_a_number(), 0.0);
-	    } else if (overflow_handling == INT64_OVERFLOW_UNDEFINED) {
-		/* result of integer overflow is undefined */
-		undefined = TRUE;
-	    } else {
-		/* switch to double if overflow */
-		mag = pow((double)a.v.int_val,(double)b.v.int_val);
-		(void) Gcomplex(&result, mag, 0.0);
-	    }
-	    break;
-	case CMPLX:
-	    if (a.v.int_val == 0) {
-		if (b.v.cmplx_val.imag != 0 || b.v.cmplx_val.real < 0) {
-		    undefined = TRUE;
-		}
-		/* return 1.0 for 0**0 */
-		Gcomplex(&result, b.v.cmplx_val.real == 0 ? 1.0 : 0.0, 0.0);
-	    } else {
-		mag =
-		    pow(magnitude(&a), fabs(b.v.cmplx_val.real));
-		if (b.v.cmplx_val.real < 0.0) {
-		    if (mag != 0.0)
-			mag = 1.0 / mag;
-		    else
-			undefined = TRUE;
-		}
-		mag *= gp_exp(-b.v.cmplx_val.imag * angle(&a));
-		ang = b.v.cmplx_val.real * angle(&a) +
-		    b.v.cmplx_val.imag * log(magnitude(&a));
-		(void) Gcomplex(&result, mag * cos(ang),
-				mag * sin(ang));
-	    }
-	    break;
-	default:
-	    BAD_TYPE(b.type)
-	}
-	break;
-    case CMPLX:
-	switch (b.type) {
-	case INTGR:
-	    if (a.v.cmplx_val.imag == 0.0) {
-		mag = pow(a.v.cmplx_val.real, fabs((double)b.v.int_val));
-		if (b.v.int_val < 0) {
-		    if (mag != 0.0)
-			mag = 1.0 / mag;
-		    else
-			undefined = TRUE;
-		}
-		(void) Gcomplex(&result, mag, 0.0);
-	    } else {
-		/* not so good, but...! */
-		mag = pow(magnitude(&a), fabs((double)b.v.int_val));
-		if (b.v.int_val < 0) {
-		    if (mag != 0.0)
-			mag = 1.0 / mag;
-		    else
-			undefined = TRUE;
-		}
-		ang = angle(&a) * b.v.int_val;
-		(void) Gcomplex(&result, mag * cos(ang),
-				mag * sin(ang));
-	    }
-	    break;
-	case CMPLX:
-	    if (a.v.cmplx_val.real == 0 && a.v.cmplx_val.imag == 0) {
-		if (b.v.cmplx_val.imag != 0 || b.v.cmplx_val.real < 0) {
-		    undefined = TRUE;
-		}
-		/* return 1.0 for 0**0 */
-		Gcomplex(&result, b.v.cmplx_val.real == 0 ? 1.0 : 0.0, 0.0);
-	    } else {
-		mag = pow(magnitude(&a), fabs(b.v.cmplx_val.real));
-		if (b.v.cmplx_val.real < 0.0) {
-		    if (mag != 0.0)
-			mag = 1.0 / mag;
-		    else
-			undefined = TRUE;
-		}
-		mag *= gp_exp(-b.v.cmplx_val.imag * angle(&a));
-		ang = b.v.cmplx_val.real * angle(&a) +
-		    b.v.cmplx_val.imag * log(magnitude(&a));
-		(void) Gcomplex(&result, mag * cos(ang),
-				mag * sin(ang));
-	    }
-	    break;
-	default:
-	    BAD_TYPE(b.type)
-	}
-	break;
-    default:
+    if (a.type != INTGR && a.type != CMPLX)
 	BAD_TYPE(a.type)
+    if (b.type != INTGR && b.type != CMPLX)
+	BAD_TYPE(b.type)
+
+    if (a.type == INTGR && b.type == INTGR) {
+	if (a.v.int_val == 0) {
+	    if (b.v.int_val < 0)
+		undefined = TRUE;
+	    Ginteger(&result, b.v.int_val == 0 ? 1 : 0);
+	} else if (b.v.int_val == 0) {
+	    Ginteger(&result, 1);
+	} else if (b.v.int_val > 0) {
+	    /* deal with overflow by empirical check */
+	    intgr_t tprev, t;
+	    intgr_t tmag = labs(a.v.int_val);
+	    tprev = t = 1;
+	    for (i = 0; i < b.v.int_val; i++) {
+		tprev = t;
+		t *= tmag;
+		if (t < tprev)
+		    goto integer_power_overflow;
+	    }
+	    if (a.v.int_val < 0) {
+		if ((0x1 & b.v.int_val) == 0x1)
+		    t = -t;
+	    }
+	    Ginteger(&result, t);
+	} else {
+	    /* a**b where b is negative */
+	    double mag = pow((double)a.v.int_val,(double)b.v.int_val);
+	    Gcomplex(&result, mag, 0.0);
+	}
+	push(&result);
+	return;
+
+	integer_power_overflow:
+	if (overflow_handling == INT64_OVERFLOW_NAN) {
+	    /* result of integer overflow is NaN */
+	    Gcomplex(&result, not_a_number(), 0.0);
+	} else if (overflow_handling == INT64_OVERFLOW_UNDEFINED) {
+	    /* result of integer overflow is undefined */
+	    undefined = TRUE;
+	} else {
+	    /* switch to double if overflow */
+	    double mag = pow((double)a.v.int_val,(double)b.v.int_val);
+	    Gcomplex(&result, mag, 0.0);
+	}
+	push(&result);
+	return;
     }
 
-    /* Catch underflow and return 0 */
-    /* Note: fpclassify() is an ISOC99 macro found also in other libc implementations */
-#ifdef fpclassify
-    if (errno == ERANGE && result.type == CMPLX) {
-	int fperror = fpclassify(result.v.cmplx_val.real);
-	if (fperror == FP_ZERO || fperror == FP_SUBNORMAL) {
-	    result.v.cmplx_val.real = 0.0;
-	    result.v.cmplx_val.imag = 0.0;
-	    errno = 0;
-	}
+    if (a.type == CMPLX && a.v.cmplx_val.imag == 0.0 && b.type == INTGR) {
+	double mag = pow(a.v.cmplx_val.real, (double)b.v.int_val);
+	/* gcc docs say "raises divide-by-zero FPE" */
+	if (errno == EDOM || errno == ERANGE)
+	    undefined = TRUE;
+	if (a.v.cmplx_val.real == 0 && b.v.int_val < 0)
+	    undefined = TRUE;
+	Gcomplex(&result, mag, 0.0);
+	push(&result);
+	return;
     }
-#endif
+
+    /* Treat both a and b as complex numbers */
+    if (a.type == INTGR)
+	Gcomplex(&a, (double)a.v.int_val, 0.0);
+    if (b.type == INTGR)
+	Gcomplex(&b, (double)b.v.int_val, 0.0);
+
+#ifdef HAVE_COMPLEX_FUNCS
+    /* New code */
+    {
+	double complex x = a.v.cmplx_val.real + I*a.v.cmplx_val.imag;
+	double complex y = b.v.cmplx_val.real + I*b.v.cmplx_val.imag;
+	double complex r = cpow(x,y);
+	if (errno == EDOM || errno == ERANGE)
+	    undefined = TRUE;
+	Gcomplex(&result, creal(r), cimag(r));
+    }
+#else
+
+    /* Old code */
+    {
+	double mag, ang;
+
+	if (a.v.cmplx_val.real == 0 && a.v.cmplx_val.imag == 0) {
+	    if (b.v.cmplx_val.imag != 0 || b.v.cmplx_val.real < 0) {
+		undefined = TRUE;
+	    }
+	    /* return 1.0 for 0**0 */
+	    Gcomplex(&result, b.v.cmplx_val.real == 0 ? 1.0 : 0.0, 0.0);
+	} else {
+	    mag = pow(magnitude(&a), fabs(b.v.cmplx_val.real));
+	    if (b.v.cmplx_val.real < 0.0) {
+		if (mag != 0.0)
+		    mag = 1.0 / mag;
+		else
+		    undefined = TRUE;
+	    }
+	    mag *= gp_exp(-b.v.cmplx_val.imag * angle(&a));
+	    ang = b.v.cmplx_val.real * angle(&a) +
+		b.v.cmplx_val.imag * log(magnitude(&a));
+	    (void) Gcomplex(&result, mag * cos(ang),
+			    mag * sin(ang));
+	}
+	/* Catch underflow and return 0 */
+    #ifdef fpclassify
+	if (errno == ERANGE) {
+	    int fperror = fpclassify(result.v.cmplx_val.real);
+	    if (fperror == FP_ZERO || fperror == FP_SUBNORMAL) {
+		result.v.cmplx_val.real = 0.0;
+		result.v.cmplx_val.imag = 0.0;
+		errno = 0;
+	    }
+	}
+    #endif
+    }
+#endif /* HAVE_COMPLEX_FUNCS */
 
     push(&result);
 }
-
 
 void
 f_factorial(union argument *arg)
