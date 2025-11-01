@@ -1640,13 +1640,12 @@ do_3dplot(
 
     if (!key_pass) {
 	/* draw pending depth-sorted pm3d plots */
-	if (pm3d_order_depth || track_pm3d_quadrangles) {
+	if (pm3d_order_depth || track_pm3d_quadrangles)
 	    pm3d_depth_queue_flush();
 #ifdef HIDDEN3D_CACHE
-	    if (hidden3d)
-		flush_hidden3d_cache();
+	if (hidden3d)
+	    flush_hidden3d_cache();
 #endif
-	}
     }
 
     if (!key_pass && (replot_mode != AXIS_ONLY_ROTATE)) {
