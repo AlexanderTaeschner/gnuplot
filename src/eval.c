@@ -1252,6 +1252,12 @@ fill_gpval_sysinfo()
     case PROCESSOR_ARCHITECTURE_AMD64:
         fill_gpval_string("GPVAL_MACHINE", "x86_64");
         break;
+    case PROCESSOR_ARCHITECTURE_ARM:
+        fill_gpval_string("GPVAL_MACHINE", "arm");
+        break;
+    case PROCESSOR_ARCHITECTURE_ARM64:
+        fill_gpval_string("GPVAL_MACHINE", "arm64");
+        break;
     default:
         fill_gpval_string("GPVAL_MACHINE", "unknown");
     }
