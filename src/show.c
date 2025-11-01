@@ -629,7 +629,7 @@ show_command()
 	break;
     case S_PLOT:
 	show_plot();
-#if defined(USE_READLINE)
+#if defined(USE_READLINE) || defined(GNUPLOT_HISTORY)
 	if (!END_OF_COMMAND) {
 	    if (almost_equals(c_token, "a$dd2history")) {
 		c_token++;
