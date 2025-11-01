@@ -272,6 +272,7 @@ GNUSORT = /bin/sort
 # because the setup file of gnuplot installer is now encoded utf-8 with BOM.
 ISCC = $(PROGRAMFILES32)/Inno\ Setup\ 6/iscc
 
+# Include non-system DLLs in distribution
 #DLLS = 1
 
 # Directory that might contain extra files to be shipped with the installer.
@@ -283,6 +284,9 @@ else
 #EXTRADIST = /d/gnuplot/dist64
 endif
 else
+ifdef CLANG64
+#EXTRADIST = /d/gnuplot/dist64
+endif
 #EXTRADIST = /d/gnuplot/dist
 endif
 
@@ -308,9 +312,11 @@ else
 CFLAGS += -m64
 endif
 else
+ifndef CLANG64
 # MINGW32 always produces 32bit executables
 ifndef M32
 M32=1
+endif
 endif
 endif
 
@@ -524,7 +530,11 @@ endif
 	MOC = $(QT_BIN)/moc
 	UIC = $(QT_BIN)/uic
 	RCC = $(QT_BIN)/rcc
-	LRELEASE = $(QT_BIN)/lrelease
+ifdef QT6
+	LRELEASE = lrelease-qt6
+else
+	LRELEASE = lrelease
+endif
 	QT_FILES_TARGETS  = qrc_QtGnuplotResource.cpp ui_QtGnuplotSettings.h moc_QtGnuplotWindow.cpp moc_QtGnuplotApplication.cpp 
 	QT_FILES_TARGETS += moc_QtGnuplotWidget.cpp moc_QtGnuplotScene.cpp moc_QtGnuplotEvent.cpp
 	QT_TRANSLATION = qtgnuplot_fr.qm qtgnuplot_ja.qm
@@ -641,7 +651,11 @@ FULLVERSION := $(MAINVERSION) patchlevel $(PATCHLEVEL)
 
 TARGETS_PLAIN = $(VERSIONING) config.h wgnuplot.exe wgnuplot.mnu $(QT_TARGET)
 ifndef MINGW64
+ifdef CLANG64
+	EXTRA_CPPFLAGS_PLAIN += -DPIPES
+else
 	EXTRA_CPPFLAGS_PLAIN += -DUSE_FAKEPIPES
+endif
 else
 	EXTRA_CPPFLAGS_PLAIN += -DPIPES
 endif
@@ -1251,23 +1265,35 @@ ifdef MINGW64
 ifndef M32
 ifdef QT
 	ldd gnuplot.exe gnuplot_qt.exe | cut -d " " -f 3 | grep "^/mingw64/bin" | sort | uniq | xargs -t -i cp {} $(DESTDIR)/bin
-	-mkdir $(DESTDIR)/bin/platforms
-	cp /mingw64/share/qt5/plugins/platforms/qminimal.dll $(DESTDIR)/bin/platforms
-	cp /mingw64/share/qt5/plugins/platforms/qwindows.dll $(DESTDIR)/bin/platforms
 else
 	ldd gnuplot.exe | cut -d " " -f 3 | grep "^/mingw64/bin" | sort | uniq | xargs -t -i cp {} $(DESTDIR)/bin
 endif # QT
 else # !M32
 ifdef QT
 	ldd gnuplot.exe gnuplot_qt.exe | cut -d " " -f 3 | grep "^/mingw32/bin" | sort | uniq | xargs -t -i cp {} $(DESTDIR)/bin
-	-mkdir $(DESTDIR)/bin/platforms
-	cp /mingw32/share/qt5/plugins/platforms/qminimal.dll $(DESTDIR)/bin/platforms
-	cp /mingw32/share/qt5/plugins/platforms/qwindows.dll $(DESTDIR)/bin/platforms
 else
 	ldd gnuplot.exe | cut -d " " -f 3 | grep "^/mingw32/bin" | sort | uniq | xargs -t -i cp {} $(DESTDIR)/bin
 endif # QT
 endif # M32
 endif # MINGW64
+ifdef CLANG64
+ifdef QT
+	ldd gnuplot.exe gnuplot_qt.exe | cut -d " " -f 3 | grep "^/clang64/bin" | sort | uniq | xargs -t -i cp {} $(DESTDIR)/bin
+else
+	ldd gnuplot.exe | cut -d " " -f 3 | grep "^/clang64/bin" | sort | uniq | xargs -t -i cp {} $(DESTDIR)/bin
+endif # QT
+endif
+ifdef QT
+	-mkdir $(DESTDIR)/bin/platforms
+ifdef QT6
+	cp $(QT_DIR)/share/qt6/plugins/platforms/qminimal.dll $(DESTDIR)/bin/platforms
+	cp $(QT_DIR)/share/qt6/plugins/platforms/qwindows.dll $(DESTDIR)/bin/platforms
+else
+	cp $(QT_DIR)/share/qt5/plugins/platforms/qminimal.dll $(DESTDIR)/bin/platforms
+	cp $(QT_DIR)/share/qt5/plugins/platforms/qwindows.dll $(DESTDIR)/bin/platforms
+endif
+endif
+
 endif # DLLS
 
 installer:
@@ -1329,19 +1355,19 @@ endif
 	$(MAKE) DESTDIR=./gnuplot install
 ifndef M32
 ifdef RELEASE
-	7za u -mx9 gp$(SHORTVERSION)-win64-mingw.7z gnuplot
+	7z u -mx9 gp$(SHORTVERSION)-win64-mingw.7z gnuplot
 else
-	7za u -mx9 gp$(SHORTVERSION)-`date +%Y%m%d`-win64-mingw.7z gnuplot
+	7z u -mx9 gp$(SHORTVERSION)-`date +%Y%m%d`-win64-mingw.7z gnuplot
 endif
 else
 ifdef RELEASE
-	7za u -mx9 gp$(SHORTVERSION)-win32-mingw.7z gnuplot
+	7z u -mx9 gp$(SHORTVERSION)-win32-mingw.7z gnuplot
 else
-	7za u -mx9 gp$(SHORTVERSION)-`date +%Y%m%d`-win32-mingw.7z gnuplot
+	7z u -mx9 gp$(SHORTVERSION)-`date +%Y%m%d`-win32-mingw.7z gnuplot
 endif
 endif
 
 # rebuild makefile.all
-maint: 
+maint:
 	-$(RM) $(S)/makefile.all $(S)/makefile.awc
 	$(MAKE) -C $(S) srcdir=. top_srcdir=.. -f Makefile.maint makefile.all makefile.awc
