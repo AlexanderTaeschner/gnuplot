@@ -371,15 +371,19 @@ AC_ARG_WITH(readline,dnl
   --with-readline=gnu      use the GNU readline library (default if present)
   --with-readline=bsd      use the NetBSD editline library
   --with-readline=DIR      specify the location of readline/editline
-  --without-readline       same as --with-readline=builtin], ,
+  --without-readline       disable readline support], ,
   test -z "$with_readline" && with_readline=gnu)
 
-AS_IF([test "x${with_readline}" = "xno"], with_readline="builtin", )
 
 dnl Gnuplot history
 AC_ARG_ENABLE(history-file,dnl
 [  --disable-history-file  do not use history file],,
   test -z "$enable_history_file" && enable_history_file=yes)
+
+if test "$enable_history_file" = yes; then
+   AC_DEFINE(GNUPLOT_HISTORY,1,
+            [ Define if you want to use a gnuplot history file. ])
+fi
 
 dnl GNU readline and the required terminal library
 if test "$with_readline" != no; then
@@ -429,11 +433,6 @@ if test "$with_readline" != no; then
                 [ Define if you are using the BSD editline library. ])
         AC_CHECK_HEADERS(editline/readline.h,,
           AC_MSG_WARN([found BSD editline library but not readline.h please add path to readline.h to CPPFLAGS in Makefile]))
-
-        if test "$enable_history_file" = yes; then
-            AC_DEFINE(GNUPLOT_HISTORY,1,
-                      [ Define if you want to use a gnuplot history file. ])
-        fi
       fi
 
     else # !bsd
@@ -490,11 +489,6 @@ please add path to readline.h to CPPFLAGS in Makefile]))
         AC_MSG_WARN([found GNU readline library but not history.h
 please add path to history.h to CPPFLAGS in Makefile]))
 
-      if test "$enable_history_file" = yes; then
-          AC_DEFINE(GNUPLOT_HISTORY,1,
-                    [ Define if you want to use a gnuplot history file. ])
-      fi
-
     fi # ! ac_cv_lib_readline_readline = no
 
    fi # ! with_readline = bsd
@@ -507,10 +501,6 @@ please add path to history.h to CPPFLAGS in Makefile]))
         AC_MSG_WARN([please add path to wchar.h to CPPFLAGS in Makefile]))
     AC_DEFINE(READLINE,1,
               [ Define if you want to use the included readline function. ])
-    if test "$enable_history_file" = yes; then
-       AC_DEFINE(GNUPLOT_HISTORY,1,
-                [ Define if you want to use a gnuplot history file. ])
-    fi
   fi
 
   LIBS="$_libs"
@@ -1417,26 +1407,23 @@ AC_MSG_RESULT([])
 
 if test "$with_readline" = no; then
   AC_MSG_RESULT([  No readline support (use --with-readline=gnu or --with-readline=builtin)])
-fi
-
-  if test "$with_readline" = bsd; then
-    if test -n "$gp_tcap"; then
-      AC_MSG_RESULT([  Readline library: BSD editline with $gp_tcap])
-    else
-      AC_MSG_RESULT([  Readline library: BSD editline library])
-    fi
-  else if test "$with_readline" != builtin; then
-    if test -n "$gp_tcap"; then
-      AC_MSG_RESULT([  Readline library: GNU readline library with $gp_tcap])
-    else
-      AC_MSG_RESULT([  Readline library: GNU readline library])
-    fi
-    if test "$ac_cv_lib_readline_rl_forced_update_display" = no; then
-      AC_MSG_RESULT([                    missing some features (OSX version?)])
-    fi
+elif test "$with_readline" = bsd; then
+  if test -n "$gp_tcap"; then
+    AC_MSG_RESULT([  Readline library: BSD editline with $gp_tcap])
   else
-    AC_MSG_RESULT([  Readline library: builtin minimal (use --with-readline=gnu for GNU readline)])
+    AC_MSG_RESULT([  Readline library: BSD editline library])
   fi
+elif test "$with_readline" != builtin; then
+  if test -n "$gp_tcap"; then
+    AC_MSG_RESULT([  Readline library: GNU readline library with $gp_tcap])
+  else
+    AC_MSG_RESULT([  Readline library: GNU readline library])
+  fi
+  if test "$ac_cv_lib_readline_rl_forced_update_display" = no; then
+    AC_MSG_RESULT([                    missing some features (OSX version?)])
+  fi
+else
+  AC_MSG_RESULT([  Readline library: builtin minimal (use --with-readline=gnu for GNU readline)])
 fi
 
 if test "$enable_history_file" = yes; then
