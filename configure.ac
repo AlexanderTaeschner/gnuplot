@@ -1406,7 +1406,7 @@ AC_MSG_RESULT([gnuplot will be compiled with the following configurable features
 AC_MSG_RESULT([])
 
 if test "$with_readline" = no; then
-  AC_MSG_RESULT([  No readline support (use --with-readline=gnu or --with-readline=builtin)])
+  AC_MSG_RESULT([  No readline support (recommend to use --with-readline={gnu|bsd|builtin})])
 elif test "$with_readline" = bsd; then
   if test -n "$gp_tcap"; then
     AC_MSG_RESULT([  Readline library: BSD editline with $gp_tcap])

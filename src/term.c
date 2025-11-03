@@ -1453,6 +1453,10 @@ null_dashtype(int type, t_dashtype *custom_dash_pattern)
   #define raw() set_termio()
   #define cook() reset_termio()
   #define nextchar() fgetc(stdin)
+#else
+  #define raw()
+  #define cook()
+  #define nextchar() fgetc(stdin)
 #endif
 
 int
