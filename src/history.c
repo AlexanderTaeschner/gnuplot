@@ -356,7 +356,7 @@ write_history_list(const int num, const char *const filename, const char *mode)
 
     /* Determine starting point and output in loop. */
     if (num > 0)
-	istart = history_length - num - 1;
+	istart = history_length - num;
     else
 	istart = 0;
     if (istart < 0 || istart > history_length)
