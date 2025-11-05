@@ -788,7 +788,7 @@ LoadMacros(LPTW lptw)
 	    PATH_CONCAT(fname, ButtonIconFile[i]);
 	    if (bLoadStandardButtons)
 		button.iBitmap += ButtonExtra;
-	    wfname = UnicodeText(fname, S_ENC_DEFAULT);
+	    wfname = UnicodeText(fname, S_ENC_UTF8);
 	    bitmap.hInst = NULL;
 	    bitmap.nID = (UINT_PTR) gdiplusLoadBitmap(wfname, ButtonSize);
 	    SendMessage(lpmw->hToolbar, TB_ADDBITMAP, 0, (LPARAM)&bitmap);
@@ -807,7 +807,7 @@ LoadMacros(LPTW lptw)
 	if (MacroCommand(lptw, lpmw->hButtonID[i]) == OPTIONS)
 	    button.fsStyle |= BTNS_WHOLEDROPDOWN;
 #ifdef UNICODE
-	button.iString = (UINT_PTR)UnicodeText(ButtonText[i], S_ENC_DEFAULT);
+	button.iString = (UINT_PTR)UnicodeText(ButtonText[i], S_ENC_UTF8);
 #else
 	button.iString = (UINT_PTR)ButtonText[i];
 #endif
