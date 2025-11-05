@@ -293,12 +293,7 @@ SendMacro(LPTW lptw, UINT m)
 		flag = 0;
 
 		/* Use the Shell's internal directory chooser. */
-		/* Note: This code does not work NT 3.51 and Win32s.
-			    Windows 95 has shell32.dll version 4.0, but does not
-			    have a version number, so this will return FALSE.
-		*/
-		/* Make sure that the installed shell version supports this approach */
-		if (GetDllVersion(TEXT("shell32.dll")) >= PACKVERSION(4,0)) {
+		{
 		    ZeroMemory(&bi, sizeof(bi));
 		    bi.hwndOwner = lptw->hWndParent;
 		    bi.pidlRoot = NULL;
@@ -337,13 +332,6 @@ SendMacro(LPTW lptw, UINT m)
 
 			/* Free our task allocator */
 			IMalloc_Release(pMalloc);
-		    }
-		} else {
-		    wcscpy(lpmw->szPrompt, szTitle);
-		    flag = DialogBox(hdllInstance, TEXT("InputDlgBox"), lptw->hWndParent, InputBoxDlgProc);
-		    if (flag) {
-			for (i = 0; i < lpmw->nChar; i++)
-			    *d++ = lpmw->szAnswer[i];
 		    }
 		}
 		LocalFreePtr(szTitle);
