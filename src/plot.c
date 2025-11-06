@@ -34,6 +34,7 @@
 #include "plot.h"
 
 #include "alloc.h"
+#include "color.h"
 #include "command.h"
 #include "eval.h"
 #include "fit.h"
@@ -399,6 +400,9 @@ main(int argc_orig, char **argv)
 
     /* Initialize pre-loaded user variables */
     init_constants();
+
+    /* Make pre-defined named palettes available */
+    init_named_palettes();
 
     init_memory();
 

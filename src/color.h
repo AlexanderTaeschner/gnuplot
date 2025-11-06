@@ -278,6 +278,7 @@ unsigned int rgb_from_linetype(int lt);
 unsigned int rgb_from_colormap(double gray, udvt_entry *colormap);
 double map2gray(double z, udvt_entry *colormap);
 void get_colormap_range( udvt_entry *colormap, double *cm_min, double *cm_max );
+void init_named_palettes(void);
 
 #endif /* COLOR_H */
 

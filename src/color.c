@@ -86,6 +86,7 @@ static void set_palette_by_name(int nameindex);
 static int  set_palette_defined(void);
 static void set_palette_file(void);
 static void set_palette_function(void);
+static void init_named_palette(char *name, const unsigned int colormap[256]);
 
 
 /* *******************************************************************
@@ -1739,3 +1740,34 @@ reset_palette()
     pm3d_last_set_palette_mode = SMPAL_COLOR_MODE_NONE;
 }
 
+/*
+ * Make static colormap available to the user as a named palette.
+ * Modeled on code from new_colormap().
+ */
+static void
+init_named_palette( char *name, const unsigned int colormap[256] )
+{
+    struct udvt_entry *array;
+    struct value *A;
+    int colormap_size = 256;
+
+    /* Create or recycle a udv containing an array with the requested name */
+    array = add_udv_by_name(name);
+    init_array(array, colormap_size);
+    array->locality = -1;		/* read-only */
+    A = array->udv_value.v.value_array;
+    A[0].type = COLORMAP_ARRAY;
+    A[1].v.cmplx_val.imag = 0.0;	/* min */
+    A[2].v.cmplx_val.imag = 0.0;	/* max */
+
+    for (int i = 0; i < colormap_size; i++) {
+	A[i+1].type = INTGR;
+	A[i+1].v.int_val = colormap[i];
+    }
+}
+
+void
+init_named_palettes()
+{
+    init_named_palette("viridis", viridis_colormap);
+}
