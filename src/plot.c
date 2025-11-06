@@ -398,14 +398,7 @@ main(int argc_orig, char **argv)
     gpoutfile = stdout;
 
     /* Initialize pre-loaded user variables */
-    /* "pi" is hard-wired as the first variable */
-    (void) add_udv_by_name("GNUTERM");
-    (void) add_udv_by_name("I");
-    (void) add_udv_by_name("Inf");
-    (void) add_udv_by_name("NaN");
     init_constants();
-    /* user-defined variables start immediately after NaN */
-    udv_user_head = &(udv_NaN->next_udv);
 
     init_memory();
 
@@ -739,14 +732,30 @@ interrupt_setup()
 void
 init_constants()
 {
-    udv_pi = add_udv_by_name("pi");
-    Gcomplex(&(udv_pi->udv_value), M_PI, 0.0);
-    udv_NaN = add_udv_by_name("NaN");
+    /* First delete any local variables that would shadow the intended defaults. */
+    del_udv_by_name("pi", FALSE);
+    del_udv_by_name("I", FALSE);
+    del_udv_by_name("Inf", FALSE);
+    del_udv_by_name("NaN", FALSE);
+    add_udv_by_name("pi");
+    add_udv_by_name("I");
+    add_udv_by_name("Inf");
+    add_udv_by_name("NaN");
+
+    udv_pi = get_udv_by_name("pi");
+    Gcomplex(&udv_pi->udv_value, M_PI, 0.0);
+    udv_NaN = get_udv_by_name("NaN");
     Gcomplex(&(udv_NaN->udv_value), not_a_number(), 0.0);
-    udv_I = add_udv_by_name("I");
+    udv_I = get_udv_by_name("I");
     Gcomplex(&(udv_I->udv_value), 0.0, 1.0);
-    udv_Inf = add_udv_by_name("Inf");
+    udv_Inf = get_udv_by_name("Inf");
     Gcomplex(&(udv_Inf->udv_value), INFINITY, 0.0);
+
+    /* Mark these read-only */
+    udv_pi->locality = -1;
+    udv_NaN->locality = -1;
+    udv_Inf->locality = -1;
+    udv_I->locality = -1;
 }
 
 /*

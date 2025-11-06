@@ -2270,6 +2270,8 @@ f_assign(union argument *arg)
 	udv = add_udv_by_name(a.v.string_val);
 	gpfree_string(&a);	    /* This frees the name string, not the variable it names */
 	dest = &(udv->udv_value);   /* Now dest points to where the new value will go */
+	if (udv->locality < 0)
+	    int_error(NO_CARET, "attempt to assign to a read-only variable");
     }
 
     /* refcount was incremented prior to pushing the destination array onto the stack

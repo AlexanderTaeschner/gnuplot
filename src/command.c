@@ -772,6 +772,14 @@ define()
 	udv = add_udv(start_token);
 	if (udv->udv_value.type == ARRAY && udv->udv_refcount > 0)
 	    int_error(NO_CARET, "assignment would corrupt array %s", udv->udv_name);
+	if (udv->locality < 0) {
+	    /* This was a predefined read-only variable.
+	     * However it can be shadowed by a local variable
+	     */
+	    int locality = lf_head ? lf_head->locality : 0;
+	    udv = add_udv_local(start_token, NULL, locality);
+	    /* int_warn(c_token, "shadowing a read-only variable"); */
+	}
 
 	/* Get new value */
 	c_token += 2;

@@ -63,8 +63,6 @@ struct udvt_entry *udv_Inf;
 struct udvt_entry *udv_NaN;
 /* first in linked list */
 struct udft_entry *first_udf = NULL;
-/* pointer to first udv users can delete */
-struct udvt_entry **udv_user_head;
 
 /* Various abnormal conditions during evaluation of an action table
  * (the stored form of an expression) are signalled by setting
@@ -878,7 +876,7 @@ add_udv_by_name(char *key)
     while (*udv_ptr) {
 	if (!strcmp(key, (*udv_ptr)->udv_name)) {
 	    /* This is a global variable; we must not have seen a relevant local definition */
-	    if ((*udv_ptr)->locality == 0)
+	    if ((*udv_ptr)->locality <= 0)
 		return (*udv_ptr);
 	    /* This is a local variable referenced from a bracketed clause that follows it */
 	    if ((*udv_ptr)->locality >= current_locality)
@@ -916,10 +914,7 @@ get_udv_by_name(char *key)
 void
 del_udv_by_name(char *key, TBOOLEAN wildcard)
 {
-    /* FIXME: search starts after the pre-defined variable pi
-     * if you clobber pi, too bad.
-     */
-    struct udvt_entry *udv_prev = udv_pi;
+    struct udvt_entry *udv_prev = &udv_head;
     struct udvt_entry *udv_ptr = udv_prev->next_udv;
 
     while (udv_ptr) {
@@ -929,6 +924,10 @@ del_udv_by_name(char *key, TBOOLEAN wildcard)
 	else if (!strncmp(udv_ptr->udv_name,"GNUTERM",7))
 	    ;
 
+	/* read-only variable */
+	else if (udv_ptr->locality < 0)
+	    ;
+
  	/* exact match */
 	else if (!wildcard && !strcmp(key, udv_ptr->udv_name)) {
 	    if (called_from(udv_ptr->udv_name)) {
@@ -936,6 +935,7 @@ del_udv_by_name(char *key, TBOOLEAN wildcard)
 		break;
 	    }
 	    gpfree_vgrid(udv_ptr);
+	    free(udv_ptr->udv_name);
 	    free_value(&(udv_ptr->udv_value));
 	    udv_prev->next_udv = udv_ptr->next_udv;
 	    free(udv_ptr);
@@ -952,6 +952,7 @@ del_udv_by_name(char *key, TBOOLEAN wildcard)
 	    gpfree_vgrid(udv_ptr);
 	    free_value(&(udv_ptr->udv_value));
 	    udv_prev->next_udv = udv_ptr->next_udv;
+	    free(udv_ptr->udv_name);
 	    free(udv_ptr);
 	    udv_ptr = udv_prev;
 	    /* no break - keep looking! */
