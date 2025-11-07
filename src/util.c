@@ -179,20 +179,20 @@ isstring(int t_num)
 int
 type_udv(int t_num)
 {
-    struct udvt_entry **udv_ptr = &first_udv;
+    struct udvt_entry *udv_ptr = udv_head.next_udv;
 
     /* End of command */
     if (t_num >= num_tokens || equals(t_num,";"))
 	return 0;
 
-    while (*udv_ptr) {
-	if (equals(t_num, (*udv_ptr)->udv_name)) {
-	    if ((*udv_ptr)->udv_value.type == NOTDEFINED)
+    while (udv_ptr) {
+	if (equals(t_num, udv_ptr->udv_name)) {
+	    if (udv_ptr->udv_value.type == NOTDEFINED)
 		return 0;
 	    else
-		return (*udv_ptr)->udv_value.type;
+		return udv_ptr->udv_value.type;
 	    }
-	udv_ptr = &((*udv_ptr)->next_udv);
+	udv_ptr = udv_ptr->next_udv;
     }
     return 0;
 }

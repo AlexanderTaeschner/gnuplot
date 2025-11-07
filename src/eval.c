@@ -56,12 +56,12 @@
 static RETSIGTYPE fpe(int an_int);
 
 /* Global variables exported by this module */
-struct udvt_entry udv_pi = { NULL, "pi", {INTGR, {0} } };
+struct udvt_entry udv_head = { NULL, "__udv_head", {NOTDEFINED, {0} } };
+struct udvt_entry *udv_pi;
 struct udvt_entry *udv_I;
 struct udvt_entry *udv_Inf;
 struct udvt_entry *udv_NaN;
 /* first in linked list */
-struct udvt_entry *first_udv = &udv_pi;
 struct udft_entry *first_udf = NULL;
 /* pointer to first udv users can delete */
 struct udvt_entry **udv_user_head;
@@ -870,7 +870,7 @@ real_free_at(struct at_type *at_ptr)
 struct udvt_entry *
 add_udv_by_name(char *key)
 {
-    struct udvt_entry **udv_ptr = &first_udv;
+    struct udvt_entry **udv_ptr = &(udv_head.next_udv);
     int current_locality = lf_head ? lf_head->locality : 0;
 
     /* check if it's already in the table... */
@@ -900,7 +900,7 @@ add_udv_by_name(char *key)
 struct udvt_entry *
 get_udv_by_name(char *key)
 {
-    struct udvt_entry *udv = first_udv;
+    struct udvt_entry *udv = udv_head.next_udv;
 
     while (udv) {
         if (!strcmp(key, udv->udv_name))
@@ -912,11 +912,15 @@ get_udv_by_name(char *key)
     return NULL;
 }
 
-/* This doesn't really delete, it just marks the udv as undefined */
+/* delete and free existing user variable */
 void
 del_udv_by_name(char *key, TBOOLEAN wildcard)
 {
-    struct udvt_entry *udv_ptr = *udv_user_head;
+    /* FIXME: search starts after the pre-defined variable pi
+     * if you clobber pi, too bad.
+     */
+    struct udvt_entry *udv_prev = udv_pi;
+    struct udvt_entry *udv_ptr = udv_prev->next_udv;
 
     while (udv_ptr) {
 	/* Forbidden to delete GPVAL_* */
@@ -933,7 +937,9 @@ del_udv_by_name(char *key, TBOOLEAN wildcard)
 	    }
 	    gpfree_vgrid(udv_ptr);
 	    free_value(&(udv_ptr->udv_value));
-	    udv_ptr->udv_value.type = NOTDEFINED;
+	    udv_prev->next_udv = udv_ptr->next_udv;
+	    free(udv_ptr);
+	    udv_ptr = udv_prev;
 	    break;
 	}
 
@@ -945,10 +951,13 @@ del_udv_by_name(char *key, TBOOLEAN wildcard)
 	    }
 	    gpfree_vgrid(udv_ptr);
 	    free_value(&(udv_ptr->udv_value));
-	    udv_ptr->udv_value.type = NOTDEFINED;
+	    udv_prev->next_udv = udv_ptr->next_udv;
+	    free(udv_ptr);
+	    udv_ptr = udv_prev;
 	    /* no break - keep looking! */
 	}
 
+	udv_prev = udv_ptr;
 	udv_ptr = udv_ptr->next_udv;
     }
 }

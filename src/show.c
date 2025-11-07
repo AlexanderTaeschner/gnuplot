@@ -3341,7 +3341,7 @@ show_plot()
 static void
 show_variables()
 {
-    struct udvt_entry *udv = first_udv;
+    struct udvt_entry *udv = udv_head.next_udv;
     int len;
     TBOOLEAN show_all = FALSE;
     char leading_string[MAX_ID_LEN+1] = {'\0'};

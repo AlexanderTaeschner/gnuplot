@@ -734,18 +734,19 @@ interrupt_setup()
 
 
 /*
- * Initialize 'constants' stored as variables (user could mangle these)
+ * Initialize 'constants' stored as variables.
  */
 void
 init_constants()
 {
-    (void) Gcomplex(&udv_pi.udv_value, M_PI, 0.0);
-    udv_NaN = get_udv_by_name("NaN");
-    (void) Gcomplex(&(udv_NaN->udv_value), not_a_number(), 0.0);
-    udv_I = get_udv_by_name("I");
-    (void) Gcomplex(&(udv_I->udv_value), 0.0, 1.0);
-    udv_Inf = get_udv_by_name("Inf");
-    (void) Gcomplex(&(udv_Inf->udv_value), INFINITY, 0.0);
+    udv_pi = add_udv_by_name("pi");
+    Gcomplex(&(udv_pi->udv_value), M_PI, 0.0);
+    udv_NaN = add_udv_by_name("NaN");
+    Gcomplex(&(udv_NaN->udv_value), not_a_number(), 0.0);
+    udv_I = add_udv_by_name("I");
+    Gcomplex(&(udv_I->udv_value), 0.0, 1.0);
+    udv_Inf = add_udv_by_name("Inf");
+    Gcomplex(&(udv_Inf->udv_value), INFINITY, 0.0);
 }
 
 /*

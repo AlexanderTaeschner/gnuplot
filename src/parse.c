@@ -1538,8 +1538,8 @@ add_udv_local(int t_num, char *name, int locality)
     }
 
     udv_ptr = (struct udvt_entry *) gp_alloc(sizeof(struct udvt_entry), "local");
-    udv_ptr->next_udv = first_udv->next_udv;
-    first_udv->next_udv = udv_ptr;
+    udv_ptr->next_udv = udv_head.next_udv;
+    udv_head.next_udv = udv_ptr;
     udv_ptr->udv_name = gp_strdup(name);
     udv_ptr->udv_value.type = NOTDEFINED;
     udv_ptr->locality = locality;

@@ -101,7 +101,7 @@ eval_reset_after_error()
 	if (udf->at)
 	    udf->at->recursion_depth = 0;
     }
-    for (struct udvt_entry *udv = first_udv; udv != NULL; udv = udv->next_udv) {
+    for (struct udvt_entry *udv = udv_head.next_udv; udv != NULL; udv = udv->next_udv) {
 	udv->udv_refcount = 0;
     }
 #ifdef USE_FUNCTIONBLOCKS
@@ -2324,7 +2324,7 @@ f_assign(union argument *arg)
 void
 f_value(union argument *arg)
 {
-    struct udvt_entry *p = first_udv;
+    struct udvt_entry *p = udv_head.next_udv;
     struct value a;
     struct value result;
 

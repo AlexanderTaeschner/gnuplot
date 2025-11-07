@@ -132,7 +132,7 @@ save_all(FILE *fp)
 void
 save_datablocks(FILE *fp)
 {
-    struct udvt_entry *udv = first_udv->next_udv;
+    struct udvt_entry *udv = udv_head.next_udv;
 
     while (udv) {
 	if ((udv->udv_value.type == DATABLOCK)
@@ -170,7 +170,7 @@ static void
 save_variables__sub(FILE *fp)
 {
     /* always skip pi */
-    struct udvt_entry *udv = first_udv->next_udv;
+    struct udvt_entry *udv = udv_head.next_udv;
 
     while (udv) {
 	if (udv->udv_value.type != NOTDEFINED) {
@@ -201,7 +201,7 @@ void
 save_colormaps(FILE *fp)
 {
     /* always skip pi */
-    struct udvt_entry *udv = first_udv->next_udv;
+    struct udvt_entry *udv = udv_head.next_udv;
 
     while (udv) {
 	if (udv->udv_value.type != NOTDEFINED) {

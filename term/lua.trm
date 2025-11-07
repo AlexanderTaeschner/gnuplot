@@ -355,7 +355,7 @@ LUA_GP_is_multiplot(lua_State *L) {
 */
 static int
 LUA_GP_get_all_variables(lua_State *L) {
-  struct udvt_entry *udv = first_udv;
+  struct udvt_entry *udv = udv_head.next_udv;
   struct value *val;
 
   lua_newtable(L);
