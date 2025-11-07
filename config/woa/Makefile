@@ -145,15 +145,6 @@ CERF=1
 # (not recommended)
 #GNUREADLINE=1
 
-# Uncomment if you want to use watchpoints
-WATCHPOINTS=1
-
-# Uncomment if you want to use polar grid
-POLAR_GRID=1
-
-# Uncomment if you want to use functionblocks
-FUNCTIONBLOCKS=1
-
 # Uncomment if you want a stable sort for pm3d and hidden3d surfaces
 STABLE_SORT=1
 
@@ -507,18 +498,6 @@ ifdef GNUREADLINE
 	TERMLIBS_CONSOLE += -lreadline -lncurses
 else
 	CFLAGS += -DREADLINE
-endif
-
-ifdef WATCHPOINTS
-	CFLAGS += -DUSE_WATCHPOINTS
-endif
-
-ifdef POLAR_GRID
-	CFLAGS += -DUSE_POLAR_GRID
-endif
-
-ifdef FUNCTIONBLOCKS
-	CFLAGS += -DUSE_FUNCTIONBLOCKS
 endif
 
 ifdef STABLE_SORT

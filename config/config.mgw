@@ -8,7 +8,7 @@
 #include <_mingw.h>
 
 /* Define to allow use of certain deprecated syntax. */
-/* #undef BACKWARDS_COMPATIBLE */
+/* #undef BACKWARD_COMPATIBILITY */
 
 /* Provide contact info for gnuplot development */
 /* #undef DEVELOPMENT_VERSION */
@@ -65,6 +65,9 @@
 /* Define if you want the cairo-based terminals. */
 /* #undef HAVE_CAIROPDF */
 /* Don't change it here -- this define is set in config/mingw/Makefile. */
+
+/* Define to 1 if you have the `cbrt' function. */
+#define HAVE_CBRT 1
 
 /* define if you have Amos function cexint */
 /* #undef HAVE_CEXINT */
@@ -265,6 +268,12 @@
 /* Define to 1 if you have the `memset' function. */
 #define HAVE_MEMSET 1
 
+/* Define to 1 if you have the `mergesort' function. */
+/* #undef HAVE_MERGESORT */
+
+/* Define to include support for metafont terminal */
+/* #undef HAVE_METAFONT */
+
 /* Define to include support for metapost terminal */
 /* #undef HAVE_METAPOST */
 
@@ -301,11 +310,20 @@
 /* Define to 1 if you have the <readline/history.h> header file. */
 /* #undef HAVE_READLINE_HISTORY_H */
 
+/* Define if your libreadline has rl_pending_signal */
+/* #undef HAVE_READLINE_PENDING_SIGNAL */
+
 /* Define to 1 if you have the <readline/readline.h> header file. */
 /* #undef HAVE_READLINE_READLINE_H */
 
 /* Define if your libreadline has rl_reset_after_signal */
 /* #undef HAVE_READLINE_RESET */
+
+/* Define if your libreadline has _rl_signal_handler */
+/* #undef HAVE_READLINE_SIGNAL_HANDLER */
+
+/* Define to include support for ReGIS terminal */
+/* #undef HAVE_REGIS */
 
 /* Define to 1 if you have the `rindex' function. */
 /* #undef HAVE_RINDEX */
@@ -326,8 +344,11 @@
 /* Define to 1 if you have the `sleep' function. */
 /* #undef HAVE_SLEEP */
 
-/* Define to 1 if stdbool.h conforms to C99. */
-#define HAVE_STDBOOL_H 1
+/* Define to use libstbi as a fallback for reading image data */
+/* #undef HAVE_STBI */
+
+/* Define to 1 if you have the <stb_image.h> header file. */
+/* #undef HAVE_STB_IMAGE_H */
 
 /* Define to 1 if you have the <stdint.h> header file. */
 #define HAVE_STDINT_H 1
@@ -364,6 +385,9 @@
 
 /* Define to 1 if you have the <string.h> header file. */
 #define HAVE_STRING_H 1
+
+/* Define to 1 if you have the `strlcpy' function. */
+/* #undef HAVE_STRLCPY */
 
 /* Define to 1 if you have the `strncasecmp' function. */
 #define HAVE_STRNCASECMP 1
@@ -425,6 +449,9 @@
 /* Define to 1 if you have the <sys/utsname.h> header file. */
 /* #undef HAVE_SYS_UTSNAME_H */
 
+/* Define to 1 if you have <sys/wait.h> that is POSIX.1 compatible. */
+/* #undef HAVE_SYS_WAIT_H */
+
 /* Define to 1 if you have the `tcgetattr' function. */
 /* #undef HAVE_TCGETATTR */
 
@@ -480,8 +507,8 @@
 /* Define to 1 if `vfork' works. */
 /* #undef HAVE_WORKING_VFORK */
 
-/* Define to 1 if the system has the type `_Bool'. */
-#define HAVE__BOOL 1
+/* define if you have Amos function zexint */
+/* #undef HAVE_ZEXINT */
 
 /* Define to 1 if malloc(0)==0 */
 /* #undef MALLOC_ZERO_RETURNS_ZERO */
@@ -511,7 +538,7 @@
 #define PACKAGE_NAME "gnuplot"
 
 /* Define to the full name and version of this package. */
-#define PACKAGE_STRING "gnuplot 5.5"
+#define PACKAGE_STRING "gnuplot 6.1.0"
 
 /* Define to the one symbol short name of this package. */
 #define PACKAGE_TARNAME "gnuplot"
@@ -559,6 +586,9 @@
    old caca_export_memory */
 /* #undef USE_CACA_EXPORT_MEMORY */
 
+/* Define to support defining a function as a here document */
+#define USE_FUNCTIONBLOCKS 1
+
 /* Define if you want to read .gnuplot from current directory (SECURITY
    RISK!). */
 /* #undef USE_CWDRC */
@@ -570,6 +600,9 @@
 /* #undef USE_MOUSE */
 /* Don't change it here -- this define is set in config/mingw/Makefile. */
 
+/* Define to support polar gridded surface plots */
+#define USE_POLAR_GRID 1
+
 /* Define to add support for generating a statistical summary of data */
 #define USE_STATS 1
 
@@ -578,14 +611,26 @@
 # define _GNU_SOURCE 1
 #endif
 
+/* Define to support setting watchpoints in 2D plots */
+#define USE_WATCHPOINTS 1
+
 /* Define to enable multi-byte font support for x11 */
 /* #undef USE_X11_MULTIBYTE */
 
 /* Version number of package */
-#define VERSION "5.5"
+#define VERSION "6.1.0"
 
 /* The main version number */
-/* #undef VERSION_MAJOR */
+#define VERSION_MAJOR "6.1"
+
+/* Define to support Delaunay triangulation and chi-shapes */
+#define WITH_CHI_SHAPES 1
+
+/* Define to make use of otherwise empty space in struct coordinate */
+#define WITH_EXTRA_COORDINATE 1
+
+/* Define if qsort on your O/S is unstable and that bothers you. */
+/* #undef WITH_STABLE_SORT */
 
 /* Define to include support for tektronix terminal emulators */
 /* #undef WITH_TEKTRONIX */
@@ -625,7 +670,7 @@
 /* Define to `int' if <sys/types.h> does not define. */
 /* #undef pid_t */
 
-/* Define to `unsigned' if <sys/types.h> does not define. */
+/* Define to `unsigned int' if <sys/types.h> does not define. */
 /* #undef size_t */
 
 /* Define as `fork' if `vfork' does not work. */

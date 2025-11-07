@@ -83,11 +83,11 @@ UNICODE=1
 # fontconfig or iconv; then, uncomment GDAUTOCONFIGLIBS so that all of the
 # libraries needed for linking will be taken by running 'gdlib-config'.
 # Uncomment BGD if you want to use the binary DLL version of libgd.
-#NEWGD=1
-#JPEG=1
-#FREETYPE=1
+NEWGD=1
+JPEG=1
+FREETYPE=1
 #GDAUTOCONFIGLIBS=1
-#GDPKGCONFIG=1
+GDPKGCONFIG=1
 #BGD=1
 
 # PDF device driver
@@ -114,21 +114,21 @@ MOUSE=1
 # Cairo/Pango terminals
 # Uncomment the following lines to select the pngcairo and pdfcairo
 # terminals
-#CAIROTERMS=1
-#CAIROLIBS=1
+CAIROTERMS=1
+CAIROLIBS=1
 
 # wxt interactive terminal
 # Requires wxWidgets, Cairo, Pango, and their respective dependencies.
 # Uncomment the following lines to compile it.
-#WXT=1
-#CAIROLIBS=1
+WXT=1
+CAIROLIBS=1
 
 # Include webp terminal 
 # Requires webp lib and cairo libraries.
-#WEBP=1
+WEBP=1
 
 # Build qt terminal?
-#QT=1
+QT=1
 # Uncomment to build with Qt6 instead of Qt5
 #QT6=1
 # specify QT installation directory
@@ -155,7 +155,7 @@ QT_BIN = $(QT_DIR)/bin
 endif
 
 # Uncomment the following line to select the lua/tikz terminal
-#LUA=lua
+LUA=lua
 
 # Uncomment the following line to select the caca terminal
 # Requires libcaca version 0.99.beta15 or newer. A post-beta18
@@ -177,15 +177,6 @@ OPENSPECFUN=1
 # Uncomment if console mode gnuplot should use GNU readline
 # (not recommended)
 #GNUREADLINE=1
-
-# Uncomment if you want to use watchpoints
-#WATCHPOINTS=1
-
-# Uncomment if you want to use polar grid
-#POLAR_GRID=1
-
-# Uncomment if you want to use functionblocks
-#FUNCTIONBLOCKS=1
 
 # Uncomment if you want a stable sort for pm3d and hidden3d surfaces
 #STABLE_SORT=1
@@ -593,18 +584,6 @@ ifdef GNUREADLINE
 	TERMLIBS_CONSOLE += -lreadline -lncurses
 else
 	CFLAGS += -DREADLINE
-endif
-
-ifdef WATCHPOINTS
-	CFLAGS += -DUSE_WATCHPOINTS
-endif
-
-ifdef POLAR_GRID
-	CFLAGS += -DUSE_POLAR_GRID
-endif
-
-ifdef FUNCTIONBLOCKS
-	CFLAGS += -DUSE_FUNCTIONBLOCKS
 endif
 
 ifdef STABLE_SORT
