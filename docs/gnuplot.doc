@@ -692,6 +692,7 @@ D epi_data 1
 #b New gprintf format specifiers %C and %Ci to output complex values.
 ## See `gprintf complex` and `imaginary_i`. [EXPERIMENTAL]
 #b Document that the program offers predefined variables I, Inf, and NaN
+#b Named palette "magma" from the viridis family of palettes
 #end
 
 2 Demos and Online Examples
@@ -2356,7 +2357,7 @@ C 4 weekdata_cdc
 #palette(z) & real & 24 bit RGB palette color mapped to z. \\
 %palette(z)@real@24 bit RGB palette color mapped to z.
  `palette(z)` returns the 24 bit RGB representation of the palette color
-  mapped to z given the current extremes of cbrange.
+ mapped to z given the current extremes of cbrange. See `set palette`.
 4 rgbcolor
 ?expressions functions rgbcolor
 ?rgbcolor
@@ -15421,7 +15422,7 @@ Ffigure_multiple_keys
                     | functions <R>,<G>,<B>
                   }
                   { cubehelix {start <val>} {cycles <val>} {saturation <val>} }
-                  { viridis }
+                  { viridis | magma }
                   { model { RGB | CMY | HSV {start <radians>} } }
                   { positive | negative }
                   { nops_allcF | ps_allcF }
@@ -15444,7 +15445,7 @@ Ffigure_palette1
 #TeX \\
  - Specify a named palette, perhaps with additional parameters to customize.
  The named palettes currently provided are `cubehelix` (a customizable family
- of palettes) and `viridis`.
+ of palettes), `magma`, and `viridis`.
 
  `set palette` (without options) restores the default values.
 
@@ -15603,18 +15604,32 @@ Ffigure_palette2
  The default values are
        set palette cubehelix start 0.5 cycles -1.5 saturation 1
        set palette gamma 1.5
-4 viridis
+4 viridis and magma
 ?commands set palette viridis
 ?set palette viridis
 ?viridis
+?set palette magma
+?magma
        set palette viridis
- The "viridis" palette is a (blue->yellow) gradient designed to accommodate
- users with impaired color vision.  Viridis was developed by Stéfan van der Walt
- and Nathaniel Smith.  It features an approximately linear gradient of perceived
- brightness (luminance).  The colormap version used in gnuplot is based on
+       set palette magma
+
+ The "viridis" and "magma" color gradients were designed to accommodate users
+ with impaired color vision.  They were developed by Stéfan van der Walt and
+ Nathaniel Smith.  "viridis" is a blue->green->yellow gradient;
+ "magma" is a purple->yellow->red gradient.  Both feature an approximately
+ linear gradient of perceived brightness (luminance). See `test palette`.
+ The colormap version used in gnuplot is based on
        "Viridis - Colorblind-Friendly Color Maps for R", Garnier et al (2021)
        https://CRAN.R-project.org/package=viridis
 D viridis 1
+D viridis 2
+ The viridis and magma gradients can be used in a gnuplot command even if
+ they are not the current palette setting, but in this case of course the
+ colorbox (if used) would not match the plot coloring.
+ Example:
+      set style data points
+      plot $DATA1 using 1:2:3 pt 7 fillcolor palette magma, \
+           $DATA2 using 1:2:3 pt 7 fillcolor palette viridis
 4 colormap
 ?commands set palette colormap
 ?palette colormap
@@ -19888,12 +19903,12 @@ Ffigure_sparsematrix
  `test` or `test terminal` creates a display of line and point styles and other
  useful things supported by the `terminal` you are currently using.
 
+Ffigure_magma
  `test palette` plots profiles of R(z),G(z),B(z), where 0<=z<=1. These are the
  RGB components of the current color palette as defined by `set palette`.
  It also plots the apparent net intensity as calculated using NTSC coefficients
  to map RGB onto a grayscale.  The command also loads the profile values into a
  datablock named $PALETTE.
-D viridis 1
 2 toggle
 ?commands toggle
 ?toggle

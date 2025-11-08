@@ -4,4 +4,7 @@
 set palette viridis
 test palette
 pause -1
+set palette magma
+test palette
+pause -1
 reset
