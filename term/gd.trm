@@ -714,7 +714,8 @@ PNG_options()
     }
 
     /* Default to full terminal width; leave 1/4 height underneath for commands */
-    if ((strcmp(term->name, "kittygd") == 0)) {
+    if ((strcmp(term->name, "kittygd") == 0)
+    ||  (strcmp(term->name, "sixelgd") == 0)) {
 	int xpixels, ypixels;
 	term_get_termsize( &xpixels, &ypixels );
 	if (xpixels > 0 && ypixels > 0) {
