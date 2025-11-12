@@ -1166,7 +1166,8 @@ UpdateStatuslineWithMouseSetting(mouse_setting_t * ms)
 		sp += strlen(sp);
 	    }
 	}
-	*--sp = 0;		/* delete trailing space */
+	if (sp > s0)
+	    *--sp = 0;		/* delete trailing space */
     }
 
     if (term->put_tmptext && *s0)
