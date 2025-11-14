@@ -1640,7 +1640,7 @@ num_to_str(double r)
     if (strchr(s[j], '.') == NULL &&
 	strchr(s[j], 'e') == NULL &&
 	strchr(s[j], 'E') == NULL &&
-	!isinf(r))
+	!isinf(r) && !isnan(r))
 	strcat(s[j], ".0");
 
     return s[j];
