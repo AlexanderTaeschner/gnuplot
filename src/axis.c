@@ -1477,6 +1477,9 @@ gen_tics(struct axis *this, tic_callback callback)
 			ministart = internal;
 			ministep = 1;
 			miniend = internal + step;
+			/* But don't go crazy with the minitics */
+			if( (miniend-ministart) > 10)
+			    continue;
 		    }
 		}
 
