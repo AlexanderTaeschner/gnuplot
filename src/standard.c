@@ -541,10 +541,12 @@ f_asin(union argument *arg)
 	t = ysign * log(alpha + sqrt(alpha * alpha - 1));
 	push(Gcomplex(&a, 0.0, t / ang2rad));
     } else {
-	beta = sqrt((x + 1) * (x + 1) + y * y) / 2 - sqrt((x - 1) * (x - 1) + y * y) / 2;
-	if (beta > 1)
-	    beta = 1;		/* Avoid rounding error problems */
-	alpha = sqrt((x + 1) * (x + 1) + y * y) / 2 + sqrt((x - 1) * (x - 1) + y * y) / 2;
+	beta = sqrt((x + 1) * (x + 1) + y * y) / 2. - sqrt((x - 1) * (x - 1) + y * y) / 2.;
+	if (beta > 1)		/* Avoid rounding error problems */
+	    beta = 1;
+	if (beta < -1)
+	    beta = -1;
+	alpha = sqrt((x + 1) * (x + 1) + y * y) / 2. + sqrt((x - 1) * (x - 1) + y * y) / 2.;
 	t = ysign * log(alpha + sqrt(alpha * alpha - 1));
 	push(Gcomplex(&a, asin(beta) / ang2rad, t / ang2rad));
     }
@@ -565,13 +567,13 @@ f_acos(union argument *arg)
 	/* real result */
 	push(Gcomplex(&a, acos(x) / ang2rad, 0.0));
     } else {
-	double alpha = sqrt((x + 1) * (x + 1) + y * y) / 2
-	               + sqrt((x - 1) * (x - 1) + y * y) / 2;
-	double beta = sqrt((x + 1) * (x + 1) + y * y) / 2
-	              - sqrt((x - 1) * (x - 1) + y * y) / 2;
-	if (beta > 1)
-	    beta = 1;		/* Avoid rounding error problems */
-	else if (beta < -1)
+	double alpha = sqrt((x + 1) * (x + 1) + y * y) / 2.
+	               + sqrt((x - 1) * (x - 1) + y * y) / 2.;
+	double beta = sqrt((x + 1) * (x + 1) + y * y) / 2.
+	              - sqrt((x - 1) * (x - 1) + y * y) / 2.;
+	if (beta > 1)		/* Avoid rounding error problems */
+	    beta = 1;
+	if (beta < -1)
 	    beta = -1;
 	ysign = (y >= 0) ? 1 : -1;
 	push(Gcomplex(&a, acos(beta) / ang2rad,
