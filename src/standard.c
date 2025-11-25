@@ -524,7 +524,7 @@ f_asin(union argument *arg)
     struct value a;
     double alpha, beta, x, y;
     double t;
-    int ysign;
+    double ysign;
 
     (void) arg;			/* avoid -Wunused warning */
     (void) pop(&a);
@@ -540,13 +540,21 @@ f_asin(union argument *arg)
 	alpha = sqrt(1 + y * y);
 	t = ysign * log(alpha + sqrt(alpha * alpha - 1));
 	push(Gcomplex(&a, 0.0, t / ang2rad));
+    } else if (y == 0) {
+	/* Less round-off error if we know it's a real (imaginary component is zero) */
+	alpha = fabs(x);
+	beta =  (x < 0) ? -1.0 : 1.0;
+	t = log(alpha + sqrt(alpha * alpha - 1));
+	push(Gcomplex(&a, asin(beta) / ang2rad, t / ang2rad));
     } else {
-	beta = sqrt((x + 1) * (x + 1) + y * y) / 2. - sqrt((x - 1) * (x - 1) + y * y) / 2.;
+	alpha = sqrt((x + 1) * (x + 1) + y * y) / 2.
+	      + sqrt((x - 1) * (x - 1) + y * y) / 2.;
+	beta  = sqrt((x + 1) * (x + 1) + y * y) / 2.
+	      - sqrt((x - 1) * (x - 1) + y * y) / 2.;
 	if (beta > 1)		/* Avoid rounding error problems */
 	    beta = 1;
 	if (beta < -1)
 	    beta = -1;
-	alpha = sqrt((x + 1) * (x + 1) + y * y) / 2. + sqrt((x - 1) * (x - 1) + y * y) / 2.;
 	t = ysign * log(alpha + sqrt(alpha * alpha - 1));
 	push(Gcomplex(&a, asin(beta) / ang2rad, t / ang2rad));
     }
@@ -557,25 +565,32 @@ f_acos(union argument *arg)
 {
     struct value a;
     double x, y;
+    double alpha, beta;
     double ysign;
 
     (void) arg;			/* avoid -Wunused warning */
     (void) pop(&a);
     x = real(&a);
     y = imag(&a);
+    ysign = (y >= 0) ? 1 : -1;
     if (y == 0.0 && fabs(x) <= 1.0) {
 	/* real result */
 	push(Gcomplex(&a, acos(x) / ang2rad, 0.0));
+    } else if (y == 0) {
+	/* Less round-off error if we know it's a real (imaginary component is zero) */
+	alpha = fabs(x);
+	beta  = (x < 0) ? -1.0 : 1.0;
+	push(Gcomplex(&a, acos(beta) / ang2rad,
+	                  -ysign * log(alpha + sqrt(alpha * alpha - 1)) / ang2rad));
     } else {
-	double alpha = sqrt((x + 1) * (x + 1) + y * y) / 2.
-	               + sqrt((x - 1) * (x - 1) + y * y) / 2.;
-	double beta = sqrt((x + 1) * (x + 1) + y * y) / 2.
-	              - sqrt((x - 1) * (x - 1) + y * y) / 2.;
+	alpha = sqrt((x + 1) * (x + 1) + y * y) / 2.
+	      + sqrt((x - 1) * (x - 1) + y * y) / 2.;
+	beta  = sqrt((x + 1) * (x + 1) + y * y) / 2.
+	      - sqrt((x - 1) * (x - 1) + y * y) / 2.;
 	if (beta > 1)		/* Avoid rounding error problems */
 	    beta = 1;
 	if (beta < -1)
 	    beta = -1;
-	ysign = (y >= 0) ? 1 : -1;
 	push(Gcomplex(&a, acos(beta) / ang2rad,
 	                  -ysign * log(alpha + sqrt(alpha * alpha - 1)) / ang2rad));
     }
