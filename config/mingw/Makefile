@@ -915,9 +915,9 @@ wgnuplot-ja.chm: $(JASRC) doc2html-ja.exe \
 	chmod +w $(JADW)*
 	# Create Japanese html source in EUC-JP encoding
 	./doc2html-ja $(JAD)gnuplot-ja.doc $(JADW)
-	# Change character encoding from EUC-JP to SHIFT-JIS
-	-iconv -c -s -f EUC-JP -t SHIFT-JIS $(JADW)wgnuplot.html > $(JADW)wgnuplot-ja.html
-	-iconv -c -s -f EUC-JP -t SHIFT-JIS $(JADW)wgnuplot.hhc > $(JADW)wgnuplot-ja.hhc
+	# Change character encoding from EUC-JP to UTF-8
+	-iconv -c -s -f EUC-JP -t UTF-8 $(JADW)wgnuplot.html > $(JADW)wgnuplot-ja.html
+	-iconv -c -s -f EUC-JP -t UTF-8 $(JADW)wgnuplot.hhc > $(JADW)wgnuplot-ja.hhc
 	$(MV) $(JADW)wgnuplot-ja.html $(JADW)wgnuplot.html
 	$(MV) $(JADW)wgnuplot-ja.hhc $(JADW)wgnuplot.hhc
 	# Adjust Encoding and Language information
