@@ -921,8 +921,6 @@ wgnuplot-ja.chm: $(JASRC) doc2html-ja.exe \
 	$(MV) $(JADW)wgnuplot-ja.html $(JADW)wgnuplot.html
 	$(MV) $(JADW)wgnuplot-ja.hhc $(JADW)wgnuplot.hhc
 	# Adjust Encoding and Language information
-	sed -i -e "s/charset=utf-8/charset=shift-jis/" $(JADW)wgnuplot.html
-	sed -i -e "s/charset=utf-8/charset=shift-jis/" $(JADW)wgnuplot.hhc
 	sed -i -e "s/Language=0x409 Englisch (USA)/Language=0x411 Japanisch (Japan)/" $(JADW)/wgnuplot.hhp
 	sed -i -e "s/Compiled file=wgnuplot.chm/Compiled file=wgnuplot-ja.chm/" $(JADW)/wgnuplot.hhp
 	# Build help file

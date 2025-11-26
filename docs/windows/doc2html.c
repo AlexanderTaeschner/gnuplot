@@ -145,7 +145,11 @@ header(FILE *a, char * title)
     fprintf(a, "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01 Transitional//EN\">\n");
     fprintf(a, "<html>\n");
     fprintf(a, "<head>\n");
+#ifndef JAPANESE_DOC
     fprintf(a, "<meta http-equiv=\"Content-type\" content=\"text/html; charset=utf-8\">\n");
+#else
+    fprintf(a, "<meta http-equiv=\"Content-type\" content=\"text/html; charset=shift-jis\">\n");
+#endif
     fprintf(a, "<title>%s</title>\n", title);
     fprintf(a, "</head>\n");
     fprintf(a, "<body>\n");
