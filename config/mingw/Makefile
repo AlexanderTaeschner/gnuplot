@@ -333,6 +333,7 @@ LDX = $(CXX)
 
 RM = rm -f
 CP = cp -p
+MV = mv -f
 
 ifdef DEBUG
   CFLAGS += -g -Wall -pipe
@@ -385,7 +386,6 @@ endif
 HELPFILE = wgnuplot.chm
 HELPFILEJA = wgnuplot-ja.chm
 CFLAGS += -I$(HHWPATH)include
-BUILDHELPFILE = $(D)windows/$(HELPFILE)
 
 ifdef NEWGD
   GD=1
@@ -851,17 +851,18 @@ demo_plugin.dll: $(M)plugin/demo_plugin.c
 	$(CC) $(CFLAGS) -I$(M)plugin -shared -o $@ $<
 
 # convert gnuplot.doc to windows/wgnuplot.html
-$(BUILDHELPFILE): doc2html.exe $(D)gnuplot.doc $(D)windows/wgnuplot.hhp $(D)windows/wgnuplot.hhk \
+$(HELPFILE): doc2html.exe $(D)gnuplot.doc $(D)windows/wgnuplot.hhp $(D)windows/wgnuplot.hhk \
                   $(D)windows/wgnuplot.stp $(D)plotstyles.gnu $(D)morefigures.gnu \
                   $(CORETERM) $(TARGET)
-	./doc2html $(D)gnuplot.doc $(D)windows/
+	-mkdir chm
+	-$(CP) -r $(D)windows/wgnuplot.* chm/
+	./doc2html $(D)gnuplot.doc chm/
 	-./$(TARGET) -d -e "winhelp=1; cd '$(D)'" plotstyles.gnu
 	-./$(TARGET) -d -e "winhelp=1; cd '$(D)'" morefigures.gnu
-	-$(CP) $(D)html/*.png $(D)windows/
-	-$(HHC) $(D)windows/wgnuplot.hhp
-
-$(HELPFILE): $(BUILDHELPFILE)
-	$(CP) $^ $@
+	-$(MV) $(D)windows/figure_*.png chm/
+	-$(CP) $(D)html/*.png chm/
+	-$(HHC) chm/wgnuplot.hhp
+	-$(CP) chm/wgnuplot.chm wgnuplot.chm
 
 htmlhelp.def: /c/Windows/System32/hhctrl.ocx
 ifndef MINGW64
@@ -917,18 +918,19 @@ wgnuplot-ja.chm: $(JASRC) doc2html-ja.exe \
 	# Change character encoding from EUC-JP to SHIFT-JIS
 	-iconv -c -s -f EUC-JP -t SHIFT-JIS $(JADW)wgnuplot.html > $(JADW)wgnuplot-ja.html
 	-iconv -c -s -f EUC-JP -t SHIFT-JIS $(JADW)wgnuplot.hhc > $(JADW)wgnuplot-ja.hhc
-	cp $(JADW)wgnuplot-ja.html $(JADW)wgnuplot.html
-	cp $(JADW)wgnuplot-ja.hhc $(JADW)wgnuplot.hhc
+	$(MV) $(JADW)wgnuplot-ja.html $(JADW)wgnuplot.html
+	$(MV) $(JADW)wgnuplot-ja.hhc $(JADW)wgnuplot.hhc
 	# Adjust Encoding and Language information
 	sed -i -e "s/charset=utf-8/charset=shift-jis/" $(JADW)wgnuplot.html
 	sed -i -e "s/charset=utf-8/charset=shift-jis/" $(JADW)wgnuplot.hhc
 	sed -i -e "s/Language=0x409 Englisch (USA)/Language=0x411 Japanisch (Japan)/" $(JADW)/wgnuplot.hhp
+	sed -i -e "s/Compiled file=wgnuplot.chm/Compiled file=wgnuplot-ja.chm/" $(JADW)/wgnuplot.hhp
 	# Build help file
 	-./$(TARGET) -d -e "winhelp=1; cd '$(JAD)'" plotstyles.gnu
 	-./$(TARGET) -d -e "winhelp=1; cd '$(JAD)'" morefigures.gnu
 	-$(CP) $(D)html/*.png $(JADW)
 	-$(HHC) $(JADW)wgnuplot.hhp
-	cp $(JADW)wgnuplot.chm $(HELPFILEJA)
+	-$(CP) $(JADW)wgnuplot-ja.chm $(HELPFILEJA)
 
 doc2html.exe: $(CORETERM) $(D)windows/doc2html.c $(D)termdoc.c $(D)xref.c version.o $(LUA_HELP)
 	$(LD) $(LDFLAGS) -o $@ -DWINDOWS_NO_GUI \
@@ -1136,6 +1138,7 @@ clean:
 	-$(RM) doc2html.exe
 	-$(RM) timestamp.h *.tmp *.par
 	-$(RM) -rf ./dist/ ./gnuplot/
+	-$(RM) -rf chm
 	-$(RM) -rf $(JA)
 	-$(RM) allterm-ja.h gnuplot-figures-ja.tex
 	-$(RM) doc2html-ja.exe doc2tex-ja.exe
