@@ -547,10 +547,8 @@ f_asin(union argument *arg)
 	t = log(alpha + sqrt(alpha * alpha - 1));
 	push(Gcomplex(&a, asin(beta) / ang2rad, t / ang2rad));
     } else {
-	alpha = sqrt((x + 1) * (x + 1) + y * y) / 2.
-	      + sqrt((x - 1) * (x - 1) + y * y) / 2.;
-	beta  = sqrt((x + 1) * (x + 1) + y * y) / 2.
-	      - sqrt((x - 1) * (x - 1) + y * y) / 2.;
+	alpha = (hypot(x+1, y) + hypot(x-1, y)) / 2.;
+	beta  = (hypot(x+1, y) - hypot(x-1, y)) / 2.;
 	if (beta > 1)		/* Avoid rounding error problems */
 	    beta = 1;
 	if (beta < -1)
@@ -583,10 +581,8 @@ f_acos(union argument *arg)
 	push(Gcomplex(&a, acos(beta) / ang2rad,
 	                  -ysign * log(alpha + sqrt(alpha * alpha - 1)) / ang2rad));
     } else {
-	alpha = sqrt((x + 1) * (x + 1) + y * y) / 2.
-	      + sqrt((x - 1) * (x - 1) + y * y) / 2.;
-	beta  = sqrt((x + 1) * (x + 1) + y * y) / 2.
-	      - sqrt((x - 1) * (x - 1) + y * y) / 2.;
+	alpha = (hypot(x+1, y) + hypot(x-1, y)) / 2.;
+	beta  = (hypot(x+1, y) - hypot(x-1, y)) / 2.;
 	if (beta > 1)		/* Avoid rounding error problems */
 	    beta = 1;
 	if (beta < -1)
@@ -732,8 +728,8 @@ f_asinh(union argument *arg)
 	t = ysign * log(alpha + sqrt(alpha * alpha - 1));
 	push(Gcomplex(&a, t / ang2rad, 0.0));
     } else {
-	beta  = sqrt((x + 1) * (x + 1) + y * y) / 2 - sqrt((x - 1) * (x - 1) + y * y) / 2;
-	alpha = sqrt((x + 1) * (x + 1) + y * y) / 2 + sqrt((x - 1) * (x - 1) + y * y) / 2;
+	alpha = (hypot(x+1, y) + hypot(x-1, y)) / 2.;
+	beta  = (hypot(x+1, y) - hypot(x-1, y)) / 2.;
 	t = ysign * log(alpha + sqrt(alpha * alpha - 1));
 	push(Gcomplex(&a, t / ang2rad, -asin(beta) / ang2rad));
     }
@@ -758,10 +754,8 @@ f_acosh(union argument *arg)
 	push(Gcomplex(&a, log(alpha + sqrt(alpha * alpha - 1)) / ang2rad,
 	                  beta / ang2rad));
     } else {
-	alpha = sqrt((x + 1) * (x + 1) + y * y) / 2
-	      + sqrt((x - 1) * (x - 1) + y * y) / 2;
-	beta  = sqrt((x + 1) * (x + 1) + y * y) / 2
-	      - sqrt((x - 1) * (x - 1) + y * y) / 2;
+	alpha = (hypot(x+1, y) + hypot(x-1, y)) / 2.;
+	beta  = (hypot(x+1, y) - hypot(x-1, y)) / 2.;
 	push(Gcomplex(&a, log(alpha + sqrt(alpha * alpha - 1)) / ang2rad,
 	                  (y<0 ? -1 : 1) * acos(beta) / ang2rad));
     }
