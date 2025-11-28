@@ -444,7 +444,11 @@ Gstring(struct value *a, char *s)
 void
 clone_string_value(t_value *value)
 {
-    if (value->type == STRING)
+    if (value->type != STRING)
+	return;
+    if (value->v.string_val == NULL)
+	value->v.string_val = strdup("");
+    else
 	value->v.string_val = strdup(value->v.string_val);
 }
 
