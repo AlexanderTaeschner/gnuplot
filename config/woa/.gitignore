@@ -45,3 +45,4 @@ latex_demo.*
 epslatex-inc.eps
 latex_cairo.pdf
 gnuplot/
+chm

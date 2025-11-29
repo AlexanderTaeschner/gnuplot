@@ -245,10 +245,6 @@ DLLS = 1
 # **********************************************************************
 #
 
-# We enforce to use console mode gnuplot to run gnuplot scripts in order
-# to see their output during make.
-TARGET=gnuplot.exe
-
 BUILT_SOURCES = allterm.h allterm-ja.h
 
 CC = $(CCPATH)clang
@@ -258,6 +254,7 @@ LDX = $(CXX)
 
 RM = rm -f
 CP = cp -p
+MV = mv -f
 
 ifdef DEBUG
   CFLAGS += -g -Wall -pipe
@@ -310,7 +307,6 @@ endif
 HELPFILE = wgnuplot.chm
 HELPFILEJA = wgnuplot-ja.chm
 #CFLAGS += -I$(HHWPATH)include
-BUILDHELPFILE = $(D)windows/$(HELPFILE)
 
 ifdef NEWGD
   GD=1
@@ -738,15 +734,18 @@ demo_plugin.dll: $(M)plugin/demo_plugin.c
 	$(CC) $(CFLAGS) -I$(M)plugin -shared -o $@ $<
 
 # convert gnuplot.doc to windows/wgnuplot.html
-$(BUILDHELPFILE): doc2html.exe $(D)gnuplot.doc $(D)windows/wgnuplot.hhp $(D)windows/wgnuplot.hhk \
-                  $(D)windows/wgnuplot.stp $(D)plotstyles.gnu $(CORETERM) $(GNUPLOTEXE)
-	./doc2html $(D)gnuplot.doc $(D)windows/
+$(HELPFILE): doc2html.exe $(D)gnuplot.doc $(D)windows/wgnuplot.hhp $(D)windows/wgnuplot.hhk \
+                  $(D)windows/wgnuplot.stp $(D)plotstyles.gnu $(D)morefigures.gnu \
+                  $(CORETERM) $(GNUPLOTEXE)
+	-mkdir chm
+	-$(CP) -r $(D)windows/wgnuplot.* chm/
+	./doc2html $(D)gnuplot.doc chm/
 	$(GNUPLOTEXE) -d -e "winhelp=1; cd '$(D)'" plotstyles.gnu
-	-$(CP) $(D)html/*.png $(D)windows/
-	-$(HHC) $(D)windows/wgnuplot.hhp
-
-$(HELPFILE): $(BUILDHELPFILE)
-	$(CP) $^ $@
+	$(GNUPLOTEXE) -d -e "winhelp=1; cd '$(D)'" morefigures.gnu
+	-$(MV) $(D)windows/figure_*.png chm/
+	-$(CP) $(D)html/*.png chm/
+	-$(HHC) chm/wgnuplot.hhp
+	-$(CP) chm/wgnuplot.chm wgnuplot.chm
 
 # Working directory for patched Japanese sources
 JA = ja/
@@ -771,6 +770,7 @@ $(JASRC): $(D)gnuplot-ja.doc $(D)term-ja.diff $(CORETERM)
 wgnuplot-ja.chm: $(JASRC) doc2html-ja.exe \
                   $(D)windows/wgnuplot.hhp $(D)windows/wgnuplot.hhk \
                   $(D)windows/wgnuplot.stp $(D)plotstyles.gnu \
+                  $(D)morefigures.gnu \
                   $(GNUPLOTEXE)
 	# FIXME: some files always end up read-only...
 	chmod +w $(JADW)*
@@ -779,17 +779,17 @@ wgnuplot-ja.chm: $(JASRC) doc2html-ja.exe \
 	# Change character encoding from EUC-JP to SHIFT-JIS
 	-iconv -c -s -f EUC-JP -t SHIFT-JIS $(JADW)wgnuplot.html > $(JADW)wgnuplot-ja.html
 	-iconv -c -s -f EUC-JP -t SHIFT-JIS $(JADW)wgnuplot.hhc > $(JADW)wgnuplot-ja.hhc
-	cp $(JADW)wgnuplot-ja.html $(JADW)wgnuplot.html
-	cp $(JADW)wgnuplot-ja.hhc $(JADW)wgnuplot.hhc
+	$(MV) $(JADW)wgnuplot-ja.html $(JADW)wgnuplot.html
+	$(MV) $(JADW)wgnuplot-ja.hhc $(JADW)wgnuplot.hhc
 	# Adjust Encoding and Language information
-	sed -i -e "s/charset=utf-8/charset=shift-jis/" $(JADW)wgnuplot.html
-	sed -i -e "s/charset=utf-8/charset=shift-jis/" $(JADW)wgnuplot.hhc
 	sed -i -e "s/Language=0x409 Englisch (USA)/Language=0x411 Japanisch (Japan)/" $(JADW)/wgnuplot.hhp
+	sed -i -e "s/Compiled file=wgnuplot.chm/Compiled file=wgnuplot-ja.chm/" $(JADW)/wgnuplot.hhp
 	# Build help file
 	$(GNUPLOTEXE) -d -e "winhelp=1; cd '$(JAD)'" plotstyles.gnu
+	$(GNUPLOTEXE) -d -e "winhelp=1; cd '$(JAD)'" morefigures.gnu
 	-$(CP) $(D)html/*.png $(JADW)
 	-$(HHC) $(JADW)wgnuplot.hhp
-	cp $(JADW)wgnuplot.chm $(HELPFILEJA)
+	-$(CP) $(JADW)wgnuplot-ja.chm $(HELPFILEJA)
 
 doc2html.exe: $(CORETERM) $(D)windows/doc2html.c $(D)termdoc.c $(D)xref.c version.o $(LUA_HELP)
 	$(LD) $(LDFLAGSX) -o $@ -DWINDOWS_NO_GUI \
@@ -885,10 +885,12 @@ gnuplot.tex: $(D)gnuplot.doc doc2tex.exe
 
 gnuplot-figures.tex: $(D)gnuplot.doc doc2tex.exe $(GNUPLOTEXE)
 	GNUPLOT_LIB=$(M) $(GNUPLOTEXE) -d $(D)plotstyles.gnu
+	GNUPLOT_LIB=$(M) $(GNUPLOTEXE) -d $(D)morefigures.gnu
 	./doc2tex -figures $(D)gnuplot.doc gnuplot-figures.tex
 
 gnuplot-figures-ja.tex: $(D)gnuplot.doc doc2tex-ja.exe $(GNUPLOTEXE)
 	GNUPLOT_LIB=$(M) $(GNUPLOTEXE) -d $(D)plotstyles.gnu
+	GNUPLOT_LIB=$(M) $(GNUPLOTEXE) -d $(D)morefigures.gnu
 	iconv -f EUC-JP -t UTF-8 $(D)gnuplot-ja.doc > ja.doc
 	./doc2tex-ja -figures ja.doc | sed 's/titlepag.tex/title-ja.tex/' > gnuplot-figures-ja.tex
 	rm ja.doc
@@ -950,8 +952,8 @@ gropdf: $(D)titlepag.ms gnuplot.ms
 	sed "s,titlepag\.ms,$(D)titlepag\.ms," gnuplot.ms | \
 	groff -s -p -t -e -ms -k -K utf-8 -Tpdf > gnuplot.pdf
 
-ps_symbols.pdf: $(D)psdoc/ps_symbols.gpi
-	GNUPLOT_LIB=$(D)psdoc GNUPLOT_PS_DIR=$(T)PostScript ./$(TARGET) -d ps_symbols.gpi
+ps_symbols.pdf: $(D)psdoc/ps_symbols.gpi $(GNUPLOTEXE)
+	GNUPLOT_LIB=$(D)psdoc GNUPLOT_PS_DIR=$(T)PostScript $(GNUPLOTEXE) -d ps_symbols.gpi
 	ps2pdf ps_symbols.ps
 
 ps_fontfile_doc.ps: $(D)psdoc/ps_fontfile_doc.tex
@@ -994,6 +996,7 @@ clean:
 	-$(RM) doc2html.exe
 	-$(RM) timestamp.h *.tmp *.par
 	-$(RM) -rf ./dist/ ./gnuplot/
+	-$(RM) -rf chm
 	-$(RM) -rf $(JA)
 	-$(RM) allterm-ja.h gnuplot-figures-ja.tex
 	-$(RM) doc2html-ja.exe doc2tex-ja.exe
