@@ -1,0 +1,48 @@
+#
+# Another demo for the use of external functions
+# Import a function that has an associated constructor and destructor.
+# The demo serves as a unit test for this type of plugin.
+#
+# Note: The code for newdata(N) in source file demo_plugin.c would be
+#	system dependent if it did anything truly interesting.
+#	As a place-holder it returns a boring random number near 42.0
+#	rather than an actual measured temperature.
+#	There is commented-out code in the source file illustrating
+#	a slightly more interesting version that does in fact read
+#	a temperature system on my test system (AMD Ryzen 7).
+#
+
+if (!strstrt(GPVAL_COMPILE_OPTIONS,"+EXTERNAL_FUNCTIONS")) {
+    print ">>> Skipping demo <<<\n" ;
+    print "This copy of gnuplot does not support import of external functions"
+    exit
+}
+
+function $sample << EOF
+    local array A[2]
+    pause 0.1
+    A = newdata(0)
+    Temp = A[2]
+    return strptime("%H:%M:%S",A[1])
+EOF
+
+print "#\n# Re-import and call the newdata() function ten times\n#"
+do for [i=1:10] {
+    import newdata(n) from "demo_plugin"
+    A = newdata(i)
+    print A[1], A[2]
+}
+
+print "\n\n\n#\n# Now sample 100 times with a 0.1 second delay\n#"
+set ytics format "%.2f°C"
+set xdata time
+set xlabel "Time (Minutes:Seconds)"
+unset key
+set title "100 samples of the CPU temperature"
+
+plot [i=1:100:1] '+' using ($sample()):(Temp) with lp
+
+# deliberately overwrite the imported function to test whether
+# the destructor is correctly called when it goes away
+
+newdata(i) = "Clobber"

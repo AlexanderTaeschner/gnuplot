@@ -6,6 +6,10 @@ Source files are included here for two plugin libraries.
 demo_plugin.c provides three toy functions just for the purpose
 of running the unit test / demo "plugin.dem".
 
+demo_plugin.c also provides a less trivial function newdata()
+that has separate constructor/destructor functions needed for
+use.  These are exercised by running the demo "plugin2.dem".
+
 uigamma_plugin.c provides an implementation of the regularized
 upper incomplete gamma function Q(a,x) [NIST DLMF eq. 8.2.4].
 This function is already built in to gnuplot version 6 but it may
