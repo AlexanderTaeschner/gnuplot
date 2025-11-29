@@ -58,6 +58,10 @@
  *
 ]*/
 
+/*
+ * EAM November 2025 - revise operation of the destructor function
+ */
+
 #include "external.h"
 #include "version.h"
 
@@ -75,7 +79,7 @@
 
 typedef struct value (*exfn_t)(int, struct value *, void *);
 typedef void * (*infn_t)(exfn_t);
-typedef void   (*fifn_t)(void *);
+typedef void   (*fifn_t)(exfn_t, void *);
 typedef double (*vfn_t)(void);
 
 struct exft_entry {
@@ -95,7 +99,6 @@ f_calle(union argument *x)
 	r = udv_NaN->udv_value;
     push(&r);
 }
-
 
 #ifdef _WIN32
 static void *
@@ -222,25 +225,25 @@ external_at(const char *func_name)
     infn = (infn_t)DLL_SYM(dl, "gnuplot_init");
     fifn = (fifn_t)DLL_SYM(dl, "gnuplot_fini");
     vfn  = (vfn_t)DLL_SYM(dl, "gnuplot_version");
-    
+
     if (!(at = gp_alloc(sizeof(struct at_type), "external_at")))
 	goto bailout;
     memset(at, 0, sizeof(*at));		/* reset action table !!! */
-    
+
     at->a_count=1;
     at->actions[0].index = CALLE;
-    
+
     at->actions[0].arg.exf_arg = gp_alloc(sizeof (struct exft_entry), "external_at");
     if (!at->actions[0].arg.exf_arg) {
 	free(at);
 	at = NULL;
 	goto bailout;
     }
-    
+
     at->actions[0].arg.exf_arg->exfn = exfn;	/* must be freed later */
     at->actions[0].arg.exf_arg->fifn = fifn;
     at->actions[0].arg.exf_arg->args = dummy_func;
-    
+
     if (!infn)
 	at->actions[0].arg.exf_arg->private = 0x0;
     else
@@ -262,18 +265,21 @@ external_at(const char *func_name)
 }
 
 /* 
-   Called with the at of a UDF about to be redefined.  Test if the
-   function was external, and call its _fini, if any.
-*/
-
+ * Called when the at of a UDF is about to be redefined.
+ * Test if the function was external, and call its destructor, if any.
+ */
 void
 external_free(struct at_type *at)
 {
     if (at 
 	&& at->a_count == 1
 	&& at->actions[0].index == CALLE
-	&& at->actions[0].arg.exf_arg->fifn)
-	(*at->actions[0].arg.exf_arg->fifn)(at->actions[0].arg.exf_arg->private);
+	&& at->actions[0].arg.exf_arg->fifn) {
+	    (*at->actions[0].arg.exf_arg->fifn)(
+		at->actions[0].arg.exf_arg->exfn,
+		at->actions[0].arg.exf_arg->private);
+	    at->actions[0].arg.exf_arg->fifn = NULL;
+	}
 }
 
 #endif /* HAVE_EXTERNAL_FUNCTIONS */

@@ -62,6 +62,7 @@
 
 #include "alloc.h"
 #include "datablock.h"
+#include "external.h"
 #include "eval.h"
 #include "fit.h"
 #include "datafile.h"
@@ -84,7 +85,6 @@
 #include "term_api.h"
 #include "util.h"
 #include "voxelgrid.h"
-#include "external.h"
 
 #ifdef USE_MOUSE
 # include "mouse.h"
@@ -732,6 +732,9 @@ define()
 	if (END_OF_COMMAND)
 	    int_error(c_token, "function definition expected");
 	udf = add_udf(start_token);
+	/* check for redefinition of a function imported as a plugin */
+	if (udf->at && (udf->at->actions[0].index == CALLE))
+	    external_free(udf->at);
 	/* odd corner case of attempt to redefine a function while executing it */
 	if (udf->at && udf->at->recursion_depth > 0)
 	    int_error(NO_CARET, "attempt to redefine %s while executing it", udf->udf_name);
@@ -3060,6 +3063,9 @@ import_command()
 
     udf = dummy_func = add_udf(start_token+1);
     udf->dummy_num = dummy_num;
+    /* check for redefinition of a function imported as a plugin */
+    if (udf->at && (udf->at->actions[0].index == CALLE))
+	external_free(udf->at);
     free_at(udf->at);	/* In case there was a previous function by this name */
 
     udf->at = external_at(udf->udf_name);
