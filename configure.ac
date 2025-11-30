@@ -1107,6 +1107,8 @@ if test "${enable_qt}" = yes ; then
         CXXFLAGS="$CXXFLAGS -fPIC"
         AC_MSG_RESULT([The Qt terminal will use Qt5.])
         QTVER="5"
+      else
+        enable_qt_ok=no
       fi
     fi 
   fi
