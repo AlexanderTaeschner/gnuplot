@@ -732,9 +732,11 @@ define()
 	if (END_OF_COMMAND)
 	    int_error(c_token, "function definition expected");
 	udf = add_udf(start_token);
+#ifdef HAVE_EXTERNAL_FUNCTIONS
 	/* check for redefinition of a function imported as a plugin */
 	if (udf->at && (udf->at->actions[0].index == CALLE))
 	    external_free(udf->at);
+#endif
 	/* odd corner case of attempt to redefine a function while executing it */
 	if (udf->at && udf->at->recursion_depth > 0)
 	    int_error(NO_CARET, "attempt to redefine %s while executing it", udf->udf_name);
