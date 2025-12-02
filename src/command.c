@@ -2220,11 +2220,16 @@ plot_command()
 #endif
     if (evaluate_inside_functionblock && inside_plot_command)
 	int_error(NO_CARET, "plot command not available in this context");
+    /* Clear "hidden" flag for any plots that may have been toggled off */
+    /* Dec 2025: modify_plots() has a side effect of repainting the current display,
+     *           at least for wxt, which can cause flicker during remultiplot.
+     */
+    if (term->modify_plots) {
+	if (!multiplot_playback || reset_since_last_plot)
+	    term->modify_plots(MODPLOTS_SET_VISIBLE, -1);
+    }
     inside_plot_command = TRUE;
     plotrequest();
-    /* Clear "hidden" flag for any plots that may have been toggled off */
-    if (term->modify_plots)
-	term->modify_plots(MODPLOTS_SET_VISIBLE, -1);
     inside_plot_command = FALSE;
     SET_CURSOR_ARROW;
 }
