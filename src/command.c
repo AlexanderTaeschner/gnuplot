@@ -2613,6 +2613,11 @@ replot_command()
     if (term->flags & TERM_INIT_ON_REPLOT)
 	term->init();
 
+    if (term->modify_plots) {
+	if (reset_since_last_plot)
+	    term->modify_plots(MODPLOTS_SET_VISIBLE, -1);
+    }
+
     if (last_plot_was_multiplot && !in_multiplot) {
 	struct udvt_entry *datablock = get_udv_by_name("$GPVAL_LAST_MULTIPLOT");
 	if (!datablock || datablock->udv_value.type != DATABLOCK
@@ -2815,8 +2820,10 @@ splot_command()
     inside_plot_command = TRUE;
     plot3drequest();
     /* Clear "hidden" flag for any plots that may have been toggled off */
-    if (term->modify_plots)
-	term->modify_plots(MODPLOTS_SET_VISIBLE, -1);
+    if (term->modify_plots) {
+	if (!multiplot_playback || reset_since_last_plot)
+	    term->modify_plots(MODPLOTS_SET_VISIBLE, -1);
+    }
     inside_plot_command = FALSE;
     SET_CURSOR_ARROW;
 }
