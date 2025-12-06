@@ -595,6 +595,9 @@ extern TBOOLEAN volatile_data;
 /* WINDOWID to be filled by terminals running on X11 (x11, wxt, qt, ...) */
 extern int current_x11_windowid;
 
+/* Some commands modify their behavior if a "reset" has been done */
+extern TBOOLEAN reset_since_last_plot;
+
 /* Plot layer definitions are collected here. */
 #define LAYER_BEHIND     -1
 #define LAYER_BACK        0

@@ -86,7 +86,6 @@ long mouse_mode = MOUSE_COORDINATES_REAL;
 char* mouse_alt_string = (char*) 0;
 mouse_setting_t default_mouse_setting = DEFAULT_MOUSE_SETTING;
 mouse_setting_t         mouse_setting = DEFAULT_MOUSE_SETTING;
-TBOOLEAN reset_since_last_plot = TRUE;
 
 /* the following table must match exactly the
  * enum's of GP_ in mousecmn.h and end with a NULL pointer!

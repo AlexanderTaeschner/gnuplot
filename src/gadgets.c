@@ -216,6 +216,9 @@ int current_x11_windowid = 0;
 
 textbox_style textbox_opts[NUM_TEXTBOX_STYLES];
 
+/* Some commands modify their behavior if a "reset" has been done */
+TBOOLEAN reset_since_last_plot = TRUE;
+
 /*
  * Image data or pm3d quadrangles can be masked by first loading a set
  * of masking polygons via dummy plotting style "with mask".
