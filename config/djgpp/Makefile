@@ -22,7 +22,7 @@
 
 # External libraries
 #  Use the MGRX fork instead of GRX
-#MGRX=1
+MGRX=1
 #  lua, libiconv and readline are available as binaries
 LUA=1
 ICONV=1
@@ -30,10 +30,10 @@ ICONV=1
 #  libgd has to be compiled from sources, it requires
 #  libjpeg, libpng16 and libz (binaries available) and
 #  freetype (sources)
-#GD=1
-#GD_FONTCONFIG=1
+GD=1
+GD_FONTCONFIG=1
 #  cerf has to be compiled from sources
-#CERF=1
+CERF=1
 
 # Options
 DJSVGA=1
@@ -110,7 +110,7 @@ SS = "
 endif
 
 # Native compiler
-NCC = gcc
+NCC = clang
 
 # include directories
 INCLUDE = -I. -I$(S) -Ic:/djgpp/include
@@ -249,7 +249,7 @@ demo_plugin.o: $(M)plugin/demo_plugin.c
 	$(CC) $(CFLAGS) $(INCLUDE) -I$(M)plugin -c -o $@ $<
 
 demo_plugin.dxe: demo_plugin.o
-ifdef CROSS
+ifndef UNIXTOOLS
 	PATH=$(subst /,\\,$(DJBIN)) DJDIR=$(DJDIR) $(DXE3GEN) -o $@ -V -E _sinc -E _nsinc -E _divisors $< -lm -lc
 else
 	$(DXE3GEN) -o $@ -V -E _sinc -E _nsinc -E _divisors $< -lm -lc
@@ -263,9 +263,7 @@ $(LUA_HELP): $(T)/lua/gnuplot-tikz.lua
 
 # now for the demo bin
 $(M)binary?: bf_test.exe
-	$(WD)bf_test.exe
-	$(COPY) binary? $(M)
-	$(DEL) binary?
+	(cd $(M) ; ./bf_test.exe )
 
 bf_test.o: bf_test.c
 	$(NCC) $(NINCLUDE) $(CFLAGS) -c $<
