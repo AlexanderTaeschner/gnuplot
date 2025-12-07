@@ -508,7 +508,7 @@ term_initialise()
 static void
 term_get_termsize(int *xsize, int *ysize)
 {
-#ifdef HAVE_SYS_IOCTL_H
+#if defined(HAVE_SYS_IOCTL_H) && defined(TIOCGWINSZ)
 # include <sys/ioctl.h>
     struct winsize sz;
     int ierr = ioctl(0, TIOCGWINSZ, &sz);
