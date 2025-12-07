@@ -38,7 +38,7 @@ VARIANT = PLAIN
 # Comment out the definition lines to disable the according features:
 
 # Define this only if doing a release build
-#RELEASE=1
+RELEASE=1
 
 # Set-up your compiler environment
 #
@@ -214,8 +214,8 @@ HHWPATH = $(PROGRAMFILES32)/HTML\ Help\ Workshop/
 HHC = $(HHWPATH)hhc
 
 # Alternatively, you can install the free and open source Pascal compiler
-HHC = C:/FPC/3.2.2/bin/i386-win32/chmcmd.exe
-CHMEXTRA = -DFPC
+#HHC = C:/FPC/3.2.2/bin/i386-win32/chmcmd.exe
+#CHMEXTRA = -DFPC
 
 # GNU sort
 GNUSORT = /bin/sort
@@ -1079,11 +1079,14 @@ endif
 #	-cp -p $(TOP)/win/README-testing-ja.txt $(DESTDIR)/
 	-unix2dos $(DESTDIR)/*.txt $(DESTDIR)/README
 	-unix2dos $(DESTDIR)/Copyright $(DESTDIR)/NEWS $(DESTDIR)/BUGS $(DESTDIR)/RELEASE_NOTES
-# demo and contrib (exclude demo/plugin and demo/html)
+# demo and contrib (exclude demo/html)
 	-mkdir -p $(DESTDIR)/demo
 	-cp -p $(M)* $(DESTDIR)/demo/
 	-mkdir -p $(DESTDIR)/demo/games
-	-cp -p $(M)/games/* $(DESTDIR)/demo/games/
+	-cp -p $(M)games/* $(DESTDIR)/demo/games/
+	-mkdir -p $(DESTDIR)/demo/plugin
+	-cp -p $(M)plugin/* $(DESTDIR)/demo/plugin/
+	-cp -p demo_plugin.dll $(DESTDIR)/demo/plugin/
 # docs
 	mkdir -p $(DESTDIR)/docs
 	-cp -p gnuplot.pdf $(DESTDIR)/docs/

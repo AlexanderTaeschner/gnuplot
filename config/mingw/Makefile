@@ -130,7 +130,7 @@ WEBP=1
 # Build qt terminal?
 QT=1
 # Uncomment to build with Qt6 instead of Qt5
-#QT6=1
+QT6=1
 # specify QT installation directory
 #QT_DIR = /c/Qt/5.2.1/mingw48_32
 ifndef MINGW64
@@ -179,7 +179,7 @@ OPENSPECFUN=1
 #GNUREADLINE=1
 
 # Uncomment if you want a stable sort for pm3d and hidden3d surfaces
-#STABLE_SORT=1
+STABLE_SORT=1
 
 # Uncomment if you want to use Direct2D 1.1 (Windows 8 and Windows 7 Platform Update)
 DIRECT2D11=1
@@ -244,8 +244,8 @@ HHWPATH = $(PROGRAMFILES32)/HTML\ Help\ Workshop/
 HHC = $(HHWPATH)hhc
 
 # Alternatively, you can install the free and open source Pascal compiler
-HHC = C:/FPC/3.2.2/bin/i386-win32/chmcmd.exe
-CHMEXTRA = -DFPC
+#HHC = C:/FPC/3.2.2/bin/i386-win32/chmcmd.exe
+#CHMEXTRA = -DFPC
 
 # Choose which resource compiler you want to use (GNU windres or MS rc):
 GNU_RC = 1
@@ -264,7 +264,7 @@ GNUSORT = /bin/sort
 ISCC = $(PROGRAMFILES32)/Inno\ Setup\ 6/iscc
 
 # Include non-system DLLs in distribution
-#DLLS = 1
+DLLS = 1
 
 # Directory that might contain extra files to be shipped with the installer.
 # This should include dependencies like DLLs, but also fontconfig configuration files.
@@ -1219,11 +1219,14 @@ endif
 #	-cp -p $(TOP)/win/README-testing-ja.txt $(DESTDIR)/
 	-unix2dos $(DESTDIR)/*.txt $(DESTDIR)/README
 	-unix2dos $(DESTDIR)/Copyright $(DESTDIR)/NEWS $(DESTDIR)/BUGS $(DESTDIR)/RELEASE_NOTES
-# demo and contrib (exclude demo/plugin and demo/html)
+# demo and contrib (exclude demo/html)
 	-mkdir -p $(DESTDIR)/demo
 	-cp -p $(M)* $(DESTDIR)/demo/
 	-mkdir -p $(DESTDIR)/demo/games
-	-cp -p $(M)/games/* $(DESTDIR)/demo/games/
+	-cp -p $(M)games/* $(DESTDIR)/demo/games/
+	-mkdir -p $(DESTDIR)/demo/plugin
+	-cp -p $(M)plugin/* $(DESTDIR)/demo/plugin/
+	-cp -p demo_plugin.dll $(DESTDIR)/demo/plugin/
 # docs
 	mkdir -p $(DESTDIR)/docs
 	-cp -p gnuplot.pdf $(DESTDIR)/docs/
