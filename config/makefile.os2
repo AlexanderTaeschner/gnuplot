@@ -229,7 +229,7 @@ TERMFLAGS = -DOS2
 # Confirmed for gcc 2.7.x/2.8.x; graphics.c used to be the culprit, but as
 # of today (20010918) it isn't any more ...
 #
-EMXSPECIFIC = -DHAVE_CONFIG_H -ffloat-store
+EMXSPECIFIC = -DHAVE_CONFIG_H -std=gnu99 -mcpu=pentium4
 LIBS =
 
 #
@@ -245,9 +245,9 @@ LDFLAGS  = -g -Zmt -Zcrtdll
 CFLAGS2 = -g $(OS2FLAGS) $(EMXSPECIFIC) $(WARNFLAGS) -O0 -Zmt -Zomf
 LDFLAGS2 = -g -Zmt -Zcrtdll -Zomf
 else
-CFLAGS  = $(OS2FLAGS) $(EMXSPECIFIC) -O4 $(WARNFLAGS) -Zmt
+CFLAGS  = $(OS2FLAGS) $(EMXSPECIFIC) -O3 $(WARNFLAGS) -Zmt
 LDFLAGS  = -s -Zmt -Zcrtdll
-CFLAGS2 = $(OS2FLAGS) $(EMXSPECIFIC) -O4 $(WARNFLAGS) -Zmt -Zomf
+CFLAGS2 = $(OS2FLAGS) $(EMXSPECIFIC) -O3 $(WARNFLAGS) -Zmt -Zomf
 LDFLAGS2 = -s -Zmt -Zcrtdll -Zomf
 endif
 ifeq ($(ISKLIBC),0)
@@ -430,10 +430,14 @@ inttypes.h: $(firstword $(MAKEFILE_LIST))
 	@echo #define PRIu64 "llu" >> $@
 	@echo #define PRIx64 "llx" >> $@
 	@echo #define PRIX64 "llX" >> $@
+	@echo #define PRIx32 "x"   >> $@
+	@echo #define SCNx32 "x"   >> $@
 	@echo #define INT64_MAX LLONG_MAX >> $@
 	@echo #define INT64_MIN LLONG_MIN >> $@
 	@echo typedef unsigned long long uint64_t; >> $@
 	@echo typedef long long int64_t; >> $@
+	@echo typedef unsigned char uint8_t; >> $@
+	@echo typedef signed char int8_t; >> $@
 	@echo #endif >> $@
 
 #
@@ -482,10 +486,10 @@ gnuplot_x11.exe: $(EXTRADEP) $(X11OBJS)
 	$(CC) $(LDFLAGS) $(X11FLAGS) $(EMXSPECIFIC) -o $@ -DGPLT_X11_MODE $(X11OBJS) $(X11LIBS)
 
 gplt_x11.o: gplt_x11.c mouse.h gpexecute.h config.h
-	$(CC) $(CFLAGS) $(X11FLAGS) $(EMXSPECIFIC) $(X11INCLUDES) -c -o $@ $<
+	$(CC) -std=c99 $(CFLAGS) $(X11FLAGS) $(EMXSPECIFIC) $(X11INCLUDES) -c -o $@ $<
 
 getcolor_x11.o: getcolor.c
-	$(CC) $(CFLAGS) $(X11FLAGS) $(EMXSPECIFIC) -DGPLT_X11_MODE -c -o $@ $<
+	$(CC) -std=c99 $(CFLAGS) $(X11FLAGS) $(EMXSPECIFIC) -DGPLT_X11_MODE -c -o $@ $<
 
 #
 # pull in dependency info for existing object files
