@@ -4337,12 +4337,18 @@ plot3d_polygons(struct surface_points *plot)
 	    continue;
 
 	/* Coloring taken from fillstyle (which confusingly is in plot->lp_properties) */
-	if (plot->pm3d_color_from_column && !isnan(points[0].CRD_COLOR))
+	if (plot->pm3d_color_from_column && !isnan(points[0].CRD_COLOR)) {
 	    quad[0].c = points[0].CRD_COLOR;
-	else if (plot->lp_properties.pm3d_color.type == TC_Z
-	     ||  plot->lp_properties.pm3d_color.type == TC_DEFAULT) {
+	} else if (plot->lp_properties.pm3d_color.type == TC_RGB) {
+	    quad[0].c = plot->lp_properties.pm3d_color.rgbcolor;
+	} else if (plot->lp_properties.pm3d_color.type == TC_Z
+	       ||  plot->lp_properties.pm3d_color.type == TC_DEFAULT) {
 	    double z = pm3d_assign_triangle_z(points[0].z, points[1].z, points[2].z);
 	    quad[0].c = rgb_from_gray(cb2gray(z));
+	} else if (plot->lp_properties.pm3d_color.type == TC_CB) {
+	    quad[0].c = rgb_from_gray(cb2gray(plot->lp_properties.pm3d_color.value));
+	} else if (plot->lp_properties.pm3d_color.type == TC_FRAC) {
+	    quad[0].c = rgb_from_gray(plot->lp_properties.pm3d_color.value);
 	} else if (plot->lp_properties.pm3d_color.type == TC_LT
 		&& plot->lp_properties.pm3d_color.lt == LT_BACKGROUND) {
 	    quad[0].c = LT_BACKGROUND;
