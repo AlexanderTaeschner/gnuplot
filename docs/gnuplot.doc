@@ -679,7 +679,6 @@ D epi_data 1
 #b pm3d coloring for 3D polygons (e.g. Delaunay tessellation of surfaces).
 ## See `delaunay`.
 #b Alternatives to gdlib for handling image files as data
-#b Iteration over array contents `array A; for [e in A] { ... }` [EXPERIMENTAL]
 #b Deprecation of the "sample" keyword
 #b New numerical operation "prod" (cumulative product). See `product`.
 ## Example:     N! == prod [i=1:N] i 
@@ -3696,19 +3695,15 @@ Ffigure_newsyntax
  Iteration is controlled by an iteration specifier with syntax
 
       for [<var> in "string of N elements"]
-      for [<var> = <start> : <end> { : <increment> }]
+
  or
-      for [<var> in Array]
+
+      for [<var> = <start> : <end> { : <increment> }]
 
  In the first case <var> is a string variable that successively evaluates to
  single-word substrings 1 to N of the string in the iteration specifier.
  In the second case <start>, <end>, and <increment> are integers or integer
  expressions.
-
- In the third case <var> is set to successive elements of the array regardless
- of whether the element is a number or a string. Any undefined array elements
- are silently skipperd.  Iteration over array elements is EXPERIMENTAL
- (details may change before it appears in a stable gnuplot release version.
 
 =scope
  The scope of the iteration variable is private to that iteration. See `scope`.
@@ -8471,11 +8466,10 @@ Ffigure_zerror
  multiple times, each time re-evaluating any expressions that make use of the
  iteration control variable.  Iteration of arbitrary command sequences can be
  requested using the `do` command.
- Three forms of iteration clause are currently supported:
+ Two forms of iteration clause are currently supported:
 
        for [intvar = start:end{:increment}]
        for [stringvar in "A B C D"]
-       for [element in Array]
 
  Examples:
 
@@ -8483,12 +8477,6 @@ Ffigure_zerror
        plot for [basename in "A B C"] basename.".dat" using 1:2 with lines
        set for [i = 1:10] style line i lc rgb "blue"
        unset for [tag = 100:200] label tag
-       Array animals = ["dog", "cat", "mouse", "llama"]
-       do for [creature in animals] {
-              INFILE = creature.".dat"
-              OUTFILE = creature.".pdf"
-              plot INFILE with boxes title creature
-       }
 
  Nested iteration is supported:
 
@@ -10587,7 +10575,6 @@ Ffigure_smooth_path
  Syntax:
        plot for [<variable> = <start> : <end> {:<increment>}]
        plot for [<variable> in "string of words"]
-       plot for [<variable> in Array]
 
  The scope of an iteration ends at the next comma or the end of the command,
  whichever comes first.  An exception to this is that definitions are grouped
