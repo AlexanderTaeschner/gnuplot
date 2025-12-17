@@ -13712,7 +13712,10 @@ Ffigure_keyentry
  title that may span the full width of the key.  If a title is given also in
  the same keyentry then both strings appear on the same line, allowing
  generation of two-column key entries.
- You can use keywords `left/right/center` for justification, `boxed`, etc.
+ The keyentry title is treated just like any other title in the key.
+ However the additional text [the part with not introduced by 'title'] can
+ be further modified by keywords normally used for labels such as `boxed`,
+ `textcolor`, and `hypertext`.  See `set label`.
  Example:
       plot ..., keyentry "West Linn" boxed title "locations"
 4 key autotitle
