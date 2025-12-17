@@ -2823,6 +2823,12 @@ draw_3d_graphbox(struct surface_points *plot, int plot_num, WHICHGRID whichgrid,
 	tic_unity = (v1.y - v0.y) / xyscaler;
 	tic_unitz = (v1.z - v0.z) / xyscaler;
 
+	/* prevents over-long tics if the plot is very much not a square */
+	if (splot_map && aspect_ratio == -1.0) {
+	    tic_unitx = (v1.x - v0.x) / GPMAX(xscaler,xyscaler);
+	    tic_unity = (v1.y - v0.y) / GPMAX(yscaler,xyscaler);
+	}
+
 	/* Don't output tics and grids if this is the front part of a
 	 * two-part grid drawing process: */
 	if ((surface_rot_x <= 90 && FRONTGRID != whichgrid) ||
@@ -2927,6 +2933,12 @@ draw_3d_graphbox(struct surface_points *plot, int plot_num, WHICHGRID whichgrid,
 	tic_unitx = (v1.x - v0.x) / xyscaler;
 	tic_unity = (v1.y - v0.y) / xyscaler;
 	tic_unitz = (v1.z - v0.z) / xyscaler;
+
+	/* prevents over-long tics if the plot is very much not a square */
+	if (splot_map && aspect_ratio == -1.0) {
+	    tic_unitx = (v1.x - v0.x) / GPMAX(xscaler,xyscaler);
+	    tic_unity = (v1.y - v0.y) / GPMAX(yscaler,xyscaler);
+	}
 
 	/* Don't output tics and grids if this is the front part of a
 	 * two-part grid drawing process: */
