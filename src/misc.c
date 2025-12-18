@@ -884,8 +884,13 @@ parse_dashtype(struct t_dashtype *dt)
 		int_error(c_token, "too many pattern elements");
 	    }
 	    dt->pattern[j++] = real_expression();	/* The solid portion */
+	    if (equals(c_token, ")") && (j == 1) && ((res=dt->pattern[j-1]) > 0)) {
+		/* this ugly test allows 'plot foo dashtype (k+1)' */
+		c_token++;
+		return res-1;
+	    }
 	    if (!equals(c_token++, ","))
-		int_error(c_token, "expecting comma");
+		int_error(c_token, "not a valid dashtype");
 	    dt->pattern[j++] = real_expression();	/* The empty portion */
 	    if (equals(c_token, ")"))
 		break;
