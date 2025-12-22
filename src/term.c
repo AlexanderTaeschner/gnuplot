@@ -508,14 +508,16 @@ term_initialise()
 static void
 term_get_termsize(int *xsize, int *ysize)
 {
-#if defined(HAVE_SYS_IOCTL_H) && defined(TIOCGWINSZ)
+#if defined(HAVE_SYS_IOCTL_H)
 # include <sys/ioctl.h>
+# ifdef TIOCGWINSZ
     struct winsize sz;
     int ierr = ioctl(0, TIOCGWINSZ, &sz);
     if (ierr >= 0 && sz.ws_xpixel > 0 && sz.ws_ypixel > 0) {
 	*xsize = sz.ws_xpixel;
 	*ysize = sz.ws_ypixel;
     } else
+# endif
 #endif
     *xsize = *ysize = 0;
 }
