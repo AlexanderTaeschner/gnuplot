@@ -1614,7 +1614,18 @@ f_index(union argument *arg)
     else if (index.type == CMPLX && !isnan(index.v.cmplx_val.real))
 	i = floor(index.v.cmplx_val.real);
     else
-	int_error(NO_CARET, "non-numeric array index");
+	int_error(NO_CARET, "non-numeric array or substring index");
+
+    if (array.type == STRING) {
+	/* It's not really a request for an array element;
+	 * it's a request for one character in a string.
+	 */
+	push(&array);
+	push(&index);
+	push(&index);
+	f_range(arg);
+	return;
+    }
 
     if (array.type == ARRAY) {
 	if (i <= 0 || i > array.v.value_array[0].v.array_header.size)

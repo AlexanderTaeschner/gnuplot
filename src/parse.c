@@ -894,7 +894,7 @@ parse_primary_expression()
 	    if (equals(++c_token,"*") || equals(c_token,":")) {
 		union argument *empty = add_action(PUSHC);
 		empty->v_arg.type = INTGR;
-		empty->v_arg.v.int_val = 1;
+		empty->v_arg.v.int_val = 0;
 		if (equals(c_token,"*"))
 		    c_token++;
 	    } else
