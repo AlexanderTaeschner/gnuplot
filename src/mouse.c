@@ -400,11 +400,33 @@ stpcpy(char *s, const char *p)
 /*
  * Transform mouse coordinates to graph coordinates
  */
+
+static double
+mouse_from_saved_mapping(int pos, axis_mapping *map)
+{
+    double frac;
+
+    /* Logscale is possible, but not general nonlinear */
+    if (map->nonlinear)
+	return NAN;
+
+    frac = (double)(pos - map->term_lower)
+	  / (double)(map->term_upper - map->term_lower);
+    if (map->log)
+	return exp( log(map->min) + frac * (log(map->max) - log(map->min)) );
+    else
+	return map->min + frac * (map->max - map->min);
+}
+
+
 static void
 MousePosToGraphPosReal(int xx, int yy, double *x, double *y, double *x2, double *y2)
 {
     AXIS *secondary;
 
+    /*
+     * 3D Plot
+     */
     if (is_3d_plot) {
 	/* for 3D plots, we treat the mouse position as if it is
 	 * in the bottom plane, i.e., the plane of the x and y axis */
@@ -449,7 +471,23 @@ MousePosToGraphPosReal(int xx, int yy, double *x, double *y, double *x2, double 
 	return;
     }
 
-    /* 2D plot */
+    /*
+     * 2D Plot
+     */
+    /* Immediately after a reset command the axis ranges are no longer
+     * valid but the mouse coordinates can still be tracked and reported
+     * if we stored axis range information along with active_bounds.
+     * FIXME:
+     *   Nonlinear axes cannot be handled this way, should we emit a warning?
+     */
+    if (reset_since_last_plot) {
+	*x = mouse_from_saved_mapping(xx, &x_mapping);
+	*y = mouse_from_saved_mapping(yy, &y_mapping);
+	*x2 = mouse_from_saved_mapping(xx, &x2_mapping);
+	*y2 = mouse_from_saved_mapping(yy, &y2_mapping);
+	return;
+    }
+
     if (plot_bounds.xright == plot_bounds.xleft)
 	*x = *x2 = VERYLARGE;	/* protection */
     else {
@@ -479,12 +517,16 @@ MousePosToGraphPosReal(int xx, int yy, double *x, double *y, double *x2, double 
     &&  secondary->linked_to_primary->index == -FIRST_X_AXIS) {
 	*x = axis_mapback(secondary->linked_to_primary, xx);
 	*x = eval_link_function(secondary, *x);
+	if (secondary->forced_log_link < 0)
+	    *x2 = *x;
     }
     secondary = &axis_array[FIRST_Y_AXIS];
     if (secondary->linked_to_primary
     &&  secondary->linked_to_primary->index == -FIRST_Y_AXIS) {
 	*y = axis_mapback(secondary->linked_to_primary, yy);
 	*y = eval_link_function(secondary, *y);
+	if (secondary->forced_log_link < 0)
+	    *y2 = *y;
     }
     secondary = &axis_array[SECOND_X_AXIS];
     if (secondary->linked_to_primary
@@ -1002,7 +1044,7 @@ incr_mousemode(const int amount)
 	fprintf(stderr, "switched mouse format from %ld to %ld\n", old, mouse_mode);
 }
 
-# define TICS_ON(ti) (((ti)&TICS_MASK)!=NO_TICS)
+#define TICS_ON(axis) ((axis_array[axis].ticmode & TICS_MASK) != NO_TICS)
 
 void
 UpdateStatusline()
@@ -1055,58 +1097,76 @@ UpdateStatuslineWithMouseSetting(mouse_setting_t * ms)
 	strcat(format, ", ");
 	strcat(format, ms->fmt);
 	snprintf(s0, 255, format, surface_rot_x, surface_rot_z, surface_scale, surface_zscale);
-    } else if (!TICS_ON(axis_array[SECOND_X_AXIS].ticmode) && !TICS_ON(axis_array[SECOND_Y_AXIS].ticmode)) {
+    } else if ((!TICS_ON(SECOND_X_AXIS) && !TICS_ON(SECOND_Y_AXIS))
+	   && !reset_since_last_plot) {
 	/* only first X and Y axis are in use */
 	sp = GetAnnotateString(s0, 255, real_x, real_y, mouse_mode, mouse_alt_string);
 	if (ruler.on)
 	    GetRulerString(sp, real_x, real_y);
+    } else if (reset_since_last_plot && r_mapping.active) {
+	double r;
+	double phi = atan2(real_y, real_x);
+        double rmin = r_mapping.min;
+	double theta = phi / DEG2RAD;
+	double theta_origin = theta_mapping.min;
+	double theta_direction = theta_mapping.max;
+	theta = (theta - theta_origin) * theta_direction;
+	if (theta > 180.)
+	    theta = theta - 360.;
+	if (r_mapping.max < r_mapping.min)
+	    r = rmin - real_x / cos(phi);
+	else
+	    r = rmin + real_x / cos(phi);
+	sp = s0;
+	sprintf(sp, "theta: %.1f%s  r: %g ", theta, degree_sign, r);
     } else {
 	/* X2 and/or Y2 are in use: use more verbose format */
 	sp = s0;
-	if (TICS_ON(axis_array[FIRST_X_AXIS].ticmode)) {
+	if (TICS_ON(FIRST_X_AXIS)) {
 	    sp = stpcpy(sp, "x=");
 	    sp = mkstr(sp, real_x, FIRST_X_AXIS);
 	    *sp++ = ' ';
 	}
-	if (TICS_ON(axis_array[FIRST_Y_AXIS].ticmode)) {
+	if (TICS_ON(FIRST_Y_AXIS)) {
 	    sp = stpcpy(sp, "y=");
 	    sp = mkstr(sp, real_y, FIRST_Y_AXIS);
 	    *sp++ = ' ';
 	}
-	if (TICS_ON(axis_array[SECOND_X_AXIS].ticmode)) {
+	if (TICS_ON(SECOND_X_AXIS) || (reset_since_last_plot && x2_mapping.active)) {
 	    sp = stpcpy(sp, "x2=");
 	    sp = mkstr(sp, real_x2, SECOND_X_AXIS);
 	    *sp++ = ' ';
 	}
-	if (TICS_ON(axis_array[SECOND_Y_AXIS].ticmode)) {
+	if (TICS_ON(SECOND_Y_AXIS) || (reset_since_last_plot && y2_mapping.active)) {
 	    sp = stpcpy(sp, "y2=");
 	    sp = mkstr(sp, real_y2, SECOND_Y_AXIS);
 	    *sp++ = ' ';
 	}
-	if (ruler.on) {
+	if (ruler.on && !reset_since_last_plot) {
 	    /* ruler on? then also print distances to ruler */
-	    if (TICS_ON(axis_array[FIRST_X_AXIS].ticmode)) {
+	    if (TICS_ON(FIRST_X_AXIS)) {
 		stpcpy(sp,"dx=");
 		sprintf(sp+3, mouse_setting.fmt, DIST(real_x, ruler.x, FIRST_X_AXIS));
 		sp += strlen(sp);
 	    }
-	    if (TICS_ON(axis_array[FIRST_Y_AXIS].ticmode)) {
+	    if (TICS_ON(FIRST_Y_AXIS)) {
 		stpcpy(sp,"dy=");
 		sprintf(sp+3, mouse_setting.fmt, DIST(real_y, ruler.y, FIRST_Y_AXIS));
 		sp += strlen(sp);
 	    }
-	    if (TICS_ON(axis_array[SECOND_X_AXIS].ticmode)) {
+	    if (TICS_ON(SECOND_X_AXIS)) {
 		stpcpy(sp,"dx2=");
 		sprintf(sp+4, mouse_setting.fmt, DIST(real_x2, ruler.x2, SECOND_X_AXIS));
 		sp += strlen(sp);
 	    }
-	    if (TICS_ON(axis_array[SECOND_Y_AXIS].ticmode)) {
+	    if (TICS_ON(SECOND_Y_AXIS)) {
 		stpcpy(sp,"dy2=");
 		sprintf(sp+4, mouse_setting.fmt, DIST(real_y2, ruler.y2, SECOND_Y_AXIS));
 		sp += strlen(sp);
 	    }
 	}
-	*--sp = 0;		/* delete trailing space */
+	if (sp > s0)
+	    *--sp = 0;		/* delete trailing space */
     }
 
     if (term->put_tmptext && *s0)

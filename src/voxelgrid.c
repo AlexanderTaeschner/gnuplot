@@ -287,7 +287,7 @@ show_vgrid()
     struct udvt_entry *udv;
     vgrid *vgrid;
 
-    for (udv = first_udv; udv != NULL; udv = udv->next_udv) {
+    for (udv = &udv_head; udv != NULL; udv = udv->next_udv) {
 	if (udv->udv_value.type == VOXELGRID) {
 	    vgrid = udv->udv_value.v.vgrid;
 

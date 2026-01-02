@@ -361,9 +361,17 @@ typedef struct {
 
 static PNG_FILL_TILE PNG_fill_tile = { (gdImagePtr)0, 0, 0 };
 
-/* To be used with libgd 2.0.34 to request Symbol encoding */
-#ifdef gdFTEX_Adobe_Custom
-static gdFTStringExtra PNG_FONT_INFO = {0,0,0,0,0,NULL,NULL};
+/* As of gd 2.0.something-or-other gdImageStringFT() is a wrapper
+ * for gdImageStringFTEx().  Defining the structure below allows us to call
+ * gdImageStringFTEx() directly to override UTF-8 encoding when necessary.
+ */
+#if GD_MIN_VERSION(2,0,36)
+static gdFTStringExtra PNG_FONT_INFO = {
+       .flags = gdFTEX_CHARMAP | gdFTEX_LINESPACE /* | gdFTEX_DISABLE_KERNING */,
+       .linespacing = 1.05,
+       .charmap = gdFTEX_Unicode,
+       .hdpi = 96, .vdpi = 96,
+};
 #endif
 
 #if defined(WIN32)
@@ -714,7 +722,8 @@ PNG_options()
     }
 
     /* Default to full terminal width; leave 1/4 height underneath for commands */
-    if ((strcmp(term->name, "kittygd") == 0)) {
+    if ((strcmp(term->name, "kittygd") == 0)
+    ||  (strcmp(term->name, "sixelgd") == 0)) {
 	int xpixels, ypixels;
 	term_get_termsize( &xpixels, &ypixels );
 	if (xpixels > 0 && ypixels > 0) {
@@ -1756,6 +1765,8 @@ PNG_linewidth(double linewidth)
  * to the text) justified about (x,y).  The text is rotated according
  * to _text_angle and then horizontally (with respect to the text)
  * justified according to _justify_text.
+ * Dec 2025: Modified to work with gd 2.4.0 and libraqm 0.10.3 after
+ * a series of changes to both libraries that broke rotated text.
  */
 #ifdef HAVE_GD_TTF
 TERM_PUBLIC void
@@ -1768,26 +1779,30 @@ PNG_put_text(unsigned int x, unsigned int y, const char *string)
 
     if (png_state.ttffont) {
 	int brect[8]; char *err;
-	/* Draw once with a NULL image to get the bounding rectangle */
-	/* then draw it again, centered.                             */
+	/* Draw once with a NULL image and no rotation to get the text width,
+	 * then draw it again, centered.
+	 */
 	err = gdImageStringFT(NULL, brect, png_state.color,
 			png_state.ttffont, png_state.ttfsize*png_state.fontscale,
-			png_state.angle * M_PI_2 / 90. ,
-			x, Y(y), (char *)string);
+			0., x, Y(y), (char *)string);
 	if (err) {
 	    fprintf(stderr,"gdImageStringFT: %s while printing string %s with font %s\n",
 		err,string,png_state.ttffont);
 	} else {
+	    int textwidth = (brect[2]-brect[0]);
+	    int xoffset =  textwidth * cos(png_state.angle * M_PI_2/90.);
+	    int yoffset = -textwidth * sin(png_state.angle * M_PI_2/90.);
+	    /* center rotation on character, not on baseline */
 	    x += sin(png_state.angle * M_PI_2/90.) * (float)png_state.charh/4.;
 	    y -= cos(png_state.angle * M_PI_2/90.) * (float)png_state.charh/4.;
 	    switch (png_state.justify) {
 		case RIGHT:
-				x -= (brect[2]-brect[0]);
-				y += (brect[3]-brect[1]);
+				x -= xoffset;
+				y += yoffset;
 				break;
 		case CENTRE:
-				x -= (brect[2]-brect[0]) / 2.;
-				y += (brect[3]-brect[1]) / 2.;
+				x -= xoffset / 2.;
+				y += yoffset / 2.;
 				break;
 		case LEFT:
 		default:	break;
@@ -2123,7 +2138,7 @@ ENHGD_FLUSH()
 
     /* First try the old GDFONTPATH mechanism for locating fonts */
     (void)gdUseFontConfig(0);
-#ifdef gdFTEX_Adobe_Custom
+#if GD_MIN_VERSION(2,0,36)
     /* libgd defaults to UTF-8 encodings. We have limited options for	*/
     /* over-riding this, but we can try					*/
     if (encoding != S_ENC_UTF8 && ENHgd_font && !strcmp(ENHgd_font,"Symbol")) {

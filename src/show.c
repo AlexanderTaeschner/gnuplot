@@ -629,7 +629,7 @@ show_command()
 	break;
     case S_PLOT:
 	show_plot();
-#if defined(USE_READLINE)
+#if defined(USE_READLINE) || defined(GNUPLOT_HISTORY)
 	if (!END_OF_COMMAND) {
 	    if (almost_equals(c_token, "a$dd2history")) {
 		c_token++;
@@ -2395,6 +2395,9 @@ show_palette()
 	  case SMPAL_COLOR_MODE_VIRIDIS:
 	    fputs( "\tgradient named viridis\n", stderr );
 	    break;
+	  case SMPAL_COLOR_MODE_MAGMA:
+	    fputs( "\tgradient named magma\n", stderr );
+	    break;
 	  case SMPAL_COLOR_MODE_FUNCTIONS:
 	    fputs("\tcolor mapping is done by user defined functions\n",stderr);
 	    if (sm_palette.Afunc.at && sm_palette.Afunc.definition)
@@ -3341,7 +3344,7 @@ show_plot()
 static void
 show_variables()
 {
-    struct udvt_entry *udv = first_udv;
+    struct udvt_entry *udv = udv_head.next_udv;
     int len;
     TBOOLEAN show_all = FALSE;
     char leading_string[MAX_ID_LEN+1] = {'\0'};

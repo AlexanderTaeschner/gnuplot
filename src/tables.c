@@ -516,6 +516,7 @@ const struct gen_table set_palette_tbl[] =
     { "gam$ma",         S_PALETTE_GAMMA },
     { "cubehelix",      S_PALETTE_CUBEHELIX },
     { "viridis",        S_PALETTE_VIRIDIS },
+    { "magma",        S_PALETTE_MAGMA },
     { NULL, S_PALETTE_INVALID }
 };
 

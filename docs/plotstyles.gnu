@@ -1467,6 +1467,14 @@ splot g(x,y) with contourfill notitle, \
       g(x,y) nosurface lt black title "Contour levels Δz = 5"
 reset
 
+#
+# Test palette using magma gradient
+#
+set output out.'figure_magma' . ext
+set grid lc 'grey' lw 0.5
+set palette magma
+test palette
+reset
 
 #
 # Extra width figures for some output formats

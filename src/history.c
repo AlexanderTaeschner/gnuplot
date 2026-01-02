@@ -38,20 +38,15 @@
 #include "plot.h"
 #include "util.h"
 
-/* Local prototypes */
-#ifdef USE_READLINE
-static void write_history_list(const int num, const char *const filename, const char *mode);
-#endif
-
 /* Public variables */
 
 int gnuplot_history_size = HISTORY_SIZE;
 TBOOLEAN history_quiet = FALSE;
 TBOOLEAN history_full = FALSE;
 
-#if defined(READLINE)
+#if defined(READLINE) || (defined(GNUPLOT_HISTORY) && !defined(USE_READLINE))
 
-/* Built-in readline */
+/* history functions of built-in readline */
 
 struct hist *history = NULL;	/* last entry in the history list, no history yet */
 struct hist *cur_entry = NULL;
@@ -61,7 +56,7 @@ int history_base = 1;
 
 /* add line to the history */
 void
-add_history(char *line)
+add_history(const char *line)
 {
     struct hist *entry;
 
@@ -80,47 +75,26 @@ add_history(char *line)
 }
 
 
-/* write history to a file
- */
-int
-write_history(char *filename)
+HIST_ENTRY *
+history_get(int offset)
 {
-    write_history_n(0, filename, "w");
-    return 0;
-}
+    struct hist *entry = history;  /* last_entry */
+    int hist_index = history_length - 1;
+    int hist_ofs = offset - history_base;
 
+   if ((hist_ofs < 0) || (hist_ofs >= history_length) || (history == NULL))
+	return NULL;
 
-/* routine to read history entries from a file
- */
-int
-read_history(char *filename)
-{
-    return gp_read_history(filename);
-}
-
-
-void
-using_history(void)
-{
-    /* Nothing to do. */
-}
-
-
-void
-clear_history(void)
-{
-    HIST_ENTRY * entry = history;
-
+    /* find the current history entry and count backwards */
+    /* seek backwards */
     while (entry != NULL) {
-	HIST_ENTRY * prev = entry->prev;
-	free(entry->line);
-	free(entry);
-	entry = prev;
+	if (hist_index == hist_ofs)
+	    return entry;
+	entry = entry->prev;
+	hist_index--;
     }
 
-    history_length = 0;
-    cur_entry = NULL;
-    history = NULL;
+    return NULL;
 }
 
 
@@ -177,29 +151,6 @@ history_set_pos(int offset)
 
 
 HIST_ENTRY *
-history_get(int offset)
-{
-    struct hist *entry = history;  /* last_entry */
-    int hist_index = history_length - 1;
-    int hist_ofs = offset - history_base;
-
-   if ((hist_ofs < 0) || (hist_ofs >= history_length) || (history == NULL))
-	return NULL;
-
-    /* find the current history entry and count backwards */
-    /* seek backwards */
-    while (entry != NULL) {
-	if (hist_index == hist_ofs)
-	    return entry;
-	entry = entry->prev;
-	hist_index--;
-    }
-
-    return NULL;
-}
-
-
-HIST_ENTRY *
 current_history(void)
 {
     return cur_entry;
@@ -229,31 +180,6 @@ next_history(void)
 
 
 HIST_ENTRY *
-replace_history_entry(int which, const char *line, histdata_t data)
-{
-    HIST_ENTRY * entry = history_get(which + 1);
-    HIST_ENTRY * prev_entry;
-
-    if (entry == NULL)
-	return NULL;
-
-    /* save contents: allocate new entry */
-    prev_entry = (HIST_ENTRY *) malloc(sizeof(HIST_ENTRY));
-    if (entry != NULL) {
-	memset(prev_entry, 0, sizeof(HIST_ENTRY));
-	prev_entry->line = entry->line;
-	prev_entry->data = entry->data;
-    }
-
-    /* set new value */
-    entry->line = gp_strdup(line);
-    entry->data = data;
-
-    return prev_entry;
-}
-
-
-HIST_ENTRY *
 remove_history(int which)
 {
     HIST_ENTRY * entry;
@@ -278,27 +204,10 @@ remove_history(int which)
 
     return entry;
 }
-#endif
+#endif // defined(READLINE) || (defined(GNUPLOT_HISTORY) && !defined(USE_READLINE))
 
 
-#if defined(READLINE) || defined(HAVE_LIBEDITLINE)
-histdata_t 
-free_history_entry(HIST_ENTRY *histent)
-{
-    histdata_t data;
-
-    if (histent == NULL)
-	return NULL;
-
-    data = histent->data;
-    free((void *)(histent->line));
-    free(histent);
-    return data;
-}
-#endif
-
-
-#if defined(READLINE) || defined(HAVE_WINEDITLINE)
+#if defined(READLINE) || defined(HAVE_WINEDITLINE) || (defined(GNUPLOT_HISTORY) && !defined(USE_READLINE))
 int
 history_search(const char *string, int direction)
 {
@@ -349,16 +258,18 @@ history_search_prefix(const char *string, int direction)
     history_set_pos(start);
     return -1;
 }
-#endif
+#endif // defined(READLINE) || defined(HAVE_WINEDITLINE) || (defined(GNUPLOT_HISTORY) && !defined(USE_READLINE))
 
-#ifdef GNUPLOT_HISTORY
+#if defined(GNUPLOT_HISTORY) && (defined(READLINE) || !defined(USE_READLINE))
+
+/* functions of built-in readline to read/write history file */
 
 /* routine to read history entries from a file,
  * this complements write_history and is necessary for
  * saving of history when we are not using libreadline
  */
 int
-gp_read_history(const char *filename)
+read_history(const char *filename)
 {
     FILE *hist_file;
 
@@ -391,10 +302,20 @@ gp_read_history(const char *filename)
 	return errno;
     }
 }
+
+
+/* write history to a file
+ */
+int
+write_history(char *filename)
+{
+    write_history_n(0, filename, "w");
+    return 0;
+}
 #endif
 
 
-#ifdef USE_READLINE
+#if defined(USE_READLINE) || defined(GNUPLOT_HISTORY)
 
 /* Save history to file, or write to stdout or pipe.
  * For pipes, only "|" works, pipes starting with ">" get a strange 
@@ -435,7 +356,7 @@ write_history_list(const int num, const char *const filename, const char *mode)
 
     /* Determine starting point and output in loop. */
     if (num > 0)
-	istart = history_length - num - 1;
+	istart = history_length - num;
     else
 	istart = 0;
     if (istart < 0 || istart > history_length)
@@ -462,10 +383,7 @@ write_history_n(const int n, const char *filename, const char *mode)
 {
     write_history_list(n, filename, mode);
 }
-#endif
 
-
-#ifdef USE_READLINE
 
 /* finds and returns a command from the history list by number */
 const char *
@@ -555,4 +473,4 @@ history_find_all(char *cmd)
     return number;
 }
 
-#endif /* READLINE */
+#endif // defined(USE_READLINE) || defined(GNUPLOT_HISTORY)

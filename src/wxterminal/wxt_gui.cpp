@@ -2748,7 +2748,10 @@ void wxt_modify_plots(unsigned int ops, int plotno)
 			wxt_key_boxes[i].hidden = TRUE;
 		}
 	}
-	wxt_current_panel->wxt_cairo_refresh();
+	// Suppressing the refresh reduces flicker during animation but may be
+	// counterproductive in the single-frame case
+	if (!in_multiplot)
+	    wxt_current_panel->wxt_cairo_refresh();
 	// Empirically, without this Update() the plots are toggled correctly but the
 	// change may not show on the screen until a mouse or other event next arrives
 	wxt_current_panel->Update();

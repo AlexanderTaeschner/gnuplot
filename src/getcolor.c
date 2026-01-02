@@ -95,6 +95,7 @@ palettes_differ(t_sm_palette *p1, t_sm_palette *p2)
 	break;
     case SMPAL_COLOR_MODE_CUBEHELIX:
     case SMPAL_COLOR_MODE_VIRIDIS:
+    case SMPAL_COLOR_MODE_MAGMA:
 	return 1;
 	break;
     } /* switch() */
@@ -239,6 +240,7 @@ color_components_from_gray(double gray, rgb_color *color)
 	break;
     case SMPAL_COLOR_MODE_GRADIENT:
     case SMPAL_COLOR_MODE_VIRIDIS:
+    case SMPAL_COLOR_MODE_MAGMA:
 	interpolate_color_from_gray(gray, color);
 	break;
 #ifndef GPLT_X11_MODE

@@ -132,7 +132,7 @@ save_all(FILE *fp)
 void
 save_datablocks(FILE *fp)
 {
-    struct udvt_entry *udv = first_udv->next_udv;
+    struct udvt_entry *udv = udv_head.next_udv;
 
     while (udv) {
 	if ((udv->udv_value.type == DATABLOCK)
@@ -170,7 +170,7 @@ static void
 save_variables__sub(FILE *fp)
 {
     /* always skip pi */
-    struct udvt_entry *udv = first_udv->next_udv;
+    struct udvt_entry *udv = udv_head.next_udv;
 
     while (udv) {
 	if (udv->udv_value.type != NOTDEFINED) {
@@ -201,7 +201,7 @@ void
 save_colormaps(FILE *fp)
 {
     /* always skip pi */
-    struct udvt_entry *udv = first_udv->next_udv;
+    struct udvt_entry *udv = udv_head.next_udv;
 
     while (udv) {
 	if (udv->udv_value.type != NOTDEFINED) {
@@ -879,6 +879,8 @@ set isosamples %d, %d",
       fputs( "gray\n", fp );
     } else if (sm_palette.colorMode == SMPAL_COLOR_MODE_VIRIDIS) {
       fputs( "viridis\n", fp );
+    } else if (sm_palette.colorMode == SMPAL_COLOR_MODE_MAGMA) {
+      fputs( "magma\n", fp );
     } else {
       fputs( "color model ", fp );
       switch( sm_palette.cmodel ) {
@@ -1524,6 +1526,8 @@ save_link(FILE *fp, AXIS *this_axis)
 	    fprintf(fp, "inverse %s ", this_axis->linked_to_primary->link_udf->definition);
 	fputs("\n", fp);
     }
+    if (this_axis->forced_log_link)
+	fprintf(fp, "set link %s # forced log link\n", axis_name(this_axis->index));
 }
 
 void

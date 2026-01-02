@@ -636,9 +636,9 @@ static void
 lf_exit_scope(int depth)
 {
     struct udvt_entry *udv;
-    struct udvt_entry *prev_udv = first_udv;
+    struct udvt_entry *prev_udv = &udv_head;
 
-    for (prev_udv = first_udv, udv = prev_udv->next_udv;
+    for (prev_udv = &udv_head, udv = prev_udv->next_udv;
 	 udv;  prev_udv = udv, udv = udv->next_udv) {
 	if (udv->locality >= depth) {
 	    free_value(&udv->udv_value);
@@ -884,8 +884,13 @@ parse_dashtype(struct t_dashtype *dt)
 		int_error(c_token, "too many pattern elements");
 	    }
 	    dt->pattern[j++] = real_expression();	/* The solid portion */
+	    if (equals(c_token, ")") && (j == 1) && ((res=dt->pattern[j-1]) > 0)) {
+		/* this ugly test allows 'plot foo dashtype (k+1)' */
+		c_token++;
+		return res-1;
+	    }
 	    if (!equals(c_token++, ","))
-		int_error(c_token, "expecting comma");
+		int_error(c_token, "not a valid dashtype");
 	    dt->pattern[j++] = real_expression();	/* The empty portion */
 	    if (equals(c_token, ")"))
 		break;

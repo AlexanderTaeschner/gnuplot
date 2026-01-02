@@ -74,8 +74,10 @@ typedef enum {
     SMPAL_COLOR_MODE_FUNCTIONS = 'f', /* user defined transforms */
     SMPAL_COLOR_MODE_GRADIENT = 'd',  /* interpolated table:
 				       * explicitly defined or read from file */
+				/* The rest of these are named palettes */
     SMPAL_COLOR_MODE_CUBEHELIX = 'c',
-    SMPAL_COLOR_MODE_VIRIDIS = 'v'
+    SMPAL_COLOR_MODE_VIRIDIS = 'v',
+    SMPAL_COLOR_MODE_MAGMA = 'm'
 } palette_color_mode;
 
 /*
@@ -278,6 +280,7 @@ unsigned int rgb_from_linetype(int lt);
 unsigned int rgb_from_colormap(double gray, udvt_entry *colormap);
 double map2gray(double z, udvt_entry *colormap);
 void get_colormap_range( udvt_entry *colormap, double *cm_min, double *cm_max );
+void init_named_palettes(void);
 
 #endif /* COLOR_H */
 

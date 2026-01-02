@@ -59,6 +59,7 @@ void reset_datafile(void);
 void rrange_to_xy(void);
 void unset_monochrome(void);
 void unset_all_tics(void);
+void init_axis_links(struct axis *);
 
 /* Called from set_label(), plot2d.c and plot3d.c */
 extern void parse_label_options(struct text_label *, int ndim);

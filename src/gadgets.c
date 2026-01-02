@@ -216,6 +216,9 @@ int current_x11_windowid = 0;
 
 textbox_style textbox_opts[NUM_TEXTBOX_STYLES];
 
+/* Some commands modify their behavior if a "reset" has been done */
+TBOOLEAN reset_since_last_plot = TRUE;
+
 /*
  * Image data or pm3d quadrangles can be masked by first loading a set
  * of masking polygons via dummy plotting style "with mask".
@@ -228,6 +231,9 @@ static void intersect_polyedge_with_boundary(gpiPoint first, gpiPoint second,
 				gpiPoint *intersect, gpiPoint *clip_boundary);
 static void clip_polygon_to_boundary(gpiPoint *in, gpiPoint *out, int in_length,
 				int *out_length, gpiPoint *clip_boundary);
+
+/* local prototypes */
+static void save_axis_mapping(AXIS *axis, axis_mapping *map);
 
 /*****************************************************************/
 /* Routines that deal with global objects defined in this module */
@@ -1286,8 +1292,32 @@ update_active_region(void)
 	active_bounds.ybot = term->ymax * yoffset;
 	active_bounds.ytop = term->ymax * (yoffset + ysize);
     }
-    FPRINTF((stderr, "active region: %d %d %d %d\n",
-	    active_bounds.xleft, active_bounds.xright,
-	    active_bounds.ybot, active_bounds.ytop));
+
+    save_axis_mapping(&axis_array[FIRST_X_AXIS], &x_mapping);
+    save_axis_mapping(&axis_array[FIRST_Y_AXIS], &y_mapping);
+    save_axis_mapping(&axis_array[SECOND_X_AXIS], &x2_mapping);
+    save_axis_mapping(&axis_array[SECOND_Y_AXIS], &y2_mapping);
+    save_axis_mapping(&axis_array[POLAR_AXIS], &r_mapping);
+    r_mapping.active = polar;
+    theta_mapping.min = theta_origin;
+    theta_mapping.max = theta_direction;
+}
+
+static void
+save_axis_mapping(AXIS *axis, axis_mapping *map)
+{
+    map->min = axis->min;
+    map->max = axis->max;
+    map->term_lower = axis->term_lower;
+    map->term_upper = axis->term_upper;
+    map->log = axis->log;
+    if (axis->link_udf && axis->link_udf->at && !axis->log)
+	map->nonlinear = TRUE;
+    else
+	map->nonlinear = FALSE;
+    if ((axis->ticmode & TICS_MASK) == NO_TICS)
+	map->active = FALSE;
+    else
+	map->active = TRUE;
 }
 

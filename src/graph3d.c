@@ -1640,13 +1640,12 @@ do_3dplot(
 
     if (!key_pass) {
 	/* draw pending depth-sorted pm3d plots */
-	if (pm3d_order_depth || track_pm3d_quadrangles) {
+	if (pm3d_order_depth || track_pm3d_quadrangles)
 	    pm3d_depth_queue_flush();
 #ifdef HIDDEN3D_CACHE
-	    if (hidden3d)
-		flush_hidden3d_cache();
+	if (hidden3d)
+	    flush_hidden3d_cache();
 #endif
-	}
     }
 
     if (!key_pass && (replot_mode != AXIS_ONLY_ROTATE)) {
@@ -2824,6 +2823,12 @@ draw_3d_graphbox(struct surface_points *plot, int plot_num, WHICHGRID whichgrid,
 	tic_unity = (v1.y - v0.y) / xyscaler;
 	tic_unitz = (v1.z - v0.z) / xyscaler;
 
+	/* prevents over-long tics if the plot is very much not a square */
+	if (splot_map && aspect_ratio == -1.0) {
+	    tic_unitx = (v1.x - v0.x) / GPMAX(xscaler,xyscaler);
+	    tic_unity = (v1.y - v0.y) / GPMAX(yscaler,xyscaler);
+	}
+
 	/* Don't output tics and grids if this is the front part of a
 	 * two-part grid drawing process: */
 	if ((surface_rot_x <= 90 && FRONTGRID != whichgrid) ||
@@ -2928,6 +2933,12 @@ draw_3d_graphbox(struct surface_points *plot, int plot_num, WHICHGRID whichgrid,
 	tic_unitx = (v1.x - v0.x) / xyscaler;
 	tic_unity = (v1.y - v0.y) / xyscaler;
 	tic_unitz = (v1.z - v0.z) / xyscaler;
+
+	/* prevents over-long tics if the plot is very much not a square */
+	if (splot_map && aspect_ratio == -1.0) {
+	    tic_unitx = (v1.x - v0.x) / GPMAX(xscaler,xyscaler);
+	    tic_unity = (v1.y - v0.y) / GPMAX(yscaler,xyscaler);
+	}
 
 	/* Don't output tics and grids if this is the front part of a
 	 * two-part grid drawing process: */
@@ -4338,12 +4349,18 @@ plot3d_polygons(struct surface_points *plot)
 	    continue;
 
 	/* Coloring taken from fillstyle (which confusingly is in plot->lp_properties) */
-	if (plot->pm3d_color_from_column && !isnan(points[0].CRD_COLOR))
+	if (plot->pm3d_color_from_column && !isnan(points[0].CRD_COLOR)) {
 	    quad[0].c = points[0].CRD_COLOR;
-	else if (plot->lp_properties.pm3d_color.type == TC_Z
-	     ||  plot->lp_properties.pm3d_color.type == TC_DEFAULT) {
+	} else if (plot->lp_properties.pm3d_color.type == TC_RGB) {
+	    quad[0].c = plot->lp_properties.pm3d_color.rgbcolor;
+	} else if (plot->lp_properties.pm3d_color.type == TC_Z
+	       ||  plot->lp_properties.pm3d_color.type == TC_DEFAULT) {
 	    double z = pm3d_assign_triangle_z(points[0].z, points[1].z, points[2].z);
 	    quad[0].c = rgb_from_gray(cb2gray(z));
+	} else if (plot->lp_properties.pm3d_color.type == TC_CB) {
+	    quad[0].c = rgb_from_gray(cb2gray(plot->lp_properties.pm3d_color.value));
+	} else if (plot->lp_properties.pm3d_color.type == TC_FRAC) {
+	    quad[0].c = rgb_from_gray(plot->lp_properties.pm3d_color.value);
 	} else if (plot->lp_properties.pm3d_color.type == TC_LT
 		&& plot->lp_properties.pm3d_color.lt == LT_BACKGROUND) {
 	    quad[0].c = LT_BACKGROUND;

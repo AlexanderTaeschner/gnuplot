@@ -4,13 +4,13 @@
 An Interactive Plotting Program
 Thomas Williams &amp. Colin Kelley
 
-Version 5.4 organized by Ethan A Merritt and others
+Version 6.1 organized by Ethan A Merritt and others
 
 Copyright (C) 1986 - 1993, 1998, 2004   Thomas Williams, Colin Kelley
-Copyright (C) 2004 - 2021  various authors
+Copyright (C) 2004 - 2025  various authors
 
-Mailing list for comments: gnuplot-info@lists.sourceforge.net  
-Mailing list for bug reports: gnuplot-bugs@lists.sourceforge.net
+Mailing list for comments&colon. gnuplot-info@lists.sourceforge.net
+Web site and issue trackers&colon. https&colon.//sourceforge.net/projects/gnuplot
 :p.
 Major contributors (alphabetic order):
 

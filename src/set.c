@@ -1566,9 +1566,12 @@ set_dashtype()
 	is_new = FALSE;
 	c_token++;
     } else {
-	/* FIXME: Maybe this should reject return values > 0 because */
-	/* otherwise we have potentially recursive definitions.      */
-	this_dashtype->d_type = parse_dashtype(&this_dashtype->dashtype);
+	int dt = parse_dashtype(&this_dashtype->dashtype);
+	/* Return values > 0 would potentially lead to recursive definitions */
+	if (dt > 0)
+	    int_warn(NO_CARET, "invalid dashtype definition");
+	else
+	    this_dashtype->d_type = dt;
     }
 
     if (!END_OF_COMMAND) {

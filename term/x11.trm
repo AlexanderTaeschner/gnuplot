@@ -448,6 +448,7 @@ X11_options()
     TBOOLEAN set_replotonresize = FALSE;
     TBOOLEAN set_ctrlq = FALSE;
     TBOOLEAN set_title = FALSE, set_number = FALSE, set_close = FALSE;
+    TBOOLEAN skip_init = FALSE;
 #ifdef EXTERNAL_X11_WINDOW
     unsigned long existing_X11_window_id = 0;
     TBOOLEAN set_window = FALSE;
@@ -461,6 +462,11 @@ X11_options()
     x11_persist = persist_cl		/* previously set from command line */
 	    || (x11_persist > 0);	/* or previously set here */
     strcpy(x11_userbkg,"#RRGGBB");
+
+    /* Annoying hack to handle the case of 'set termoption' after */
+    /* we have already initialized the terminal settings.         */
+    if (!strncmp(term->name, "xlib", 4) && almost_equals(c_token-1, "termopt$ion"))
+	skip_init = TRUE;
 
     while (!END_OF_COMMAND) {
 	switch (lookup_table(&X11_opts[0], c_token)) {
@@ -651,7 +657,8 @@ X11_options()
 
 
     /* Call own init routine; this might be xlib rather than x11 */
-    term->init();
+    if (!skip_init)
+	term->init();
 
     if (set_reset)
 	X11_atexit();	/* tell gnuplot_x11 to shut down */
@@ -1739,7 +1746,8 @@ X11_make_palette(t_sm_palette *palette)
 	}
 
     colorMode = palette->colorMode;
-    if (colorMode == SMPAL_COLOR_MODE_VIRIDIS)
+    if (colorMode == SMPAL_COLOR_MODE_VIRIDIS
+    ||  colorMode == SMPAL_COLOR_MODE_MAGMA)
 	colorMode = SMPAL_COLOR_MODE_GRADIENT;
 
     fprintf(X11_ipc, "%c %c %c %c %d\n",
@@ -1757,6 +1765,7 @@ X11_make_palette(t_sm_palette *palette)
 	break;
     case SMPAL_COLOR_MODE_GRADIENT:
     case SMPAL_COLOR_MODE_VIRIDIS:
+    case SMPAL_COLOR_MODE_MAGMA:
         transmit_gradient(palette->gradient, palette->gradient_num, palette->gradient_type);
 	break;
     case SMPAL_COLOR_MODE_CUBEHELIX:

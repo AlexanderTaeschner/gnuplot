@@ -43,6 +43,32 @@ extern int gnuplot_history_size;
 extern TBOOLEAN history_quiet;
 extern TBOOLEAN history_full;
 
+#if defined(READLINE) || (defined(GNUPLOT_HISTORY) && !defined(USE_READLINE))
+/* gnuplot's built-in replacement history functions
+ * also used with gnuplot history file enabled without any readline
+*/
+
+typedef void * histdata_t;
+
+typedef struct hist {
+    char *line;
+    histdata_t data;
+    struct hist *prev;
+    struct hist *next;
+} HIST_ENTRY;
+
+void add_history(const char *line);
+#endif
+
+
+#if defined(GNUPLOT_HISTORY) && (defined(READLINE) || !defined(USE_READLINE))
+/* functions of built-in readline to read/write history file */
+
+int read_history(const char *);
+int write_history(char *);
+#endif
+
+
 /* GNU readline
  */
 #if defined(HAVE_LIBREADLINE)
@@ -56,46 +82,24 @@ extern TBOOLEAN history_full;
 # include <editline/readline.h>
 
 
-#elif defined(READLINE)
+#elif defined(READLINE) || defined(GNUPLOT_HISTORY)
 /* gnuplot's built-in replacement history functions
 */
 
-typedef void * histdata_t;
-
-typedef struct hist {
-    char *line;
-    histdata_t data;
-    struct hist *prev;
-    struct hist *next;
-} HIST_ENTRY;
-
-extern int history_length;
-extern int history_base;
-
-void using_history(void);
-void clear_history(void);
-void add_history(char *line);
-int read_history(char *);
-int write_history(char *);
 int where_history(void);
-int history_set_pos(int offset);
-HIST_ENTRY * history_get(int offset);
 HIST_ENTRY * current_history(void);
 HIST_ENTRY * previous_history(void);
 HIST_ENTRY * next_history(void);
-HIST_ENTRY * replace_history_entry(int which, const char *line, histdata_t data);
 HIST_ENTRY * remove_history(int which);
-histdata_t free_history_entry(HIST_ENTRY *histent);
 int history_search(const char *string, int direction);
 int history_search_prefix(const char *string, int direction);
 #endif
 
 
-#ifdef USE_READLINE
+#if defined(USE_READLINE) || defined(GNUPLOT_HISTORY)
 
 /* extra functions provided by history.c */
 
-int gp_read_history(const char *filename);
 void write_history_n(const int, const char *, const char *);
 const char *history_find(char *);
 const char *history_find_by_number(int);

@@ -94,6 +94,7 @@ typedef struct udvt_entry {
     t_value udv_value;		/* value it has */
     int locality;		/* LFS depth at which this variable was declared */
 				/* locality=0 (the usual case) for a global variable */
+				/* locality=-1 cannot be overwritten or deleted */
     int udv_refcount;		/* reference count used to prevent ARRAY corruption */
 } udvt_entry;
 
@@ -146,12 +147,11 @@ struct at_type {
 
 extern const struct ft_entry ft[]; /* The table of builtin functions */
 extern struct udft_entry *first_udf; /* user-def'd functions */
-extern struct udvt_entry *first_udv; /* user-def'd variables */
-extern struct udvt_entry udv_pi; /* 'pi' variable */
+extern struct udvt_entry udv_head; /* user-def'd variables */
+extern struct udvt_entry *udv_pi; /* 'pi' variable */
 extern struct udvt_entry *udv_I; /* 'I' (sqrt(-1)) */
 extern struct udvt_entry *udv_Inf; /* INFINITY */
 extern struct udvt_entry *udv_NaN; /* 'NaN' variable */
-extern struct udvt_entry **udv_user_head; /* first udv that can be deleted */
 extern TBOOLEAN undefined;
 
 extern enum int64_overflow overflow_handling;

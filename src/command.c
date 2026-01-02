@@ -62,6 +62,7 @@
 
 #include "alloc.h"
 #include "datablock.h"
+#include "external.h"
 #include "eval.h"
 #include "fit.h"
 #include "datafile.h"
@@ -84,7 +85,6 @@
 #include "term_api.h"
 #include "util.h"
 #include "voxelgrid.h"
-#include "external.h"
 
 #ifdef USE_MOUSE
 # include "mouse.h"
@@ -732,6 +732,11 @@ define()
 	if (END_OF_COMMAND)
 	    int_error(c_token, "function definition expected");
 	udf = add_udf(start_token);
+#ifdef HAVE_EXTERNAL_FUNCTIONS
+	/* check for redefinition of a function imported as a plugin */
+	if (udf->at && (udf->at->actions[0].index == CALLE))
+	    external_free(udf->at);
+#endif
 	/* odd corner case of attempt to redefine a function while executing it */
 	if (udf->at && udf->at->recursion_depth > 0)
 	    int_error(NO_CARET, "attempt to redefine %s while executing it", udf->udf_name);
@@ -772,6 +777,14 @@ define()
 	udv = add_udv(start_token);
 	if (udv->udv_value.type == ARRAY && udv->udv_refcount > 0)
 	    int_error(NO_CARET, "assignment would corrupt array %s", udv->udv_name);
+	if (udv->locality < 0) {
+	    /* This was a predefined read-only variable.
+	     * However it can be shadowed by a local variable
+	     */
+	    int locality = lf_head ? lf_head->locality : 0;
+	    udv = add_udv_local(start_token, NULL, locality);
+	    /* int_warn(c_token, "shadowing a read-only variable"); */
+	}
 
 	/* Get new value */
 	c_token += 2;
@@ -1312,7 +1325,7 @@ exit_command()
 void
 history_command()
 {
-#ifdef USE_READLINE
+#if defined(USE_READLINE) || defined(GNUPLOT_HISTORY)
     c_token++;
 
     if (!END_OF_COMMAND && equals(c_token,"?")) {
@@ -1386,7 +1399,7 @@ history_command()
 #else
     c_token++;
     int_warn(NO_CARET, "This copy of gnuplot was built without support for command history.");
-#endif /* defined(USE_READLINE) */
+#endif /* defined(USE_READLINE) || defined(GNUPLOT_HISTORY) */
 }
 
 #define REPLACE_ELSE(tok)             \
@@ -1718,9 +1731,25 @@ link_command()
 	} else {
 	    int_error(c_token,"expecting x2 or y2");
 	}
-	/* This catches the sequence "set nonlinear x; set link x2" */
-	if (primary_axis->linked_to_primary)
-	    int_error(NO_CARET, "You must clear nonlinear x or y before linking it");
+
+	if (equals(command_token-1, "unset")) {
+	    /* Cleanup will be done below */
+	}
+	/* This catches the sequence "set {log|nonlinear} x; set link x2" */
+	else if (primary_axis->linked_to_primary) {
+	    if (primary_axis->log) {
+		memcpy(secondary_axis, primary_axis, AXIS_CLONE_SIZE);
+		memcpy(&(secondary_axis->ticdef), &(primary_axis->ticdef), sizeof(t_ticdef));
+		secondary_axis->forced_log_link = 1;
+		primary_axis->forced_log_link = -1;
+		secondary_axis->linked_to_primary = NULL;
+		c_token++;
+		return;
+	    } else {
+		/* This catches the sequence "set nonlinear x; set link x2" */
+		int_error(NO_CARET, "You must clear nonlinear x or y before linking it");
+	    }
+	}
 	/* This catches the sequence "set nonlinear x2; set link x2" */
 	if (secondary_axis->linked_to_primary && secondary_axis->linked_to_primary->index <= 0)
 	    int_error(NO_CARET, "You must clear nonlinear x2 or y2 before linking it");
@@ -1730,6 +1759,8 @@ link_command()
     /* "unset link {x|y}" command */
     if (equals(command_token-1,"unset")) {
 	primary_axis->linked_to_secondary = NULL;
+	secondary_axis->forced_log_link = 0;
+	primary_axis->forced_log_link = 0;
 	if (secondary_axis->linked_to_primary == NULL)
 	    /* It wasn't linked anyhow */
 	    return;
@@ -1742,14 +1773,8 @@ link_command()
     }
 
     /* Initialize the action tables for the mapping function[s] */
-    if (!primary_axis->link_udf) {
-	primary_axis->link_udf = gp_alloc(sizeof(udft_entry),"link_at");
-	memset(primary_axis->link_udf, 0, sizeof(udft_entry));
-    }
-    if (!secondary_axis->link_udf) {
-	secondary_axis->link_udf = gp_alloc(sizeof(udft_entry),"link_at");
-	memset(secondary_axis->link_udf, 0, sizeof(udft_entry));
-    }
+    init_axis_links(primary_axis);
+    init_axis_links(secondary_axis);
 
     if (equals(c_token,"via")) {
 	parse_link_via(secondary_axis->link_udf);
@@ -2195,11 +2220,16 @@ plot_command()
 #endif
     if (evaluate_inside_functionblock && inside_plot_command)
 	int_error(NO_CARET, "plot command not available in this context");
+    /* Clear "hidden" flag for any plots that may have been toggled off */
+    /* Dec 2025: modify_plots() has a side effect of repainting the current display,
+     *           at least for wxt, which can cause flicker during remultiplot.
+     */
+    if (term->modify_plots) {
+	if (!multiplot_playback || reset_since_last_plot)
+	    term->modify_plots(MODPLOTS_SET_VISIBLE, -1);
+    }
     inside_plot_command = TRUE;
     plotrequest();
-    /* Clear "hidden" flag for any plots that may have been toggled off */
-    if (term->modify_plots)
-	term->modify_plots(MODPLOTS_SET_VISIBLE, -1);
     inside_plot_command = FALSE;
     SET_CURSOR_ARROW;
 }
@@ -2583,6 +2613,11 @@ replot_command()
     if (term->flags & TERM_INIT_ON_REPLOT)
 	term->init();
 
+    if (term->modify_plots) {
+	if (reset_since_last_plot)
+	    term->modify_plots(MODPLOTS_SET_VISIBLE, -1);
+    }
+
     if (last_plot_was_multiplot && !in_multiplot) {
 	struct udvt_entry *datablock = get_udv_by_name("$GPVAL_LAST_MULTIPLOT");
 	if (!datablock || datablock->udv_value.type != DATABLOCK
@@ -2785,8 +2820,10 @@ splot_command()
     inside_plot_command = TRUE;
     plot3drequest();
     /* Clear "hidden" flag for any plots that may have been toggled off */
-    if (term->modify_plots)
-	term->modify_plots(MODPLOTS_SET_VISIBLE, -1);
+    if (term->modify_plots) {
+	if (!multiplot_playback || reset_since_last_plot)
+	    term->modify_plots(MODPLOTS_SET_VISIBLE, -1);
+    }
     inside_plot_command = FALSE;
     SET_CURSOR_ARROW;
 }
@@ -3040,6 +3077,9 @@ import_command()
 
     udf = dummy_func = add_udf(start_token+1);
     udf->dummy_num = dummy_num;
+    /* check for redefinition of a function imported as a plugin */
+    if (udf->at && (udf->at->actions[0].index == CALLE))
+	external_free(udf->at);
     free_at(udf->at);	/* In case there was a previous function by this name */
 
     udf->at = external_at(udf->udf_name);
@@ -3605,6 +3645,48 @@ is_history_command(const char *line)
 }
 
 
+/* add line to history file if enabled */
+static void
+add_line_to_history(const char *line)
+{
+#if defined(USE_READLINE) || defined(GNUPLOT_HISTORY)
+#ifdef HAVE_LIBEDITLINE
+    if (!is_history_command(line)) {
+	/* deleting history entries does not work, so suppress adjacent duplicates only */
+	int found = 0;
+
+	if (!history_full)
+	    found = history_search(line, -1);
+	if (found <= 0)
+	    add_history(line);
+    }
+#else
+    int found;
+
+    /* search in the history for entries containing line.
+     * They may have other tokens before and after line, hence
+     * the check on strcmp below. */
+    if (!is_history_command(line)) {
+	if (!history_full) {
+	    found = history_search(line, -1);
+	    if (found != -1 && !strcmp(current_history()->line,line)) {
+		/* this line is already in the history, remove the earlier entry */
+		HIST_ENTRY *removed = remove_history(where_history());
+		/* according to history docs we are supposed to free the stuff */
+		if (removed) {
+		    free(removed->line);
+		    free(removed->data);
+		    free(removed);
+		}
+	    }
+	}
+	add_history(line);
+    }
+#endif // HAVE_LIBEDITLINE
+#endif // defined(USE_READLINE) || defined(GNUPLOT_HISTORY)
+}
+
+
 # ifdef USE_READLINE
 /* keep some compilers happy */
 static char *rlgets(char *s, size_t n, const char *prompt);
@@ -3626,44 +3708,8 @@ rlgets(char *s, size_t n, const char *prompt)
 	line = readline((interactive) ? prompt : "");
 	leftover = 0;
 	/* If it's not an EOF */
-	if (line && *line) {
-#  if defined(READLINE) || defined(HAVE_LIBREADLINE)
-	    int found;
-	    /* Initialize readline history functions */
-	    using_history();
-
-	    /* search in the history for entries containing line.
-	     * They may have other tokens before and after line, hence
-	     * the check on strcmp below. */
-	    if (!is_history_command(line)) {
-		if (!history_full) {
-		    found = history_search(line, -1);
-		    if (found != -1 && !strcmp(current_history()->line,line)) {
-			/* this line is already in the history, remove the earlier entry */
-			HIST_ENTRY *removed = remove_history(where_history());
-			/* according to history docs we are supposed to free the stuff */
-			if (removed) {
-			    free(removed->line);
-			    free(removed->data);
-			    free(removed);
-			}
-		    }
-		}
-		add_history(line);
-	    }
-#  elif defined(HAVE_LIBEDITLINE)
-	    if (!is_history_command(line)) {
-		/* deleting history entries does not work, so suppress adjacent duplicates only */
-		int found = 0;
-		using_history();
-
-		if (!history_full)
-		    found = history_search(line, -1);
-		if (found <= 0)
-		    add_history(line);
-	    }
-#  endif
-	}
+	if (line && *line)
+	    add_line_to_history(line);
     }
     if (line) {
 	/* s will be NUL-terminated here */
@@ -3829,7 +3875,15 @@ gp_get_string(char * buffer, size_t len, const char * prompt)
     if (interactive)
 	PUT_STRING(prompt);
 
-    return GET_STRING(buffer, len);
+    char *line = GET_STRING(buffer, len);
+
+    if (interactive && line) {
+	line[strcspn(line, "\n")] = '\0';
+	if (*line != '\0')
+	    add_line_to_history(line);
+    }
+
+    return line;
 # endif
 }
 

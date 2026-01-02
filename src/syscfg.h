@@ -337,17 +337,6 @@ typedef RETSIGTYPE (*sigfunc) (void);
 #define SORTFUNC_ARGS const generic *
 #endif
 
-/* Macros for string concatenation */
-#ifdef HAVE_STRINGIZE
-/* ANSI version */
-# define CONCAT(x,y) x##y
-# define CONCAT3(x,y,z) x##y##z
-#else
-/* K&R version */
-# define CONCAT(x,y) x/**/y
-# define CONCAT3(x,y,z) x/**/y/**/z
-#endif
-
 /* Windows needs to redefine stdin/stdout functions */
 #if defined(_WIN32) && !defined(WINDOWS_NO_GUI)
 # include "win/wtext.h"
@@ -366,26 +355,13 @@ typedef RETSIGTYPE (*sigfunc) (void);
 # endif
 #endif
 
-#if HAVE_STDBOOL_H
+/* Oct 2025
+ * The code to include stdbool.h used to be protected by #if HAVE_STDBOOL_H
+ * but prior to autoconf 2.72 the AC_HEADER_STDBOOL macro was incompatible with c23.
+ * Since we now explicitly require c99, and c99 always provides stdbool.h,
+ * just include it with no special checks.
+ */
 # include <stdbool.h>
-#else
-# if ! HAVE__BOOL
-#  ifdef __cplusplus
-typedef bool _Bool;
-#  else
-typedef unsigned char _Bool;
-#  endif
-# endif
-# define bool _Bool
-# define false 0
-# define true 1
-# define __bool_true_false_are_defined 1
-#endif
-
-/* May or may not fix a problem reported for Sun Studio compilers */
-#if defined(__SUNPRO_CC) && !defined __cplusplus && !defined(bool)
-#define bool unsigned char
-#endif
 
 #undef TRUE
 #define TRUE true

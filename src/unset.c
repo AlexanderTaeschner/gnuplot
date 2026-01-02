@@ -32,6 +32,7 @@
 
 #include "setshow.h"
 
+#include "alloc.h"
 #include "axis.h"
 #include "command.h"
 #include "contour.h"
@@ -1406,6 +1407,8 @@ unset_logscale()
 	    if (!isalpha((unsigned char)axis_name(axis)[0]))
 		continue;
 	    if (axis_array[axis].log) {
+		if (axis_array[axis].forced_log_link < 0)
+		    set_for_axis[axis + SECOND_X_AXIS - FIRST_X_AXIS] = TRUE;
 		sprintf(command, "unset nonlinear %s", axis_name(axis));
 		do_string(command); 
 		axis_array[axis].log = FALSE;
@@ -2007,7 +2010,8 @@ unset_axislabel(AXIS_INDEX axis)
 
 /*
  * Free dynamic fields in an axis structure so that it can be safely deleted
- * or reinitialized.  Doesn't free the axis structure itself.
+ * or reinitialized.  The axis structure itself will be freed by the caller
+ * (or in principle re-initialized but in fact all callers free it).
  * SAMPLE_AXIS is an exception because its link pointers are only copies of
  * those in the real axis being sampled.
  */
@@ -2026,6 +2030,15 @@ free_axis_struct(struct axis *this_axis)
 	unset_axislabel_or_title(&this_axis->label);
 	if (this_axis->zeroaxis != &default_axis_zeroaxis)
 	    free(this_axis->zeroaxis);
+}
+
+void
+init_axis_links(struct axis *this_axis)
+{
+    if (!this_axis->link_udf) {
+	this_axis->link_udf = gp_alloc(sizeof(udft_entry),"link_at");
+	memset(this_axis->link_udf, 0, sizeof(udft_entry));
+    }
 }
 
 /******** The 'reset' command ********/
@@ -2109,6 +2122,7 @@ reset_command()
      * suppress some of the commentary output by the individual
      * unset_...() routines. */
     interactive = FALSE;
+    reset_since_last_plot = TRUE;
 
     unset_samples();
     unset_isosamples();
@@ -2344,5 +2358,6 @@ reset_mouse()
     mouse_alt_string = NULL;
     mouse_mode = MOUSE_COORDINATES_REAL;
     mouse_setting = default_mouse_setting;
+    reset_since_last_plot = TRUE;
 #endif
 }

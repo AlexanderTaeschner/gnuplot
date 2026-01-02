@@ -87,7 +87,6 @@ TBOOLEAN suppress_warnings = FALSE;
 static void mant_exp(double, double, TBOOLEAN, double *, int *, const char *);
 static void parse_sq(char *);
 static char *utf8_strchrn(const char *s, int N);
-static char *num_to_str(double r);
 
 /*
  * equals() compares string value of token number t_num with str[], and
@@ -179,20 +178,20 @@ isstring(int t_num)
 int
 type_udv(int t_num)
 {
-    struct udvt_entry **udv_ptr = &first_udv;
+    struct udvt_entry *udv_ptr = udv_head.next_udv;
 
     /* End of command */
     if (t_num >= num_tokens || equals(t_num,";"))
 	return 0;
 
-    while (*udv_ptr) {
-	if (equals(t_num, (*udv_ptr)->udv_name)) {
-	    if ((*udv_ptr)->udv_value.type == NOTDEFINED)
+    while (udv_ptr) {
+	if (equals(t_num, udv_ptr->udv_name)) {
+	    if (udv_ptr->udv_value.type == NOTDEFINED)
 		return 0;
 	    else
-		return (*udv_ptr)->udv_value.type;
+		return udv_ptr->udv_value.type;
 	    }
-	udv_ptr = &((*udv_ptr)->next_udv);
+	udv_ptr = udv_ptr->next_udv;
     }
     return 0;
 }
@@ -1534,6 +1533,10 @@ strappend(char **dest, size_t *size, size_t len, const char *src)
 
 
 /* convert a struct value to a string */
+/* Rotates through 4 buffers 's[j]', and returns pointers to
+ * them, to avoid execution ordering problems if this function is
+ * called more than once between sequence points.
+ */
 char *
 value_to_str(struct value *val, TBOOLEAN need_quotes)
 {
@@ -1554,14 +1557,19 @@ value_to_str(struct value *val, TBOOLEAN need_quotes)
 	sprintf(s[j], PLD, val->v.int_val);
 	break;
     case CMPLX:
-	if (isnan(val->v.cmplx_val.real))
+	if (isnan(val->v.cmplx_val.real)) {
 	    sprintf(s[j], "NaN");
-	else if (val->v.cmplx_val.imag != 0.0)
-	    sprintf(s[j], "{%s, %s}",
-	            num_to_str(val->v.cmplx_val.real),
-	            num_to_str(val->v.cmplx_val.imag));
-	else
-	    return num_to_str(val->v.cmplx_val.real);
+	} else if (val->v.cmplx_val.imag != 0.0) {
+	    gprintf_value(s[j], minbufsize, "%.15C", 1.0, val);
+	} else {
+	    double r = val->v.cmplx_val.real;
+	    sprintf(s[j], "%.15g", r);
+	    if (strchr(s[j], '.') == NULL &&
+		strchr(s[j], 'e') == NULL &&
+		strchr(s[j], 'E') == NULL &&
+		!isinf(r))
+		strcat(s[j], ".0");
+	}
 	break;
     case STRING:
 	if (val->v.string_val) {
@@ -1617,31 +1625,6 @@ value_to_str(struct value *val, TBOOLEAN need_quotes)
     default:
 	int_error(NO_CARET, "unknown type in value_to_str()");
     }
-
-    return s[j];
-}
-
-
-/* Helper for value_to_str(): convert a single number to decimal
- * format. Rotates through 4 buffers 's[j]', and returns pointers to
- * them, to avoid execution ordering problems if this function is
- * called more than once between sequence points. */
-static char *
-num_to_str(double r)
-{
-    static int i = 0;
-    static char s[4][25];
-    int j = i++;
-
-    if (i > 3)
-	i = 0;
-
-    sprintf(s[j], "%.15g", r);
-    if (strchr(s[j], '.') == NULL &&
-	strchr(s[j], 'e') == NULL &&
-	strchr(s[j], 'E') == NULL &&
-	!isinf(r))
-	strcat(s[j], ".0");
 
     return s[j];
 }

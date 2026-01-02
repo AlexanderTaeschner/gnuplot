@@ -56,15 +56,13 @@
 static RETSIGTYPE fpe(int an_int);
 
 /* Global variables exported by this module */
-struct udvt_entry udv_pi = { NULL, "pi", {INTGR, {0} } };
+struct udvt_entry udv_head = { NULL, "__udv_head", {NOTDEFINED, {0} } };
+struct udvt_entry *udv_pi;
 struct udvt_entry *udv_I;
 struct udvt_entry *udv_Inf;
 struct udvt_entry *udv_NaN;
 /* first in linked list */
-struct udvt_entry *first_udv = &udv_pi;
 struct udft_entry *first_udf = NULL;
-/* pointer to first udv users can delete */
-struct udvt_entry **udv_user_head;
 
 /* Various abnormal conditions during evaluation of an action table
  * (the stored form of an expression) are signalled by setting
@@ -383,28 +381,7 @@ magnitude(struct value *val)
     case INTGR:
 	return (fabs((double)val->v.int_val));
     case CMPLX:
-	{
-	    /* The straightforward implementation sqrt(r*r+i*i)
-	     * over-/underflows if either r or i is very large or very
-	     * small. This implementation avoids over-/underflows from
-	     * squaring large/small numbers whenever possible.  It
-	     * only over-/underflows if the correct result would, too.
-	     * CAVEAT: sqrt(1+x*x) can still have accuracy
-	     * problems. */
-	    double abs_r = fabs(val->v.cmplx_val.real);
-	    double abs_i = fabs(val->v.cmplx_val.imag);
-	    double quotient;
-
-	    if (abs_i == 0)
-	    	return abs_r;
-	    if (abs_r > abs_i) {
-		quotient = abs_i / abs_r;
-		return abs_r * sqrt(1 + quotient*quotient);
-	    } else {
-		quotient = abs_r / abs_i;
-		return abs_i * sqrt(1 + quotient*quotient);
-	    }
-	}
+	return hypot( val->v.cmplx_val.real, val->v.cmplx_val.imag );
     default:
 	int_error(NO_CARET, "unknown type in magnitude()");
     }
@@ -422,14 +399,10 @@ angle(struct value *val)
     case INTGR:
 	return ((val->v.int_val >= 0) ? 0.0 : M_PI);
     case CMPLX:
-	if (val->v.cmplx_val.imag == 0.0) {
-	    if (val->v.cmplx_val.real >= 0.0)
-		return (0.0);
-	    else
-		return (M_PI);
-	}
-	return (atan2(val->v.cmplx_val.imag,
-		      val->v.cmplx_val.real));
+	if (val->v.cmplx_val.imag == 0.0)
+	    return ((val->v.cmplx_val.real >= 0.0) ? 0.0 : M_PI);
+	else
+	    return (atan2(val->v.cmplx_val.imag, val->v.cmplx_val.real));
     default:
 	int_error(NO_CARET, "unknown type in angle()");
     }
@@ -471,7 +444,11 @@ Gstring(struct value *a, char *s)
 void
 clone_string_value(t_value *value)
 {
-    if (value->type == STRING)
+    if (value->type != STRING)
+	return;
+    if (value->v.string_val == NULL)
+	value->v.string_val = strdup("");
+    else
 	value->v.string_val = strdup(value->v.string_val);
 }
 
@@ -870,7 +847,7 @@ real_free_at(struct at_type *at_ptr)
 struct udvt_entry *
 add_udv_by_name(char *key)
 {
-    struct udvt_entry **udv_ptr = &first_udv;
+    struct udvt_entry **udv_ptr = &(udv_head.next_udv);
     int current_locality = lf_head ? lf_head->locality : 0;
 
     /* check if it's already in the table... */
@@ -878,7 +855,7 @@ add_udv_by_name(char *key)
     while (*udv_ptr) {
 	if (!strcmp(key, (*udv_ptr)->udv_name)) {
 	    /* This is a global variable; we must not have seen a relevant local definition */
-	    if ((*udv_ptr)->locality == 0)
+	    if ((*udv_ptr)->locality <= 0)
 		return (*udv_ptr);
 	    /* This is a local variable referenced from a bracketed clause that follows it */
 	    if ((*udv_ptr)->locality >= current_locality)
@@ -900,7 +877,7 @@ add_udv_by_name(char *key)
 struct udvt_entry *
 get_udv_by_name(char *key)
 {
-    struct udvt_entry *udv = first_udv;
+    struct udvt_entry *udv = udv_head.next_udv;
 
     while (udv) {
         if (!strcmp(key, udv->udv_name))
@@ -912,17 +889,22 @@ get_udv_by_name(char *key)
     return NULL;
 }
 
-/* This doesn't really delete, it just marks the udv as undefined */
+/* delete and free existing user variable */
 void
 del_udv_by_name(char *key, TBOOLEAN wildcard)
 {
-    struct udvt_entry *udv_ptr = *udv_user_head;
+    struct udvt_entry *udv_prev = &udv_head;
+    struct udvt_entry *udv_ptr = udv_prev->next_udv;
 
     while (udv_ptr) {
 	/* Forbidden to delete GPVAL_* */
 	if (!strncmp(udv_ptr->udv_name,"GPVAL",5))
 	    ;
 	else if (!strncmp(udv_ptr->udv_name,"GNUTERM",7))
+	    ;
+
+	/* read-only variable */
+	else if (udv_ptr->locality < 0)
 	    ;
 
  	/* exact match */
@@ -932,8 +914,11 @@ del_udv_by_name(char *key, TBOOLEAN wildcard)
 		break;
 	    }
 	    gpfree_vgrid(udv_ptr);
+	    free(udv_ptr->udv_name);
 	    free_value(&(udv_ptr->udv_value));
-	    udv_ptr->udv_value.type = NOTDEFINED;
+	    udv_prev->next_udv = udv_ptr->next_udv;
+	    free(udv_ptr);
+	    udv_ptr = udv_prev;
 	    break;
 	}
 
@@ -945,10 +930,14 @@ del_udv_by_name(char *key, TBOOLEAN wildcard)
 	    }
 	    gpfree_vgrid(udv_ptr);
 	    free_value(&(udv_ptr->udv_value));
-	    udv_ptr->udv_value.type = NOTDEFINED;
+	    udv_prev->next_udv = udv_ptr->next_udv;
+	    free(udv_ptr->udv_name);
+	    free(udv_ptr);
+	    udv_ptr = udv_prev;
 	    /* no break - keep looking! */
 	}
 
+	udv_prev = udv_ptr;
 	udv_ptr = udv_ptr->next_udv;
     }
 }
@@ -1251,6 +1240,12 @@ fill_gpval_sysinfo()
        break;
     case PROCESSOR_ARCHITECTURE_AMD64:
         fill_gpval_string("GPVAL_MACHINE", "x86_64");
+        break;
+    case PROCESSOR_ARCHITECTURE_ARM:
+        fill_gpval_string("GPVAL_MACHINE", "arm");
+        break;
+    case PROCESSOR_ARCHITECTURE_ARM64:
+        fill_gpval_string("GPVAL_MACHINE", "arm64");
         break;
     default:
         fill_gpval_string("GPVAL_MACHINE", "unknown");

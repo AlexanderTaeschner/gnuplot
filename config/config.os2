@@ -4,8 +4,8 @@
  * config_strip.sh as of gnuplot 5.5 in February 2021.
  */
 
-/* Define to allow use of certain deprecated syntax. */
-/* #undef BACKWARDS_COMPATIBLE */
+/* Define to allow use of some deprecated syntax. */
+/* #undef BACKWARD_COMPATIBILITY */
 
 /* Provide contact info for gnuplot development */
 /* #undef DEVELOPMENT_VERSION */
@@ -64,6 +64,9 @@
 /* Define if you want the cairo-based terminals. */
 /* #undef HAVE_CAIROPDF */
 /* Don't change it here -- this define is set in config/makefile.os2 */
+
+/* Define to 1 if you have the `cbrt' function. */
+#define HAVE_CBRT 1
 
 /* define if you have Amos function cexint */
 /* #undef HAVE_CEXINT */
@@ -199,6 +202,11 @@
    from the Makefile */
 #define HAVE_INTTYPES_H 1
 
+/* Define if Bessel functions are available from some library */
+#ifdef __KLIBC__
+# define HAVE_JN 1
+#endif
+
 /* Define if you want to use kpsexpand (TeX). */
 /* #undef HAVE_KPSEXPAND */
 
@@ -280,6 +288,12 @@
 
 /* Define to 1 if you have the `memset' function. */
 #define HAVE_MEMSET 1
+
+/* Define to 1 if you have the `mergesort' function. */
+/* #undef HAVE_MERGESORT */
+
+/* Define to include support for metafont terminal */
+/* #undef HAVE_METAFONT */
 
 /* Define to include support for metapost terminal */
 /* #undef HAVE_METAPOST */
@@ -540,6 +554,9 @@
 /* Define to 1 if `vfork' works. */
 /* #undef HAVE_WORKING_VFORK */
 
+/* define if you have Amos function zexint */
+/* #undef HAVE_ZEXINT */
+
 /* Define to 1 if the system has the type `_Bool'. */
 #if __GNUC__ >= 3
 # define HAVE__BOOL 1
@@ -622,6 +639,9 @@
    old caca_export_memory */
 /* #undef USE_CACA_EXPORT_MEMORY */
 
+/* Define to support defining a function as a here document */
+#define USE_FUNCTIONBLOCKS 1
+
 /* Define if you want to read .gnuplot from current directory (SECURITY
    RISK!). */
 /* #undef USE_CWDRC */
@@ -632,6 +652,9 @@
 /* Define if you have interactive terminals that use mouse support. */
 /* #undef USE_MOUSE */
 /* Don't change it here -- this define is set in config/makefile.os2. */
+
+/* Define to support polar gridded surface plots */
+#define USE_POLAR_GRID 1
 
 /* Define to add support for generating a statistical summary of data */
 #define USE_STATS 1
@@ -657,6 +680,8 @@
 # define __EXTENSIONS__ 1
 #endif
 
+/* Define to support setting watchpoints in 2D plots */
+#define USE_WATCHPOINTS 1
 
 /* Define to enable multi-byte font support for x11 */
 /* #undef USE_X11_MULTIBYTE */
@@ -666,6 +691,15 @@
 
 /* The main version number */
 /* #undef VERSION_MAJOR */
+
+/* Define to support Delaunay triangulation and chi-shapes */
+#define WITH_CHI_SHAPES 1
+
+/* Define to make use of otherwise empty space in struct coordinate */
+/* #undef WITH_EXTRA_COORDINATE */
+
+/* Define if qsort on your O/S is unstable and that bothers you. */
+#define WITH_STABLE_SORT 1
 
 /* Define to include support for tektronix terminal emulators */
 /* #undef WITH_TEKTRONIX */
@@ -730,7 +764,7 @@
  terminals.
  This has been replaced by a generic approach (a terminal
  API) in 2004. As there do exist applications which use
- gnupmdrv.exe directly we still keep the old implementation
+ gnupmdrv.exe directly, we still keep the old implementation
  and binary interface.
 */
 #define PM_KEEP_OLD_ENHANCED_TEXT 1
@@ -747,7 +781,7 @@
 
 #define strtoll _strtoll
 
-/* Some backwards compatibility with EMX */
+/* Some backward compatibility with EMX */
 #ifndef __KLIBC__
 # define int32_t int
 # define uint32_t unsigned int

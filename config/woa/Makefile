@@ -1,25 +1,20 @@
 # Hello, emacs: this is a -*- Makefile -*-
 #
-# GNUPLOT Makefile for MinGW/MSYS or MinGW-w64/MSYS2 on Windows 
+# GNUPLOT Makefile for CROSS-COMPILATION with CLANG64/MSYS2 on Windows
+# for Windows on ARM
 #
-# Note: Currently MinGW cannot be used to compile gnuplot unless
-#       libraries / headers are updated.
-# Note that Mingw-w64 needs to be configured with --enable-secure-api, and
-#       MINGW_HAS_SECURE_API must be defined in _mingw.h.
-#
-# See http://www.mingw.org or http://msys2.github.io/ for more details.
+# See http://msys2.github.io/ for more details.
 
 # To compile gnuplot for Windows:
-# - Change the configuration section in 'config/mingw/Makfile' to
+# - Change the configuration section in 'config/woa/Makfile' to
 #   match your setup.
-# - On the MSYS/MSYS2 prompt, change directory to 'config/mingw' and issue
+# - On the MSYS/MSYS2 prompt, change directory to 'config/woa' and issue
 #   the commands
 #	 make all
 #	 make install
 #
-# This makefile was tested with 
-#   MSYS, MinGW32
-#   MSYS2/MINGW64, MSYS2/CLANG64, MinGW-w64
+# This makefile was tested with
+#   MSYS2 CLANG64 and CLANG64ARM libraries
 #   Microsoft HTML Help 1.4 SDK and the Free Pascal Help Compiler
 
 
@@ -43,26 +38,11 @@ VARIANT = PLAIN
 # Comment out the definition lines to disable the according features:
 
 # Define this only if doing a release build
-#RELEASE=1
+RELEASE=1
 
 # Set-up your compiler environment
 #
-# Define if you are using MSYS2/MINGW64 instead of MSYS/MinGW
-#MINGW64=1
-# Define if you want a 32bit version (even using a 64bit compiler)
-#M32=1
-# Define if you use clang instead of gcc, requires MSYS2/CLANG64
-CLANG64=1
-# Use the colorgcc frontend explicitly
-#COLORGCC=1
-# Specify the path to the compiler unless it is already in PATH
-#CCPATH = g:/mingw32/bin/
-#CCPATH = c:/apps/mingw/bin/
 
-# Path to 32bit programs
-# On 32bit machines:
-#PROGRAMFILES32="$(PROGRAMFILES)"
-#PROGRAMFILES32=/c/Program\ Files
 # On 64bit machines: (no access to ProgramFiles(x86) variable!)
 PROGRAMFILES32=/c/Program\ Files\ \(x86\)
 
@@ -123,7 +103,7 @@ CAIROLIBS=1
 WXT=1
 CAIROLIBS=1
 
-# Include webp terminal 
+# Include webp terminal
 # Requires webp lib and cairo libraries.
 WEBP=1
 
@@ -132,23 +112,10 @@ QT=1
 # Uncomment to build with Qt6 instead of Qt5
 QT6=1
 # specify QT installation directory
-#QT_DIR = /c/Qt/5.2.1/mingw48_32
-ifndef MINGW64
-ifndef CLANG64
-QT_DIR = /d/Source/Qt-5.2.1-mingw/5.2.1/mingw48_32
-else
-QT_DIR = /clang64
-endif
-else
-ifdef M32
-QT_DIR = /mingw32
-else
-QT_DIR = /mingw64
-endif
-endif
+QT_DIR = /clangarm64
 ifdef QT6
 QT_INCLUDE = $(QT_DIR)/include/qt6
-QT_BIN = $(QT_DIR)/share/qt6/bin
+QT_BIN = /clang64/share/qt6/bin
 else
 QT_INCLUDE = $(QT_DIR)/include
 QT_BIN = $(QT_DIR)/bin
@@ -172,7 +139,7 @@ CERF=1
 
 # Uncomment if you have libopenspecfun
 # https://github.com/JuliaMath/openspecfun
-OPENSPECFUN=1
+#OPENSPECFUN=1
 
 # Uncomment if console mode gnuplot should use GNU readline
 # (not recommended)
@@ -214,13 +181,21 @@ GNUPLOT_TEX_DIR = share/texmf/tex
 GNUPLOT_SHARE_DIR = share
 
 # Destination directory, used in 'make install':
-#DESTDIR = /local/opt/gnuplot-4.5
 DESTDIR = "$(PROGRAMFILES)/gnuplot"
+
+# Cross-compilation flags
+CFLAGS += -target aarch64-w64-mingw32
+CFLAGS += --sysroot=/c/msys64/clangarm64
+CFLAGS += -I /c/msys64/clangarm64/include/
+
+LDFLAGS += -target aarch64-w64-mingw32
+LDFLAGS += --sysroot=/c/msys64/clangarm64
+LDFLAGS += -L /c/msys64/clangarm64/lib -L /c/msys64/clangarm64/lib/clang/20/lib/windows
+#LDFLAGS += -v
 
 # Do you want some special optimization / flags?
 #CFLAGS +=
 CWFLAGS += -Wno-unused-function
-ifdef CLANG64
 CFLAGS += -fcolor-diagnostics -fansi-escape-codes
 CWFLAGS += -Wno-incompatible-ms-struct -Wno-ignored-attributes
 CWFLAGS += -Wno-infinite-recursion
@@ -228,11 +203,6 @@ ifdef QT6
 CXXFLAGS += -std=c++17
 else
 CXXFLAGS += -std=c++11
-endif
-endif
-ifdef MINGW64
-# This does not seem to work even if GCC_COLORS is set.
-#CFLAGS += -fdiagnostics-color=always
 endif
 
 # To compile the .chm file you need the Microsoft HTML Help 1.4 SDK
@@ -247,15 +217,11 @@ HHC = $(HHWPATH)hhc
 #HHC = C:/FPC/3.2.2/bin/i386-win32/chmcmd.exe
 #CHMEXTRA = -DFPC
 
-# Choose which resource compiler you want to use (GNU windres or MS rc):
-GNU_RC = 1
-ifndef GNU_RC
-  # If uncommented GNU_RC above and rc.exe not in PATH, then set:
-  MSSDK = c:/mssdk
-endif
-
 # GNU sort
 GNUSORT = /bin/sort
+
+# executable to create demo graphics
+GNUPLOTEXE = ../mingw/gnuplot.exe
 
 # Inno Setup Compiler
 # get it from: http://www.jrsoftware.org/isdl.php
@@ -268,18 +234,7 @@ DLLS = 1
 
 # Directory that might contain extra files to be shipped with the installer.
 # This should include dependencies like DLLs, but also fontconfig configuration files.
-ifdef MINGW64
-ifdef M32
-#EXTRADIST = /d/gnuplot/dist32
-else
-#EXTRADIST = /d/gnuplot/dist64
-endif
-else
-ifdef CLANG64
-#EXTRADIST = /d/gnuplot/dist64
-endif
 #EXTRADIST = /d/gnuplot/dist
-endif
 
 #
 # *************** End of Configuration section *************************
@@ -290,44 +245,10 @@ endif
 # **********************************************************************
 #
 
-# We enforce to use console mode gnuplot to run gnuplot scripts in order
-# to see their output during make.
-TARGET=gnuplot.exe
-
 BUILT_SOURCES = allterm.h allterm-ja.h
 
-ifdef MINGW64
-ifdef M32
-CFLAGS += -m32
-else
-CFLAGS += -m64
-endif
-else
-ifndef CLANG64
-# MINGW32 always produces 32bit executables
-ifndef M32
-M32=1
-endif
-endif
-endif
-
-ifndef CLANG64
-ifdef COLORGCC
-CC=$(CCPATH)color-gcc
-CXX=$(CCPATH)color-g++
-else # !COLORGCC
-ifdef (CCPATH)
-CC = $(CCPATH)gcc
-CXX = $(CCPATH)g++
-else #!CCPATH
-CC = gcc
-CXX = g++
-endif
-endif
-else # CLANG64
 CC = $(CCPATH)clang
 CXX = $(CCPATH)clang++
-endif
 LD = $(CC)
 LDX = $(CXX)
 
@@ -362,7 +283,7 @@ M=$(TOP)/demo/
 
 VPATH = $(S):$(S)/wxterminal
 
-CFLAGS += -DGNUPLOT_PS_DIR=\"$(GNUPLOT_PS_DIR)\" 
+CFLAGS += -DGNUPLOT_PS_DIR=\"$(GNUPLOT_PS_DIR)\"
 TERMFLAGS = -DGNUPLOT_JS_DIR=\"$(GNUPLOT_JS_DIR)\"
 
 TERMLIBS =
@@ -385,7 +306,7 @@ endif
 # Name of helpfiles:
 HELPFILE = wgnuplot.chm
 HELPFILEJA = wgnuplot-ja.chm
-CFLAGS += -I$(HHWPATH)include
+#CFLAGS += -I$(HHWPATH)include
 
 ifdef NEWGD
   GD=1
@@ -485,9 +406,9 @@ endif
 
 ifdef WXT
 	CFLAGS += -DWXWIDGETS
-	WXT_CXXFLAGS := $(shell wx-config --cxxflags)
+	WXT_CXXFLAGS := $(shell /clangarm64/bin/wx-config --cxxflags)
 	CXXFLAGS += $(WXT_CXXFLAGS)
-	WX_LIBS := $(shell wx-config --libs | sed -e "s+-Wl,--subsystem,windows++g" -e "s+-mwindows++g")
+	WX_LIBS := $(shell /clangarm64/bin/wx-config --libs | sed -e "s+-Wl,--subsystem,windows++g" -e "s+-mwindows++g")
 	WX_OBJS = wxt_gui.$(O)
 endif
 
@@ -509,7 +430,7 @@ endif
 	TERMLIBS += $(QT_LIBS)
 	CXXFLAGS += $(QT_CXXFLAGS)
 	LDFLAGS  += $(QT_LDFLAGS)
-	QT_OBJS = qt_term.$(O) 
+	QT_OBJS = qt_term.$(O)
 	GNUPLOTQTOBJS = gnuplot_qt.o QtGnuplotWindow.o \
 		QtGnuplotApplication.o QtGnuplotWidget.o \
 		QtGnuplotScene.o QtGnuplotItems.o \
@@ -526,7 +447,7 @@ ifdef QT6
 else
 	LRELEASE = lrelease
 endif
-	QT_FILES_TARGETS  = qrc_QtGnuplotResource.cpp ui_QtGnuplotSettings.h moc_QtGnuplotWindow.cpp moc_QtGnuplotApplication.cpp 
+	QT_FILES_TARGETS  = qrc_QtGnuplotResource.cpp ui_QtGnuplotSettings.h moc_QtGnuplotWindow.cpp moc_QtGnuplotApplication.cpp
 	QT_FILES_TARGETS += moc_QtGnuplotWidget.cpp moc_QtGnuplotScene.cpp moc_QtGnuplotEvent.cpp
 	QT_TRANSLATION = qtgnuplot_fr.qm qtgnuplot_ja.qm
 	QT_TARGET = gnuplot_qt.exe
@@ -547,18 +468,7 @@ endif
 
 ifdef MGRX
 	CFLAGS += -I$(MGRXPATH)/include -DHAVE_GRX -DHAVE_MGRX
-ifdef M32
-	TERMLIBS += -L$(MGRXPATH)/lib/win32/ -lmgrx -lgdi32 -lfreetype
-else
 	TERMLIBS += -L$(MGRXPATH)/lib/win64/ -lmgrx -lgdi32 -lfreetype
-endif
-else
-ifdef GRX
-ifdef M32
-	CFLAGS += -I$(GRXPATH)/include -DHAVE_GRX
-	TERMLIBS += -L$(GRXPATH)/lib/win32/ -lgrx20 -lgdi32
-endif
-endif
 endif
 
 ifdef ICONV
@@ -593,23 +503,15 @@ endif
 ifdef DIRECT2D11
 	CFLAGS += -DHAVE_D2D11
 	TERMLIBS += -ld3d11 -ldxguid -lwindowscodecs -lprntvpt
-	EXTRALIBS += prntvpt.lib
 endif
 
-ifdef GNU_RC
-  # RC = d:/cygnus/cygwin-b20/H-i586-cygwin32/bin/windres
   RC  = $(CCPATH)windres
   RCFLAGS = --include-dir=$(W) \
 	--define __WIN32__ --define __WIN95__ \
-	--define __GNUWIN32__ --use-temp-file
+	--define __GNUWIN32__ --use-temp-file \
+	-F aarch64-w64-mingw32
   RCOUT = wgplt_res.o
   RES2COFF = echo wgplt_res.o
-else
-  RC = $(MSSDK)/bin/rc
-  RCFLAGS = -v -i$(MSSDK)/include -i$(W) -dWIN32
-  RCOUT = -fowgnuplot.res
-  RES2COFF = res2coff -i wgnuplot.res -o wgplt_res.o
-endif
 
 ifdef RELEASE
 VERSIONING = $(S)/version.c
@@ -629,15 +531,7 @@ endif
 FULLVERSION := $(MAINVERSION) patchlevel $(PATCHLEVEL)
 
 TARGETS_PLAIN = $(VERSIONING) config.h wgnuplot.exe wgnuplot.mnu $(QT_TARGET)
-ifndef MINGW64
-ifdef CLANG64
 	EXTRA_CPPFLAGS_PLAIN += -DPIPES
-else
-	EXTRA_CPPFLAGS_PLAIN += -DUSE_FAKEPIPES
-endif
-else
-	EXTRA_CPPFLAGS_PLAIN += -DPIPES
-endif
 
 TARGETS_PIPES = $(VERSIONING) config.h wgnuplot_pipes.exe wgnuplot.mnu $(QT_TARGET)
 EXTRA_CPPFLAGS_PIPES += -DPIPES
@@ -675,7 +569,7 @@ include $(S)/makefile.all
 
 OBJS = $(COREOBJS) version.$(O) gpexecute.$(O) $(WX_OBJS) $(CAIRO_OBJS) $(QT_OBJS)
 WINOBJS = winmain.$(O) wgnuplib.$(O) wgraph.$(O) wprinter.$(O) \
-	  wpause.$(O) wgdiplus.$(O) wd2d.$(O) 
+	  wpause.$(O) wgdiplus.$(O) wd2d.$(O)
 WINOBJS_WGNUPLOT = wtext.$(O) screenbuf.$(O) wmenu.$(O) wredirect.$(O)
 
 # default rules
@@ -702,21 +596,10 @@ WINOBJS_WGNUPLOT = wtext.$(O) screenbuf.$(O) wmenu.$(O) wredirect.$(O)
 	$(CXX) -c $(CFLAGS) $(EXTRA_CPPFLAGS_CONSOLE) $(CXXFLAGS) -MMD -MT '$*.co' -MF $*.d -o $@ $<
 
 %.lib: %.def
-ifndef M32
 	dlltool -d $^ -l $@
-else
-	dlltool -k -d $^ -l $@
-endif
 
 LDLIBS = -lkernel32 -lgdi32 -lwinspool -lcomdlg32 -lcomctl32 -ladvapi32 -lshell32 -lmsimg32 -lgdiplus -lshlwapi -ld2d1 -ldwrite -lole32
 LDLIBS += -lhtmlhelp
-LDFLAGS2 += -Wl,--enable-auto-import -L$(HHWPATH)lib
-ifdef MINGW64
-LDFLAGS2 += -L.
-endif
-ifndef M32
-	EXTRALIBS += htmlhelp.lib
-endif
 
 # pull in dependency info for existing object files
 ifndef NODEPS
@@ -853,40 +736,18 @@ demo_plugin.dll: $(M)plugin/demo_plugin.c
 # convert gnuplot.doc to windows/wgnuplot.html
 $(HELPFILE): doc2html.exe $(D)gnuplot.doc $(D)windows/wgnuplot.hhp $(D)windows/wgnuplot.hhk \
                   $(D)windows/wgnuplot.stp $(D)plotstyles.gnu $(D)morefigures.gnu \
-                  $(CORETERM) $(TARGET)
+                  $(CORETERM) $(GNUPLOTEXE)
 	-mkdir chm
 	-$(CP) -r $(D)windows/wgnuplot.* chm/
 	./doc2html $(D)gnuplot.doc chm/
-	-./$(TARGET) -d -e "winhelp=1; cd '$(D)'" plotstyles.gnu
-	-./$(TARGET) -d -e "winhelp=1; cd '$(D)'" morefigures.gnu
+	$(GNUPLOTEXE) -d -e "winhelp=1; cd '$(D)'" plotstyles.gnu
+	$(GNUPLOTEXE) -d -e "winhelp=1; cd '$(D)'" morefigures.gnu
 	-$(MV) $(D)windows/figure_*.png chm/
 	-$(CP) $(D)html/*.png chm/
 	-$(HHC) chm/wgnuplot.hhp
 	-$(CP) chm/wgnuplot.chm wgnuplot.chm
 
-htmlhelp.def: /c/Windows/System32/hhctrl.ocx
-ifndef MINGW64
-ifndef CLANG64
-	pexports $^ > $@
-else
-	gendef - $^ > $@
-endif
-else
-	gendef - $^ > $@
-endif
-
-prntvpt.def: /c/Windows/System32/prntvpt.dll
-ifndef MINGW64
-ifndef CLANG64
-	pexports $^ > $@
-else
-	gendef - $^ > $@
-endif
-else
-	gendef - $^ > $@
-endif
-
-# Working directory for patched Japanese sources 
+# Working directory for patched Japanese sources
 JA = ja/
 JAD = $(JA)docs/
 JADW = $(JAD)windows/
@@ -910,47 +771,47 @@ wgnuplot-ja.chm: $(JASRC) doc2html-ja.exe \
                   $(D)windows/wgnuplot.hhp $(D)windows/wgnuplot.hhk \
                   $(D)windows/wgnuplot.stp $(D)plotstyles.gnu \
                   $(D)morefigures.gnu \
-                  $(TARGET)
+                  $(GNUPLOTEXE)
 	# FIXME: some files always end up read-only...
 	chmod +w $(JADW)*
 	# Create Japanese html source in EUC-JP encoding
 	./doc2html-ja $(JAD)gnuplot-ja.doc $(JADW)
-	# Change character encoding from EUC-JP to UTF-8
-	-iconv -c -s -f EUC-JP -t UTF-8 $(JADW)wgnuplot.html > $(JADW)wgnuplot-ja.html
-	-iconv -c -s -f EUC-JP -t UTF-8 $(JADW)wgnuplot.hhc > $(JADW)wgnuplot-ja.hhc
+	# Change character encoding from EUC-JP to SHIFT-JIS
+	-iconv -c -s -f EUC-JP -t SHIFT-JIS $(JADW)wgnuplot.html > $(JADW)wgnuplot-ja.html
+	-iconv -c -s -f EUC-JP -t SHIFT-JIS $(JADW)wgnuplot.hhc > $(JADW)wgnuplot-ja.hhc
 	$(MV) $(JADW)wgnuplot-ja.html $(JADW)wgnuplot.html
 	$(MV) $(JADW)wgnuplot-ja.hhc $(JADW)wgnuplot.hhc
 	# Adjust Encoding and Language information
 	sed -i -e "s/Language=0x409 Englisch (USA)/Language=0x411 Japanisch (Japan)/" $(JADW)/wgnuplot.hhp
 	sed -i -e "s/Compiled file=wgnuplot.chm/Compiled file=wgnuplot-ja.chm/" $(JADW)/wgnuplot.hhp
 	# Build help file
-	-./$(TARGET) -d -e "winhelp=1; cd '$(JAD)'" plotstyles.gnu
-	-./$(TARGET) -d -e "winhelp=1; cd '$(JAD)'" morefigures.gnu
+	$(GNUPLOTEXE) -d -e "winhelp=1; cd '$(JAD)'" plotstyles.gnu
+	$(GNUPLOTEXE) -d -e "winhelp=1; cd '$(JAD)'" morefigures.gnu
 	-$(CP) $(D)html/*.png $(JADW)
 	-$(HHC) $(JADW)wgnuplot.hhp
 	-$(CP) $(JADW)wgnuplot-ja.chm $(HELPFILEJA)
 
 doc2html.exe: $(CORETERM) $(D)windows/doc2html.c $(D)termdoc.c $(D)xref.c version.o $(LUA_HELP)
-	$(LD) $(LDFLAGS) -o $@ -DWINDOWS_NO_GUI \
+	$(LD) $(LDFLAGSX) -o $@ -DWINDOWS_NO_GUI \
 	    -DVERSION_MAJOR='"$(MAINVERSION)"' -DPATCHLEVEL='"$(PATCHLEVEL)"' \
 	    $(CFLAGS_DOCS) -I. -I$(D:/=) -I$(T:/=) \
 	    $(CHMEXTRA) \
 	    $(D)windows/doc2html.c $(D)termdoc.c $(D)xref.c
 
 doc2html-ja.exe: $(JASRC) $(D)windows/doc2html.c $(D)termdoc.c $(D)xref.c version.o $(LUA_HELP)
-	$(LD) $(LDFLAGS) -o $@ -DWINDOWS_NO_GUI \
+	$(LD) $(LDFLAGSX) -Wno-invalid-source-encoding -o $@ -DWINDOWS_NO_GUI \
 	    -DVERSION_MAJOR='"$(MAINVERSION)"' -DPATCHLEVEL='"$(PATCHLEVEL)"' \
 	    -DJAPANESE_DOC $(CFLAGS_DOCS) -I. -I$(JAD) -I$(JA)/term \
 	    $(CHMEXTRA) \
 	    $(D)windows/doc2html.c $(D)termdoc.c $(D)xref.c
 
 doc2ms.exe: $(D)doc2ms.c $(D)termdoc.c $(D)xref.c version.o $(LUA_HELP)
-	$(LD) $(LDFLAGS) -o $@ -DWINDOWS_NO_GUI $(CFLAGS) -I. -I$(D:/=) -I$(T:/=) $(D)doc2ms.c $(D)termdoc.c $(D)xref.c version.o
+	$(LD) $(LDFLAGSX) -o $@ -DWINDOWS_NO_GUI $(CFLAGS) -I. -I$(D:/=) -I$(T:/=) $(D)doc2ms.c $(D)termdoc.c $(D)xref.c version.o
 
 #make binary demo files
 # WINDOWS_NO_GUI makes sure that wtext.h does not redefine fread() etc.
-$(M)bf_test.exe: bf_test.c 
-	$(LD) $(LDFLAGS) $(CFLAGS) -DWINDOWS_NO_GUI -o $@ $^
+$(M)bf_test.exe: bf_test.c
+	$(LD) $(LDFLAGSX) -DHAVE_CONFIG_H -I. -DWINDOWS_NO_GUI -o $@ $^
 	(cd $(M) ; ./bf_test.exe )
 
 # Create config.h
@@ -994,12 +855,12 @@ allterm.h: $(CORETERM) $(LUA_HELP)
 	@rm -f allterm.c
 endif
 doc2tex.exe: $(D)doc2tex.c $(D)termdoc.c allterm.h allterm-ja.h $(CORETERM) $(LUA_HELP)
-	$(LD) $(LDFLAGS) -o $@ -DWINDOWS_NO_GUI -DALL_TERM_DOC $(CFLAGS) \
+	$(LD) $(LDFLAGSX) -o $@ -DWINDOWS_NO_GUI -DALL_TERM_DOC $(CFLAGS) \
 	  -I. -I$(D) -I$(T) $(D)doc2tex.c $(D)termdoc.c
 else
 # Old version: generate documentation with only currently used terminals:
 doc2tex.exe: $(D)doc2tex.c $(D)termdoc.c $(LUA_HELP)
-	$(LD) $(LDFLAGS) -o $@ -DWINDOWS_NO_GUI $(CFLAGS) -I. -I$(D) -I$(T) $^
+	$(LD) $(LDFLAGSX) -o $@ -DWINDOWS_NO_GUI $(CFLAGS) -I. -I$(D) -I$(T) $^
 endif
 
 allterm-ja.h: $(JASRC) $(LUA_HELP)
@@ -1013,7 +874,7 @@ allterm-ja.h: $(JASRC) $(LUA_HELP)
 	rm allterm-jp.h
 
 doc2tex-ja.exe: allterm-ja.h allterm.h $(D)doc2tex.c $(D)termdoc.c
-	$(LD) $(LDFLAGS) -o $@ -DWINDOWS_NO_GUI \
+	$(LD) $(LDFLAGSX) -o $@ -DWINDOWS_NO_GUI \
 	    -DALL_TERM_DOC \
 	    -DVERSION_MAJOR='"$(MAINVERSION)"' -DPATCHLEVEL='"$(PATCHLEVEL)"' \
 	    -DJAPANESE_DOC $(CFLAGS_DOCS) -I. -I$(JAD) -I$(JA)/term \
@@ -1022,14 +883,14 @@ doc2tex-ja.exe: allterm-ja.h allterm.h $(D)doc2tex.c $(D)termdoc.c
 gnuplot.tex: $(D)gnuplot.doc doc2tex.exe
 	./doc2tex $(D)gnuplot.doc gnuplot.tex
 
-gnuplot-figures.tex: $(D)gnuplot.doc doc2tex.exe $(TARGET)
-	GNUPLOT_LIB=$(M) ./$(TARGET) -d $(D)plotstyles.gnu
-	GNUPLOT_LIB=$(M) ./$(TARGET) -d $(D)morefigures.gnu
+gnuplot-figures.tex: $(D)gnuplot.doc doc2tex.exe $(GNUPLOTEXE)
+	GNUPLOT_LIB=$(M) $(GNUPLOTEXE) -d $(D)plotstyles.gnu
+	GNUPLOT_LIB=$(M) $(GNUPLOTEXE) -d $(D)morefigures.gnu
 	./doc2tex -figures $(D)gnuplot.doc gnuplot-figures.tex
 
-gnuplot-figures-ja.tex: $(D)gnuplot.doc doc2tex-ja.exe $(TARGET)
-	GNUPLOT_LIB=$(M) ./$(TARGET) -d $(D)plotstyles.gnu
-	GNUPLOT_LIB=$(M) ./$(TARGET) -d $(D)morefigures.gnu
+gnuplot-figures-ja.tex: $(D)gnuplot.doc doc2tex-ja.exe $(GNUPLOTEXE)
+	GNUPLOT_LIB=$(M) $(GNUPLOTEXE) -d $(D)plotstyles.gnu
+	GNUPLOT_LIB=$(M) $(GNUPLOTEXE) -d $(D)morefigures.gnu
 	iconv -f EUC-JP -t UTF-8 $(D)gnuplot-ja.doc > ja.doc
 	./doc2tex-ja -figures ja.doc | sed 's/titlepag.tex/title-ja.tex/' > gnuplot-figures-ja.tex
 	rm ja.doc
@@ -1091,8 +952,8 @@ gropdf: $(D)titlepag.ms gnuplot.ms
 	sed "s,titlepag\.ms,$(D)titlepag\.ms," gnuplot.ms | \
 	groff -s -p -t -e -ms -k -K utf-8 -Tpdf > gnuplot.pdf
 
-ps_symbols.pdf: $(D)psdoc/ps_symbols.gpi
-	GNUPLOT_LIB=$(D)psdoc GNUPLOT_PS_DIR=$(T)PostScript ./$(TARGET) -d ps_symbols.gpi
+ps_symbols.pdf: $(D)psdoc/ps_symbols.gpi $(GNUPLOTEXE)
+	GNUPLOT_LIB=$(D)psdoc GNUPLOT_PS_DIR=$(T)PostScript $(GNUPLOTEXE) -d ps_symbols.gpi
 	ps2pdf ps_symbols.ps
 
 ps_fontfile_doc.ps: $(D)psdoc/ps_fontfile_doc.tex
@@ -1124,7 +985,6 @@ clean:
 	-$(RM) config.h wgnuplot.map wgnuplot.res
 	-$(RM) *.o *.po *.co *.d *.cd *.pd *.map
 	-$(RM) moc_*.cpp ui_*.h qrc_*.cpp
-	-$(RM) prntvpt.lib prntvpt.def
 	-$(RM) doc2*.exe $(W)/wgnuplib.res wgnuplib.map wgnuplot.lib
 	-$(RM) $(M)bf_test.exe demo_plugin.dll allterm.h allterm.c
 	-$(RM) *.aux *.log *.dvi *.toc
@@ -1230,7 +1090,7 @@ endif
 # docs
 	mkdir -p $(DESTDIR)/docs
 	-cp -p gnuplot.pdf $(DESTDIR)/docs/
-	cp -p FAQ.pdf $(DESTDIR)/docs/FAQ.pdf
+	-cp -p FAQ.pdf $(DESTDIR)/docs/FAQ.pdf
 	mkdir -p $(DESTDIR)/docs/psdoc
 	cp -p $(D)psdoc/ps_file.doc $(DESTDIR)/docs/psdoc/ps_file_doc.txt
 	cp -p $(D)psdoc/ps_guide.ps $(DESTDIR)/docs/psdoc/
@@ -1244,28 +1104,6 @@ ifdef EXTRADIST
 endif
 # required DLLs
 ifdef DLLS
-ifdef MINGW64
-ifndef M32
-ifdef QT
-	ldd gnuplot.exe gnuplot_qt.exe | cut -d " " -f 3 | grep "^/mingw64/bin" | sort | uniq | xargs -t -i cp {} $(DESTDIR)/bin
-else
-	ldd gnuplot.exe | cut -d " " -f 3 | grep "^/mingw64/bin" | sort | uniq | xargs -t -i cp {} $(DESTDIR)/bin
-endif # QT
-else # !M32
-ifdef QT
-	ldd gnuplot.exe gnuplot_qt.exe | cut -d " " -f 3 | grep "^/mingw32/bin" | sort | uniq | xargs -t -i cp {} $(DESTDIR)/bin
-else
-	ldd gnuplot.exe | cut -d " " -f 3 | grep "^/mingw32/bin" | sort | uniq | xargs -t -i cp {} $(DESTDIR)/bin
-endif # QT
-endif # M32
-endif # MINGW64
-ifdef CLANG64
-ifdef QT
-	ldd gnuplot.exe gnuplot_qt.exe | cut -d " " -f 3 | grep "^/clang64/bin" | sort | uniq | xargs -t -i cp {} $(DESTDIR)/bin
-else
-	ldd gnuplot.exe | cut -d " " -f 3 | grep "^/clang64/bin" | sort | uniq | xargs -t -i cp {} $(DESTDIR)/bin
-endif # QT
-endif
 ifdef QT
 	-mkdir $(DESTDIR)/bin/platforms
 ifdef QT6
@@ -1275,8 +1113,8 @@ else
 	cp $(QT_DIR)/share/qt5/plugins/platforms/qminimal.dll $(DESTDIR)/bin/platforms
 	cp $(QT_DIR)/share/qt5/plugins/platforms/qwindows.dll $(DESTDIR)/bin/platforms
 endif
-endif
-
+	rexx copydlls.rex $(DESTDIR)\\bin
+endif # QT
 endif # DLLS
 
 installer:
@@ -1292,62 +1130,32 @@ installer:
 	    -e "s/@VERLONG@/$(LONGVERSION)/" \
 	    -e "s/\.alpha/\.0/" \
 	    $(TOP)/win/gnuplot.iss > ./dist/gnuplot.iss
-ifndef M32
 	sed -i \
-	    -e "s/@INSTALLER@/gp$(SHORTVERSION)-win64-setup/" \
-	    -e 's/^\(ArchitecturesAllowed\)=/\1=x64compatible/g' \
+	    -e "s/@INSTALLER@/gp$(SHORTVERSION)-woa-setup/" \
+	    -e 's/^\(ArchitecturesAllowed\)=/\1=arm64/g' \
 	    -e 's/^\(ArchitecturesInstallIn64BitMode\)=/\1=x64compatible/g' \
 	    ./dist/gnuplot.iss
-else
-	sed -i \
-	    -e "s/@INSTALLER@/gp$(SHORTVERSION)-win32-setup/" \
-	    ./dist/gnuplot.iss
-endif
 	(cd ./dist; $(ISCC) gnuplot.iss)
-ifndef M32
 ifdef RELEASE
-	mv ./dist/gp*-setup.exe gp$(SHORTVERSION)-win64-mingw.exe
+	mv ./dist/gp*-setup.exe gp$(SHORTVERSION)-woa.exe
 else
-	mv ./dist/gp*-setup.exe gp$(SHORTVERSION)-`date +%Y%m%d`-win64-mingw.exe
-endif
-else
-ifdef RELEASE
-	mv ./dist/gp*-setup.exe gp$(SHORTVERSION)-win32-mingw.exe
-else
-	mv ./dist/gp*-setup.exe gp$(SHORTVERSION)-`date +%Y%m%d`-win32-mingw.exe
-endif
+	mv ./dist/gp*-setup.exe gp$(SHORTVERSION)-`date +%Y%m%d`-woa.exe
 endif
 
 zip:
 	$(MAKE) DESTDIR=./gnuplot install
-ifndef M32
 ifdef RELEASE
-	zip -mro9 gp$(SHORTVERSION)-win64-mingw.zip gnuplot
+	zip -mro9 gp$(SHORTVERSION)-woa.zip gnuplot
 else
-	zip -mro9 gp$(SHORTVERSION)-`date +%Y%m%d`-win64-mingw.zip gnuplot
-endif
-else
-ifdef RELEASE
-	zip -mro9 gp$(SHORTVERSION)-win32-mingw.zip gnuplot
-else
-	zip -mro9 gp$(SHORTVERSION)-`date +%Y%m%d`-win32-mingw.zip gnuplot
-endif
+	zip -mro9 gp$(SHORTVERSION)-`date +%Y%m%d`-woa.zip gnuplot
 endif
 
 7z:
 	$(MAKE) DESTDIR=./gnuplot install
-ifndef M32
 ifdef RELEASE
-	7z u -mx9 gp$(SHORTVERSION)-win64-mingw.7z gnuplot
+	7z u -mx9 gp$(SHORTVERSION)-woa.7z gnuplot
 else
-	7z u -mx9 gp$(SHORTVERSION)-`date +%Y%m%d`-win64-mingw.7z gnuplot
-endif
-else
-ifdef RELEASE
-	7z u -mx9 gp$(SHORTVERSION)-win32-mingw.7z gnuplot
-else
-	7z u -mx9 gp$(SHORTVERSION)-`date +%Y%m%d`-win32-mingw.7z gnuplot
-endif
+	7z u -mx9 gp$(SHORTVERSION)-`date +%Y%m%d`-woa.7z gnuplot
 endif
 
 # rebuild makefile.all

@@ -70,20 +70,17 @@ OutputBaseFilename={#MyInstallerName}
 SetupIconFile=bin\grpicon.ico
 Compression=lzma2/Max
 SolidCompression=true
-; Minimum Version is Windows 7 SP1
-MinVersion=0,6.1.7601
+; Minimum Version is Windows 10
+MinVersion=0,10.0.10240
 Uninstallable=true
 ChangesEnvironment=true
 PrivilegesRequired=admin
 PrivilegesRequiredOverridesAllowed=commandline
 UseSetupLdr=true
-WindowStartMaximized=true
 VersionInfoVersion={#MyAppNumVersion}
 VersionInfoCompany={#MyAppPublisher}
 VersionInfoDescription=Famous scientific plotting package.
 VersionInfoProductName=gnuplot
-WindowResizable=false
-WindowVisible=false
 OutputDir=.
 UninstallLogMode=append
 AlwaysShowDirOnReadyPage=true
@@ -163,7 +160,7 @@ Name: "{group}\{cm:ProgramOnTheWeb,{#MyAppName}}"; Filename: "{#MyAppURL}"
 Name: "{group}\{cm:UninstallProgram,{#MyAppName}}"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\{#MyAppName} {#MyAppVersionShort}"; Filename: "{app}\bin\{#MyAppExeName}"; WorkingDir: "{#MyDocuments}"; Components: core; Tasks: desktopicon
 Name: "{autoappdata}\Microsoft\Internet Explorer\Quick Launch\{#MyAppName} {#MyAppVersionShort}"; Filename: "{app}\bin\{#MyAppExeName}"; WorkingDir: "{#MyDocuments}"; Components: core; Tasks: quicklaunchicon
-Name: "{group}\{#MyAppName} Demo Directory"; Filename: "{app}\demo"; Flags: FolderShortcut; Components: demo
+; Name: "{group}\{#MyAppName} Demo Directory"; Filename: "{app}\demo"; Flags: FolderShortcut; Components: demo
 
 [Components]
 Name: "core"; Description: "{cm:core}"; Types: full compact custom; Flags: fixed

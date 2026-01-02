@@ -26,6 +26,7 @@ Release packaging
 - also in RELEASE_NOTES
 - modify gnuplot.doc to point to latest release notes
 - confirm that RELEASE=1 in config/mingw/Makefile
+- use latest version of autotools so the the generated configure script is up to date
 - ./prepare
 - ./configure       (needed for next step, but specific configuration is not relevant)
 
