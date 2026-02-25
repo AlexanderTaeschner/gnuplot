@@ -68,6 +68,9 @@
 #include "multiplot.h"
 #include "util.h"
 #include "save.h"	/* used by save_set_to_datablock() */
+#ifdef _MSC_VER
+# include <windows.h>
+#endif
 
 #ifdef USE_FUNCTIONBLOCKS
 /* Set by "return" command and pushed onto the evaluation stack by f_eval */
@@ -425,10 +428,9 @@ save_set_to_datablock(char *datablock_name)
     if (!fp) {
 	char tempname[PATH_MAX];
 	/* We really want the "ANSI" version */
-	GetTempPathA(sizeof(tempname), buf);
-	strcat(buf, "gnuplot-save.tmp");
+	GetTempPathA(sizeof(tempname), tempname);
+	strcat(tempname, "gnuplot-save.tmp");
 	fp = fopen(tempname, "wt+, ccs=UTF-8");
-	fp = fopen(buf, "w+");
     }
 #endif
 
