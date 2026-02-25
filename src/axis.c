@@ -41,6 +41,7 @@
 #include "term_api.h"
 #include "gplocale.h"
 #include "mouse.h"	/* for inside_zoom() */
+#include "multiplot.h"	/* for multiplot_playback */
 
 /* HBB 20000725: gather all per-axis variables into a struct, and set
  * up a single large array of such structs. Next step might be to use
@@ -72,18 +73,6 @@ const AXIS_DEFAULTS axis_defaults[AXIS_ARRAY_SIZE] = {
 };
 
 const AXIS default_axis_state = DEFAULT_AXIS_STRUCT;
-
-/* These are loaded by update_active_region(),
- * consumed by mouse.c:MousePosToGraphPosReal,
- * and potentially saved for multiplot and off-line mousing.
- */
-axis_mapping x_mapping = {};
-axis_mapping x2_mapping = {};
-axis_mapping y_mapping = {};
-axis_mapping y2_mapping = {};
-axis_mapping r_mapping = {};
-axis_mapping theta_mapping = {};
-
 
 /* Parallel axis structures are held in an array that is dynamically
  * allocated on demand.
@@ -969,6 +958,8 @@ setup_tics(struct axis *this, int max)
     /* It is disconcerting when the response to pan or zoom is asymmetric */
     if (inside_zoom())
 	autoextend_min = autoextend_max = FALSE;
+    if (multiplot_playback)
+	autoextend_min = autoextend_max = FALSE;
 
     /* If an explicit stepsize was set, axis->timelevel wasn't defined,
      * leading to strange misbehaviours of minor tics on time axes.
@@ -1032,8 +1023,7 @@ gen_tics(struct axis *this, tic_callback callback)
     if (! this->gridminor)
 	mgrd.l_type = LT_NODRAW;
 
-    /* EAM FIXME - This really shouldn't happen, but it triggers for instance */
-    /* if x2tics or y2tics are autoscaled but there is no corresponding data. */
+    /* This triggers if x2tics or y2tics are autoscaled but there is no corresponding data. */
     if (this->min >= VERYLARGE || this->max <= -VERYLARGE)
 	return;
 
@@ -1162,6 +1152,7 @@ gen_tics(struct axis *this, tic_callback callback)
 		if (def->def.series.end <= 0 || def->def.series.incr <= 0)
 		    return;	/* just quietly ignore */
 		step = def->def.series.incr;
+
 		if (def->def.series.start <= 0)	/* includes case 'undefined, i.e. -VERYLARGE */
 		    start = step * floor(lmin / step);
 		else
@@ -1185,6 +1176,7 @@ gen_tics(struct axis *this, tic_callback callback)
 		    end   = eval_link_function(primary, end);
 		    lmin = primary->min;
 		    lmax = primary->max;
+		    reorder_if_necessary(lmin, lmax);
 		}
 	    } else {
 		start = def->def.series.start;
@@ -1423,7 +1415,7 @@ gen_tics(struct axis *this, tic_callback callback)
 			    internal = polar_radius(user);
 			    gprintf(label, sizeof(label), this->ticfmt, log10_base, tic);
 			} else if (this->index >= PARALLEL_AXES) {
-			    /* FIXME: needed because ticfmt is not maintained for parallel axes */
+			    /* needed because ticfmt is not maintained for parallel axes */
 			    gprintf(label, sizeof(label), this->formatstring,
 				    log10_base, user);
 			} else {
@@ -1514,7 +1506,6 @@ gen_tics(struct axis *this, tic_callback callback)
 			mtic_user = mplace;
 			mtic_internal = mtic_user;	/* It isn't really but this makes the range checks work */
 		    } else if (nonlinear(this) && this->log) {
-			/* FIXME - not sure this is correct. Fall through instead? */
 			mtic_user = internal + mplace;
 			mtic_internal = eval_link_function(this->linked_to_primary, mtic_user);
 		    } else {
@@ -1875,10 +1866,12 @@ void
 set_explicit_range(struct axis *this_axis, double newmin, double newmax)
 {
     this_axis->set_min = newmin;
+    this_axis->min = newmin;
     this_axis->set_autoscale &= ~AUTOSCALE_MIN;
     this_axis->min_constraint = CONSTRAINT_NONE;
 
     this_axis->set_max = newmax;
+    this_axis->max = newmax;
     this_axis->set_autoscale &= ~AUTOSCALE_MAX;
     this_axis->max_constraint = CONSTRAINT_NONE;
 
@@ -2119,14 +2112,18 @@ sanity_check_log_tics( int axis_index )
     }
 }
 
-/* this callback increments axis_tic_count for each tic placed */
+/* This callback increments axis_tic_count for each tic placed.
+ * It is called only for logscale axes, and only for the primary (linear)
+ * member of the axis pair.
+ */
 void
 tic_count_callback(struct axis *this_axis, double place, char *text,
     int ticlevel, struct lp_style_type grid, struct ticmark *userlabels)
 {
+    double eps = SIGNIF;
     if (ticlevel != 0)
 	return;
-    if (inrange(place, this_axis->min, this_axis->max))
+    if (inrange(place, this_axis->min - eps, this_axis->max + eps))
 	axis_tic_count++;
 }
 

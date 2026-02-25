@@ -86,6 +86,7 @@ QTextCodec* qt_encodingToCodec(set_encoding_id encoding)
 	case S_ENC_KOI8_R     : return QTextCodec::codecForMib(2084);
 	case S_ENC_KOI8_U     : return QTextCodec::codecForMib(2088);
 	case S_ENC_SJIS       : return QTextCodec::codecForMib(  17);
+	case S_ENC_EUCJP      : return QTextCodec::codecForMib(  18);
 	case S_ENC_UTF8       : return QTextCodec::codecForMib( 106);
 	default               : return QTextCodec::codecForLocale();
 	}

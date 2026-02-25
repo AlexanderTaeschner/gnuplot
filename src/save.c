@@ -62,7 +62,6 @@ static void save_key(FILE *);
 static void save_tics(FILE *, struct axis *);
 static void save_mtics(FILE *, struct axis *);
 static void save_zeroaxis(FILE *,AXIS_INDEX);
-static void save_set_all(FILE *);
 static void save_justification(int just, FILE *fp);
 static void save_pointstyle(FILE *fp, lp_style_type *lp);
 static void save_contours(FILE *fp);
@@ -117,7 +116,7 @@ save_all(FILE *fp)
 	if (last_plot_was_multiplot) {
 	    char **line;
 	    fprintf(fp, "## Last plot was a multiplot\n");
-	    line = get_datablock("$GPVAL_LAST_MULTIPLOT");
+	    line = get_datablock("$GPVAL_LAST_MULTIPLOT")->data;
 	    while (line && *line) {
 		fprintf(fp, "%s\n", *line);
 		line++;
@@ -137,7 +136,7 @@ save_datablocks(FILE *fp)
     while (udv) {
 	if ((udv->udv_value.type == DATABLOCK)
 	&&  (strncmp(udv->udv_name, "$GPVAL", 6) != 0)) {
-	    char **line = udv->udv_value.v.data_array;
+	    char **line = udv->udv_value.v.blockdata->data;
 	    fprintf(fp, "%s << EOD\n", udv->udv_name);
 	    while (line && *line) {
 		fprintf(fp, "%s\n", *line);
@@ -207,6 +206,10 @@ save_colormaps(FILE *fp)
 	if (udv->udv_value.type != NOTDEFINED) {
 	    if (udv->udv_value.type == ARRAY
 	    &&  udv->udv_value.v.value_array[0].type == COLORMAP_ARRAY) {
+		if (!strcmp(udv->udv_name, "viridis") || !strcmp(udv->udv_name, "magma")) {
+		    /* No need to save the built-in colormaps */
+		    ;
+		} else {
 		    double cm_min, cm_max;
 		    fprintf(fp,"array %s[%d] colormap = ", udv->udv_name,
 			(int)(udv->udv_value.v.value_array[0].v.array_header.size));
@@ -216,6 +219,7 @@ save_colormaps(FILE *fp)
 		    if (cm_min != cm_max)
 			fprintf(fp,"set colormap %s range [%g:%g]\n",
 				udv->udv_name, cm_min, cm_max);
+		}
 	    }
 	}
 	udv = udv->next_udv;
@@ -271,8 +275,8 @@ void
 save_axis_label_or_title(FILE *fp, char *name, char *suffix,
 			struct text_label *label, TBOOLEAN savejust)
 {
-    fprintf(fp, "set %s%s \"%s\" ",
-	    name, suffix, label->text ? conv_text(label->text) : "");
+    if (label->text)
+	fprintf(fp, "set %s%s \"%s\" ", name, suffix, conv_text(label->text));
     fprintf(fp, "\nset %s%s ", name, suffix);
     save_position(fp, &(label->offset), 3, TRUE);
     fprintf(fp, " font \"%s\"", label->font ? conv_text(label->font) : "");
@@ -293,6 +297,8 @@ save_axis_label_or_title(FILE *fp, char *name, char *suffix,
 	    fprintf(fp,"bs %d ",label->boxed);
     }
     fprintf(fp, "%s\n", (label->noenhanced) ? " noenhanced" : "");
+    if (!label->text)
+	fprintf(fp, "unset %s%s\n", name, suffix);
 }
 
 static void
@@ -311,7 +317,7 @@ save_justification(int just, FILE *fp)
     }
 }
 
-static void
+void
 save_set_all(FILE *fp)
 {
     struct text_label *this_label;
@@ -1445,6 +1451,23 @@ void
 save_prange(FILE *fp, struct axis *this_axis)
 {
     TBOOLEAN noextend = FALSE;
+
+    /* If the axis state matches visible state at program entry,
+     * call it a "reset".  There is no way to save the hidden state.
+     * Jan 2026: This is a change.
+     */
+    if (this_axis->index < PARALLEL_AXES) {
+	int i = this_axis->index;
+	if (this_axis->set_min == axis_defaults[i].min
+	&&  this_axis->set_max == axis_defaults[i].max
+	&&  this_axis->set_autoscale == AUTOSCALE_BOTH
+	&&  this_axis->min_constraint == CONSTRAINT_NONE
+	&&  this_axis->max_constraint == CONSTRAINT_NONE
+	&&  this_axis->range_flags == 0) {
+	    fprintf(fp, "unset %srange\n", axis_name(this_axis->index));
+	    return;
+	}
+    }
 
     fprintf(fp, "set %srange [ ", axis_name(this_axis->index));
     if (this_axis->set_autoscale & AUTOSCALE_MIN) {

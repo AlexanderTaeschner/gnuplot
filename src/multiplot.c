@@ -50,13 +50,20 @@
 #include "util.h"
 
 /* Support for multiplot playback */
+#ifdef USE_MOUSE
+#include "mouse.h"
+#endif
 TBOOLEAN multiplot_playback = FALSE;	  /* TRUE while inside "remultiplot" playback */
 TBOOLEAN suppress_multiplot_save = FALSE; /* TRUE inside a for/while loop */
 static t_value multiplot_udv = {
 	.type = DATABLOCK,
-	.v.data_array = NULL
+	.v.blockdata = NULL
 };
-int multiplot_last_panel = 0;
+int multiplot_last_panel = 0;		/* only this panel will support pan/zoom */
+int multiplot_highest_panel = 0;	/* the highest panel number actually used */
+int multiplot_event_panel = -1;		/* most recent event attributed to this */
+int queued_zoom_panel = -1;		/* pan or zoom requested for this panel */
+TBOOLEAN in_multiplot_zoom = FALSE;
 
 /* Local prototypes */
 static void mp_layout_size_and_offset(void);
@@ -136,7 +143,28 @@ static struct {
     double title_height;   /* fractional height reserved for title */
 } mp_layout = MP_LAYOUT_DEFAULT;
 
-BoundingBox panel_bounds;/* terminal coords of next panel to be drawn */
+
+/*		Support for multiplot mousing
+ *		-----------------------------
+ * Axis mappings are saved at the end of a plot by save_all_axis_mappings(),
+ * reloaded by multiplot_reset() for use in multiplot mousing,
+ * and consumed by mouse.c:MousePosToGraphPosReal.
+ */
+BoundingBox panel_bounds[MAX_PANELS];	/* terminal coords of each panel */
+unsigned int panel_flags[MAX_PANELS];	/* bit settings, e.g. PANEL_3D */
+view panel_view[MAX_PANELS];		/* view angles for 3D panel */
+#ifdef USE_MOUSE
+static void reset_axis_flags(void);
+static void restore_axis_mapping(AXIS *axis, axis_mapping *map);
+
+axis_mapping x_mapping[MAX_PANELS] = {};
+axis_mapping x2_mapping[MAX_PANELS] = {};
+axis_mapping y_mapping[MAX_PANELS] = {};
+axis_mapping y2_mapping[MAX_PANELS] = {};
+axis_mapping r_mapping[MAX_PANELS] = {};
+axis_mapping theta_mapping[MAX_PANELS] = {};
+#endif
+
 
 /* Helper routines */
 void
@@ -152,6 +180,7 @@ multiplot_next()
 		if (mp_layout.act_col == mp_layout.num_cols) {
 		    /* int_warn(NO_CARET,"will overplot first plot"); */
 		    mp_layout.act_col = 0;
+		    mp_layout.current_panel = 0;	/* wrap around */
 		}
 	    }
 	} else { /* column-major */
@@ -162,9 +191,13 @@ multiplot_next()
 		if (mp_layout.act_row == mp_layout.num_rows ) {
 		    /* int_warn(NO_CARET,"will overplot first plot"); */
 		    mp_layout.act_row = 0;
+		    mp_layout.current_panel = 0;	/* wrap around */
 		}
 	    }
 	}
+	/* FIXME: If (multiplot_playback && (mp_layout.current_panel == 0))
+	 *	    reset is not necessary and might even be detrimental
+	 */
 	multiplot_reset();
     }
 }
@@ -182,6 +215,7 @@ multiplot_previous(void)
 		if (mp_layout.act_col < 0) {
 		    /* int_warn(NO_CARET,"will overplot first plot"); */
 		    mp_layout.act_col = mp_layout.num_cols-1;
+		    mp_layout.current_panel = (mp_layout.num_rows * mp_layout.num_cols)-1;
 		}
 	    }
 	} else { /* column-major */
@@ -192,17 +226,26 @@ multiplot_previous(void)
 		if (mp_layout.act_row < 0) {
 		    /* int_warn(NO_CARET,"will overplot first plot"); */
 		    mp_layout.act_row = mp_layout.num_rows-1;
+		    mp_layout.current_panel = (mp_layout.num_rows * mp_layout.num_cols)-1;
 		}
 	    }
 	}
 	multiplot_reset();
+    }
+    /* Should not be possible */
+    if (mp_layout.current_panel < 0) {
+	mp_layout.current_panel = 0;
+	int_error(c_token, "No previous multiplot panel");
     }
 }
 
 int
 multiplot_current_panel()
 {
-    return mp_layout.current_panel;
+    if (mp_layout.current_panel >= MAX_PANELS)
+	return MAX_PANELS - 1;
+    else
+	return mp_layout.current_panel;
 }
 
 void
@@ -242,6 +285,12 @@ multiplot_start()
     free(mp_layout.title.font);
     mp_layout.title.font = NULL;
     mp_layout.title.boxed = 0;
+
+    /* During playback we want to keep some of the original values */
+    if (!multiplot_playback) {
+	multiplot_last_panel = 0;
+	multiplot_highest_panel = 0;
+    }
 
     /* Parse options */
     while (!END_OF_COMMAND) {
@@ -421,8 +470,18 @@ multiplot_start()
 	    }
     }
 
-    /* If we reach here, then the command has been successfully parsed.
-     * Call term_start_plot() before setting multiplot so that
+    /* If we reach here, then the command has been successfully parsed. */
+
+    /* Save current graphics state to a datablock so that it can later
+     * be restored before re-executing the multiplot.  This is useful
+     * in conjunction with "remultiplot" from the command line and to
+     * precede the implicit "replot" performed by pan/zoom multiplot
+     * mousing operations.
+     */
+    if (!multiplot_playback)
+	save_set_to_datablock("$GPVAL_PRE_MULTIPLOT");
+
+    /* Call term_start_plot() before setting multiplot so that
      * the wxt and qt terminals will reset the plot count to 0 before
      * ignoring subsequent TERM_LAYER_RESET requests. 
      */
@@ -462,7 +521,23 @@ multiplot_start()
 	mp_layout.title_height = 0.0;
     }
 
+    /* clear all panel flags */
+    if (!multiplot_playback)
+	for (int panel = 0; panel < MAX_PANELS; panel++)
+	    panel_flags[panel] = 0;
+    /* set bounds for first panel */
     multiplot_reset();
+
+#ifdef USE_MOUSE
+    /* Normally this check happens when one multiplot panel
+     * finishes and the next one is about to begin.
+     * But if this is the first panel, that conditional will not trigger.
+     */
+    if (multiplot_playback)
+	check_for_queued_action();
+    if (!multiplot_playback)
+	reset_axis_flags();
+#endif
 }
 
 void
@@ -509,18 +584,15 @@ multiplot_end()
 	append_to_datablock(&multiplot_udv, strdup("unset multiplot"));
 
 	datablock->udv_value = multiplot_udv;
-	multiplot_udv.v.data_array = NULL;
+	datablock->udv_value.v.blockdata = multiplot_udv.v.blockdata;
+	multiplot_udv.v.blockdata = NULL;
 
 	/* Save panel number of last-drawn plot */
-	multiplot_last_panel = mp_layout.current_panel;
+	multiplot_last_panel = mp_layout.current_panel - 1;
+	if (multiplot_last_panel < 0)
+	    multiplot_last_panel = multiplot_highest_panel;
     }
     last_plot_was_multiplot = TRUE;
-}
-
-/* Helper functions for multiplot auto layout to issue size and offset cmds */
-TBOOLEAN multiplot_auto()
-{
-    return mp_layout.auto_layout_margins;
 }
 
 void
@@ -528,22 +600,33 @@ multiplot_reset()
 {
     if (mp_layout.auto_layout_margins)
 	mp_layout_margins_and_spacing();
-    else
+    else if (mp_layout.auto_layout)
 	mp_layout_size_and_offset();
+    else
+	multiplot_use_size_and_origin();
+#if USE_MOUSE
+    if (multiplot_playback) {
+	int panel = multiplot_current_panel();
+	restore_panel_axis_mappings(panel);
+	restore_panel_view(panel);
+    }
+#endif
 }
 
 void
 multiplot_use_size_and_origin()
 {
-    panel_bounds.xleft = xoffset * term->xmax;
-    panel_bounds.xright = panel_bounds.xleft + xsize * term->xmax;
-    panel_bounds.ybot = yoffset * term->ymax;
-    panel_bounds.ytop = panel_bounds.ybot + ysize * term->ymax;
+    int p = multiplot_current_panel();
+    panel_bounds[p].xleft = xoffset * term->xmax;
+    panel_bounds[p].xright = panel_bounds[p].xleft + xsize * term->xmax;
+    panel_bounds[p].ybot = yoffset * term->ymax;
+    panel_bounds[p].ytop = panel_bounds[p].ybot + ysize * term->ymax;
 }
 
 static void
 mp_layout_size_and_offset(void)
 {
+    int p;
     if (!mp_layout.auto_layout)
 	return;
 
@@ -574,15 +657,14 @@ mp_layout_size_and_offset(void)
     /* At this point we know the boundary of the next multiplot panel to be drawn.
      * Save this somewhere for use by "clear"; maybe also for subsequent mousing.
      */
-    panel_bounds.xleft = xoffset * term->xmax;
-    panel_bounds.xright = (xoffset + xsize) * term->xmax;
-    panel_bounds.ybot = yoffset * term->ymax;
-    panel_bounds.ytop = (yoffset + ysize) * term->ymax;
-    FPRINTF((stderr, "next multiplot panel\t%d\t%d\t%d\t%d\n",
-	    panel_bounds.xleft, panel_bounds.xright, panel_bounds.ybot, panel_bounds.ytop));
+    p = multiplot_current_panel();
+    panel_bounds[p].xleft = xoffset * term->xmax;
+    panel_bounds[p].xright = (xoffset + xsize) * term->xmax;
+    panel_bounds[p].ybot = yoffset * term->ymax;
+    panel_bounds[p].ytop = (yoffset + ysize) * term->ymax;
 }
 
-/* Helper function for multiplot auto layout to set the explicit plot margins, 
+/* Helper function for multiplot auto layout to set the explicit plot margins,
    if requested with 'margins' and 'spacing' options. */
 static void
 mp_layout_margins_and_spacing(void)
@@ -590,6 +672,7 @@ mp_layout_margins_and_spacing(void)
     /* width and height of a single sub plot. */
     double tmp_width, tmp_height;
     double leftmargin, rightmargin, topmargin, bottommargin, xspacing, yspacing;
+    int p;
 
     if (!mp_layout.auto_layout_margins) return;
 
@@ -646,12 +729,11 @@ mp_layout_margins_and_spacing(void)
     /* At this point we know the boundary of the next multiplot panel to be drawn.
      * Save this somewhere for use by "clear"; maybe also for subsequent mousing.
      */
-    panel_bounds.xleft = mp_layout.act_col * term->xmax / mp_layout.num_cols;
-    panel_bounds.xright = panel_bounds.xleft + term->xmax / mp_layout.num_cols;
-    panel_bounds.ytop = term->ymax - mp_layout.act_row * term->ymax / mp_layout.num_rows;
-    panel_bounds.ybot = panel_bounds.ytop - term->ymax / mp_layout.num_rows;
-    FPRINTF((stderr, "next multiplot panel:\t%d\t%d\t%d\t%d\n",
-	    panel_bounds.xleft, panel_bounds.xright, panel_bounds.ybot, panel_bounds.ytop));
+    p = multiplot_current_panel();
+    panel_bounds[p].xleft = mp_layout.act_col * term->xmax / mp_layout.num_cols;
+    panel_bounds[p].xright = panel_bounds[p].xleft + term->xmax / mp_layout.num_cols;
+    panel_bounds[p].ytop = term->ymax - mp_layout.act_row * term->ymax / mp_layout.num_rows;
+    panel_bounds[p].ybot = panel_bounds[p].ytop - term->ymax / mp_layout.num_rows;
 }
 
 static void
@@ -691,6 +773,7 @@ init_multiplot_datablock()
 {
     gpfree_datablock(&multiplot_udv);
     multiplot_udv.type = DATABLOCK;
+    multiplot_udv.v.blockdata = new_data_array();
     append_to_datablock(&multiplot_udv, strdup("# saved multiplot"));
 }
 
@@ -734,4 +817,174 @@ multiplot_reset_after_error()
     multiplot_end();
     multiplot_playback = FALSE;
     suppress_multiplot_save = FALSE;
+    in_multiplot_zoom = FALSE;
 }
+
+#ifdef USE_MOUSE
+static void
+reset_axis_flags()
+{
+    for (int p = 0;  p < MAX_PANELS; p++) {
+	x_mapping[p].in_use = FALSE;
+	x2_mapping[p].in_use = FALSE;
+	y_mapping[p].in_use = FALSE;
+	y2_mapping[p].in_use = FALSE;
+	r_mapping[p].in_use = FALSE;
+	theta_mapping[p].in_use = FALSE;
+    }
+}
+
+void
+restore_panel_view(int p)
+{
+    if (p < 0)	/* should never happen */
+	return;
+
+    if (multiplot_playback) {
+	if ((p >= 0) && ((panel_flags[p] & PANEL_3D) != 0)) {
+	    surface_rot_x = panel_view[p].rot_x;
+	    surface_rot_z = panel_view[p].rot_z;
+	    surface_zscale = panel_view[p].zscale;
+	    surface_scale = panel_view[p].scale;
+	    xyplane.z = panel_view[p].xyplane_z;
+	}
+    }
+}
+
+static void
+save_axis_mapping(AXIS *axis, axis_mapping *map)
+{
+    map->in_use = TRUE;
+    map->min = axis->min;
+    map->max = axis->max;
+    map->term_lower = axis->term_lower;
+    map->term_upper = axis->term_upper;
+    map->log = axis->log;
+    if (axis->link_udf && axis->link_udf->at && !axis->log) {
+	map->nonlinear = TRUE;
+	FPRINTF((stderr, "flagging %s as nonlinear in panel %d\n",
+		axis_name(axis->index), multiplot_current_panel()));
+    } else
+	map->nonlinear = FALSE;
+    if ((axis->ticmode & TICS_MASK) == NO_TICS)
+	map->active = FALSE;
+    else
+	map->active = TRUE;
+}
+
+void
+save_all_axis_mappings()
+{
+    int p = multiplot_current_panel();
+    save_axis_mapping(&axis_array[FIRST_X_AXIS], &(x_mapping[p]));
+    save_axis_mapping(&axis_array[FIRST_Y_AXIS], &(y_mapping[p]));
+    save_axis_mapping(&axis_array[SECOND_X_AXIS], &(x2_mapping[p]));
+    save_axis_mapping(&axis_array[SECOND_Y_AXIS], &(y2_mapping[p]));
+    save_axis_mapping(&axis_array[POLAR_AXIS], &(r_mapping[p]));
+    r_mapping[p].active = polar;
+    theta_mapping[p].min = theta_origin;
+    theta_mapping[p].max = theta_direction;
+
+    /* y axis coordinate direction in "set view map" mode is inverted */
+    if (panel_flags[p] & PANEL_SPLOT) {
+	y_mapping[p].inverted = TRUE;
+	y2_mapping[p].inverted = TRUE;
+    } else {
+	y_mapping[p].inverted = FALSE;
+	y2_mapping[p].inverted = FALSE;
+    }
+}
+
+void
+save_panel_view()
+{
+    int p = multiplot_current_panel();
+    panel_view[p].rot_x = surface_rot_x;
+    panel_view[p].rot_z = surface_rot_z;
+    panel_view[p].zscale = surface_zscale;
+    panel_view[p].scale = surface_scale;
+    panel_view[p].xyplane_z = xyplane.z;
+}
+
+void
+set_panel_flag(unsigned int flag)
+{
+    int panel = multiplot_current_panel();
+    panel_flags[panel] |= flag;
+    if (multiplot_highest_panel < panel)
+	multiplot_highest_panel = panel;
+}
+
+static void
+restore_axis_mapping(AXIS *axis, axis_mapping *map)
+{
+    /* This axis is currently nonlinear. Clear it first. */
+    if (axis->link_udf && axis->link_udf->at && !axis->log) {
+	static char command[64];
+	sprintf(command, "unset nonlinear %s", axis_name(axis->index));
+	do_string(command);
+    }
+
+    /* Panel contains a non-linear axis; we cannot handle that */
+    if (map->nonlinear) {
+	FPRINTF((stderr, "warning: Cannot restore nonlinear mapping of %s axis in panel %d\n",
+		axis_name(axis->index), panel));
+    }
+
+    /* Load set_min/set_max so that zoomed min/max value persist across
+     * axis_init() when called from plot2d or plot3d during a multiplot replay.
+     */
+    axis->set_min = map->min;
+    axis->set_max = map->max;
+
+    axis->min = map->min;
+    axis->max = map->max;
+    axis->term_lower = map->term_lower;
+    axis->term_upper = map->term_upper;
+
+    /* axis is currently logscale. Leave or change this to match the mapping */
+    if (axis->log) {
+	if (!(map->log)) {
+	    static char command[64];
+	    sprintf(command, "unset log %s", axis_name(axis->index));
+	    do_string(command);
+	}
+	return;
+    }
+
+    if (map->log) {
+	static char command[64];
+	sprintf(command, "set log %s", axis_name(axis->index));
+	do_string(command);
+    } else {
+	axis->log = FALSE;
+	axis->linked_to_primary = NULL;
+    }
+}
+
+void
+restore_panel_axis_mappings(int p)
+{
+    if (p < 0)	/* should never happen */
+	return;
+
+    restore_axis_mapping(&axis_array[FIRST_X_AXIS], &(x_mapping[p]));
+    restore_axis_mapping(&axis_array[FIRST_Y_AXIS], &(y_mapping[p]));
+    restore_axis_mapping(&axis_array[SECOND_X_AXIS], &(x2_mapping[p]));
+    restore_axis_mapping(&axis_array[SECOND_Y_AXIS], &(y2_mapping[p]));
+    if ((panel_flags[p] & PANEL_POLAR)) {
+	restore_axis_mapping(&axis_array[POLAR_AXIS], &(r_mapping[p]));
+	theta_origin = theta_mapping[p].min;
+	theta_direction = theta_mapping[p].max;
+    }
+
+    if (panel_flags[p] & PANEL_SPLOT)
+	splot_map = TRUE;
+}
+
+#else /* USE_MOUSE */
+
+void set_panel_flag(unsigned int) {}
+void restore_panel_axis_mappings() {}
+
+#endif /* USE_MOUSE */

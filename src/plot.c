@@ -121,7 +121,7 @@ const char *user_shell = NULL;
 TBOOLEAN successful_initialization = FALSE;
 
 #ifdef X11
-extern int X11_args(int, char **); /* FIXME: defined in term/x11.trm */
+extern int X11_args(int, char **); /* defined in term/x11.trm */
 #endif
 
 /* patch to get home dir, see command.c */
@@ -792,7 +792,7 @@ init_session()
 	/* Make sure all variables start in the same state 'reset'
 	 * would set them to.
 	 */
-	reset_command();	/* FIXME: this does c_token++ */
+	reset_command();	/* NB: this does c_token++ */
 	load_rcfile(0);		/* System-wide gnuplotrc if configured */
 
 	/* After this point we allow pipes and system commands */

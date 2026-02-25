@@ -169,14 +169,19 @@ struct cmplx {
 	double real, imag;
 };
 
-struct fblock {
-	char **data_array;
-	char **parnames;
-};
-
 struct array_header {
 	intgr_t size;			/* This array is indexed from 1 to size */
 	struct udvt_entry *parent;	/* User variable that holds this array */
+};
+
+typedef struct data_array {
+	struct array_header header;
+	char **data;
+} data_array;
+
+struct fblock {
+	struct data_array *blockdata;
+	char **parnames;
 };
 
 typedef struct value {
@@ -185,7 +190,7 @@ typedef struct value {
 	intgr_t int_val;
 	struct cmplx cmplx_val;
 	char *string_val;
-	char **data_array;
+	struct data_array *blockdata;
 	struct fblock functionblock;
 	struct value *value_array;
 	struct array_header array_header;	/* substructure of ARRAY value_array[0] */

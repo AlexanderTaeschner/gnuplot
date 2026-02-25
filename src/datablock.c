@@ -67,6 +67,7 @@
 #include "misc.h"
 #include "multiplot.h"
 #include "util.h"
+#include "save.h"	/* used by save_set_to_datablock() */
 
 #ifdef USE_FUNCTIONBLOCKS
 /* Set by "return" command and pushed onto the evaluation stack by f_eval */
@@ -129,6 +130,7 @@ new_block( enum DATA_TYPES type )
     int nlines;
     int nsize = 4;
     struct udvt_entry *datablock;
+    struct data_array *blockdata;
     char *dataline = NULL;
     char **data_array = NULL;
 
@@ -150,7 +152,7 @@ new_block( enum DATA_TYPES type )
     if (type == FUNCTIONBLOCK) {
 	datablock->udv_value.type = FUNCTIONBLOCK;
 	datablock->udv_value.v.functionblock.parnames = NULL;
-	datablock->udv_value.v.functionblock.data_array = NULL;
+	datablock->udv_value.v.functionblock.blockdata = NULL;
 	if (equals(c_token, "(")) {
 	    if (equals(c_token+1, ")")) {
 		/* Empty parentheses OK */
@@ -172,7 +174,7 @@ new_block( enum DATA_TYPES type )
 	}
     } else { /* Must be a datablock */
 	datablock->udv_value.type = DATABLOCK;
-	datablock->udv_value.v.data_array = NULL;
+	datablock->udv_value.v.blockdata = NULL;
     }
 
     if (c_token != num_tokens-2)
@@ -209,10 +211,15 @@ new_block( enum DATA_TYPES type )
     }
     inline_num += nlines + 1;	/* Update position in input file */
 
+    /* Allocate array structure */
+	blockdata = new_data_array();
+	blockdata->data = data_array;
+	blockdata->header.size = nlines;
+
     if (type == FUNCTIONBLOCK)
-	datablock->udv_value.v.functionblock.data_array = data_array;
+	datablock->udv_value.v.functionblock.blockdata = blockdata;
     else
-	datablock->udv_value.v.data_array = data_array;
+	datablock->udv_value.v.blockdata = blockdata;
 
     /* make sure that we can safely add lines to this datablock later on */
     enlarge_datablock(&datablock->udv_value, 0);
@@ -241,33 +248,47 @@ parse_datablock_name()
 }
 
 
-char **
+struct data_array *
 get_datablock(char *name)
 {
     struct udvt_entry *datablock;
 
     datablock = get_udv_by_name(name);
     if (!datablock || datablock->udv_value.type != DATABLOCK
-    ||  datablock->udv_value.v.data_array == NULL)
+    ||  datablock->udv_value.v.blockdata == NULL)
 	int_error(NO_CARET,"no datablock named %s",name);
 
-    return datablock->udv_value.v.data_array;
+    return datablock->udv_value.v.blockdata;
 }
 
+struct data_array *
+new_data_array()
+{
+    struct data_array *new;
+
+    new = gp_alloc( sizeof(struct data_array), "data array");
+    new->data = NULL;
+    new->header.size = 0;
+    new->header.parent = NULL;	/* not used */
+
+    return new;
+}
 
 void
 gpfree_datablock(struct value *datablock_value)
 {
-    int i;
-    char **stored_data = datablock_value->v.data_array;
-
     if (datablock_value->type != DATABLOCK)
 	return;
-    if (stored_data)
-	for (i=0; stored_data[i] != NULL; i++)
-	    free(stored_data[i]);
-    free(stored_data);
-    datablock_value->v.data_array = NULL;
+    if (datablock_value->v.blockdata) {
+	char **stored_data = datablock_value->v.blockdata->data;
+	if (stored_data) {
+	    for (int i=0; stored_data[i] != NULL; i++)
+		free(stored_data[i]);
+	    free(stored_data);
+	}
+	free(datablock_value->v.blockdata);
+	datablock_value->v.blockdata = NULL;
+    }
     datablock_value->type = NOTDEFINED;
 }
 
@@ -279,7 +300,7 @@ gpfree_functionblock(struct value *block_value)
 
     if (block_value->type != FUNCTIONBLOCK)
 	return;
-    stored_data = block_value->v.functionblock.data_array;
+    stored_data = block_value->v.functionblock.blockdata->data;
     if (stored_data)
 	for (i=0; stored_data[i] != NULL; i++)
 	    free(stored_data[i]);
@@ -290,26 +311,23 @@ gpfree_functionblock(struct value *block_value)
 	    free(stored_data[i]);
     free(stored_data);
 
-    block_value->v.functionblock.data_array = NULL;
+    block_value->v.functionblock.blockdata->data = NULL;
+    free(block_value->v.functionblock.blockdata);
+    block_value->v.functionblock.blockdata = NULL;
     block_value->v.functionblock.parnames = NULL;
     block_value->type = NOTDEFINED;
 }
 
-/* count number of lines in a datablock */
+/* Number of lines in a datablock */
 int
 datablock_size(struct value *datablock_value)
 {
-    char **dataline;
     int nlines = 0;
 
     if (datablock_value->type == FUNCTIONBLOCK)
-	dataline = datablock_value->v.functionblock.data_array;
+	nlines = datablock_value->v.functionblock.blockdata->header.size;
     else
-	dataline = datablock_value->v.data_array;
-    if (dataline) {
-	while (*dataline++)
-	    nlines++;
-    }
+	nlines = datablock_value->v.blockdata->header.size;
     return nlines;
 }
 
@@ -328,15 +346,15 @@ enlarge_datablock(struct value *datablock_value, int extra)
     /* only resize if necessary */
     if ((osize != nsize) || (extra == 0) || (nlines == 0)) {
 	if (datablock_value->type == FUNCTIONBLOCK) {
-	    datablock_value->v.data_array =
-		(char **) gp_realloc(datablock_value->v.functionblock.data_array,
+	    datablock_value->v.functionblock.blockdata->data =
+		(char **) gp_realloc(datablock_value->v.functionblock.blockdata->data,
 					nsize * sizeof(char *), "resize_datablock");
-	    datablock_value->v.functionblock.data_array[nlines] = NULL;
+	    datablock_value->v.functionblock.blockdata->data[nlines] = NULL;
 	} else {
-	    datablock_value->v.data_array =
-		(char **) gp_realloc(datablock_value->v.data_array,
+	    datablock_value->v.blockdata->data =
+		(char **) gp_realloc(datablock_value->v.blockdata->data,
 					nsize * sizeof(char *), "resize_datablock");
-	    datablock_value->v.data_array[nlines] = NULL;
+	    datablock_value->v.blockdata->data[nlines] = NULL;
 	}
     }
 
@@ -349,8 +367,9 @@ void
 append_to_datablock(struct value *datablock_value, const char *line)
 {
     int nlines = enlarge_datablock(datablock_value, 1);
-    datablock_value->v.data_array[nlines] = (char *) line;
-    datablock_value->v.data_array[nlines + 1] = NULL;
+    datablock_value->v.blockdata->data[nlines] = (char *) line;
+    datablock_value->v.blockdata->data[nlines + 1] = NULL;
+    datablock_value->v.blockdata->header.size = nlines + 1;
 }
 
 
@@ -390,6 +409,52 @@ append_multiline_to_datablock(struct value *datablock_value, const char *lines)
 	free((char *) lines);
     }
 }
+
+/*
+ * Save current graphics state to a datablock.
+ */
+void
+save_set_to_datablock(char *datablock_name)
+{
+    FILE *fp = tmpfile();
+    struct udvt_entry *datablock;
+    char line[256];
+
+#if defined(_MSC_VER) || defined(__MINGW32__)
+    /* On Windows tmpfile() fails because it tries to write to the root directory */
+    if (!fp) {
+	char tempname[PATH_MAX];
+	/* We really want the "ANSI" version */
+	GetTempPathA(sizeof(tempname), buf);
+	strcat(buf, "gnuplot-save.tmp");
+	fp = fopen(tempname, "wt+, ccs=UTF-8");
+	fp = fopen(buf, "w+");
+    }
+#endif
+
+    if (!fp)
+	int_error(NO_CARET, "cannot write temporary file");
+
+    /* Save to temp file */
+    save_set_all(fp);
+    rewind(fp);
+
+    /* Read back from temp file into a datablock */
+    datablock = add_udv_by_name(datablock_name);
+    free_value(&datablock->udv_value);
+    datablock->udv_value.type = DATABLOCK;
+    datablock->udv_value.v.blockdata = new_data_array();
+
+    while (fgets(line, sizeof(line), fp)) {
+	int length = strlen(line);
+	if (line[length-1] == '\n')
+	    line[length-1] = '\0';
+	append_to_datablock(&datablock->udv_value, strdup(line));
+    }
+
+    fclose(fp);
+}
+
 
 #ifdef USE_FUNCTIONBLOCKS
 /* Internal version of eval() that can be called from the evaluation stack

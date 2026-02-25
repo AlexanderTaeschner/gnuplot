@@ -108,7 +108,7 @@ prepare_call(int calltype, udvt_entry *functionblock)
 		    const_express(&a);
 		    argval[call_argc] = a;
 		    switch(a.type) {
-			case CMPLX: /* FIXME: More precision? Some way to provide a format? */
+			case CMPLX:
 				sprintf(val_as_string, "%g", a.v.cmplx_val.real);
 				call_args[call_argc] = gp_strdup(val_as_string);
 				break;
@@ -251,16 +251,24 @@ load_file(FILE *fp, char *name, int calltype)
     udvt_entry *gpval_lineno = NULL;
     char **datablock_input_line = NULL;
     udvt_entry *functionblock = NULL;
+    TBOOLEAN playback_state_on_entry = multiplot_playback;
 
     /* Support for "load $datablock" */
-    if (calltype == 6 || calltype == 7)
-	datablock_input_line = get_datablock(name);
+    if (calltype == 6 || calltype == 7) {
+	datablock_input_line = get_datablock(name)->data;
+	/* Prevent attempt to recursively load $GPVAL_LAST_MULTIPLOT */
+	if (!strcmp(name, "$GPVAL_LAST_MULTIPLOT")) {
+	    if (in_multiplot)
+		return;
+	    multiplot_playback = TRUE;
+	}
+    }
 
 #ifdef USE_FUNCTIONBLOCKS
     /* Support for function blocks */
     if (calltype == 8) {
 	functionblock = (udvt_entry *)(name);
-	datablock_input_line = functionblock->udv_value.v.functionblock.data_array;
+	datablock_input_line = functionblock->udv_value.v.functionblock.blockdata->data;
 	name = strdup(functionblock->udv_name);
     }
 #endif
@@ -396,7 +404,8 @@ load_file(FILE *fp, char *name, int calltype)
     }
 
     /* pop state */
-    (void) lf_pop();		/* also closes file fp */
+    lf_pop();		/* also closes file fp */
+    multiplot_playback = playback_state_on_entry;
 }
 
 /* pop from load_file state stack

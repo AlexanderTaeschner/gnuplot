@@ -1,0 +1,144 @@
+Notes on the implementation of multiplot mousing
+Ethan A Merritt - February 2026
+
+History
+-------
+
+One feature that has been requested over and over, often as a bug report,
+has been for the "replot" command to operate on multiplots and for mouse
+coordinate readout to be provided for every panel within a multiplot.
+For 20+ years the answer was that the program just doesn't work that way.
+
+A single gnuplot "plot" or "splot" is generated using the current settings
+- the axis ranges, color palette, log or linear scaling, default plot style,
+etc.  These settings are then replaced by a new set that applies to the
+next plot.  A "replot" command issued immediately after a single plot can
+recreate that immediately preceding plot because these settings still
+have the same values.  Any earlier plots were lost along with the settings
+in effect when they were generated.  Alternatively, the user could change
+some settings intentionally, say the axis range or palette colors,
+before saying "replot".  In that case the new settings would affect the
+result of re-executing the previous plot command by saying "replot".
+
+Since each panel of a multiplot contains a separate plot, "replot" could
+only regenerate the content of the final panel.  However starting with
+gnuplot 6.0 the program has been gradually reworked to overcome most of
+these limitations. What follows is a summary of how the implementation
+of multiplots now works.  I hope it is useful for anyone who needs to
+debug or modify the multiplot and mousing code in the future.
+
+Multiplot creation and bookkeeping
+----------------------------------
+
+1) When the "set multiplot" command is executed, the program creates two
+   data blocks containing gnuplot commands:
+   -	$GPVAL_PRE_MULTIPLOT contains commands to reproduce the graphics
+	state at the start of the multiplot.
+   -	$GPVAL_LAST_MULTIPLOT records the sequence of commands issued
+	to generated the multiplot, starting with "set multiplot" and
+	continuing to the concluding "unset multiplot".
+   The program uses each of these data blocks internally, but they are
+   also available to the user.
+
+2) At the start of each multiplot panel the screen coordinates of area
+   to be used for the panel are saved to an internal array panel_bounds[i],
+   where i is the panel number.  The first panel is panel 0.  This is done
+   by one of three initialization routines called from multiplot_reset().
+
+3) When the plot or splot in the panel completes, the call to
+   term_end_plot() saves various properties necessary to later reproduce
+   the completed plot. The axis ranges and positions are saved to
+	x_mapping[i], y_mapping[i], x2_mapping[i], y2_mapping[i], ...
+   The view angles and scaling are saved by save_panel_view() to
+	panel_view[i]
+   Other information (2D plot, 3D plot, splot map projection) are saved to
+	panel_flags[i]
+
+4) After "unset multiplot" the multiplot data structures are complete
+   and the contents are not affected by subsequent gnuplot commands with
+   the exception of the view angles, which may be changed by subsequent
+   mousing.
+
+At this point a "replot" command acts just as it would for a single plot.
+It is equivalent to "load $GPVAL_LAST_MULTIPLOT", which is in fact
+exactly what the program does internally.  Note that this does *not*
+reproduce the starting state of the original multiplot.  So, just like
+with a single gnuplot plot, any changes the user makes to axis ranges,
+palette, default plot style, pm3d options, etc. before saying "replot"
+will be evident in the re-drawn multiplot.
+
+A "remultiplot" command, however, restores the original graphics settings
+by loading $GPVAL_PRE_MULTIPLOT before it replays the multiplot commands.
+
+Multiplot playback and mousing
+------------------------------
+
+While the multiplot is showing on the screen, mouse interaction is
+handled as follows
+
+5)  The panel currently occupied by the mouse cursor is identified by
+    comparing the screen coordinates to the panel_bounds[] array
+
+6)  The nature of panel content (2D, 3D, polar, splot, ...) is identified
+    by inspection of panel_flags[]
+
+7)  Pan/zoom and rotation via hotkeys, arrow keys, mouse wheel,
+    click-and-drag, acts as it always has.  *However* rather than applying
+    the requested action immediately, the program queues the action for
+    execution when the multiplot is next redrawn.  In most cases the
+    program then also initiates the sequence
+         load $GPVAL_PRE_MULTIPLOT
+         load $GPVAL_LAST_MULTIPLOT
+    The first of these commands restore the original program context.
+    The second recreates the original multiplot with pending changes.
+
+8)  Execution of the replayed sequence from "load $GPVAL_LAST_MULTIPLOT"
+    differs slightly from the original execution of those same commands.
+    "reset", "pause" and a few other commands are simply ignored because
+    execution would corrupt the data structures.
+
+9)  At the start of each panel, the data previously saved for the axis
+    mapping and view angles active in that panel are reloaded.
+    The program also checks to see if there is a pending mouse operation
+    (zoom/pan/rotation) queued for this panel.  If so, it is applied on
+    top of the previous setting so that it has an effect on the plot
+    about to be drawn.
+
+10) When the modified plot completes, term_end_plot() again stores the
+    axis mappings and view angles for this panel.  Note that these are
+    post-zoom ranges and post-rotation angles, so they will persist when
+    the panel is next redrawn.
+
+11) When the entire sequence of saved multiplot commands is finished,
+    control returns to waiting for command line input or further mouse
+    actions.
+
+Limitations
+-----------
+
+  - No mouse readout or pan/zoom operations are attempted for nonlinear
+    axes because there is no guarantee that the "via" and "inverse" mapping
+    functions are still present.  If the nonlinear mapping is set up as
+    part of the command sequence for that panel then the panel will display
+    correctly after "replot" even though there is no mouse readout.
+
+  - The per-panel data structures have fixed dimension MAX_PANELS.
+    This is the maximum number of multiplot panels that are responsive
+    to mousing.  This limit applies only to mousing;  any additional panels
+    are drawn and replotted correctly but they are not mousable.
+    It would be possible to use dynamic allocation on demand but does it
+    really make sense to mouse such a large number of panels?
+
+  - There is currently no way to specify whether a user-defined hotkey
+    action ("bind" command) should be executed immediately when the key
+    is pressed or whether it should be queued for application to a single
+    panel when the multiplot is redrawn, analogous to the way pan/zoom
+    operations are handled.
+
+  - If you modify the displayed multiplot interactively (zoom/pan/rotate)
+    the state is persistent across remultiplot commands, so you can
+    change terminals and replot to, e.g., a pdf file for output.
+    However the data structures holding the modified axis ranges and
+    view angles are not available for saving or printing, so there is
+    no way to write out a script that reproduces what you see on the
+    screen.

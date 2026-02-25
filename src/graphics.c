@@ -47,6 +47,7 @@
 #include "marks.h"
 #include "misc.h"
 #include "mouse.h"	/* for inside_zoom() */
+#include "multiplot.h"
 #include "gadgets.h"
 #include "jitter.h"
 #include "plot2d.h"		/* for boxwidth */
@@ -756,6 +757,9 @@ do_plot(struct curve_points *plots, int pcount)
      *     the font dimensions are not known yet, so calculations are imperfect.
      */
     boundary(plots, pcount);
+    set_panel_flag(PANEL_2D);
+    if (polar)
+	set_panel_flag(PANEL_POLAR);
 
     /* Make palette */
     if (is_plot_with_palette())
@@ -6229,7 +6233,6 @@ spidertick_callback(struct axis *axis, double place, char *text, int ticlevel,
 			axis->ticdef.font);
 	ignore_enhanced(FALSE);
 
-	/* FIXME:  the plan is to have a separate lp for spiderplot tics */
 	if (axis->ticdef.textcolor.type != TC_DEFAULT)
 	    term_apply_lp_properties(&border_lp);
     }

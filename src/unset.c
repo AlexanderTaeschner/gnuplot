@@ -159,6 +159,12 @@ static void unset_axislabel(AXIS_INDEX);
 
 static void reset_mouse(void);
 
+/*
+ * This should probably be defined in a header where 
+ * more source files can use it.
+ */
+#define free_and_null(foo) do { free(foo); foo = NULL; } while (0)
+
 /******** The 'unset' command ********/
 void
 unset_command()
@@ -347,8 +353,7 @@ unset_command()
 	    c_token++;
 	    break;
 	} else if (almost_equals(c_token,"sep$arators")) {
-	    free(df_separators);
-	    df_separators = NULL;
+	    free_and_null(df_separators);
 	    c_token++;
 	    break;
 	} else if (almost_equals(c_token,"com$mentschars")) {
@@ -865,8 +870,7 @@ reset_datafile()
     df_init();
     df_fortran_constants = FALSE;
     unset_missing();
-    free(df_separators);
-    df_separators = NULL;
+    free_and_null(df_separators);
     free(df_commentschars);
     df_commentschars = gp_strdup(DEFAULT_COMMENTS_CHARS);
     df_unset_datafile_binary();
@@ -965,8 +969,7 @@ unset_cntrlabel()
     clabel_start = 5;
     clabel_interval = 20;
     strcpy(contour_params.format, "%8.3g");
-    free(clabel_font);
-    clabel_font = NULL;
+    free_and_null(clabel_font);
 }
 
 static void
@@ -1040,10 +1043,8 @@ static void
 unset_decimalsign()
 {
     if (decimalsign != NULL)
-	free(decimalsign);
-    decimalsign = NULL;
-    free(numeric_locale);
-    numeric_locale = NULL;
+	free_and_null(decimalsign);
+    free_and_null(numeric_locale);
 }
 
 
@@ -1051,8 +1052,7 @@ unset_decimalsign()
 static void
 unset_fit()
 {
-    free(fitlogfile);
-    fitlogfile = NULL;
+    free_and_null(fitlogfile);
     fit_errorvariables = TRUE;
     fit_covarvariables = FALSE;
     fit_errorscaling = TRUE;
@@ -1063,8 +1063,7 @@ unset_fit()
     del_udv_by_name((char *)FITMAXITER, FALSE);
     del_udv_by_name((char *)FITSTARTLAMBDA, FALSE);
     del_udv_by_name((char *)FITLAMBDAFACTOR, FALSE);
-    free(fit_script);
-    fit_script = NULL;
+    free_and_null(fit_script);
     fit_wrap = 0;
     /* do not reset fit_v4compatible */
 }
@@ -1438,8 +1437,7 @@ unset_margin(t_position *margin)
 static void
 unset_imaginary_i()
 {
-    free(imaginary_user);
-    imaginary_user = NULL;
+    free_and_null(imaginary_user);
 }
 
 /* process 'unset micro' command */
@@ -1460,8 +1458,7 @@ unset_minus_sign()
 static void
 unset_missing()
 {
-    free(missing_val);
-    missing_val = NULL;
+    free_and_null(missing_val);
 }
 
 /* process 'unset mouse' command */
@@ -1501,10 +1498,8 @@ unset_tics(struct axis *this_axis)
 
     this_axis->ticmode = NO_TICS;
 
-    if (this_axis->ticdef.font) {
-	free(this_axis->ticdef.font);
-	this_axis->ticdef.font = NULL;
-    }
+    if (this_axis->ticdef.font)
+	free_and_null(this_axis->ticdef.font);
     this_axis->ticdef.textcolor.type = TC_DEFAULT;
     this_axis->ticdef.textcolor.lt = 0;
     this_axis->ticdef.textcolor.value = 0;
@@ -1570,10 +1565,8 @@ unset_output()
     }
 
     term_set_output(NULL);
-    if (outstr) {
-	free(outstr);
-	outstr = NULL; /* means STDOUT */
-    }
+    if (outstr)
+	free_and_null(outstr);
 }
 
 
@@ -1588,8 +1581,7 @@ unset_print()
 static void
 unset_psdir()
 {
-    free(PS_psdir);
-    PS_psdir = NULL;
+    free_and_null(PS_psdir);
 }
 
 /* process 'unset parametric' command */
@@ -1932,7 +1924,6 @@ unset_view()
     surface_rot_z = 30.0;
     surface_rot_x = 60.0;
     surface_scale = 1.0;
-    surface_lscale = 0.0;
     surface_zscale = 1.0;
     azimuth = 0.0;
 }
@@ -1959,8 +1950,10 @@ unset_range(AXIS_INDEX axis)
 {
     struct axis *this_axis = &axis_array[axis];
 
-    this_axis->writeback_min = this_axis->set_min = axis_defaults[axis].min;
-    this_axis->writeback_max = this_axis->set_max = axis_defaults[axis].max;
+    this_axis->min = this_axis->set_min = axis_defaults[axis].min;
+    this_axis->writeback_min = axis_defaults[axis].min;
+    this_axis->max = this_axis->set_max = axis_defaults[axis].max;
+    this_axis->writeback_max = axis_defaults[axis].max;
     this_axis->set_autoscale = AUTOSCALE_BOTH;
     this_axis->min_constraint = CONSTRAINT_NONE;
     this_axis->max_constraint = CONSTRAINT_NONE;
@@ -2018,18 +2011,18 @@ unset_axislabel(AXIS_INDEX axis)
 static void
 free_axis_struct(struct axis *this_axis)
 {
-	free(this_axis->formatstring);
-	free(this_axis->ticfmt);
+	free_and_null(this_axis->formatstring);
+	free_and_null(this_axis->ticfmt);
 	if (this_axis->link_udf && this_axis->index != SAMPLE_AXIS) {
 	    free(this_axis->link_udf->at);
 	    free(this_axis->link_udf->definition);
-	    free(this_axis->link_udf);
+	    free_and_null(this_axis->link_udf);
 	}
 	free_marklist(this_axis->ticdef.def.user);
-	free(this_axis->ticdef.font);
+	free_and_null(this_axis->ticdef.font);
 	unset_axislabel_or_title(&this_axis->label);
 	if (this_axis->zeroaxis != &default_axis_zeroaxis)
-	    free(this_axis->zeroaxis);
+	    free_and_null(this_axis->zeroaxis);
 }
 
 void
@@ -2194,16 +2187,14 @@ reset_command()
 	struct axis *this_axis = &parallel_axis_array[axis];
 	free_axis_struct(this_axis);
     }
-    free(parallel_axis_array);
-    parallel_axis_array = NULL;
+    free_and_null(parallel_axis_array);
     num_parallel_axes = 0;
     unset_style_parallel();
 
     if (shadow_axis_array) {
 	for (i=0; i<NUMBER_OF_MAIN_VISIBLE_AXES; i++)
 	    free_axis_struct(&shadow_axis_array[i]);
-	free(shadow_axis_array);
-	shadow_axis_array = NULL;
+	free_and_null(shadow_axis_array);
     }
 
     raxis = FALSE;
@@ -2352,8 +2343,7 @@ reset_mouse()
 {
 #ifdef USE_MOUSE
     free_at(mouse_readout_function.at);  /* sets to NULL */
-    free(mouse_readout_function.definition);
-    mouse_readout_function.definition = NULL;
+    free_and_null(mouse_readout_function.definition);
     free(mouse_alt_string);
     mouse_alt_string = NULL;
     mouse_mode = MOUSE_COORDINATES_REAL;

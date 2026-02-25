@@ -74,8 +74,8 @@ pgf.DEFAULT_FONT_V_CHAR = 308
 
 pgf.STYLE_FILE_BASENAME = "gnuplot-lua-tikz"  -- \usepackage{gnuplot-lua-tikz}
 
-pgf.REVISION = "120"
-pgf.REVISION_DATE = "2024/10/14 16:17:00"
+pgf.REVISION = "121"
+pgf.REVISION_DATE = "2026/02/22 23:00:00"
 
 pgf.styles = {}
 
@@ -2542,8 +2542,9 @@ end
 
 term_help = function(helptext)
   local w
-  for w in string.gmatch(helptext, "([^\n]*)\n") do
-    w = string.gsub(w, "\\", "\\\\")
+  local ww
+  for ww in string.gmatch(helptext, "([^\n]*)\n") do
+    w = string.gsub(ww, "\\", "\\\\")
     w = string.gsub(w, "\"", "\\\"")
     io.write('"'..w.."\",\n")
   end

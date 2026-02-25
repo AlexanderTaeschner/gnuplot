@@ -114,7 +114,6 @@ main (int argc, char **argv)
 	sprintf(line, "gnuplot %s", VERSION_MAJOR);
 	header(outfile, line);
 	fprintf(outfile, "<h1 align=\"center\">gnuplot %s</h1>\n", VERSION_MAJOR);
-	footer(outfile);
     }
 
 #ifdef CREATE_INDEX

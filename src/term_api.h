@@ -391,7 +391,7 @@ enum set_encoding_id {
    S_ENC_DEFAULT, S_ENC_ISO8859_1, S_ENC_ISO8859_2, S_ENC_ISO8859_9, S_ENC_ISO8859_15,
    S_ENC_CP437, S_ENC_CP850, S_ENC_CP852, S_ENC_CP950,
    S_ENC_CP1250, S_ENC_CP1251, S_ENC_CP1252, S_ENC_CP1254,
-   S_ENC_KOI8_R, S_ENC_KOI8_U, S_ENC_SJIS,
+   S_ENC_KOI8_R, S_ENC_KOI8_U, S_ENC_SJIS, S_ENC_EUCJP,
    S_ENC_UTF8,
    S_ENC_INVALID
 };
@@ -541,6 +541,6 @@ int term_waitforinput(int options);
 char *escape_reserved_chars(const char *str, const char *reserved);
 
 /* replace escape sequences with the characters they represent */
-char *expand_unicode_escapes(char *text);
+char *expand_unicode_escapes(char *text, TBOOLEAN force);
 
 #endif /* GNUPLOT_TERM_API_H */

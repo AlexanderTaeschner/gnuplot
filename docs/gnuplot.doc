@@ -421,36 +421,57 @@ D viridis 1
 
 3 Multiplots
 ?new multiplots
- Commands executed during creation of a multiplot are now stored in a
- datablock $GPVAL_LAST_MULTIPLOT.  They can be replayed by the new command
- `remultiplot`.  Certain saved commands that would be problematic during replay
- are not reexecuted.  Note that the regenerated multiplot may not exactly
- match the original if graphics settings (axis ranges, logscale, etc)
- have changed in the interim.
+ The multiplot mechanism is used to combine the output of several plot or splot
+ commands into a single page or screen view.  This mechanism has been reworked
+ in gnuplot 6.1 to allow interactive mousing of the combined view and to allow
+ replotting using either the existing `replot` command or the new `remultiplot`
+ command. Multiplot mode is initiated by the command `set multiplot` and
+ continues until a closing `unset multiplot`.
+#start
+#b The `set multiplot` command saves the current graphics state into a new
+## datablock $GPVAL_PRE_MULTIPLOT and begins to record subsequent commands
+## in a new datablock $GPVAL_LAST_MULTIPLOT.
+#b Each `plot` or `splot` command creates a new panel within the multiplot.
+## The position, size, axis ranges, and various other properties of each panel
+## are saved for later use.
+#b After `unset multiplot` the two command datablocks and the per-panel data
+## are complete.  Their content is not affected by subsequent gnuplot commands.
+## At this point in an interactive session the full multiplot is showing on
+## the screen. Mouse tracking uses the saved data to report appropriate
+## coordinates and view angles for each panel if possible.
+#b The `replot` command will re-execute the commands in $GPVAL_LAST_MULTIPLOT.
+## It does `not` attempt to recreate the original graphics state, so the
+## result may not exactly replicate the original figure.  This is similar to
+## `replot` for a single plot in that you can deliberately change for example
+## the fill style or starting axis ranges before issuing the `replot` command
+## and the new settings will affect the redrawn figure.
+#b The `remultiplot` command is different.  It first recreates the original
+## graphics state by loading the commands saved in $GPVAL_PRE_MULTIPLOT.
+## It then re-executes the saved multiplot commands.  This allows you to
+## reproduce the original figure, perhaps for output to a different terminal.
+## Unlike `replot`, any changes to the graphics settings made between the
+## original multiplot and the remultiplot will probably be lost.
+#b If neither `replot` nor `remultiplot` is exactly suited to your use,
+## a customized sequence of commands can be used as shown below.
+#end
 
- The following sequence of commands will save both the original graphics state
- and the multiplot commands to a script file that can be reloaded later.
+    load $GPVAL_PRE_MULTIPLOT    # restore original graphics settings
+    set style fill transparent   # change just one setting
+    load #GPVAL_LAST_MULTIPLOT   # re-execute the multiplot commands
 
-      save "my_multiplot.gp"
-      set multiplot
-      ... various commands to generate the component plots ...
-      unset multiplot
-      set print "my_multiplot.gp" append
-      print $GPVAL_LAST_MULTIPLOT
-      unset print
+ [EXPERIMENTAL] Details may change.  At this time several limitations apply.
 
 #start
-#b The `replot` command will check to see if the most recent plot command
-## was part of a completed multiplot.  If so, it will execute `remultiplot`
-## instead of reexecuting that single plot command.
-#b Mousing operations while a multiplot is displayed will also automatically
-## treat a replot/refresh request as `remultiplot`.
-## However the mouse coordinate readout and thus zoom/pan operations are
-## still based solely on the axis settings for the final component plot,
-## as was the case in earlier gnuplot versions.  Because the commands stored
-## in $GPVAL_LAST_MULTIPLOT may not be sufficient to recreate the appropriate
-## graphics settings for each component plot, mousing in a multiplot may not
-## act as you would like.  This may be improved in the future.
+#b Certain saved commands that would be problematic during replay
+## are not reexecuted.  This include `reset`, `pause`, and the definition
+## of new data blocks.
+#b The saved per-panel data is not sufficient to interpret non-linear
+## axis mappings. The plot should display correctly but mouse tracking
+## does not report coordinates.
+#b Mouse interaction tracks a maximum of 16 panels in a single multiplot.
+## If the multiplot contains more than 16 panels the additional panels will
+## display correctly but are not mouseable.
+## This limit may be removed in the future.
 #end
 
 3 New terminals and terminal options
@@ -675,6 +696,9 @@ D epi_data 1
 ## (in 6.0.3)
 #b Revised wxt terminal driver with more robust threading and error recovery.
 ## (in 6.0.3)
+#b New gprintf format specifiers %C and %Ci to output complex values.
+## See `gprintf complex` and `imaginary_i`. (in 6.0.4)
+#b The program offers predefined variables I, Inf, and NaN (in 6.0.4)
 #b "linestyle variable"
 #b pm3d coloring for 3D polygons (e.g. Delaunay tessellation of surfaces).
 ## See `delaunay`.
@@ -688,10 +712,10 @@ D epi_data 1
 ## Unicode escape sequences are accepted in both "enhanced" and "noenhanced" text.
 ## Unicode escape sequences are expanded during substring evaluation.
 ## Octal escape sequences are required to contain exactly three digits.
-#b New gprintf format specifiers %C and %Ci to output complex values.
-## See `gprintf complex` and `imaginary_i`. [EXPERIMENTAL]
-#b Document that the program offers predefined variables I, Inf, and NaN
 #b Named palette "magma" from the viridis family of palettes
+#b Multiplot mousing.  Mouse coordinate readout is provided for all panels of
+## a multiplot.  Pan/zoom/rotate mouse operations can be applied to any panel.
+## See `new multiplots`.
 #end
 
 2 Demos and Online Examples
@@ -1582,7 +1606,7 @@ C marker below is used to signal this to doc2html:
  The `airy(x)` function returns the value of the Airy function Ai(x) of its
  argument. The function Ai(x) is that solution of the equation y'' - x y = 0
  which is everywhere finite. If the argument is complex, its imaginary part
- is ignored.
+ is ignored.  For complex Airy functions see `Ai`.
 4 arg
 ?expressions functions arg
 ?arg
@@ -3662,6 +3686,11 @@ C ... and restart the table:
  Data block names must begin with a $ character, which distinguishes them from
  other types of persistent variables.  The end-of-data delimiter (EOD in the
  example) may be any sequence of alphanumeric characters.
+
+ A data block acts like an array of strings.  Any single line can be accessed
+ or replaced.  For example to replace the first line of an existing data block
+ with a comment
+      $Mydata[1] = "# Last plotted " . time("%d-%m-%Y %H:%M:%S")
 
  A data block definition cannot be placed inside the bracketed clause of an
  iteration or an if/else/while condition.
@@ -10955,12 +10984,12 @@ Ffigure_smooth_path
 2 remultiplot
 ?commands remultiplot
 ?remultiplot
- `remultiplot` replays a sequence of commands that were previously stored into
- the datablock named $GPVAL_LAST_MULTIPLOT during generation of the previous
- multiplot.  See `new multiplots`.
-
- `remultiplot` is invoked implicitly from `replot` if the immediately preceding
- plot command was part of a completed multiplot.
+ `remultiplot` first restores the graphics state saved in $GPAVL_PRE_MULTIPLOT
+ at the start of the previous multiplot.  It then re-executes commands from
+ the datablock named $GPVAL_LAST_MULTIPLOT.  The result should reproduce the
+ figure generated by the original multiplot.
+ `Remultiplot` is different from `replot`, which does not start by restoring
+ the initial graphics state. See `new multiplots`.
 
 2 replot
 ?commands replot
@@ -10994,11 +11023,8 @@ Ffigure_smooth_path
  The `replot` command reproduced only the final component plot of the full set.
  In gnuplot version 6 the commands used to generate a multiplot are stored into
  a datablock $GPVAL_LAST_MULTIPLOT.  They can be replayed to regenerate the
- entire multiplot using the new command `remultiplot`.
-
- If the previously drawn plot was part of a multiplot, the `replot` command
- is now automatically treated as `remultiplot`.  Several caveats apply.
- See `new multiplots`, `remultiplot`.
+ entire multiplot using with `replot` or the new command `remultiplot`.
+ Several caveats apply.  See `new multiplots`, `remultiplot`.
 
 2 reread
 ?commands reread
@@ -14826,7 +14852,7 @@ Ffigure_multiple_keys
        plot cos(2*x)
        unset multiplot
 
- See also `remultiplot`, `new multiplots`, 
+ See also `remultiplot`, `new multiplots`, and
 ^ <a href="http://www.gnuplot.info/demo/multiplt.html">
  multiplot demo (multiplt.dem)
 ^ </a>

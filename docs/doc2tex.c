@@ -169,6 +169,7 @@ process_line( char *line, FILE *b)
 		fputs(line+1, b);
 		(void) fputs("}%\n",b);
 	    }
+	    see = FALSE;
 	    break;		/* ignore */ /* <- don't ignore */
 
     case '=':			/* explicit index entry */
@@ -389,6 +390,7 @@ process_line( char *line, FILE *b)
 			fputs("\\newpage", b);
 		    section(line, b);
 		}
+		see = FALSE;
 	    } else
 		fprintf(stderr, "unknown control code '%c' in column 1\n",
 			line[0]);

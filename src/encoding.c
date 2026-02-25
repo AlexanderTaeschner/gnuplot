@@ -60,6 +60,8 @@ static const char * encoding_minus(void);
 static void set_degreesign(char *);
 static TBOOLEAN utf8_getmore(unsigned long * wch, const char **str, int nbytes);
 
+/* Exported for the benefit of certain terminals */
+char * locale_encoding = NULL;
 
 /*
  * encoding functions
@@ -126,6 +128,8 @@ encoding_from_locale(void)
 	    encoding = S_ENC_UTF8;
 	if (l && (strstr(l, "sjis") || strstr(l, "SJIS") || strstr(l, "932")))
 	    encoding = S_ENC_SJIS;
+	if (l && (strstr(l, "EUC-JP") || strstr(l, "euc-jp") || strstr(l, "eucJP")))
+	    encoding = S_ENC_EUCJP;
 	if (l && (strstr(l, "850") || strstr(l, "858")))
 	    encoding = S_ENC_CP850;
 	if (l && (strstr(l, "437")))
@@ -143,6 +147,8 @@ encoding_from_locale(void)
 	if (l && (strstr(l, "950")))
 	    encoding = S_ENC_CP950;
 	/* FIXME: "set encoding locale" has only limited support on non-Windows systems */
+	free(locale_encoding);
+	locale_encoding = strdup(l);
     }
 #endif
     return encoding;
@@ -287,6 +293,7 @@ map_codepage_to_encoding(unsigned int cp)
     case 1252:  encoding = S_ENC_CP1252; break;
     case 1254:  encoding = S_ENC_CP1254; break;
     case 20866: encoding = S_ENC_KOI8_R; break;
+    case 20932: encoding = S_ENC_EUCJP; break;
     case 21866: encoding = S_ENC_KOI8_U; break;
     case 28591: encoding = S_ENC_ISO8859_1; break;
     case 28592: encoding = S_ENC_ISO8859_2; break;
@@ -323,6 +330,7 @@ iconv_encoding_name(enum set_encoding_id encoding)
     case S_ENC_KOI8_U:     name = "KOI8-U";      break;
     case S_ENC_UTF8:       name = "UTF-8";       break;
     case S_ENC_SJIS:       name = "SHIFT-JIS";   break;
+    case S_ENC_EUCJP:      name = "EUC-JP";      break;
     case S_ENC_INVALID:
 	int_error(NO_CARET, "invalid encoding");
 	break;

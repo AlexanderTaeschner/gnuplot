@@ -205,7 +205,7 @@ void WEBP_text()
     /* close any open paths and [maybe?] "emit" the current page */
     gp_cairo_stroke(&plot);
     gp_cairo_end_polygon(&plot);
-    cairo_show_page(plot.cr);	/* FIXME: correct? necessary? */
+    cairo_show_page(plot.cr);
 
     /* Tune webp compression parameters */
     WebPConfigInit(&wpconfig);

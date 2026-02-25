@@ -64,4 +64,7 @@ size_t strlen_sjis(const char *s);
 	    utf8str += 1; \
     } while (0)
 
+/* Exported for the benefit of certain terminals */
+extern char * locale_encoding;
+
 #endif

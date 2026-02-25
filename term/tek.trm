@@ -510,13 +510,16 @@ static void SIXEL_setfont(void);
 /* This is the _maximum_ number of allowed palette entries. */
 #define SIXEL_NCOL 256
 
-static int SIXEL_mode = 1;  /* mono=0, color=1 */
-static int SIXEL_font = 1;  /* small=1,medium=2,large=3 */
-static int SIXEL_ncol = 16; /* actual number of colors to be used */
+static int SIXEL_mode = 1;		/* mono=0, color=1 */
+static int SIXEL_font = 1;		/* small=1,medium=2,large=3 */
+static int SIXEL_ncol = 16;		/* actual number of colors to be used */
 static int SIXEL_lt;
-static int SIXEL_fp = 0;	/* start of gnuplot palette colors */
-static int SIXEL_np = 0;	/* size of gnuplot palette */
-static int SIXEL_anchor = 1;	/* Anchor plot at top left */
+static int SIXEL_fp = 0;		/* start of gnuplot palette colors */
+static int SIXEL_np = 0;		/* size of gnuplot palette */
+static int SIXEL_anchor = 1;		/* Anchor plot at top left */
+static int SIXEL_transparent = 1;	/* background transparency=1, no transparency=0 */
+static int SIXEL_background = 0xfffff;	/* background color (default white) */
+static int SIXEL_background_slot = 0;	/* background color (default white) */
 
 struct SIXEL_colorspec {
     int state;		/* see definitions above */
@@ -581,6 +584,7 @@ enum SIXEL_id {
     SIXEL_SMALL, SIXEL_MEDIUM, SIXEL_LARGE,
     SIXEL_MONOCHROME, SIXEL_COLOR, SIXEL_COLORS,
     SIXEL_SIZE, SIXEL_ANCHOR, SIXEL_SCROLL,
+    SIXEL_TRANSPARENT, SIXEL_NOTRANSPARENT, SIXEL_BACKGROUND,
     SIXEL_OTHER
 };
 
@@ -596,6 +600,9 @@ static struct gen_table SIXEL_opts[] =
     { "size", SIXEL_SIZE },
     { "anchor", SIXEL_ANCHOR },
     { "scroll", SIXEL_SCROLL },
+    { "trans$parent", SIXEL_TRANSPARENT },
+    { "notrans$parent", SIXEL_NOTRANSPARENT },
+    { "back$ground", SIXEL_BACKGROUND },
     { NULL, SIXEL_OTHER }
 };
 
@@ -637,7 +644,6 @@ SIXEL_options()
 	    break;
 	case SIXEL_SIZE: {
 	    float width, height;
-
 	    c_token++;
 	    parse_term_size(&width, &height, PIXELS);
 	    if (width > 0 && height > 0) {
@@ -654,9 +660,26 @@ SIXEL_options()
 	    SIXEL_anchor = 0;
 	    c_token++;
 	    break;
+        case SIXEL_TRANSPARENT:
+	    SIXEL_transparent = 1;
+	    c_token++;
+	    break;
+	case SIXEL_NOTRANSPARENT:
+	    SIXEL_transparent = 0;
+	    c_token++;
+	    break;
+	case SIXEL_BACKGROUND:
+	    c_token++;
+	    if (END_OF_COMMAND) {
+	         SIXEL_background = 0xffffff;
+	    } else {
+	         SIXEL_background = parse_color_name();
+	    }
+	    SIXEL_transparent = 0;  /* background implies notransparent */
+	    break;
 	case SIXEL_OTHER:
 	default:
-	    int_warn(c_token, "unknown terminal option");
+	    int_error(c_token, "unknown terminal option");
 	    break;
 	}
     }
@@ -686,6 +709,12 @@ SIXEL_options()
 	strcat(term_options, SIXEL_anchor ? " anchor" : " scroll");
     sprintf(term_options + strlen(term_options), " size %d,%d",
 	term->xmax + 1, term->ymax + 1);
+    if (SIXEL_transparent)
+        strcat(term_options, " transparent");
+    else {
+        strcat(term_options, " notransparent");
+        sprintf(term_options + strlen(term_options), " background '#%06x'", SIXEL_background);
+    }
 }
 
 
@@ -721,10 +750,13 @@ SIXEL_reset()
 TERM_PUBLIC void
 SIXEL_text()
 {
-    int i, j, k, l, ic, n, pr, no;
+    int i, j, k, ks, ki, l, ic, n, pr, no;
     char c, pc;
     unsigned * map;
     int *m;
+
+    if (!SIXEL_transparent)
+       SIXEL_background_slot = SIXEL_findslot(SIXEL_background);
 
     /* place each new plot at upper left of terminal window */
     if (SIXEL_anchor)
@@ -749,7 +781,8 @@ SIXEL_text()
 	for (i = 0; i < b_xsize; i++)
 	    for (l = 0; l < 6; l++)
 		map[i * 6 + l] = b_getpixel(i, j + l);
-	for (k = 1; k <= SIXEL_ncol; k++) {
+	ks = SIXEL_transparent ? 1 : 0;
+	for (k = ks; k <= SIXEL_ncol; k++) {
 	    no = 0; /* for finite line records (VMS) */
 	    pr = 0;
 	    pc = '\0';
@@ -781,8 +814,9 @@ SIXEL_text()
 		} else {
 		if (n > 0 && pr == 0) {
 		    pr++;
-		    if (n < b_xsize-1 || pc != '?' || k == 1) { /* do not output empty lines */
-			no += fprintf(gpoutfile, "#%d", k - 1);
+		    if (n < b_xsize-1 || pc != '?' || k == ks) { /* do not output empty lines */
+		        ki = (SIXEL_transparent || k > 0) ? k-1 : SIXEL_background_slot;
+			no += fprintf(gpoutfile, "#%d", ki);
 			pr++;
 		    }
 		}
@@ -854,7 +888,7 @@ SIXEL_graphics()
 
     /* palette color 0 is background */
 	SIXEL_palette[0].state = SIXEL_COL_USED;
-	SIXEL_palette[0].rgbval = 0xFFFFFF;
+	SIXEL_palette[0].rgbval = 0xffffff;
     /* palette color 1 is foreground */
 	SIXEL_palette[1].state = SIXEL_COL_USED;
 	SIXEL_palette[1].rgbval = 0x000000;
@@ -867,7 +901,7 @@ SIXEL_graphics()
     i = 2;
     for (this = first_perm_linestyle; this != NULL; this = this->next) {
 	if (this->lp_properties.pm3d_color.type == TC_RGB) {
-	    unsigned int rgbval = this->lp_properties.pm3d_color.rgbcolor;
+	    int rgbval = this->lp_properties.pm3d_color.rgbcolor;
 	    SIXEL_palette[i].state = SIXEL_COL_USED;
 	    SIXEL_palette[i].rgbval = rgbval;
 	    i++;
@@ -1487,7 +1521,8 @@ START_HELP(tek40)
 "?sixeltek",
 " Syntax:",
 "    set terminal sixeltek {<fontsize>} {mono|color|colors <n>} {size <x>,<y>}",
-"                          {animate}",
+"                          {anchor|scroll}",
+"                          {{no}transparent} {background <rgb_color>}",
 "",
 " The `sixel` output format was originally used by DEC terminals and printers.",
 " This driver supports palette images with a maximum of 256 colors. The default",
@@ -1496,14 +1531,22 @@ START_HELP(tek40)
 " The font size can be specified as `small`, `medium` or `large`.",
 "",
 " `anchor` causes each new plot to be anchored at the top left of the window.",
-" `scroll` intead draws each plot at the current cursor position and allows it",
+" `scroll` instead draws each plot at the current cursor position and allows it",
 " to scroll with the text.",
+"",
+" `transparent` instructs the driver to make the background color transparent;",
+" most terminal emulators do not support this, however, it is a historical,",
+" default, and for example xterm does support it.",
+" A notransparent background color may be specified, which uses a palette slot.",
+" Default is `transparent`; the default color with `notransparent` is the",
+" previously chosen one, and with `background` it is `'#ffffff'` (white).",
 "",
 " For use with xterm, xterm must be compiled/configured with",
 " \"--enable-sixel-graphics\" and started with \"-ti 340\" on the command line.",
 "",
 " Note that gnuplot also supports another sixel output terminal, `sixelgd`,",
-" that offers more options and features."
+" that offers more options and features.",
+"",
 #endif
 #ifdef BITGRAPH
 "?commands set terminal bitgraph",

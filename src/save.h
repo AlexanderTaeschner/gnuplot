@@ -52,6 +52,7 @@ void save_variables(FILE *fp);
 void save_datablocks(FILE *fp);
 void save_colormaps(FILE *fp);
 void save_set(FILE *fp);
+void save_set_all(FILE *fp);
 void save_term(FILE *fp);
 void save_all(FILE *fp);
 void save_axis_label_or_title(FILE *fp, char *name, char *suffix,

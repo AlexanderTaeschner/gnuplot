@@ -1465,9 +1465,9 @@ df_open(const char *cmd_filename, int max_using, struct curve_points *plot)
 	    df_pseudodata = 2;
     } else if (df_filename[0] == '$') {
 	df_datablock = TRUE;
-	df_datablock_line = get_datablock(df_filename);
+	df_datablock_line = get_datablock(df_filename)->data;
 	/* Better safe than sorry. Check for inblock != outblock */
-	if (plot && table_var && table_var->udv_value.v.data_array == df_datablock_line)
+	if (plot && table_var && table_var->udv_value.v.blockdata->data == df_datablock_line)
 	    int_error(NO_CARET,"input and output datablock are the same");
     } else if (!strcmp(df_filename, "@@") && df_array) {
 	/* df_array was set in string_or_express() */
@@ -1850,9 +1850,6 @@ plot_ticlabel_using(enum COLUMN_TYPE tictype)
 	int_error(c_token, "missing '('");
     c_token++;
 
-    /* FIXME: What we really want is a test for a constant expression as  */
-    /* opposed to a dummy expression. This is similar to the problem with */
-    /* with parsing the first argument of the plot command itself.        */
     if (isanumber(c_token) || type_udv(c_token)==INTGR) {
 	col = int_expression();
 	use_spec[df_no_use_specs+df_no_tic_specs].at = NULL;
@@ -3170,12 +3167,10 @@ df_set_key_title_columnhead(struct curve_points *plot)
 	else
 	    column_for_key_title = use_spec[1].column;
     }
-    /* This results from  plot 'foo' using (column("name")) title columnhead */
-    /* FIXME:  builds on top of older circuitous method
+    /* This results from  plot 'foo' using (column("name")) title columnhead.
      * - here we dummy up a call to columnhead(-1)
      * - somewhere else the real columnhead is stored in df_key_title
      * - when columnhead(-1) is evaluated, it returns the content of df_key_title
-     * Why can't we dummy up columhead(real column) and skip the intermediate step?
      */
     if (column_for_key_title == NO_COLUMN_HEADER) {
 	free_at(df_plot_title_at);
@@ -3194,7 +3189,6 @@ df_parse_string_field(char *field)
 
     if (!field) {
 	/* missing string */
-	/* FIXME: maybe for non-csv files we should return an empty string? */
 	return NULL;
     } else if (*field == '"') {
 	field++;

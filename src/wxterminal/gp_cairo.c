@@ -128,7 +128,8 @@ static double box_origin_y;
 static TBOOLEAN in_textbox = FALSE;
 
 /* array of colors
- * FIXME could be shared with all gnuplot terminals */
+ * FIXME could be shared with all gnuplot terminals
+ */
 static rgb_color gp_cairo_colorlist[12] = {
 {1,1,1}, /* white */
 {0,0,0}, /* black */
@@ -742,13 +743,12 @@ static gchar * gp_cairo_convert(plot_struct *plot, const char* string)
 	const char *charset = NULL;
 	gchar * string_utf8;
 
-	if (g_utf8_validate(string, -1, NULL)) {
+	if (g_utf8_validate(string, -1, NULL) && (encoding != S_ENC_EUCJP)) {
 	    string_utf8 = g_strdup(string);
 	} else {
 	    charset = gp_cairo_get_encoding(plot);
 	    string_utf8 = g_convert(string, -1, "UTF-8", charset, &bytes_read, NULL, &error);
 	}
-
 	/* handle error case */
 	if (error != NULL) {
 		/* fatal error in conversion */
@@ -775,6 +775,9 @@ static gchar * gp_cairo_convert(plot_struct *plot, const char* string)
 				"in the current charset (%s), falling back to iso_8859_1\n",
 				string, charset);
 	}
+
+	/* One way or the other, the string is now UTF-8 */
+	string_utf8 = expand_unicode_escapes(string_utf8, TRUE);
 
 	return string_utf8;
 }
@@ -2080,6 +2083,7 @@ const char* gp_cairo_get_encoding(plot_struct *plot)
 	case S_ENC_CP852 :  return "cp852";
 	case S_ENC_CP1250 : return "windows-1250";
 	case S_ENC_CP1252 : return "windows-1252";
+	case S_ENC_EUCJP : return "EUC-JP";
 	case S_ENC_KOI8_R : return "KOI8-R";
 	case S_ENC_KOI8_U :  return "KOI8-U";
 	case S_ENC_ISO8859_1 : return "ISO-8859-1";

@@ -138,6 +138,7 @@ typedef enum ifstate {IF_INITIAL=1, IF_TRUE, IF_FALSE} ifstate;
 /* static prototypes */
 static void command(void);
 static TBOOLEAN is_array_assignment(void);
+static TBOOLEAN is_datablock_assignment(void);
 static int changedir(char *path);
 static char* fgets_ipc(char* dest, int len);
 static char* gp_get_string(char *, size_t, const char *);
@@ -623,7 +624,7 @@ void
 do_string_and_free(char *cmdline)
 {
 #ifdef USE_MOUSE
-    if (display_ipc_commands())
+    if (display_ipc_commands() && !multiplot_playback)
 	fprintf(stderr, "%s\n", cmdline);
 #endif
 
@@ -874,6 +875,8 @@ command()
     if (is_definition(c_token))
 	define();
     else if (is_array_assignment())
+	;
+    else if (equals(c_token,"$") && is_datablock_assignment())
 	;
     else
 	(*lookup_ftable(&command_ftbl[0],c_token))();
@@ -1131,6 +1134,45 @@ is_array_assignment()
     return TRUE;
 }
 
+/*
+ * Check for command line beginning with
+ *    $DATABLOCK[<expr>] = <string-expression>
+ * This routine is modeled on command.c:define()
+ */
+TBOOLEAN
+is_datablock_assignment()
+{
+    struct data_array *datablock;
+    char *newstring;
+    int index;
+
+    if (!equals(c_token, "$") || !isletter(c_token+1) || !equals(c_token+2,"["))
+	return FALSE;
+
+    datablock = get_datablock(parse_datablock_name());
+
+    /* FIXME: datablocks are not protected by a refcount, but could be */
+
+    /* Evaluate index (line numbers run from 1 to nlines) */
+    c_token++;
+    index = int_expression();
+    if (index <= 0 || index > datablock->header.size)
+	int_error(c_token, "index out of range");
+    if (!equals(c_token, "]") || !equals(c_token+1, "="))
+	int_error(c_token, "Expecting $Datablock[<expr>] = <string expr>");
+    index--;
+
+    /* Evaluate right side of assignment */
+    c_token += 2;
+    newstring = try_to_get_string();
+    if (!newstring)
+	int_error(c_token, "Expecting $Datablock[<expr>] = <string expr>");
+
+    free(datablock->data[index]);
+    datablock->data[index] = newstring;
+
+    return TRUE;
+}
 
 
 #ifdef USE_MOUSE
@@ -1257,9 +1299,11 @@ clear_command()
     term_start_plot();
 
     if (in_multiplot) {
-	(*term->fillbox)(FS_EMPTY, panel_bounds.xleft, panel_bounds.ybot,
-		    panel_bounds.xright - panel_bounds.xleft,
-		    panel_bounds.ytop - panel_bounds.ybot);
+	int p = multiplot_current_panel();
+	(*term->fillbox)(FS_EMPTY, panel_bounds[p].xleft, panel_bounds[p].ybot,
+		    panel_bounds[p].xright - panel_bounds[p].xleft,
+		    panel_bounds[p].ytop - panel_bounds[p].ybot);
+	panel_flags[p] = 0;
     }
     term_end_plot();
 
@@ -1630,9 +1674,6 @@ do_command()
 }
 
 /* process commands of the form 'while (foo) {...}' */
-/* FIXME:  For consistency there should be an iterator associated
- * with this statement.
- */
 void
 while_command()
 {
@@ -2213,10 +2254,6 @@ plot_command()
     add_udv_by_name("MOUSE_SHIFT")->udv_value.type = NOTDEFINED;
     add_udv_by_name("MOUSE_ALT")->udv_value.type = NOTDEFINED;
     add_udv_by_name("MOUSE_CTRL")->udv_value.type = NOTDEFINED;
-    if (multiplot_playback) {
-	/* This will only get applied to a multiplot panel with active mousing */
-	apply_saved_zoom();
-    }
 #endif
     if (evaluate_inside_functionblock && inside_plot_command)
 	int_error(NO_CARET, "plot command not available in this context");
@@ -2303,7 +2340,7 @@ print_set_output(char *name, TBOOLEAN datablock, TBOOLEAN append_p)
 	    free_value(&print_out_var->udv_value);
 	    gpfree_vgrid(print_out_var);
 	    print_out_var->udv_value.type = DATABLOCK;
-	    print_out_var->udv_value.v.data_array = NULL;
+	    print_out_var->udv_value.v.blockdata = new_data_array();
 	}
     }
 
@@ -2378,11 +2415,11 @@ print_command()
 		    line++;
 		}
 		fprintf(print_out, ")\n");
-		line = block->udv_value.v.functionblock.data_array;
+		line = block->udv_value.v.functionblock.blockdata->data;
 	    } else
 #endif	/* USE_FUNCTIONBLOCKS */
 	    if (block->udv_value.type == DATABLOCK)
-		line = block->udv_value.v.data_array;
+		line = block->udv_value.v.blockdata->data;
 	    else
 		int_error(c_token, "%s is not printable", datablock_name);
 
@@ -2576,6 +2613,7 @@ void
 remultiplot_command()
 {
     c_token++;
+    do_string("load $GPVAL_PRE_MULTIPLOT");
     replay_multiplot();
 }
 
@@ -2621,7 +2659,7 @@ replot_command()
     if (last_plot_was_multiplot && !in_multiplot) {
 	struct udvt_entry *datablock = get_udv_by_name("$GPVAL_LAST_MULTIPLOT");
 	if (!datablock || datablock->udv_value.type != DATABLOCK
-	||  datablock->udv_value.v.data_array == NULL) {
+	||  datablock->udv_value.v.blockdata == NULL) {
 	    last_plot_was_multiplot = FALSE;
 	    replotrequest();
 	} else {
@@ -2914,7 +2952,7 @@ $PALETTE u 1:2 t 'red' w l lt 1 lc rgb 'red',\
     datablock = add_udv_by_name("$PALETTE");
     free_value(&datablock->udv_value);
     datablock->udv_value.type = DATABLOCK;
-    datablock->udv_value.v.data_array = NULL;
+    datablock->udv_value.v.blockdata = new_data_array();
 
     /* Part of the purpose for writing these values into a datablock */
     /* is so that the user can read them back if desired.  But data  */
@@ -3872,10 +3910,11 @@ gp_get_string(char * buffer, size_t len, const char * prompt)
     else
 	return fgets_ipc(buffer, len);
 # else
+    char *line;
     if (interactive)
 	PUT_STRING(prompt);
 
-    char *line = GET_STRING(buffer, len);
+    line = GET_STRING(buffer, len);
 
     if (interactive && line) {
 	line[strcspn(line, "\n")] = '\0';

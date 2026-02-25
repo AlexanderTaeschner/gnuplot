@@ -55,6 +55,7 @@
 #include "gadgets.h"
 #include "hidden3d.h"
 #include "misc.h"
+#include "multiplot.h"
 #include "term_api.h"
 #include "util3d.h"
 #include "util.h"
@@ -106,7 +107,6 @@ float surface_rot_z = 30.0;
 float surface_rot_x = 60.0;
 float surface_scale = 1.0;
 float surface_zscale = 1.0;
-float surface_lscale = 0.0;
 float mapview_scale = 1.0;
 float azimuth = 0.0;
 
@@ -508,9 +508,11 @@ boundary3d(struct surface_points *plots, int count)
      * but the user can adjust it with "offset" and "set rmargin".
      * Later we will adjust the colorbox position by the same amount.
      */
-    if (splot_map && axis_array[SECOND_X_AXIS].label.text)
+    if (splot_map && axis_array[SECOND_X_AXIS].label.text
+                  && *axis_array[SECOND_X_AXIS].label.text)
 	plot_bounds.ytop -= 1.5 * t->v_char;
-    if (splot_map && axis_array[SECOND_Y_AXIS].label.text)
+    if (splot_map && axis_array[SECOND_Y_AXIS].label.text
+                  && *axis_array[SECOND_Y_AXIS].label.text)
 	plot_bounds.xright -= 2.5 * t->h_char;
 
     if (!splot_map && aspect_ratio_3D > 0) {
@@ -592,8 +594,7 @@ boundary3d(struct surface_points *plots, int count)
     else
 	clip_area = &canvas;
 
-    /* mark the entire region as available for mousing */
-    update_active_region();
+    set_panel_flag(PANEL_3D);
 }
 
 static TBOOLEAN
@@ -876,7 +877,7 @@ do_3dplot(
     else
 	zcenter3d =  -(ceiling_z - floor_z) / 2.0 * zscale3d + 1;
 
-    /* Needed for mousing by outboard terminal drivers */
+    /* Needed for multiplot mousing and for outboard terminal drivers */
     if (splot_map) {
 	AXIS *X = &axis_array[FIRST_X_AXIS];
 	AXIS *Y = &axis_array[FIRST_Y_AXIS];
@@ -886,6 +887,7 @@ do_3dplot(
 	map3d_xy(X->max, Y->max, Z->min, &xr, &yt);
 	axis_set_scale_and_range(X, xl, xr);
 	axis_set_scale_and_range(Y, yb, yt);
+	set_panel_flag(PANEL_SPLOT);
     }
 
     /* Initialize palette */
@@ -971,7 +973,8 @@ do_3dplot(
 	    y = (map_y1 + tics_len + (titlelin + 0.5) * (t->v_char));
 	    if (splot_map && axis_array[SECOND_X_AXIS].ticmode)
 		y += 0.5 * t->v_char;
-	    if (splot_map && axis_array[SECOND_X_AXIS].label.text)
+	    if (splot_map && axis_array[SECOND_X_AXIS].label.text
+	                  && *axis_array[SECOND_X_AXIS].label.text)
 		y += 1.0 * t->v_char;
 	} else { /* usual 3d set view ... */
 	    x = (plot_bounds.xleft + plot_bounds.xright) / 2;
@@ -1751,9 +1754,6 @@ do_3dplot(
     /* Release the palette if we have used one (PostScript only?) */
     if (is_plot_with_palette() && term->previous_palette)
 	term->previous_palette();
-
-    term_end_plot();
-
     if (hidden3d && draw_surface) {
 	term_hidden_line_removal();
     }
@@ -1764,6 +1764,10 @@ do_3dplot(
 	surface_scale = 1.0;
     else if (yz_projection)
 	flip_projection_axis(&axis_array[FIRST_Z_AXIS]);
+
+    /* term_end_plot will save the final axis mappings so it must come after any flips */
+    term_end_plot();
+
 }
 
 
@@ -2214,9 +2218,10 @@ plot3d_points(struct surface_points *plot)
 		    &&  plot->lp_properties.p_size == PTSZ_VARIABLE)
 			(*t->pointsize)(pointsize * point->CRD_PTSIZE);
 
-		    /* We could dummy up circles as a point of type 7, but this way */
-		    /* the radius can use x-axis coordinates rather than pointsize. */
-		    /* FIXME: if no radius given, pull it from "set style circle".  */
+		    /* We could dummy up circles as a point of type 7, but this way
+		     * the radius can use x-axis coordinates rather than pointsize.
+		     * If no radius is given, pull it from "set style circle".
+		     */
 		    if (plot->plot_style == CIRCLES) {
 			struct fill_style_type *fillstyle = &plot->fill_properties;
 			double radius = point->CRD_PTSIZE * radius_scaler;
@@ -2702,11 +2707,6 @@ draw_3d_graphbox(struct surface_points *plot, int plot_num, WHICHGRID whichgrid,
 		depth[0][0] = depth[0][1]
 		    = depth[1][0] = depth[1][1] = base_z;
 
-		/* FIXME HBB 20000617: this method contains the
-		 * assumption that the topological corners of the
-		 * surface mesh(es) are also the geometrical ones of
-		 * their xy projections. This is only true for
-		 * 'explicit' surface datasets, i.e. z(x,y) */
 		if (cornerpoles) {
 		    for (; --plot_num >= 0; plot = plot->next_sp) {
 			struct iso_curve *curve = plot->iso_crvs;
@@ -2900,7 +2900,8 @@ draw_3d_graphbox(struct surface_points *plot, int plot_num, WHICHGRID whichgrid,
 	/* In "set view map" 2D projection there may also be x2 tics and label */
 	if (splot_map && axis_array[SECOND_X_AXIS].ticmode)
 	    gen_tics(&axis_array[SECOND_X_AXIS], xtick_callback);
-	if (splot_map && axis_array[SECOND_X_AXIS].label.text) {
+	if (splot_map && axis_array[SECOND_X_AXIS].label.text
+	              && *axis_array[SECOND_X_AXIS].label.text) {
 	    int x2 = (plot_bounds.xright + plot_bounds.xleft) / 2;
 	    int y2 = plot_bounds.ytop + 1.0 * t->v_char;
 	    if (axis_array[SECOND_X_AXIS].ticmode)
@@ -3031,7 +3032,8 @@ draw_3d_graphbox(struct surface_points *plot, int plot_num, WHICHGRID whichgrid,
 		gen_tics(&axis_array[SECOND_Y_AXIS], widest_tic_callback);
 		y2tic_textwidth = (1.5 + widest_tic_strlen) * t->h_char;
 	    }
-	    if (axis_array[SECOND_Y_AXIS].label.text) {
+	    if (axis_array[SECOND_Y_AXIS].label.text
+	    && *axis_array[SECOND_Y_AXIS].label.text) {
 		int y2 = (plot_bounds.ytop + plot_bounds.ybot) / 2;
 		int x2 = plot_bounds.xright;
 		y2label_width = 2.5 * t->h_char;

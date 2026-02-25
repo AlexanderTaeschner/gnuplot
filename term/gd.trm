@@ -2487,6 +2487,20 @@ gd_iconv(char **string)
 	}
     }
 #endif /* JIS_GDLIB */
+    if (encoding == S_ENC_EUCJP) { /* EUC-JP -> UTF-8 by iconv */
+	len2 = len1*3/2+2;
+	iconv_string = gp_alloc(len2, "iconv string");
+	stmp = iconv_string;
+	if ((cd = iconv_open("UTF-8", "EUC-JP")) == (iconv_t)-1)
+	  int_warn(NO_CARET, "iconv_open failed");
+	else {
+	    if (iconv(cd, (void *)string, &len1, &stmp, &len2) == (size_t)-1)
+		int_warn(NO_CARET, "iconv failed");
+	    else
+		*string = iconv_string;
+	    iconv_close(cd);
+	}
+    }
 #else /* ! HAVE_ICONV */
 #ifdef JIS_GDLIB
     if (encoding == S_ENC_UTF8)

@@ -46,6 +46,7 @@
 #include "graphics.h"
 #include "interpol.h"
 #include "misc.h"
+#include "multiplot.h"	/* for multiplot_playback */
 #include "mouse.h"	/* for inside_zoom() */
 #include "parse.h"
 #include "pm3d.h"	/* for is_plot_with_palette */
@@ -237,9 +238,14 @@ plotrequest()
 
     /* initialize the arrays from the 'set' scalars */
     axis_init(&axis_array[FIRST_X_AXIS], FALSE);
-    axis_init(&axis_array[FIRST_Y_AXIS], TRUE);
     axis_init(&axis_array[SECOND_X_AXIS], FALSE);
-    axis_init(&axis_array[SECOND_Y_AXIS], TRUE);
+    if (multiplot_playback) {
+	axis_array[FIRST_Y_AXIS].autoscale = AUTOSCALE_NONE;
+	axis_array[SECOND_Y_AXIS].autoscale = AUTOSCALE_NONE;
+    } else {
+	axis_init(&axis_array[FIRST_Y_AXIS], TRUE);
+	axis_init(&axis_array[SECOND_Y_AXIS], TRUE);
+    }
     axis_init(&axis_array[T_AXIS], FALSE);
     axis_init(&axis_array[U_AXIS], FALSE);
     axis_init(&axis_array[V_AXIS], FALSE);
@@ -4366,93 +4372,94 @@ parse_plot_title(struct curve_points *this_plot, char *xtitle, char *ytitle, TBO
 {
     legend_key *key = &keyT;
 
-    if (almost_equals(c_token, "t$itle") || almost_equals(c_token, "not$itle")) {
-	if (*set_title)
-	    int_error(c_token, "duplicate title");
-	*set_title = TRUE;
+    if (!(almost_equals(c_token, "t$itle") || almost_equals(c_token, "not$itle")))
+	return;
 
-	/* title can be enhanced if not explicitly disabled */
-	this_plot->title_no_enhanced = !key->enhanced;
+    if (*set_title)
+	int_error(c_token, "duplicate title");
+    *set_title = TRUE;
 
-	if (almost_equals(c_token++, "not$itle"))
-	    this_plot->title_is_suppressed = TRUE;
+    /* title can be enhanced if not explicitly disabled */
+    this_plot->title_no_enhanced = !key->enhanced;
 
-	if (parametric || this_plot->title_is_suppressed) {
-	    if (in_parametric)
-		int_error(c_token, "title allowed only after parametric function fully specified");
-	    if (xtitle != NULL)
-		xtitle[0] = '\0';       /* Remove default title . */
-	    if (ytitle != NULL)
-		ytitle[0] = '\0';       /* Remove default title . */
-	    if (equals(c_token,","))
-		return;
+    if (almost_equals(c_token++, "not$itle"))
+	this_plot->title_is_suppressed = TRUE;
+
+    if (parametric || this_plot->title_is_suppressed) {
+	if (in_parametric)
+	    int_error(c_token, "title allowed only after parametric function fully specified");
+	if (xtitle != NULL)
+	    xtitle[0] = '\0';       /* Remove default title . */
+	if (ytitle != NULL)
+	    ytitle[0] = '\0';       /* Remove default title . */
+	if (equals(c_token,","))
+	    return;
+    }
+
+    /* This catches both "title columnheader" and "title columnhead(foo)" */
+    /* but it wouldn't catch "title sprintf( f(columnhead(foo)) )" */
+    if (almost_equals(c_token,"col$umnheader")) {
+	parse_1st_row_as_headers = TRUE;
+    }
+
+    /* This ugliness is because columnheader can be either a keyword */
+    /* or a function name.  Yes, the design could have been better. */
+    if (almost_equals(c_token,"col$umnheader")
+    && !(almost_equals(c_token,"columnhead$er") && equals(c_token+1,"(")) ) {
+	df_set_key_title_columnhead(this_plot);
+    } else if (equals(c_token,"at")) {
+	*set_title = FALSE;
+    } else {
+	/* If the command is "plot ... notitle <optional title text>" */
+	/* we can throw the result away now that we have stepped over it  */
+	if (this_plot->title_is_suppressed) {
+	    char *skip = try_to_get_string();
+	    free(skip);
+
+	/* In the very common case of a string constant, use it as-is. */
+	/* This guarantees that the title is only entered in the key once per
+	 * data file rather than once per data set within the file.
+	 */
+	} else if (isstring(c_token) && !equals(c_token+1,".")) {
+	    char *tmp = try_to_get_string();
+	    free_at(df_plot_title_at);
+	    df_plot_title_at = NULL;
+	    free(this_plot->title);
+	    this_plot->title = tmp;
+
+	/* Create an action table that can generate the title later */
+	} else { 
+	    free_at(df_plot_title_at);
+	    df_plot_title_at = perm_at();
 	}
-
-	/* This catches both "title columnheader" and "title columnhead(foo)" */
-	/* but it wouldn't catch "title sprintf( f(columnhead(foo)) )" */
-	if (almost_equals(c_token,"col$umnheader")) {
-	    parse_1st_row_as_headers = TRUE;
-	}
-
-	/* This ugliness is because columnheader can be either a keyword */
-	/* or a function name.  Yes, the design could have been better. */
-	if (almost_equals(c_token,"col$umnheader")
-	&& !(almost_equals(c_token,"columnhead$er") && equals(c_token+1,"(")) ) {
-	    df_set_key_title_columnhead(this_plot);
-	} else if (equals(c_token,"at")) {
-	    *set_title = FALSE;
+    }
+    if (equals(c_token,"at")) {
+	int save_token = ++c_token;
+	this_plot->title_position = gp_alloc(sizeof(t_position), NULL);
+	if (equals(c_token,"end")) {
+	    this_plot->title_position->scalex = character;
+	    this_plot->title_position->x = 1;
+	    this_plot->title_position->y = LEFT;
+	    c_token++;
+	} else if (almost_equals(c_token,"beg$inning")) {
+	    this_plot->title_position->scalex = character;
+	    this_plot->title_position->x = -1;
+	    this_plot->title_position->y = RIGHT;
+	    c_token++;
 	} else {
-	    /* If the command is "plot ... notitle <optional title text>" */
-	    /* we can throw the result away now that we have stepped over it  */
-	    if (this_plot->title_is_suppressed) {
-		char *skip = try_to_get_string();
-		free(skip);
-
-	    /* In the very common case of a string constant, use it as-is. */
-	    /* This guarantees that the title is only entered in the key once per
-	     * data file rather than once per data set within the file.
-	     */
-	    } else if (isstring(c_token) && !equals(c_token+1,".")) {
-		char *tmp = try_to_get_string();
-		free_at(df_plot_title_at);
-		df_plot_title_at = NULL;
-		free(this_plot->title);
-		this_plot->title = tmp;
-
-	    /* Create an action table that can generate the title later */
-	    } else { 
-		free_at(df_plot_title_at);
-		df_plot_title_at = perm_at();
-	    }
+	    get_position_default(this_plot->title_position, screen, TRUE, 2);
 	}
-	if (equals(c_token,"at")) {
-	    int save_token = ++c_token;
-	    this_plot->title_position = gp_alloc(sizeof(t_position), NULL);
-	    if (equals(c_token,"end")) {
-		this_plot->title_position->scalex = character;
-		this_plot->title_position->x = 1;
-		this_plot->title_position->y = LEFT;
-		c_token++;
-	    } else if (almost_equals(c_token,"beg$inning")) {
-		this_plot->title_position->scalex = character;
-		this_plot->title_position->x = -1;
+	if (save_token == c_token)
+	    int_error(c_token, "expecting \"at {beginning|end|<xpos>,<ypos>}\"");
+	if (equals(c_token,"right")) {
+	    if (this_plot->title_position->scalex == character)
 		this_plot->title_position->y = RIGHT;
-		c_token++;
-	    } else {
-		get_position_default(this_plot->title_position, screen, TRUE, 2);
-	    }
-	    if (save_token == c_token)
-		int_error(c_token, "expecting \"at {beginning|end|<xpos>,<ypos>}\"");
-	    if (equals(c_token,"right")) {
-		if (this_plot->title_position->scalex == character)
-		    this_plot->title_position->y = RIGHT;
-		c_token++;
-	    }
-	    if (equals(c_token,"left")) {
-		if (this_plot->title_position->scalex == character)
-		    this_plot->title_position->y = LEFT;
-		c_token++;
-	    }
+	    c_token++;
+	}
+	if (equals(c_token,"left")) {
+	    if (this_plot->title_position->scalex == character)
+		this_plot->title_position->y = LEFT;
+	    c_token++;
 	}
     }
 

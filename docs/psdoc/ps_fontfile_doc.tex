@@ -5,6 +5,7 @@
 \usepackage{graphicx}
 \usepackage{array}
 \usepackage{calc}
+\usepackage{ifthen}
 %\usepackage[width=18cm,height=24cm]{geometry}
 \addtolength{\textwidth}{40mm}
 \addtolength{\oddsidemargin}{-15mm}
@@ -123,7 +124,18 @@
   {\cmtex\char'#1} &
   {\cmff\char'#1} &
   {\cmsy\char'#1} &
-  {\lasy\char'#1} &
+%%  {\lasy\char'#1} &
+  \ifthenelse{0=#1} { }
+    {\ifthenelse{5>#1} {\lasy\char'#1}
+      {\ifthenelse{50>#1} { }
+        {\ifthenelse{54>#1} {\lasy\char'#1}
+          {\ifthenelse{60>#1} { }
+            {\ifthenelse{64>#1} {\lasy\char'#1}
+              {\ifthenelse{72>#1} { }
+                {\ifthenelse{76>#1} {\lasy\char'#1}
+                { }
+  }}}}}}} &
+%%
   \ifodd\rownum \else\qquad\fi
   \global\advance\rownum 1
   {\raisebox{1.7ex}[0mm][1ex]{\cmex\char'#1}} &

@@ -33,6 +33,7 @@
 #include <string.h>
 
 #include "gplocale.h"
+#include "encoding.h"
 #include "stdfn.h"
 #include "command.h"
 #include "term_api.h"
@@ -62,6 +63,7 @@ locale_handler(int action, char *newlocale)
 {
     struct tm tm;
     int i;
+    const char *l;
 
     switch(action) {
     case ACTION_CLEAR:
@@ -69,11 +71,13 @@ locale_handler(int action, char *newlocale)
 	free(time_locale);
 #ifdef HAVE_LOCALE_H
 	setlocale(LC_TIME, "");
-	setlocale(LC_CTYPE, "");
 	time_locale = gp_strdup(setlocale(LC_TIME,NULL));
 #else
 	time_locale = gp_strdup(INITIAL_LOCALE);
 #endif
+	l = setlocale(LC_CTYPE, "");
+	free(locale_encoding);
+	locale_encoding = strdup(l);
 	break;
 
     case ACTION_SET:

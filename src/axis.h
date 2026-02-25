@@ -32,7 +32,9 @@
 #define GNUPLOT_AXIS_H
 
 /* Aug 2017 - unconditional support for nonlinear axes */
-# define nonlinear(axis) ((axis)->linked_to_primary != NULL && (axis)->link_udf->at != NULL)
+# define nonlinear(axis) ((axis)->linked_to_primary != NULL \
+                       && (axis)->link_udf != NULL \
+                       && (axis)->link_udf->at != NULL)
 # define invalid_coordinate(x,y) ((unsigned)(x)==intNaN || (unsigned)(y)==intNaN)
 
 #include "gp_types.h"		/* for TBOOLEAN */
@@ -305,6 +307,7 @@ typedef struct axis_defaults {
 } AXIS_DEFAULTS;
 
 /* Subset of axis properties saved for multiplot or off-line mousing */
+/* Each panel of a multiplot needs one of these */
 typedef struct axis_mapping {
     double min;
     double max;
@@ -313,6 +316,8 @@ typedef struct axis_mapping {
     TBOOLEAN log;
     TBOOLEAN nonlinear;		/* TRUE if set link or set nonlinear */
     TBOOLEAN active;		/* TRUE if TICS_ON() (report coords) */
+    TBOOLEAN in_use;		/* TRUE if this mapping has been updated */
+    TBOOLEAN inverted;		/* special case y coords in splot_map */
 } axis_mapping;
 
 
@@ -322,8 +327,6 @@ extern AXIS axis_array[AXIS_ARRAY_SIZE];
 extern AXIS *shadow_axis_array;
 extern const AXIS_DEFAULTS axis_defaults[AXIS_ARRAY_SIZE];
 extern const AXIS default_axis_state;
-extern axis_mapping x_mapping, x2_mapping, y_mapping, y2_mapping;
-extern axis_mapping r_mapping, theta_mapping;
 
 /* Dynamic allocation of parallel axis structures */
 extern AXIS *parallel_axis_array;
