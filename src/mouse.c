@@ -843,7 +843,7 @@ GetRulerString(char *p, double x, double y)
 	format[0] = '\0';
 	strcat(format, " (");
 	strcat(format, mouse_setting.fmt);
-	rho = sqrt((x - rx) * (x - rx) + (y - ry) * (y - ry)); /* distance */
+	rho = hypot(x-rx, y-ry); /* distance */
 	if (mouse_setting.polardistance == 1) { /* (distance, angle) */
 	    phi = (180 / M_PI) * atan2(y - ry, x - rx);
 # ifdef OS2
@@ -2555,7 +2555,7 @@ event_buttonpress(struct gp_event_t *ge)
 	     */
 	    double dist_x = setting_zoom_x - mouse_x;
 	    double dist_y = setting_zoom_y - mouse_y;
-	    double dist = sqrt((dist_x * dist_x + dist_y * dist_y));
+	    double dist = hypot(dist_x, dist_y);
 
 	    /* ensure that the zoom region does not span multiplot panels */
 	    if (setting_zoom_panel != which_panel(mouse_x, mouse_y)) {

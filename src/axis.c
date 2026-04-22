@@ -437,17 +437,14 @@ axis_checked_extend_empty_range(AXIS_INDEX axis, const char *mesg)
 	    double widen = (dmax == 0.0) ?
 		FIXUP_RANGE__WIDEN_ZERO_ABS
 		: FIXUP_RANGE__WIDEN_NONZERO_REL * fabs(dmax);
-	    if (!(axis == FIRST_Z_AXIS && !mesg)) /* set view map */
-		fprintf(stderr, "Warning: empty %s range [%g:%g], ",
-		    axis_name(axis), dmin, dmax);
 	    /* HBB 20010525: correctly handle single-ended autoscaling */
 	    if ((this_axis->autoscale & AUTOSCALE_MIN) || inside_zoom())
 		this_axis->min -= widen;
 	    if ((this_axis->autoscale & AUTOSCALE_MAX) || inside_zoom())
 		this_axis->max += widen;
 	    if (!(axis == FIRST_Z_AXIS && !mesg)) /* set view map */
-		fprintf(stderr, "adjusting to [%g:%g]\n",
-		    this_axis->min, this_axis->max);
+		int_warn(NO_CARET, "empty %s range [%g:%g], adjusting to [%g:%g]",
+		    axis_name(axis), dmin, dmax, this_axis->min, this_axis->max);
 	} else {
 	    /* user has explicitly set the range (to something empty) */
 	    int_error(NO_CARET, "Can't plot with an empty %s range!",

@@ -79,8 +79,6 @@ typedef enum en_edge_position {
 #define FALSE    0
 #endif
 
-#define SQR(x)  ((x) * (x))
-
 typedef struct edge_struct {
     struct poly_struct *poly[2]; /* Each edge belongs to up to 2 polygons */
     struct coordinate *vertex[2]; /* The two extreme points of this edge. */
@@ -1110,7 +1108,7 @@ gen_cubic_spline(
 	 * The norm of a linear stroke is calculated in "normal coordinates"
 	 * and used as interval length:
 	 */
-	delta_t[i] = sqrt(SQR(d2x[i] / unit_x) + SQR(d2y[i] / unit_y));
+	delta_t[i] = hypot(d2x[i]/unit_x, d2y[i]/unit_y);
 
 	d2x[i] /= delta_t[i];	/* first difference, with unit norm: */
 	d2y[i] /= delta_t[i];	/*   || (d2x[i], d2y[i]) || = 1      */
@@ -1143,7 +1141,7 @@ gen_cubic_spline(
 	 * If the linear stroke shows a cusps of more than 90 degree, the right
 	 * side is reduced to avoid oscillations in the spline:
 	 */
-	norm = sqrt(SQR(d2x[i] / unit_x) + SQR(d2y[i] / unit_y)) / 8.5;
+	norm = hypot(d2x[i]/unit_x, d2y[i]/unit_y) / 8.5;
 
 	if (norm > 1.) {
 	    d2x[i] /= norm;

@@ -145,7 +145,7 @@ Givens(
 		    sigma = 1;
 		    rho = 1;
 		} else {
-		    w = fsign(C[j][j]) * sqrt(C[j][j] * C[j][j] + C[i][j] * C[i][j]);
+		    w = fsign(C[j][j]) * hypot(C[j][j], C[i][j]);
 		    if (w == 0)
 			Eex3("w = 0 in Givens();  Cjj = %g,  Cij = %g", C[j][j], C[i][j]);
 		    gamma = C[j][j] / w;

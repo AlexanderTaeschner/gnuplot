@@ -207,9 +207,7 @@ static SELECT_TYPE_ARG1 ipc_back_fd = IPC_BACK_CLOSED;
 static char *optvec[2 * X11_nopts + 1 + 10];
 static char x11_userbkg[] = "#RRGGBB";
 
-/* gnuplot_x11 has extension .exe on OS/2 and Windows (and on RSX/VMS, but
-   these construct their own full path GNUPLOT_X11 in their build script).
-*/
+/* gnuplot_x11 has extension .exe on OS/2 and Windows */
 # if defined(OS2) || defined(_Windows)
 #   ifndef GNUPLOT_X11
 static char X11_default_command[] = "gnuplot_x11.exe";
@@ -829,28 +827,14 @@ X11_update_opts()
 }
 
 
-/*-----------------------------------------------------------------------------
- *   Different versions of the remainder of the X11 terminal driver
- *   are provided to support three different types of IPC with the
- *   gnuplot_x11 outboard terminal driver:
- *
- *   DEFAULT_X11:      popen() pipe for most un*x platforms
- *
- *   VMS :             mailbox/spawn IPC
- *---------------------------------------------------------------------------*/
-
-#define DEFAULT_X11
-#if defined(VMS)
-# undef DEFAULT_X11
-#endif
 /* we do not want to have to duplicate all the code, so we
  * do most of it with macros.
  * PRINT0(format), PRINT1(format, p1), PRINT2(format, p1, p2) etc
  * also  FLUSH0(format), etc, which do an additional flush
  */
-#ifdef DEFAULT_X11
+
 /*-----------------------------------------------------------------------------
- *   DEFAULT_X11 popen() pipe IPC
+ *   popen() pipe IPC
  *---------------------------------------------------------------------------*/
 static void
 X11_atexit()
@@ -1189,174 +1173,6 @@ X11_reset()
 #define AFTER_TEXT		/* nowt */
 
 
-#elif defined(VMS)
-/*-----------------------------------------------------------------------------
- *   VMS mailbox/spawn IPC - Yehavi Bourvine - YEHAVI@VMS.HUJI.AC.IL
- *---------------------------------------------------------------------------*/
-#include <iodef.h>
-#include <descrip.h>
-#include <dvidef.h>
-#ifdef __DECC
-#include <lib$routines.h>
-#include <starlet.h>
-#endif
-#ifdef __GNUC__
-#include <errno.h>
-#else
-int vaxc$errno;
-#endif
-
-#define SS$_NORMAL 1		/* or include <ssdef.h> for all SS$_ def's */
-
-#define MBXMXMSG 128		/* DEFMBXMXMSG is set by SYSGEN */
-
-static short X11_channel;
-
-struct iosb {
-    unsigned short stat;
-    unsigned short count;
-    unsigned long info;
-};
-
-
-
-TERM_PUBLIC void
-X11_init()
-{
-
-    struct iosb iosb;
-
-    static char devnam_string[64];
-    static $DESCRIPTOR(devnam, devnam_string);
-
-    struct {
-	short int buf_len;
-	short int item;
-	char *buf_addr;
-	unsigned short int *ret_len;
-	int end;
-    } item_list = {
-    devnam.dsc$w_length, DVI$_DEVNAM, devnam.dsc$a_pointer, &devnam.dsc$w_length, 0};
-#define CMDLEN 1024
-    char cmdline[CMDLEN], *cmdp;
-    int optindex;
-
-    if (!X11_channel) {
-	int one = 1;
-
-	/* Create a descriptor for the command line that starts
-	   GNUPLOT_X11. $DESCRIP doesn't work in this context... */
-
-	/* FIXME!
-	 * This does not work anymore since X11 option passing has been
-	 * changed to use execvp() in the DEFAULT_X11 case
-	 */
-	struct dsc$descriptor_s pgmdsc = { 0, DSC$K_DTYPE_T,
-	    DSC$K_CLASS_S, 0
-	};
-	optindex = 0;
-	strcpy(cmdline, optvec[optindex]);
-	cmdp = cmdline + strlen(optvec[optindex]);
-	while (optvec[++optindex] != NULL) {
-	    *cmdp++ = ' ';
-	    *cmdp++ = '\"';
-	    strcpy(cmdp, optvec[optindex]);
-	    cmdp += strlen(optvec[optindex]);
-	    *cmdp++ = '\"';
-	}
-	pgmdsc.dsc$w_length = cmdp - cmdline;
-	pgmdsc.dsc$a_pointer = cmdline;
-
-	/* Create a mailbox which will be used as a pipe for commands to the
-	 * subprocess.  What we'll write to it will be read by the subprocess
-	 * as its STDIN.  Use an unnamed mailbox and refer to it by its device
-	 * number */
-
-	vaxc$errno = sys$crembx(0, &X11_channel, MBXMXMSG, MBXMXMSG, 0, 0, 0, 0);
-	if ((vaxc$errno & SS$_NORMAL) != SS$_NORMAL) {
-	    printf("SYS$CreMbx failed with status=%d\r\n", vaxc$errno);
-	    os_error(NO_CARET, "sys$crembx failed");
-	}
-	vaxc$errno = sys$getdviw(0, X11_channel, 0, &item_list, &iosb, 0, 0, 0);
-	if ((vaxc$errno & SS$_NORMAL) == SS$_NORMAL)
-	    vaxc$errno = iosb.stat;
-	if ((vaxc$errno & SS$_NORMAL) != SS$_NORMAL) {
-	    printf("SYS$Getdviw failed with status=%d\r\n", vaxc$errno);
-	    sys$dassgn(X11_channel);
-	    X11_channel = 0;
-	    os_error(NO_CARET, "sys$getdviw failed");
-	}
-	/* Create a subprocess whose input is this mailbox. */
-	vaxc$errno = lib$spawn(&pgmdsc, &devnam, 0, &one, 0, 0, 0, 0, 0, 0, 0, 0, 0);
-	if ((vaxc$errno & SS$_NORMAL) != SS$_NORMAL) {
-	    printf("LIB$SPAWN failed with status=%d\r\n", vaxc$errno);
-	    sys$dassgn(X11_channel);
-	    X11_channel = 0;
-	    os_error(NO_CARET, "lib$spawn failed");
-	}
-    }
-    {
-	static int been_here = 0;
-	if (!been_here) {
-	    gp_atexit(X11_atexit);
-	    been_here = 1;
-	}
-    }
-}
-
-
-/*   We use $QIO in order to avoid buffering problems, although it might
- *   work  as well with simple Fprintf calls.
- */
-
-#define GO(x) \
-do { \
-   char buffer[512]; int status; struct iosb iosb;\
-   sprintf x; \
-   if (strlen(buffer) >= MBXMXMSG)  { \
-     printf("buffer contents (%d char) catenated to mailbox size (%d bytes)\n", \
-     strlen(buffer), MBXMXMSG); \
-     buffer[MBXMXMSG-1] = '\0';\
-     printf("%s\n", buffer); \
-   } \
-   status = sys$qiow(0, X11_channel, IO$_WRITEVBLK, &iosb, 0, 0, buffer, strlen(buffer), 0, 0, 0, 0); \
-   if ((status & SS$_NORMAL) == SS$_NORMAL) status = iosb.stat; \
-   if((status & SS$_NORMAL) != SS$_NORMAL) gp_exit(status); \
- } while (0)
-
-#define PRINT0(fmt)          GO((buffer, fmt))
-#define PRINT1(fmt,p1)       GO((buffer, fmt,p1))
-#define PRINT2(fmt,p1,p2)    GO((buffer, fmt,p1,p2))
-#define PRINT3(fmt,p1,p2,p3) GO((buffer, fmt,p1,p2,p3))
-#define PRINT4(fmt,p1,p2,p3,p4) GO((buffer, fmt,p1,p2,p3,p4))
-#define PRINT5(fmt,p1,p2,p3,p4,p5) GO((buffer, fmt,p1,p2,p3,p4,p5))
-
-#define FFLUSH()		/* nowt */
-#define BEFORE_GRAPHICS		/* nowt */
-#define AFTER_TEXT		/* nowt */
-
-static void
-X11_atexit()
-{
-    if (X11_channel) {
-	PRINT0("R\n");
-	sleep(2);		/* Wait for subprocess to finish */
-	sys$dassgn(X11_channel);
-	X11_channel = 0;
-    }
-}
-
-TERM_PUBLIC void
-X11_reset()
-{
-    /* do nothing until exit */
-}
-
-#else /* !VMS */
-    You lose.
-#endif /* !VMS */
-
-
 /* Cached sizing values for the x11 terminal.
  * Updated/Maintained in mouse.c
  */
@@ -1376,7 +1192,6 @@ X11_graphics()
     BEFORE_GRAPHICS;		/* kludge for crippled select */
 
 #ifndef USE_MOUSE
-    /* for VMS sake, keep as separate prints */
     PRINT0("G\n");
 #else
 #ifdef PIPE_IPC

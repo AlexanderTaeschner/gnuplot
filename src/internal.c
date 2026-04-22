@@ -91,7 +91,9 @@ static enum DATA_TYPES sprintf_specifier(const char *format);
 
 static const char *nonstring_error = "internal error : STRING operator applied to undefined or non-STRING variable";
 
+/* This is used to track and limit the depth of calls to user-defined functions */
 static int recursion_depth = 0;
+
 void
 eval_reset_after_error()
 {
@@ -200,7 +202,7 @@ f_call(union argument *x)
     if (udf->dummy_num != 1)
 	int_error(NO_CARET, "function %s requires %d variables", udf->udf_name, udf->dummy_num);
 
-    if (recursion_depth++ > STACK_DEPTH)
+    if (recursion_depth++ > MAX_RECURSION_DEPTH)
 	int_error(NO_CARET, "recursion depth limit exceeded");
 
     /* User-defined functions need help to clean up temporary arrays.
@@ -268,7 +270,7 @@ f_calln(union argument *x)
 	int_error(NO_CARET, "too many parameters passed to function %s",
 	    udf->udf_name);
 
-    if (recursion_depth++ > STACK_DEPTH)
+    if (recursion_depth++ > MAX_RECURSION_DEPTH)
 	int_error(NO_CARET, "recursion depth limit exceeded");
 
     for (i = 0; i < num_pop; i++)
@@ -1265,7 +1267,7 @@ f_power(union argument *arg)
 	} else if (b.v.int_val > 0) {
 	    /* deal with overflow by empirical check */
 	    intgr_t tprev, t;
-	    intgr_t tmag = labs(a.v.int_val);
+	    intgr_t tmag = llabs(a.v.int_val);
 	    tprev = t = 1;
 	    for (i = 0; i < b.v.int_val; i++) {
 		tprev = t;

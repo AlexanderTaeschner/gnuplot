@@ -5,7 +5,7 @@ SUBDIRS = config m4 term src docs man demo share
 
 EXTRA_DIST = BUGS Copyright FAQ.pdf INSTALL INSTALL.gnu \
 PATCHLEVEL PGPKEYS README RELEASE_NOTES \
-configure.vms win
+win
 
 DISTCLEANFILES = stamp-h
 

@@ -878,6 +878,16 @@ SVG_init ()
 static void
 SVG_put_CDATA (char* s, FILE* gpoutfile)
 {
+    /* Mar 2026: I am not sure in which contexts inserting CDATA is valid,
+     *           but it definitely breaks use in domterm.
+     * FIXME: It might be better to emit CDATA only if an explicit terminal
+     *        option is given.
+     */
+    if ((strcmp(term->name, "domterm") == 0) || !SVG_mouseable) {
+	fprintf(gpoutfile, "%s", s);
+	return;
+    }
+
     fprintf(gpoutfile, "<![CDATA[");
     while (*s != '\0') {
 	if (strncmp(s, "]]>", 3) == 0) {
@@ -2429,7 +2439,7 @@ START_HELP(svg)
 "                        {name <plotname>}",
 "                        {font \"<fontname>{,<fontsize>}\"} {{no}enhanced}",
 "                        {fontscale <multiplier>}",
-"                        {rounded|butt|square} {solid|dashed} {linewidth <lw>}",
+"                        {rounded|butt|square} {linewidth <lw>}",
 "                        {background <rgb_color>}",
 "                        {description \"<description>\"}",
 "",
@@ -2477,7 +2487,7 @@ START_HELP(domterm)
 "       set terminal domterm ",
 "                        {font \"<fontname>{,<fontsize>}\"} {{no}enhanced}",
 "                        {fontscale <multiplier>}",
-"                        {rounded|butt|square} {solid|dashed} {linewidth <lw>}",
+"                        {rounded|butt|square} {linewidth <lw>}",
 "                        {background <rgb_color>}",
 "                        {animate}",
 "",

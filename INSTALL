@@ -515,6 +515,38 @@ PM terminal is fully mouse-capable. Type 'm' to switch the mouse on/off (see
 'help mouse' for more details), or 'h' for the full list of current hotkeys
 (see also 'help bind').
 
+Webassembly (Wasm) via WASI
+---------------------------
+
+The configure script can be used to cross-compile gnuplot into Webassembly
+byte code with hooks to connect to a run environment through the WASI  API
+protocols. Here is a recipe for configuring and running using the tools in
+the wasi-sdk toolkit. If wasi-sdk is installed somewhere other than /usr/local/
+adjust the commands accordingly.
+
+    export WASI=/usr/local/wasi-sdk-30.0-x86_64-linux/share/wasi-sysroot
+    export PATH=/usr/local/wasi-sdk-30.0-x86_64-linux/bin:$PATH
+    export CC=clang-21
+    export CFLAGS="-I$WASI/include -DDEFAULTTERM=\\\"dumb\\\""
+    export PKG_CONFIG_LIBDIR=$WASI/lib
+    export LD_LIBRARY_PATH=$WASI/lib
+    ./prepare
+    ./configure --host=wasm32-wasi --with-wasi-sysroot=${WASI}
+    make
+
+Since the wasi-sdk toolkit does not provide compatible libraries for many
+terminals (gdlib cairo lua fontconfig ...), the resulting executable supports
+only a few output options.  Of these the most useful is probably svg.
+Running gnuplot's domterm terminal inside a DomTerm terminal emulator
+illustrates how the svg output from gnuplot can be caught and displayed by
+the widget it is running in, and may serve as a model for how the bytecode
+gnuplot executable might be used as a plugin in a browser or other environment
+capable of running Wasm.
+
+If you are looking for something to work on and contribute, you might consider
+modifying or rewriting the canvas or qt terminals to use the WASI APIs so that
+they can be used in a Wasm environment.
+
 
 Environment variables
 =====================

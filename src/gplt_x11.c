@@ -129,11 +129,6 @@
 # define EXPORT_SELECTION XA_PRIMARY
 #endif /* NOEXPORT */
 
-
-#if !(defined(VMS))
-# define DEFAULT_X11
-#endif
-
 #include <math.h>
 #include "getcolor.h"
 
@@ -192,25 +187,17 @@ typedef struct axis_scale_t {
 # include <X11/Xlibint.h>
 #endif
 
-
-#ifdef VMS
-# ifdef __DECC
-#  include <starlet.h>
-# endif
-# define EXIT(status) sys$delprc(0, 0)	/* VMS does not drop itself */
-#else /* !VMS */
-# ifdef PIPE_IPC
-#  define EXIT(status)                         \
+#ifdef PIPE_IPC
+#define EXIT(status)                         \
     do {                                       \
 	gp_exec_event(GE_pending, 0, 0, 0, 0, 0); \
 	close(1);                              \
 	close(0);                              \
 	exit(status);                          \
     } while (0)
-# else
-#  define EXIT(status) exit(status)
-# endif	/* PIPE_IPC */
-#endif /* !VMS */
+#else
+# define EXIT(status) exit(status)
+#endif /* PIPE_IPC */
 
 #define Ncolors 13
 
@@ -780,24 +767,9 @@ main(int argc, char *argv[])
 }
 
 /*-----------------------------------------------------------------------------
- *   mainloop processing - process X events and input from gnuplot
- *
- *   Different versions of main loop processing are provided to support
- *   different platforms.
- *
- *   DEFAULT_X11:     use select() for both X events and input on stdin
- *                    from gnuplot inboard driver
- *
- *   VMS:             use XNextEvent to service X events and AST to
- *                    service input from gnuplot inboard driver on stdin
+ *   mainloop processing - multiplex X events and input from gnuplot
  *---------------------------------------------------------------------------*/
 
-
-#ifdef DEFAULT_X11
-
-/*
- * DEFAULT_X11 mainloop
- */
 static void
 mainloop()
 {
@@ -920,78 +892,6 @@ mainloop()
 	}
     }
 }
-
-#elif defined(VMS)
-/*-----------------------------------------------------------------------------
- *    VMS mainloop - Yehavi Bourvine - YEHAVI@VMS.HUJI.AC.IL
- *---------------------------------------------------------------------------*/
-
-/*  In VMS there is no decent Select(). hence, we have to loop inside
- *  XGetNextEvent for getting the next X window event. In order to get input
- *  from the master we assign a channel to SYS$INPUT and use AST's in order to
- *  receive data. In order to exit the mainloop, we need to somehow make
- *  XNextEvent return from within the ast. We do this with a XSendEvent() to
- *  ourselves !
- *  This needs a window to send the message to, so we create an unmapped window
- *  for this purpose. Event type XClientMessage is perfect for this, but it
- *  appears that such messages come from elsewhere (motif window manager,
- *  perhaps ?) So we need to check fairly carefully that it is the ast event
- *  that has been received.
- */
-
-#include <iodef.h>
-char STDIIN[] = "SYS$INPUT:";
-short STDIINchannel, STDIINiosb[4];
-struct {
-    short size, type;
-    char *address;
-} STDIINdesc;
-char STDIINbuffer[64];
-int status;
-
-ast()
-{
-    int status = sys$qio(0, STDIINchannel, IO$_READVBLK, STDIINiosb, record,
-			 0, STDIINbuffer, sizeof(STDIINbuffer) - 1, 0, 0, 0, 0);
-    if ((status & 0x1) == 0)
-	EXIT(status);
-}
-
-Window message_window;
-
-static void
-mainloop()
-{
-    /* dummy unmapped window for receiving internally-generated terminate
-     * messages
-     */
-    message_window = XCreateSimpleWindow(dpy, root, 0, 0, 1, 1, 1, 0, 0);
-
-    STDIINdesc.size = strlen(STDIIN);
-    STDIINdesc.type = 0;
-    STDIINdesc.address = STDIIN;
-    status = sys$assign(&STDIINdesc, &STDIINchannel, 0, 0, 0);
-    if ((status & 0x1) == 0)
-	EXIT(status);
-    ast();
-
-    for (;;) {
-	XEvent xe;
-	XNextEvent(dpy, &xe);
-	if (xe.type == ClientMessage && xe.xclient.window == message_window) {
-	    if (xe.xclient.message_type == None && xe.xclient.format == 8 && strcmp(xe.xclient.data.b, "die gnuplot die") == 0) {
-		FPRINTF((stderr, "quit message from ast\n"));
-		return;
-	    } else {
-		FPRINTF((stderr, "Bogus XClientMessage event from window manager ?\n"));
-	    }
-	}
-	process_event(&xe);
-    }
-}
-#else /* !(DEFAULT_X11 || VMS */
-# error You lose. No mainloop.
-#endif				/* !(DEFAULT_X11 || VMS */
 
 /* delete a window / plot */
 static void
@@ -1132,8 +1032,6 @@ store_command(char *buffer, plot_struct *plot)
     }
     plot->commands[plot->ncommands++] = strcpy(p, buffer);
 }
-
-#ifndef VMS
 
 static int read_input(void);
 
@@ -1851,65 +1749,6 @@ record()
 }
 #undef plot
 
-#else /* VMS */
-
-/*
- *   record - record new plot from gnuplot inboard X11 driver (VMS)
- */
-static struct plot_struct *plot = NULL;
-record()
-{
-    int status;
-
-    if ((STDIINiosb[0] & 0x1) == 0)
-	EXIT(STDIINiosb[0]);
-    STDIINbuffer[STDIINiosb[1]] = '\0';
-    strcpy(buf, STDIINbuffer);
-
-    switch (*buf) {
-    case 'G':			/* enter graphics mode */
-	{
-	    if (!plot)
-		plot = Add_Plot_To_Linked_List(most_recent_plot_number);
-	    if (plot)
-		prepare_plot(plot);
-	    current_plot = plot;
-	    break;
-	}
-    case 'E':			/* leave graphics mode */
-	if (plot)
-	    display(plot);
-	break;
-    case 'R':			/* exit x11 mode */
-	FPRINTF((stderr, "received R - sending ClientMessage\n"));
-	reset_cursor(0);
-	sys$cancel(STDIINchannel);
-	/* this is ridiculous - cook up an event to ourselves,
-	 * in order to get the mainloop() out of the XNextEvent() call
-	 * it seems that window manager can also send clientmessages,
-	 * so put a checksum into the message
-	 */
-	{
-	    XClientMessageEvent event;
-	    event.type = ClientMessage;
-	    event.send_event = True;
-	    event.display = dpy;
-	    event.window = message_window;
-	    event.message_type = None;
-	    event.format = 8;
-	    strcpy(event.data.b, "die gnuplot die");
-	    XSendEvent(dpy, message_window, False, 0, (XEvent *) & event);
-	    XFlush(dpy);
-	}
-	return;			/* no ast */
-    default:
-	if (plot)
-	    store_command(buf, plot);
-	break;
-    }
-    ast();
-}
-#endif /* VMS */
 
 static int
 DrawRotatedErrorHandler(Display * display, XErrorEvent * error_event)
@@ -5167,17 +5006,9 @@ preset(int argc, char *argv[])
     int Argc = argc;
     char **Argv = argv;
 
-#ifdef VMS
-    char *ldisplay = (char *) 0;
-#else
     char *ldisplay = getenv("DISPLAY");
-#endif
     char *home = getenv("HOME");
     char *server_defaults, *env, buffer[256];
-#if 0
-    Visual *TrueColor_vis, *PseudoColor_vis, *StaticGray_vis, *GrayScale_vis;
-    int TrueColor_depth, PseudoColor_depth, StaticGray_depth, GrayScale_depth;
-#endif
     char *db_string;
 
     FPRINTF((stderr, "(preset) \n"));
@@ -5267,9 +5098,7 @@ gnuplot: X11 aborted.\n", ldisplay);
 
 /*---get application defaults--(subset of Xt processing)------------------*/
 
-#ifdef VMS
-    strcpy(buffer, "DECW$USER_DEFAULTS:GNUPLOT_X11.INI");
-#elif defined OS2
+#ifdef OS2
 /* for XFree86 ... */
     {
 	char appdefdir[MAXPATHLEN];
@@ -5295,7 +5124,7 @@ gnuplot: X11 aborted.\n", ldisplay);
     	    strcat(buffer, "Gnuplot");
 	}
     }
-#endif /* !VMS */
+#endif /* !OS2 */
 
     dbApp = XrmGetFileDatabase(buffer);
     XrmMergeDatabases(dbApp, &db);
@@ -5305,19 +5134,14 @@ gnuplot: X11 aborted.\n", ldisplay);
     if (server_defaults)
 	dbDef = XrmGetStringDatabase(server_defaults);
     else {
-#ifdef VMS
-	strcpy(buffer, "DECW$USER_DEFAULTS:DECW$XDEFAULTS.DAT");
-#else
 	strcpy(buffer, home);
 	strcat(buffer, "/.Xdefaults");
-#endif
 	dbDef = XrmGetFileDatabase(buffer);
     }
     XrmMergeDatabases(dbDef, &db);
 
 /*---get XENVIRONMENT or  ~/.Xdefaults-hostname---------------------------*/
 
-#ifndef VMS
     if ((env = getenv("XENVIRONMENT")) != NULL)
 	dbEnv = XrmGetFileDatabase(env);
     else {
@@ -5335,7 +5159,6 @@ gnuplot: X11 aborted.\n", ldisplay);
 	dbEnv = XrmGetFileDatabase(buffer);
     }
     XrmMergeDatabases(dbEnv, &db);
-#endif /* not VMS */
 
 /*---merge command line options-------------------------------------------*/
 

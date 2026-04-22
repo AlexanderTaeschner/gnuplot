@@ -1459,6 +1459,29 @@ set_contourfill(void)
 	} else if (almost_equals(c_token, "first$linetype")) {
 	    c_token++;
 	    contourfill.firstlinetype = int_expression();
+	} else if (equals(c_token, "defined")) {
+	    const char *errmsg = "expecting 'defined [zmin1:zmax1] color1, [zmin2:zmax2] color2, ...'";
+	    int N = 0;
+	    c_token++;
+	    if (END_OF_COMMAND)
+		int_error(NO_CARET, errmsg);
+	    contourfill.mode = CFILL_LIST;
+	    contourfill.slices = realloc(contourfill.slices, MAX_ZSLICES * sizeof(zslice));
+	    contourfill.nslices = 0;
+	    while (!END_OF_COMMAND && (N < MAX_ZSLICES)) {
+		zslice *slice = &contourfill.slices[N];
+		if (!equals(c_token++,"["))
+		    int_error(NO_CARET, errmsg);
+		slice->zlow = parse_one_range_limit(
+				(N==0) ? -VERYLARGE : contourfill.slices[N-1].zhigh);
+		slice->zhigh = parse_one_range_limit( VERYLARGE );
+		slice->color.type = TC_RGB;
+		slice->color.rgbcolor = parse_color_name();
+		N++;
+		if (!equals(c_token++,","))
+		    break;
+	    }
+	    contourfill.nslices = N;
 	} else
 	    int_error(c_token, "Unrecognized option");
     }

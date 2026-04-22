@@ -1,0 +1,50 @@
+#
+# cerfi(z)
+# Complex imaginary error function of a complex value
+# (requires libcerf)
+#
+if (!strstrt(GPVAL_COMPILE_OPTIONS,"+LIBCERF")) {
+	print  "This copy of gnuplot was not linked against libcerf"
+	exit;
+}
+cerfi(z) = -I * cerf(I*z)
+
+set xrange [-2.1:2.1]
+set yrange [-2.1:2.1]
+set zrange [-2:2]
+set xyplane 0
+set view 56,43
+unset colorbox
+
+set pm3d depthorder border lc "black" lw .2
+set pm3d lighting
+set sample 71
+set isosample 71
+
+set xlabel "Real(z)"
+set ylabel "Imag(z)"
+set title "Complex imaginary error function\n" . "cerfi(z) = -i * cerf(i*z)"
+
+splot real(cerfi(x+I*y)) with pm3d fc "pink" title "real( cerfi(z) )"
+pause -1 "<cr> to continue"
+
+splot imag(cerfi(x+I*y)) with pm3d fc "cyan" title "imag( cerfi(z) )"
+pause -1 "<cr> to continue"
+
+set cblabel "Phase Angle"
+set cblabel  offset -1, 0, 0  rotate
+set cbrange [ -3.14159 : 3.14159 ]
+set cbtics   ("-π" -3.14159, "+π" 3.14159)
+set pm3d corners2color c1
+set palette color model HSV defined ( 0 0 1 1, 1 1 1 1 )
+set colorbox
+set pm3d nolighting
+set zrange [0:10]
+set sample 151
+set isosample 151
+
+set zlabel "|cerfi(z)|" norotate
+splot '++' using 1:2:(abs(cerfi(x+I*y))):(arg(cerfi(x+I*y))) with pm3d notitle
+pause -1 "<cr> to continue"
+
+reset

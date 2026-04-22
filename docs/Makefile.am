@@ -32,7 +32,7 @@
 gih_DATA = gnuplot.gih
 gihdir = @GIHDIR@
 
-noinst_PROGRAMS = checkdoc doc2ipf doc2tex doc2gih doc2hlp \
+noinst_PROGRAMS = checkdoc doc2ipf doc2tex doc2gih \
                   doc2rtf alldoc2gih doc2wxhtml doc2web
 
 AM_CPPFLAGS = -I$(top_srcdir)/src -I$(top_srcdir)/term \
@@ -89,7 +89,7 @@ $(TJ)tkcanvas.trm $(TJ)webp.trm $(TJ)win.trm $(TJ)wxt.trm $(TJ)x11.trm $(TJ)xlib
 
 # DIST_COMMON = README
 
-SOURCES = checkdoc.c doc2gih.c doc2hlp.c doc2ipf.c \
+SOURCES = checkdoc.c doc2gih.c doc2ipf.c \
 doc2rtf.c doc2tex.c windows/doc2html.c doc2web.c termdoc.c xref.c
 
 TERM_H = $(top_srcdir)/src/term.h
@@ -273,14 +273,6 @@ gnuplot-ja.pdf: gnuplot-ja.doc title-ja.tex pdf_figures allterm-ja.h doc2tex$(EX
 	rm -f gnuplot-ja.ind gnuplot-ja.ilg gnuplot-ja.aux gnuplot-ja.toc
 	rm -f gnuplot-ja.idx gnuplot-ja.out
 	rm -f ja.doc gnuplot-ja.tex
-
-# this is how to make gnuplot.hlp
-hlp: gnuplot.hlp
-
-gnuplot.hlp: doc2hlp$(EXEEXT) $(srcdir)/gnuplot.doc
-	$(AM_V_GEN)./doc2hlp$(EXEEXT) $(srcdir)/gnuplot.doc gnuplot.hlp
-
-doc2hlp_SOURCES = doc2hlp.c termdoc.c
 
 ### gnuplot interactive help format
 gih: gnuplot.gih

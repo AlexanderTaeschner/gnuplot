@@ -36,6 +36,7 @@
 #include "contour.h"
 #include "datafile.h"
 #include "datablock.h"
+#include "encoding.h"
 #include "eval.h"
 #include "filters.h"
 #include "fit.h"
@@ -591,14 +592,12 @@ save_set_all(FILE *fp)
 
     save_offsets(fp, "set offsets");
 
-    fprintf(fp, "\
-set pointsize %g\n\
-set pointintervalbox %g\n\
-set encoding %s\n\
-%sset parametric\n",
-	    pointsize, pointintervalbox,
-	    encoding_names[encoding],
-	    (parametric) ? "" : "un");
+    fprintf(fp, "set pointsize %g\n", pointsize);
+    fprintf(fp, "set pointintervalbox %g\n", pointintervalbox);
+
+    save_encoding(fp);
+
+    fprintf(fp, "%sset parametric\n", (parametric) ? "" : "un");
 
     if (polar) {
 	fprintf(fp, "set polar\n");
@@ -2121,14 +2120,22 @@ save_contourfill(FILE *fp)
 	fprintf(fp, "ztics\n");
     else if (contourfill.mode == CFILL_CBTICS)
 	fprintf(fp, "cbtics\n");
-    if (contourfill.firstlinetype > 0)
+    else if (contourfill.mode == CFILL_LIST) {
+	fprintf(fp, "defined ");
+	for (int i = 0; i < contourfill.nslices; i++) {
+	    fprintf(fp, "[%.2g:%.2g] \"0x%06x\"",
+			contourfill.slices[i].zlow, contourfill.slices[i].zhigh,
+			contourfill.slices[i].color.rgbcolor);
+	    fprintf(fp, (i == contourfill.nslices-1) ? "\n" : ", ");
+	}
+    } else if (contourfill.firstlinetype > 0)
 	fprintf(fp, "set contourfill firstlinetype %d\n", contourfill.firstlinetype);
     else
 	fprintf(fp, "set contourfill palette\n");
 }
 
 /* Internal implementation of contributed script "gpsavediff".
- * Not supported on Windows because it shuffles output via
+ * Not supported on Windows and Wasm because it shuffles output via
  * /dev/fd/ a.k.a. /proc/self/fd
  * to access the initial state that was saved to stream savefp=tmpfile()
  * when the program was started and another tmpfile opened here.
@@ -2139,7 +2146,7 @@ FILE *savefp = NULL;	/* tmpfile used by "save changes" */
 void
 save_changes(FILE *outfp, TBOOLEAN ispipe)
 {
-#if !defined(WIN32) && !defined(OS2) && !defined(MSDOS)
+#if !defined(WIN32) && !defined(OS2) && !defined(MSDOS) && !defined(__wasm__)
     FILE *currentfp;
     char command[1024];
     char *output;	/* text returned by do_system_func() */

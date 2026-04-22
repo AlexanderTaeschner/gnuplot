@@ -43,6 +43,16 @@
 #define STACK_DEPTH 250		/* maximum size of the execution stack */
 #define MAX_AT_LEN 150		/* max number of entries in action table */
 
+/*
+ * Limiting function call depth to MAX_RECURSION_DEPTH protects against exhausting
+ * the process stack.  Empirical testing using simple tail recursion exhausts the
+ * stack at call depths on the order of 18000 (linux x86_64), so setting the
+ * limit at 2000 is conservative.
+ * NB: The recursion depth limit does not apply to gnuplot's internal evaluation
+ * stack, which is protected by comparing the stack pointer s_p to STACK_DEPTH.
+ */
+#define MAX_RECURSION_DEPTH 2000
+
 /* These are used by add_action() to index the subroutine list ft[] in eval.c */
 enum operators {
     /* keep this in line with table in eval.c */

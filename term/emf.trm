@@ -378,7 +378,6 @@ static long emf_textcolor = LT_UNDEFINED;
 static unsigned long emf_pentype = 0x2200;		/* cap=flat join=miter */
 static unsigned int emf_polyline[EMF_MAX_SEGMENTS];	/* stored polyline coordinates */
 static unsigned int emf_graphics = FALSE;
-static unsigned int emf_dashed = TRUE;
 static unsigned int emf_monochrome = FALSE;
 static unsigned int emf_background = 0xffffff; /* defaults to white */
 static double emf_linewidth;	/* line width in plot units */
@@ -1244,7 +1243,7 @@ EMF_load_dashtype(int dashtype)
 	dot_length[(EMF_LINE_TYPES-1)*8 + 7] = 10;
     }
 
-    if (dashtype < 1 || !emf_dashed) {	/* solid mode */
+    if (dashtype < 1) {	/* solid mode */
 	EMF_SelectObject(EMF_STOCK_OBJECT_BLACK_PEN);
 	EMF_DeleteObject(EMF_HANDLE_PEN);
 	EMF_CreatePen(EMF_HANDLE_PEN, emf_pentype, emf_linewidth * EMF_PX2HM, emf_color);

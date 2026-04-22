@@ -977,8 +977,9 @@ unset_contourfill()
 {
     contourfill.mode = CFILL_AUTO;
     contourfill.nslices = 5;
-    contourfill.tic_level = 0;
     contourfill.firstlinetype = -1;
+    free(contourfill.slices);
+    contourfill.slices = NULL;
 }
 
 /* process 'unset dashtype' command */

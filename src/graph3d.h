@@ -69,11 +69,17 @@ typedef enum cfill_mode {
     CFILL_LIST
 } t_cfill_mode;
 
+typedef struct zslice {
+  double zlow;
+  double zhigh;
+  t_colorspec color;
+} zslice;
+
 typedef struct contourfill {
     t_cfill_mode mode;
     int nslices;
-    int tic_level;		/* Currently always 0 */
     int firstlinetype;
+    zslice *slices;		/* holds pre-defined slice boundaries */
 } t_contourfill;
 #define MAX_ZSLICES 100
 

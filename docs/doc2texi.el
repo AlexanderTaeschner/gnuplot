@@ -317,7 +317,6 @@ Major contributors (alphabetic order):
 	"tkcanvas"
 	"tpic"
 	"vgagl"
-	"vws"
 	"win"
 	"wxt"
 	"x11"
@@ -450,8 +449,7 @@ particular conversion chore."
     ("beos" "be")
     ("dos" "emxvga" "djsvga" "fg" "pc")
     ("windows" "win")
-    ("os2" "pm" "emxvga")
-    ("vms" "vws"))
+    ("os2" "pm" "emxvga"))
 
   "Additional terminals to add to the converted gnuplot.info file.
 

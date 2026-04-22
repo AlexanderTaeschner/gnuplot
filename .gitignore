@@ -21,6 +21,7 @@ _$*
 *.obj
 *.so
 *.exe
+*.wasm
 *.Z
 *.elc
 *.ln
@@ -36,6 +37,8 @@ config.h
 config.hin
 config.log
 config.status
+config.guess
+config.sub
 configure
 fit.log
 soundfit.par

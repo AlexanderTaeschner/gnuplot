@@ -259,12 +259,7 @@ typedef enum {
 static size_units parse_term_size(float *xsize, float *ysize, size_units def_units);
 
 
-#ifdef VMS
-# include "vms.h"
-#else
 # define FOPEN_BINARY(file) fopen(file, "wb")
-# define fflush_binary()
-#endif /* !VMS */
 
 #if defined(MSDOS) || defined(_WIN32)
 # if defined(__DJGPP__)
@@ -378,6 +373,9 @@ term_set_output(char *dest)
 	    else
 		output_pipe_open = TRUE;
 	} else {
+#else	/* no PIPES */
+	if (*dest == '|')
+	    int_error(c_token-1, "this copy of gnuplot does not support piped output");
 #endif /* PIPES */
 
 #ifdef _WIN32
@@ -602,12 +600,7 @@ term_end_plot()
 	multiplot_next();
     }
 
-#ifdef VMS
-    if (opened_binary)
-	fflush_binary();
-    else
-#endif /* VMS */
-	(void) fflush(gpoutfile);
+    (void) fflush(gpoutfile);
 
 #ifdef USE_MOUSE
     /* If there is a zoom or pan operation queued for the next panel
@@ -1802,10 +1795,6 @@ init_terminal()
 	return;
 
     } else {
-
-#ifdef VMS
-	term_name = vms_init();
-#endif /* VMS */
 
 	if (term_name == (char *) NULL
             && getenv ("DOMTERM") != NULL)

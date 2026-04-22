@@ -106,9 +106,26 @@
  * CHANGE:
  *	Default to "set term png butt truecolor"
  *	gif and sixel default to "butt notruecolor"
+ *
+ * Sethur (Sethur2@gmx.net), Mar 2026:
+ *        Improved antialiasing and added full dashtype and transparency support
+ *        including butt/rounded/squared linecaps by introducing custom SDF
+ *        thick-line antialiased rasterizer, coord. oversampling and off-screen
+ *        alpha layer with MAX compositing.
  */
 
 #define GD_DEFINED_COLORS	96	/* Must not exceed size of pm3d_color_names_tbl[] */
+
+/* Uncomment to enable debug visualization of dash sub-segments:
+ * draws alternating semi-transparent red/blue to show segment
+ * boundaries and overlap regions. */
+/* #define GD_DEBUG_DASHES */
+
+/* Coordinate-space oversampling factor (similar to pngcairo's GP_CAIRO_SCALE).
+ * Defined here, before driver.h, so the constant is visible in both the
+ * TERM_PROTO section (TERM_TABLE initializers, default char/tic sizes) and
+ * the TERM_BODY section (conversion macros, drawing functions). */
+#define GD_OVERSAMPLE 20
 
 #include "driver.h"
 
@@ -147,6 +164,8 @@ TERM_PUBLIC void ENHGD_OPEN(char * fontname, double fontsize,
 TERM_PUBLIC void ENHGD_FLUSH(void);
 
 TERM_PUBLIC void ENHGD_boxed_text(unsigned int, unsigned int, int);
+
+TERM_PUBLIC void PNG_dashtype(int type, t_dashtype *custom_dash_pattern);
 
 #include <gd.h>
 /* Include files for bitmap fonts */
@@ -198,10 +217,10 @@ static void PNG_init_brush(int);
 
 /* This will be the default font */
 #define gdfont gdFontMediumBold
-#define PNG_VCHAR 13
-#define PNG_HCHAR 7
+#define PNG_VCHAR (13 * GD_OVERSAMPLE)
+#define PNG_HCHAR (7 * GD_OVERSAMPLE)
 
-#define PNG_TICSIZE (GREG_YMAX/100)
+#define PNG_TICSIZE (GREG_YMAX/100 * GD_OVERSAMPLE)
 
 #define PNG_MAX_COLORS 256
 #define GOT_NEXT_PROTO
@@ -228,7 +247,7 @@ static struct {
     int flags;
     int linetype;
     int linewidth;
-    TBOOLEAN capbutt;  /* use capbutt on lines with GD2, 20051205 MWS*/
+    t_linecap linecap; /* BUTT, ROUNDED, or SQUARE endcap style */
     TBOOLEAN use_builtin;
     double ttfsize;
     char *ttffont;
@@ -238,14 +257,24 @@ static struct {
     double    fontscale;
     TBOOLEAN  TrueColor;
     double    dashfraction;	/* Where in a dot-dash pattern we left off */
+    int       dashtype;		/* Current dashtype: DASHTYPE_SOLID, etc. */
+    t_dashtype custom_dashpattern;	/* Storage for custom dash pattern */
+    double    baseline_offset;	/* Exact center-to-baseline distance (inflated units) */
     /* Variables for animated gif support: */
     TBOOLEAN  animate;		/* Only gif supports animation */
     TBOOLEAN  anchor;		/* sixel and kitty treat it as synonym for "anchor" */
     int       loop_count;	/* Number of times to repeat sequence */
     int       frame_count;	/* Number of frames in animation */
     int       frame_delay;	/* Time between frames in .01 seconds */
-    TBOOLEAN  frame_optimization;
     gdImagePtr previous_image;	/* Needed to encode animation as a series of deltas */
+    /* Alpha layer for overlap-free semi-transparent line rendering */
+    gdImagePtr alpha_layer;	/* offscreen buffer (NULL when not allocated) */
+    gdImagePtr alpha_main_image;	/* saved main image while alpha_layer is active */
+    TBOOLEAN   alpha_layer_active;	/* TRUE when rendering to offscreen buffer */
+    int        alpha_line_gd_alpha;	/* line's libgd alpha (0=opaque, 127=transparent) */
+    int        alpha_opaque_color;	/* line color with alpha stripped to opaque */
+    int        alpha_dirty_x1, alpha_dirty_y1;	/* dirty rect min */
+    int        alpha_dirty_x2, alpha_dirty_y2;	/* dirty rect max */
 } png_state
 = {.anchor = TRUE};
 
@@ -263,7 +292,7 @@ enum PNG_id {
     PNG_SIZE, PNG_BACKGROUND,
     PNG_ENHANCED, PNG_NOENHANCED,
     PNG_TRUECOLOR, PNG_NOTRUECOLOR,
-    PNG_LINEWIDTH, PNG_BUTT, PNG_ROUNDED, PNG_DASHLENGTH,
+    PNG_LINEWIDTH, PNG_BUTT, PNG_ROUNDED, PNG_SQUARE, PNG_DASHLENGTH,
     GIF_ANIMATE, GIF_DELAY, GIF_LOOP, GIF_NOOPT, GIF_OPT,
     PNG_ANCHOR, PNG_SCROLL,
     PNG_OTHER
@@ -273,6 +302,29 @@ enum PNG_id {
 #   undef Y
 #endif
 #define Y(y) (png_state.height - (y))
+
+/* Coordinate conversion macros.
+ * Inflation of term->xmax/ymax by GD_OVERSAMPLE while gdImage is kept
+ * at actual pixel size.
+ * All drawing functions convert inflated coords to pixel coords via 
+ * GD_PX()/GD_Y() before calling libgd. png_state.height is in inflated units;
+ * Y() works in inflated space, GD_Y()/GD_YF() combine Y-flip and downscale in one step.
+ * Text, points, fills, polygons, and images all convert at the boundary. */
+
+/* Convert inflated terminal coordinate to pixel coordinate (integer) */
+#define GD_PX(c)  ((int)((c) / (double)GD_OVERSAMPLE + 0.5))
+
+/* Convert inflated terminal coordinate to pixel coordinate (float) */
+#define GD_PXF(c) ((double)(c) / (double)GD_OVERSAMPLE)
+
+/* Convert pixel coordinate to inflated terminal coordinate */
+#define GD_TERM(p) ((int)((p) * GD_OVERSAMPLE))
+
+/* Y-flip in pixel space: converts inflated Y to pixel Y */
+#define GD_Y(y) ((int)(((double)png_state.height - (double)(y)) / GD_OVERSAMPLE + 0.5))
+
+/* Y-flip to pixel float */
+#define GD_YF(y) (((double)png_state.height - (double)(y)) / GD_OVERSAMPLE)
 
 static int PNG_XMAX = GREG_XMAX;
 static int PNG_YMAX = GREG_YMAX;
@@ -318,6 +370,7 @@ static struct gen_table PNG_opts[] =
     { "lw", PNG_LINEWIDTH },
     { "butt", PNG_BUTT},
     { "round$ed", PNG_ROUNDED},
+    { "sq$uare", PNG_SQUARE},
     { "dashl$ength", PNG_DASHLENGTH},
     { "dl", PNG_DASHLENGTH},
     { "backg$round", PNG_BACKGROUND},
@@ -328,6 +381,49 @@ static struct gen_table PNG_opts[] =
 #define MAXLINEWIDTH 100
 static double PNG_linewidth_factor = 1.0;
 static double PNG_dashlength_factor = 1.0;
+
+/* Built-in dash patterns matching the cairo terminal.
+ * Alternating dash/gap lengths, 0-terminated.
+ * Scaled by linewidth * dashlength_factor at draw time.
+ */
+#define PNG_NUM_DASHTYPES 5
+static float PNG_dashpatterns[PNG_NUM_DASHTYPES][8] = {
+    { 0.0 },						/* solid (placeholder) */
+    { 5.0, 8.0, 5.0, 8.0, 0.0, 0.0, 0.0, 0.0 },	/* medium dashes */
+    { 1.0, 4.0, 1.0, 4.0, 0.0, 0.0, 0.0, 0.0 },	/* dots */
+    { 8.0, 4.0, 2.0, 4.0, 0.0, 0.0, 0.0, 0.0 },	/* dash dot */
+    { 9.0, 4.0, 1.0, 4.0, 1.0, 4.0, 0.0, 0.0 },	/* dash dot dot */
+};
+
+/* Current position in the dash pattern cycle (scaled units). */
+static double PNG_dash_pos = 0.0;
+
+/* Previous segment direction in pixel space (for join disc logic) */
+static double PNG_prev_seg_dx = 0.0;
+static double PNG_prev_seg_dy = 0.0;
+
+/* Previous sub-segment direction within dash walker (pixel space) */
+static double PNG_prev_dash_dx = 0.0;
+static double PNG_prev_dash_dy = 0.0;
+
+/* Endcap types for PNG_draw_aa_thick_line() */
+enum {
+    PNG_CAP_HARD   = 0,	/* Hard clip at cap plane; for internal polyline joints */
+    PNG_CAP_BUTT   = 1,	/* AA ramp at cap plane */
+    PNG_CAP_ROUND  = 2,	/* Semicircular cap */
+    PNG_CAP_SQUARE = 3	/* Extend halfw past endpoint, then AA ramp */
+};
+
+/* Deferred endcap state.  When a polyline path ends mid-dash,
+ * the proper endcap is drawn at the next PNG_move() or PNG_text().
+ */
+static struct {
+    int active;
+    double ex, ey;		/* endpoint position (screen coords) */
+    double ux, uy;		/* unit direction at endpoint */
+    int thick;
+    int color;
+} PNG_pending_endcap;
 
 /* shige takeno:
  * libgd can be built to prefer UTF-8 or SJIS encoding for Japanese.
@@ -582,6 +678,707 @@ PNG_FillPattern(int style)
     return (int)gdTiled;
 }
 
+/*
+ * PNG_BLEND_COLOR - fixed-point alpha blend matching libgd's convention.
+ * a = blending factor (0=fully opaque, 255=fully transparent for the dest),
+ * nc = output, c = background, cc = foreground.
+ */
+#define PNG_BLEND_COLOR(a, nc, c, cc) \
+    nc = (cc) + (((((c) - (cc)) * (a)) + ((((c) - (cc)) * (a)) >> 8) + 0x80) >> 8)
+
+/*
+ * Alpha layer management for overlap-free semi-transparent line rendering.
+ *
+ * When line color has alpha > 0 (libgd convention: 0=opaque, 127=transparent),
+ * drawing overlapping sub-segments directly causes visible striping because
+ * each overlap region gets blended multiple times.
+ *
+ * Solution: redirect drawing to an offscreen buffer at full opacity, using
+ * MAX-compositing (most-opaque-wins) so overlaps keep the highest coverage.
+ * When the polyline path ends, composite the buffer onto the main image
+ * with the line's target alpha.
+ */
+
+/* Activate the alpha layer: lazy-create buffer, swap png_state.image. */
+static void
+PNG_alpha_layer_begin(int color)
+{
+    int cx1, cy1, cx2, cy2;
+
+    if (!png_state.alpha_layer) {
+	int sx = gdImageSX(png_state.image);
+	int sy = gdImageSY(png_state.image);
+	png_state.alpha_layer = gdImageCreateTrueColor(sx, sy);
+	if (!png_state.alpha_layer)
+	    return;
+	gdImageAlphaBlending(png_state.alpha_layer, gdEffectReplace);
+	gdImageSaveAlpha(png_state.alpha_layer, 1);
+	gdImageFilledRectangle(png_state.alpha_layer, 0, 0, sx - 1, sy - 1,
+			       gdTrueColorAlpha(0, 0, 0, gdAlphaTransparent));
+    }
+
+    /* Copy current clip region to alpha layer */
+    gdImageGetClip(png_state.image, &cx1, &cy1, &cx2, &cy2);
+
+    png_state.alpha_main_image = png_state.image;
+    png_state.image = png_state.alpha_layer;
+    gdImageSetClip(png_state.image, cx1, cy1, cx2, cy2);
+
+    png_state.alpha_line_gd_alpha = gdTrueColorGetAlpha(color);
+    png_state.alpha_opaque_color = gdTrueColorAlpha(
+	gdTrueColorGetRed(color), gdTrueColorGetGreen(color),
+	gdTrueColorGetBlue(color), gdAlphaOpaque);
+
+    /* Init dirty rect to empty (use image bounds as sentinel) */
+    {
+	int sx = gdImageSX(png_state.image);
+	int sy = gdImageSY(png_state.image);
+	png_state.alpha_dirty_x1 = sx;
+	png_state.alpha_dirty_y1 = sy;
+	png_state.alpha_dirty_x2 = -1;
+	png_state.alpha_dirty_y2 = -1;
+    }
+    png_state.alpha_layer_active = TRUE;
+}
+
+/* Composite the alpha layer onto the main image, clear dirty region, restore. */
+static void
+PNG_alpha_layer_composite(void)
+{
+    int x, y;
+    int line_alpha = png_state.alpha_line_gd_alpha;
+    double line_opacity = 1.0 - (double)line_alpha / 127.0;
+    gdImagePtr main_img = png_state.alpha_main_image;
+    gdImagePtr buf = png_state.alpha_layer;
+
+    /* Restore image pointer */
+    png_state.image = main_img;
+    png_state.alpha_layer_active = FALSE;
+
+    if (png_state.alpha_dirty_x1 > png_state.alpha_dirty_x2)
+	return; /* nothing was drawn */
+
+    for (y = png_state.alpha_dirty_y1; y <= png_state.alpha_dirty_y2; y++) {
+	for (x = png_state.alpha_dirty_x1; x <= png_state.alpha_dirty_x2; x++) {
+	    int buf_p = gdImageGetTrueColorPixel(buf, x, y);
+	    int buf_alpha = gdTrueColorGetAlpha(buf_p);
+	    double cov_opacity, eff_opacity;
+	    int t, main_p;
+	    int dr, dg, db, r, g, b;
+
+	    /* Clear this pixel (gdEffectReplace is set on the buffer) */
+	    gdImageSetPixel(buf, x, y,
+			    gdTrueColorAlpha(0, 0, 0, gdAlphaTransparent));
+
+	    if (buf_alpha >= gdAlphaTransparent)
+		continue; /* was fully transparent, skip */
+
+	    /* Effective opacity = buffer coverage × line alpha */
+	    cov_opacity = 1.0 - (double)buf_alpha / 127.0;
+	    eff_opacity = cov_opacity * line_opacity;
+	    if (eff_opacity <= 0.0)
+		continue;
+
+	    t = (int)((1.0 - eff_opacity) * 255.0 + 0.5);
+
+	    /* Blend onto main image */
+	    main_p = gdImageGetTrueColorPixel(main_img, x, y);
+	    dr = gdTrueColorGetRed(buf_p);   r = gdTrueColorGetRed(main_p);
+	    dg = gdTrueColorGetGreen(buf_p); g = gdTrueColorGetGreen(main_p);
+	    db = gdTrueColorGetBlue(buf_p);  b = gdTrueColorGetBlue(main_p);
+	    PNG_BLEND_COLOR(t, dr, r, dr);
+	    PNG_BLEND_COLOR(t, dg, g, dg);
+	    PNG_BLEND_COLOR(t, db, b, db);
+	    gdImageSetPixel(main_img, x, y,
+			    gdTrueColorAlpha(dr, dg, db, gdAlphaOpaque));
+	}
+    }
+}
+
+/* Free the alpha layer buffer. Called after frame output. */
+static void
+PNG_alpha_layer_destroy(void)
+{
+    if (png_state.alpha_layer) {
+	gdImageDestroy(png_state.alpha_layer);
+	png_state.alpha_layer = NULL;
+    }
+    png_state.alpha_layer_active = FALSE;
+}
+
+static void
+PNG_SetAAPixelColor(int x, int y, int color, int t)
+{
+    int dr, dg, db, p, r, g, b;
+    int fa;  /* foreground alpha from the color parameter */
+
+    if (!gdImageBoundsSafe(png_state.image, x, y))
+	return;
+
+    /* Alpha layer MAX-compositing: write only if more opaque than existing */
+    if (png_state.alpha_layer_active) {
+	int new_gd_alpha, existing, existing_alpha;
+	if (t >= 255)
+	    return;
+	new_gd_alpha = (t == 0) ? 0 : (int)((double)t * 127.0 / 255.0 + 0.5);
+	existing = gdImageGetTrueColorPixel(png_state.image, x, y);
+	existing_alpha = gdTrueColorGetAlpha(existing);
+	if (new_gd_alpha < existing_alpha) {
+	    gdImageSetPixel(png_state.image, x, y,
+		gdTrueColorAlpha(gdTrueColorGetRed(color),
+				 gdTrueColorGetGreen(color),
+				 gdTrueColorGetBlue(color), new_gd_alpha));
+	    if (x < png_state.alpha_dirty_x1) png_state.alpha_dirty_x1 = x;
+	    if (x > png_state.alpha_dirty_x2) png_state.alpha_dirty_x2 = x;
+	    if (y < png_state.alpha_dirty_y1) png_state.alpha_dirty_y1 = y;
+	    if (y > png_state.alpha_dirty_y2) png_state.alpha_dirty_y2 = y;
+	}
+	return;
+    }
+
+    if (!png_state.TrueColor) {
+	if (t < 128)
+	    gdImageSetPixel(png_state.image, x, y, color);
+	return;
+    }
+
+    /* Combine coverage-based transparency 't' with foreground alpha.
+     * libgd alpha: 0 = opaque, 127 = transparent.
+     * 't' from caller: 0 = fully covered, 255 = fully transparent.
+     * Effective opacity = coverage_opacity * foreground_opacity.
+     */
+    fa = gdTrueColorGetAlpha(color);
+    if (fa > 0) {
+	double fg_opacity = 1.0 - (double)fa / 127.0;
+	double cov_opacity = 1.0 - (double)t / 255.0;
+	double eff_opacity = fg_opacity * cov_opacity;
+	if (eff_opacity <= 0.0)
+	    return;
+	t = (int)((1.0 - eff_opacity) * 255.0 + 0.5);
+    }
+
+    if (t == 0) {
+	gdImageSetPixel(png_state.image, x, y,
+			gdTrueColorAlpha(gdTrueColorGetRed(color),
+					 gdTrueColorGetGreen(color),
+					 gdTrueColorGetBlue(color),
+					 gdAlphaOpaque));
+	return;
+    }
+    if (t >= 255)
+	return;
+
+    p = gdImageGetPixel(png_state.image, x, y);
+
+    dr = gdTrueColorGetRed(color);
+    dg = gdTrueColorGetGreen(color);
+    db = gdTrueColorGetBlue(color);
+    r = gdTrueColorGetRed(p);
+    g = gdTrueColorGetGreen(p);
+    b = gdTrueColorGetBlue(p);
+    PNG_BLEND_COLOR(t, dr, r, dr);
+    PNG_BLEND_COLOR(t, dg, g, dg);
+    PNG_BLEND_COLOR(t, db, b, db);
+    gdImageSetPixel(png_state.image, x, y,
+		    gdTrueColorAlpha(dr, dg, db, gdAlphaOpaque));
+}
+
+/* Convert our linecap enum to the cap type used for dash endpoints. */
+static int
+PNG_linecap_to_dashcap(t_linecap lc)
+{
+    switch (lc) {
+	case ROUNDED: return PNG_CAP_ROUND;
+	case SQUARE:  return PNG_CAP_SQUARE;
+	default:      return PNG_CAP_BUTT;
+    }
+}
+
+/*
+ * PNG_draw_aa_thick_line - Draw one antialiased thick line segment.
+ *
+ * Uses an analytic signed-distance-field rasterizer that evaluates each
+ * pixel in the segment's bounding box.  Supports four endcap modes at
+ * each end (PNG_CAP_HARD, _BUTT, _ROUND, _SQUARE).
+ *
+ * For linewidth 1, delegates to libgd's native gdAntiAliased renderer
+ * since endcap detail is invisible at that thickness.
+ */
+static void
+PNG_draw_aa_thick_line(double ax, double ay, double bx, double by,
+		       int thick, int color, int cap_start, int cap_end)
+{
+    double dx = bx - ax;
+    double dy = by - ay;
+    double len = sqrt(dx * dx + dy * dy);
+    double halfw = 0.5 * (double)thick;
+    double ux, uy, vx, vy;
+    int xmin, xmax, ymin, ymax;
+    int x, y;
+
+    /* Thin lines: use libgd native AA (caps irrelevant at 1 px) */
+    if (thick <= 1) {
+	gdImageSetAntiAliased(png_state.image, color);
+	gdImageSetThickness(png_state.image, 1);
+	gdImageLine(png_state.image,
+		    (int)(ax + 0.5), (int)(ay + 0.5),
+		    (int)(bx + 0.5), (int)(by + 0.5),
+		    gdAntiAliased);
+	return;
+    }
+
+    /* Degenerate segment: just draw round-cap dot if applicable */
+    if (len < 0.01) {
+	if (cap_start == PNG_CAP_ROUND || cap_end == PNG_CAP_ROUND) {
+	    int xi, yi;
+	    int r = (int)(halfw + 1.5);
+	    int cxi = (int)(ax + 0.5), cyi = (int)(ay + 0.5);
+	    for (yi = cyi - r; yi <= cyi + r; yi++)
+		for (xi = cxi - r; xi <= cxi + r; xi++) {
+		    double ddx = xi + 0.5 - ax;
+		    double ddy = yi + 0.5 - ay;
+		    double dist = sqrt(ddx*ddx + ddy*ddy) - halfw;
+		    double cov = 0.5 - dist;
+		    if (cov <= 0.0) continue;
+		    if (cov >= 1.0)
+			gdImageSetPixel(png_state.image, xi, yi, color);
+		    else
+			PNG_SetAAPixelColor(xi, yi, color,
+					    (int)((1.0 - cov) * 255.0 + 0.5));
+		}
+	}
+	return;
+    }
+
+    /* Unit vectors: along line, perpendicular to line */
+    ux = dx / len;  uy = dy / len;
+    vx = -uy;       vy = ux;
+
+    /* Bounding box with padding for caps */
+    {
+	double pad_s = halfw + 1.0;
+	double pad_e = halfw + 1.0;
+	double ex0, ex1, ey0, ey1;
+
+	if (cap_start == PNG_CAP_SQUARE) pad_s += halfw;
+	if (cap_start == PNG_CAP_ROUND)  pad_s += 0.5;
+	if (cap_end == PNG_CAP_SQUARE)   pad_e += halfw;
+	if (cap_end == PNG_CAP_ROUND)    pad_e += 0.5;
+
+	ex0 = ax - ux * pad_s;
+	ey0 = ay - uy * pad_s;
+	ex1 = bx + ux * pad_e;
+	ey1 = by + uy * pad_e;
+
+	xmin = (int)floor(fmin(fmin(ex0, ex1), fmin(ax, bx)) - halfw - 1.0);
+	xmax = (int)ceil (fmax(fmax(ex0, ex1), fmax(ax, bx)) + halfw + 1.0);
+	ymin = (int)floor(fmin(fmin(ey0, ey1), fmin(ay, by)) - halfw - 1.0);
+	ymax = (int)ceil (fmax(fmax(ey0, ey1), fmax(ay, by)) + halfw + 1.0);
+    }
+
+    for (y = ymin; y <= ymax; y++) {
+	for (x = xmin; x <= xmax; x++) {
+	    double px = x + 0.5;
+	    double py = y + 0.5;
+	    double rx = px - ax;
+	    double ry = py - ay;
+	    double a = rx * ux + ry * uy;	/* along line */
+	    double b = rx * vx + ry * vy;	/* perpendicular (signed) */
+	    double absb = fabs(b);
+	    double sdf;
+
+	    /* === Round cap regions === */
+	    if (cap_start == PNG_CAP_ROUND && a < 0.0) {
+		sdf = sqrt(a * a + b * b) - halfw;
+		goto aa_pixel;
+	    }
+	    if (cap_end == PNG_CAP_ROUND && a > len) {
+		double da = a - len;
+		sdf = sqrt(da * da + b * b) - halfw;
+		goto aa_pixel;
+	    }
+
+	    /* === Hard-clip rejection === */
+	    {
+		const double hard_overlap = 0.5;
+		if (cap_start == PNG_CAP_HARD && a < -hard_overlap)
+		    continue;
+		if (cap_end == PNG_CAP_HARD && a > len + hard_overlap)
+		    continue;
+	    }
+
+	    /* === Rectangular SDF === */
+	    {
+		double d_perp = absb - halfw;
+		double d_start, d_end;
+
+		switch (cap_start) {
+		    case PNG_CAP_BUTT:   d_start = -a;                 break;
+		    case PNG_CAP_SQUARE: d_start = -(a + halfw);       break;
+		    default:             d_start = -1e30;               break;
+		}
+		switch (cap_end) {
+		    case PNG_CAP_BUTT:   d_end = a - len;              break;
+		    case PNG_CAP_SQUARE: d_end = a - (len + halfw);    break;
+		    default:             d_end = -1e30;                 break;
+		}
+
+		sdf = d_perp;
+		if (d_start > sdf) sdf = d_start;
+		if (d_end   > sdf) sdf = d_end;
+	    }
+
+	aa_pixel:
+	    {
+		double cov = 0.5 - sdf;
+		if (cov <= 0.0)
+		    continue;
+		if (cov >= 1.0) {
+		    PNG_SetAAPixelColor(x, y, color, 0);
+		} else {
+		    PNG_SetAAPixelColor(x, y, color,
+				       (int)((1.0 - cov) * 255.0 + 0.5));
+		}
+	    }
+	}
+    }
+}
+
+/* Flush the deferred endcap at the last drawn dash segment endpoint. */
+static void
+PNG_flush_pending_endcap(void)
+{
+    if (!PNG_pending_endcap.active)
+	return;
+    if (PNG_pending_endcap.thick > 1) {
+	int cap = PNG_linecap_to_dashcap(png_state.linecap);
+	double eps = 0.5;
+	double ax = PNG_pending_endcap.ex - eps * PNG_pending_endcap.ux;
+	double ay = PNG_pending_endcap.ey - eps * PNG_pending_endcap.uy;
+	int save_cx1, save_cy1, save_cx2, save_cy2;
+
+	/* Apply plot-area clipping so endcaps don't overshoot borders */
+	gdImageGetClip(png_state.image, &save_cx1, &save_cy1, &save_cx2, &save_cy2);
+	if (clip_area) {
+	    gdImageSetClip(png_state.image,
+			   GD_PX(clip_area->xleft),  GD_Y(clip_area->ytop),
+			   GD_PX(clip_area->xright), GD_Y(clip_area->ybot));
+	}
+	PNG_draw_aa_thick_line(ax, ay,
+			       PNG_pending_endcap.ex, PNG_pending_endcap.ey,
+			       PNG_pending_endcap.thick,
+			       PNG_pending_endcap.color,
+			       PNG_CAP_HARD, cap);
+	gdImageSetClip(png_state.image, save_cx1, save_cy1, save_cx2, save_cy2);
+    }
+    PNG_pending_endcap.active = 0;
+}
+
+/*
+ * PNG_in_drawn_phase - Check if the current dash_pos is in a visible (drawn)
+ * phase of the dash pattern.  Returns TRUE if we're in a drawn element
+ * (even-indexed element in the pattern array).
+ */
+static TBOOLEAN
+PNG_in_drawn_phase(double dash_pos, float *pattern, double scale)
+{
+    double scaled_pat[DASHPATTERN_LENGTH];
+    double dash_total = 0.0;
+    int pat_len = 0;
+    int i;
+    double pos, accum;
+
+    for (i = 0; pattern[i] > 0.0 && i < DASHPATTERN_LENGTH; i++) {
+	scaled_pat[i] = pattern[i] * scale;
+	if (scaled_pat[i] < 1.0) scaled_pat[i] = 1.0;
+	dash_total += scaled_pat[i];
+	pat_len++;
+    }
+    if (pat_len == 0 || dash_total <= 0.0)
+	return TRUE;  /* solid line */
+
+    pos = fmod(dash_pos, dash_total);
+    if (pos < 0.0) pos += dash_total;
+
+    accum = 0.0;
+    for (i = 0; i < pat_len - 1; i++) {
+	if (pos < accum + scaled_pat[i])
+	    break;
+	accum += scaled_pat[i];
+    }
+    return (i % 2) == 0;
+}
+
+/*
+ * PNG_draw_join_disc - Draw an AA round join disc at junction point (cx, cy)
+ * between two segments with normalized directions (px, py) and (nx, ny).
+ * For ROUNDED endcaps: full disc (always correct).
+ * For BUTT/SQUARE endcaps: disc clipped by SDF half-planes so it
+ * doesn't protrude beyond the flat dash edges.
+ * Pixel-float coordinates.
+ */
+static void
+PNG_draw_join_disc(double cx, double cy, double radius,
+                   double px, double py,   /* prev segment direction (normalized) */
+                   double nx, double ny,   /* next segment direction (normalized) */
+                   int color)
+{
+    int ix_min = (int)floor(cx - radius - 1.0);
+    int ix_max = (int)ceil(cx + radius + 1.0);
+    int iy_min = (int)floor(cy - radius - 1.0);
+    int iy_max = (int)ceil(cy + radius + 1.0);
+    int ix, iy;
+
+    for (iy = iy_min; iy <= iy_max; iy++) {
+        for (ix = ix_min; ix <= ix_max; ix++) {
+            double dx = (double)ix + 0.5 - cx;
+            double dy = (double)iy + 0.5 - cy;
+
+            /* SDF: distance from disc boundary (positive = inside) */
+            double dist_disc = radius - sqrt(dx*dx + dy*dy);
+
+            if (png_state.linecap != ROUNDED) {
+                /* For butt/square caps, only draw disc pixels that fall
+                 * in the gap region between the two rectangle ends.
+                 * A pixel is past the prev rect's end face if:
+                 *   dot(pixel, prev_dir) > 0
+                 * A pixel is before the next rect's start face if:
+                 *   dot(pixel, next_dir) < 0
+                 * The gap region on the convex side satisfies both.
+                 */
+                double past_prev =  (dx * px + dy * py);
+                double before_next = -(dx * nx + dy * ny);
+                double in_gap = GPMIN(past_prev, before_next);
+                dist_disc = GPMIN(dist_disc, in_gap);
+            }
+
+            {
+                double cov = dist_disc + 0.5;
+                if (cov <= 0.0)
+                    continue;
+                if (cov >= 1.0) {
+                    PNG_SetAAPixelColor(ix, iy, color, 0);
+                } else {
+                    PNG_SetAAPixelColor(ix, iy, color,
+                                       (int)((1.0 - cov) * 255.0 + 0.5));
+                }
+            }
+        }
+    }
+}
+
+/*
+ * PNG_draw_aa_vector - Draw an antialiased thick vector segment with
+ * join-disc and deferred-endcap handling.
+ *
+ * When pattern is NULL, draws a solid segment.
+ * When pattern is non-NULL, walks the dash pattern along the segment,
+ * drawing each visible (dash-on) portion as an AA thick-line sub-segment.
+ *
+ * Endcaps are applied at path endpoints and at dash boundaries (on→off
+ * or off→on transitions).  At internal polyline joints where the stroke
+ * continues to the next vector call, segments are joined with HARD caps
+ * and a small overlap so that no seam (zebra stripe) is visible.
+ *
+ * The global PNG_dash_pos tracks the position in the dash cycle across
+ * successive calls, so dashes follow the polyline curve faithfully.
+ *
+ * Coordinates are in pixel-float space (from GD_PXF/GD_YF).
+ */
+static void
+PNG_draw_aa_vector(double x1, double y1, double x2, double y2,
+		   float *pattern, double scale, int thick, int color)
+{
+    double dx = x2 - x1;
+    double dy = y2 - y1;
+    double seg_len = sqrt(dx * dx + dy * dy);
+    int user_cap = PNG_linecap_to_dashcap(png_state.linecap);
+    double seg_nx, seg_ny;  /* normalized direction of this segment */
+
+    if (seg_len <= 0.001)
+	return;
+
+    seg_nx = dx / seg_len;
+    seg_ny = dy / seg_len;
+
+    /* Check if we need a join disc at the start of this segment.
+     * For solid lines, always draw if the angle exceeds the threshold.
+     * For dashed lines, only draw if currently in a drawn phase.
+     */
+    {
+	double prev_len = sqrt(PNG_prev_dash_dx*PNG_prev_dash_dx
+			     + PNG_prev_dash_dy*PNG_prev_dash_dy);
+	if (prev_len > 0.0) {
+	    double pnx = PNG_prev_dash_dx / prev_len;
+	    double pny = PNG_prev_dash_dy / prev_len;
+	    double dot = pnx * seg_nx + pny * seg_ny;
+	    if (dot < 0.97) {  /* angle change > ~14° */
+		TBOOLEAN in_drawn = pattern
+		    ? (PNG_dash_pos > 0.0
+		       && PNG_in_drawn_phase(PNG_dash_pos, pattern, scale))
+		    : TRUE;
+		if (in_drawn) {
+		    double half_width = (double)thick / 2.0;
+		    PNG_draw_join_disc(x1, y1, half_width,
+				       pnx, pny, seg_nx, seg_ny,
+				       color);
+		}
+	    }
+	}
+    }
+
+    if (pattern == NULL) {
+	/* === Solid segment === */
+	int cs, ce;
+
+	/* First segment after PNG_move: use user's linecap at start */
+	if (PNG_prev_dash_dx == 0.0 && PNG_prev_dash_dy == 0.0) {
+	    cs = user_cap;
+	    PNG_flush_pending_endcap();
+	} else {
+	    /* Internal joint: HARD start cap */
+	    cs = PNG_CAP_HARD;
+	    PNG_pending_endcap.active = 0;
+	}
+
+	/* End: always HARD (deferred until next PNG_move confirms path end) */
+	ce = PNG_CAP_HARD;
+	PNG_pending_endcap.active = 1;
+	PNG_pending_endcap.ex = x2;
+	PNG_pending_endcap.ey = y2;
+	PNG_pending_endcap.ux = seg_nx;
+	PNG_pending_endcap.uy = seg_ny;
+	PNG_pending_endcap.thick = thick;
+	PNG_pending_endcap.color = color;
+
+	PNG_draw_aa_thick_line(x1, y1, x2, y2, thick, color, cs, ce);
+
+    } else {
+	/* === Dashed segment: walk pattern === */
+	double scaled_pat[DASHPATTERN_LENGTH];
+	double dash_total = 0.0;
+	int pat_len = 0;
+	int i;
+	double s;	/* distance walked along this segment */
+
+	/* Build scaled pattern and total cycle length */
+	for (i = 0; pattern[i] > 0.0 && i < DASHPATTERN_LENGTH; i++) {
+	    scaled_pat[i] = pattern[i] * scale;
+	    if (scaled_pat[i] < 1.0) scaled_pat[i] = 1.0;
+	    dash_total += scaled_pat[i];
+	    pat_len++;
+	}
+	if (pat_len == 0 || dash_total <= 0.0) {
+	    /* Degenerate: draw solid */
+	    PNG_draw_aa_thick_line(x1, y1, x2, y2, thick, color,
+				   PNG_CAP_BUTT, PNG_CAP_BUTT);
+	    goto done;
+	}
+
+	/* Walk the dash pattern along this polyline segment */
+	s = 0.0;
+	while (s < seg_len - 0.001) {
+	    double pos, accum;
+	    int idx;
+	    double pos_in_elem, remaining, step;
+	    TBOOLEAN at_dash_start, at_dash_end;
+
+	    /* Current position within one pattern cycle */
+	    pos = fmod(PNG_dash_pos, dash_total);
+	    if (pos < 0.0) pos += dash_total;
+
+	    /* Find which pattern element we are in */
+	    accum = 0.0;
+	    for (idx = 0; idx < pat_len - 1; idx++) {
+		if (pos < accum + scaled_pat[idx])
+		    break;
+		accum += scaled_pat[idx];
+	    }
+	    pos_in_elem = pos - accum;
+	    remaining = scaled_pat[idx] - pos_in_elem;
+
+	    /* Distance to advance: min of remaining-in-element, remaining-in-segment */
+	    step = remaining;
+	    if (step > seg_len - s)
+		step = seg_len - s;
+
+	    at_dash_start = (pos_in_elem < 0.01);
+	    at_dash_end   = (remaining - step < 0.01);
+
+	    if ((idx % 2) == 0) {
+		/* === DASH (on) segment === */
+		double t1 = s / seg_len;
+		double t2 = (s + step) / seg_len;
+		double sx = x1 + dx * t1;
+		double sy = y1 + dy * t1;
+		double ex = x1 + dx * t2;
+		double ey = y1 + dy * t2;
+		int cs, ce;
+
+		/* If we had a pending endcap from a previous vector, the
+		 * dash continues here.  Flush the pending endcap because
+		 * we will now draw this sub-segment with HARD start cap
+		 * that overlaps seamlessly.
+		 */
+		if (at_dash_start) {
+		    PNG_flush_pending_endcap();
+		    cs = user_cap;
+		} else {
+		    /* Continuation from previous vector: HARD join */
+		    PNG_pending_endcap.active = 0;
+		    cs = PNG_CAP_HARD;
+		}
+
+		if (at_dash_end) {
+		    ce = user_cap;
+		    PNG_pending_endcap.active = 0;
+		} else {
+		    /* Dash continues past this vector segment */
+		    ce = PNG_CAP_HARD;
+		    /* Record pending endcap state */
+		    PNG_pending_endcap.active = 1;
+		    PNG_pending_endcap.ex = ex;
+		    PNG_pending_endcap.ey = ey;
+		    PNG_pending_endcap.ux = dx / seg_len;
+		    PNG_pending_endcap.uy = dy / seg_len;
+		    PNG_pending_endcap.thick = thick;
+		    PNG_pending_endcap.color = color;
+		}
+
+#ifdef GD_DEBUG_DASHES
+		{
+		    static int dbg_toggle = 0;
+		    int dbg_color = (dbg_toggle++ % 2)
+			? gdTrueColorAlpha(255, 0, 0, 64)
+			: gdTrueColorAlpha(0, 0, 255, 64);
+		    PNG_draw_aa_thick_line(sx, sy, ex, ey, thick, dbg_color, cs, ce);
+		}
+#else
+		PNG_draw_aa_thick_line(sx, sy, ex, ey, thick, color, cs, ce);
+#endif
+
+	    } else {
+		/* === GAP (off) segment === */
+		/* If a dash just ended, there is no pending endcap because
+		 * the previous dash sub-segment already had proper end cap.
+		 * If there's a pending endcap from mid-dash, flush it now
+		 * because we're transitioning into a gap.
+		 */
+		if (at_dash_start && PNG_pending_endcap.active)
+		    PNG_flush_pending_endcap();
+	    }
+
+	    s += step;
+	    PNG_dash_pos += step;
+	}
+    }
+
+done:
+    /* Save current direction for next segment's join disc logic */
+    PNG_prev_dash_dx = dx;
+    PNG_prev_dash_dy = dy;
+}
+
 static void
 PNG_PointX(unsigned int x, unsigned int y)
 {
@@ -670,7 +1467,7 @@ PNG_options()
 	png_state.justify = CENTRE;
 	PNG_linewidth_factor = 1.0;
 	PNG_dashlength_factor = 1.0;
-	png_state.capbutt = TRUE; /* Change Jan 2023 */
+	png_state.linecap = BUTT; /* Change Jan 2023 */
 	if (!strcmp(term->name, "gif") || !strcmp(term->name, "sixelgd"))
 	    png_state.TrueColor = FALSE;
 	else
@@ -709,7 +1506,6 @@ PNG_options()
 	    gdImageDestroy(png_state.previous_image);
 	png_state.animate = FALSE;
 	png_state.previous_image = NULL;
-	png_state.frame_optimization = FALSE;
 	png_state.loop_count = 0;
 	/* And default font size */
 	term->h_char = PNG_HCHAR;
@@ -727,9 +1523,11 @@ PNG_options()
 	int xpixels, ypixels;
 	term_get_termsize( &xpixels, &ypixels );
 	if (xpixels > 0 && ypixels > 0) {
-	    PNG_XMAX = term->xmax = xpixels;
-	    PNG_YMAX = term->ymax = ypixels * 0.75;
-	    term->h_tic = term->v_tic = 10;
+	    PNG_XMAX = xpixels;
+	    PNG_YMAX = ypixels * 0.75;
+	    term->xmax = PNG_XMAX * GD_OVERSAMPLE;
+	    term->ymax = PNG_YMAX * GD_OVERSAMPLE;
+	    term->h_tic = term->v_tic = 10 * GD_OVERSAMPLE;
 	}
     }
 
@@ -765,10 +1563,13 @@ PNG_options()
 	    free(png_state.ttffont); \
 	    png_state.ttffont = NULL; \
 	    png_state.default_ttfsize = 2 * term->h_char - 2; \
+	    term->h_char *= GD_OVERSAMPLE; \
+	    term->v_char *= GD_OVERSAMPLE; \
 	    png_state.use_builtin = TRUE;
 #else
 # define UNSET_TTF_FONT \
-	    ; /* nothing to do */
+	    term->h_char *= GD_OVERSAMPLE; \
+	    term->v_char *= GD_OVERSAMPLE;
 #endif
 
 	case PNG_TINY:
@@ -896,12 +1697,12 @@ PNG_options()
 		if (PNG_YMAX <= 0)
 		    PNG_YMAX = GREG_YMAX;
 	    }
-	    term->ymax = PNG_YMAX;
-	    term->xmax = PNG_XMAX;
+	    term->ymax = PNG_YMAX * GD_OVERSAMPLE;
+	    term->xmax = PNG_XMAX * GD_OVERSAMPLE;
 	    /* EAM Apr 2003 - same tic size on both x and y axes */
-	    term->v_tic = (PNG_XMAX < PNG_YMAX) ? PNG_XMAX/100 : PNG_YMAX/100;
-	    if (term->v_tic < 1)
-		term->v_tic = 1;
+	    term->v_tic = GD_OVERSAMPLE * ((PNG_XMAX < PNG_YMAX) ? PNG_XMAX/100 : PNG_YMAX/100);
+	    if (term->v_tic < GD_OVERSAMPLE)
+		term->v_tic = GD_OVERSAMPLE;
 	    term->h_tic = term->v_tic;
 	    break;
 	case PNG_ENHANCED:
@@ -917,11 +1718,13 @@ PNG_options()
 	case PNG_TRUECOLOR:
 	    png_state.TrueColor = TRUE;
 	    term->flags |= TERM_ALPHA_CHANNEL;
+	    term->flags |= TERM_CAN_DASH;
 	    c_token++;
 	    break;
 	case PNG_NOTRUECOLOR:
 	    png_state.TrueColor = FALSE;
 	    term->flags &= ~TERM_ALPHA_CHANNEL;
+	    term->flags &= ~TERM_CAN_DASH;
 	    c_token++;
 	    break;
 	case PNG_LINEWIDTH:
@@ -964,7 +1767,6 @@ PNG_options()
 	    png_state.animate = TRUE;
 	    png_state.frame_count = 0;
 	    png_state.frame_delay = 10;
-	    png_state.frame_optimization = FALSE;
 	    break;
 	case GIF_DELAY:
 	    if (strncmp("gif",term->name,3))
@@ -982,28 +1784,21 @@ PNG_options()
 	    png_state.loop_count = int_expression();
 	    gif_anim_option = 1;
 	    break;
-	case GIF_NOOPT:
-	    if (strncmp("gif",term->name,3))
-		int_warn(c_token,"This terminal does not support animation");
-	    c_token++;
-	    png_state.frame_optimization = FALSE;
-	    gif_anim_option = 1;
-	    break;
+	case GIF_NOOPT:	/* Deprecated (gif optimization never worked) */
 	case GIF_OPT:
-	    if (strncmp("gif",term->name,3))
-		int_warn(c_token,"This terminal does not support animation");
-	    c_token++;
-	    png_state.frame_optimization = TRUE;
-	    gif_anim_option = 1;
 	    break;
-
 	case PNG_BUTT:
-	    png_state.capbutt = TRUE;
+	    png_state.linecap = BUTT;
 	    c_token++;
 	    break;
 
 	case PNG_ROUNDED:
-	    png_state.capbutt = FALSE;
+	    png_state.linecap = ROUNDED;
+	    c_token++;
+	    break;
+
+	case PNG_SQUARE:
+	    png_state.linecap = SQUARE;
 	    c_token++;
 	    break;
 
@@ -1060,7 +1855,7 @@ PNG_options()
 	free(png_state.default_ttffont);
 	png_state.default_ttffont = gp_strdup(png_state.ttffont);
 	if (png_state.default_ttfsize == 0)
-		png_state.default_ttfsize = 2 * term->h_char - 2;
+		png_state.default_ttfsize = 2 * (term->h_char / GD_OVERSAMPLE) - 2;
 
 	/* First try the old GDFONTPATH mechanism for locating fonts */
 	(void)gdUseFontConfig(0);
@@ -1089,7 +1884,7 @@ PNG_options()
 
     /* If no explicit TTF font size found, generate default */
     if (!(png_state.default_ttfsize > 0))
-	png_state.default_ttfsize = 2 * term->h_char - 2;
+	png_state.default_ttfsize = 2 * (term->h_char / GD_OVERSAMPLE) - 2;
     png_state.ttfsize = png_state.default_ttfsize;
 
     /* Find approximate character width of selected TTF font   */
@@ -1101,8 +1896,13 @@ PNG_options()
 		png_state.default_ttffont, png_state.default_ttfsize*png_state.fontscale,
 		0.0, 0, 0, "f00000000g");
 	if (!err) {
-	    term->h_char = .11 * (double)(brect[2] - brect[0]) + 0.5;
-	    term->v_char = 1.1 * (double)(brect[1] - brect[7]) + 0.5;
+	    term->h_char = (.11 * (double)(brect[2] - brect[0]) + 0.5) * GD_OVERSAMPLE;
+	    term->v_char = (1.1 * (double)(brect[1] - brect[7]) + 0.5) * GD_OVERSAMPLE;
+	    /* Exact center-to-baseline offset from font metrics.
+	     * Measurement at (0,0): brect[7]=-ascent, brect[1]=descent.
+	     * center = (brect[7]+brect[1])/2, baseline at 0.
+	     * offset = 0 - center = -(brect[7]+brect[1])/2 */
+	    png_state.baseline_offset = -(brect[7] + brect[1]) / 2.0 * GD_OVERSAMPLE;
 	}
     }
 #endif
@@ -1146,7 +1946,8 @@ PNG_options()
 	    "dashlength %3.1f ", PNG_dashlength_factor);
 
     sprintf(term_options + strlen(term_options),
-	png_state.capbutt ? "butt " : "rounded ");
+	png_state.linecap == ROUNDED ? "rounded " :
+	png_state.linecap == SQUARE  ? "square "  : "butt ");
 
     if ((strncmp("kitty",term->name,5) == 0)
     ||  (strncmp("sixel",term->name,5) == 0)) {
@@ -1156,9 +1957,8 @@ PNG_options()
 
     if (png_state.animate) {
 	sprintf(term_options + strlen(term_options),
-	    "animate delay %d loop %d %soptimize ",
-	    png_state.frame_delay, png_state.loop_count,
-	    png_state.frame_optimization ? "" : "no");
+	    "animate delay %d loop %d ",
+	    png_state.frame_delay, png_state.loop_count);
     }
 
     sprintf(term_options + strlen(term_options),
@@ -1193,12 +1993,6 @@ PNG_options()
 	strcat(term_options,"giant ");
 	break;
     }
-    /* Oct 2020:  'animate optimize' is deprecated */
-    if (png_state.animate && png_state.frame_optimization) {
-	strcat(term_options,
-		"\n\tWarning: the 'optimize' option to gif animation is deprecated");
-    }
-
 }
 
 
@@ -1356,6 +2150,11 @@ void PNG_set_color (t_colorspec *colorspec)
     double gray = colorspec->value;
     int save;
 
+    /* A color change ends the current transparent polyline path */
+    PNG_flush_pending_endcap();
+    if (png_state.alpha_layer_active)
+	PNG_alpha_layer_composite();
+
     switch (colorspec->type) {
 
     case TC_LT:
@@ -1430,8 +2229,8 @@ void PNG_filled_polygon(int points, gpiPoint *corners)
 	    "PNG_filled_polygon->gd_corners");
     }
     for (i = 0; i < points; i++) {
-	gd_corners[i].x = corners[i].x;
-	gd_corners[i].y = Y(corners[i].y);
+	gd_corners[i].x = GD_PX(corners[i].x);
+	gd_corners[i].y = GD_Y(corners[i].y);
     }
 
     switch (corners->style & 0xf) {
@@ -1501,10 +2300,16 @@ PNG_boxfill(
 	    break;
     }
 
-    x1 = x;
-    x2 = x + width - 1;
-    y2 = Y(y);
-    y1 = y2 - height + 1;
+    /* Convert each edge from inflated terminal coords to pixel coords
+     * independently, so that adjacent boxes sharing an edge always
+     * produce the same pixel boundary (no rounding gaps).
+     */
+    x1 = GD_PX(x);
+    x2 = GD_PX(x + width) - 1;
+    if (x2 < x1) x2 = x1;		/* at least 1 pixel wide */
+    y1 = GD_Y(y + height);		/* gnuplot top => smallest pixel y */
+    y2 = GD_Y(y);			    /* gnuplot bottom => largest pixel y */
+    if (y1 > y2) y1 = y2;		/* at least 1 pixel tall */
     gdImageFilledRectangle(png_state.image, x1, y1, x2, y2, color);
 }
 
@@ -1556,22 +2361,22 @@ PNG_graphics()
     if (!png_state.image)
 	int_error(NO_CARET,"libgd: failed to create output image structure");
 
-    png_state.height = PNG_YMAX - 1;
-    png_state.charw = term->h_char;	/* png_state.font->w; */
-    png_state.charh = term->v_char;	/* png_state.font->h; */
+    png_state.height = PNG_YMAX * GD_OVERSAMPLE - 1;
+    png_state.charw = term->h_char;	/* already inflated */
+    png_state.charh = term->v_char;	/* already inflated */
+    if (png_state.baseline_offset <= 0.0)
+	png_state.baseline_offset = png_state.charh / 4.0;  /* fallback for built-in fonts */
     png_state.font = png_state.default_font;
     png_state.color = 0;
     png_state.dashfraction = -1.0;
+    png_state.alpha_layer_active = FALSE;
+    png_state.alpha_main_image = NULL;
 
     for (i = 0; i < png_state.n_colors; i++) {
 	rgb = png_state.rgb_table[i];
 	png_state.color_table[i] =
 	    gdImageColorAllocate(png_state.image, (rgb >> 16) & 0xff,
 				 (rgb >> 8) & 0xff, rgb & 0xff);
-    }
-
-    if ( png_state.frame_optimization && ( png_state.frame_count > 0 ) && png_state.previous_image ) {
-         gdImagePaletteCopy(png_state.image, png_state.previous_image);
     }
 
     if (png_state.flags & PNG_USE_TRANSPARENT)
@@ -1597,6 +2402,10 @@ PNG_graphics()
 TERM_PUBLIC void
 PNG_text()
 {
+    PNG_flush_pending_endcap();
+    if (png_state.alpha_layer_active)
+	PNG_alpha_layer_composite();
+    PNG_alpha_layer_destroy();
     image_do_crop();
     if (png_state.flags & PNG_USE_INTERLACE)
 	gdImageInterlace(png_state.image, 1);
@@ -1610,8 +2419,19 @@ PNG_text()
 TERM_PUBLIC void
 PNG_move(unsigned int x, unsigned int y)
 {
+    /* End of polyline path: flush deferred endcap and composite alpha layer */
+    PNG_flush_pending_endcap();
+    if (png_state.alpha_layer_active)
+	PNG_alpha_layer_composite();
     png_state.x = x;
     png_state.y = y;
+    /* Reset dash pattern position at the start of a new path */
+    PNG_dash_pos = 0.0;
+    /* Reset direction state for join disc logic */
+    PNG_prev_seg_dx = 0.0;
+    PNG_prev_seg_dy = 0.0;
+    PNG_prev_dash_dx = 0.0;
+    PNG_prev_dash_dy = 0.0;
 }
 
 /* _vector(x,y)  Called when a line is to be drawn.  This should display a line
@@ -1627,22 +2447,21 @@ PNG_vector(unsigned int x, unsigned int y)
 	/* Treat this as PNG_move */
 	;
 
-    /* This terminal does not support dashed lines in general, but does   */
-    /* render LT_AXIS as a dotted line, used for zeroaxis and grid lines. */
+    /* LT_AXIS is rendered as a dotted line, used for zeroaxis and grid lines. */
     /* Nov 2014 - rewritten using the algorithm from the canvas terminal. */
-    /* FIXME: should either fix this up the rest of the way to support    */
-    /* general dash patterns or simplify it back for dotted lines only.   */
-    } else if (png_state.linetype == LT_AXIS) {
+    } else if (png_state.linetype == LT_AXIS
+	       && png_state.dashtype == DASHTYPE_SOLID) {
+	/* LT_AXIS with no dashtype override: use legacy dotted pattern */
 	static int last_lw = -1;
 	static int last_color = -1;
 	static double dashpattern[4] = {0.1, 0.5, 0.6, 1.0};
 
-	double delx = (int)x - (int)png_state.x;
-	double dely = (int)y - (int)png_state.y;
+	double delx = GD_PXF(x) - GD_PXF(png_state.x);
+	double dely = GD_YF(y) - GD_YF(png_state.y);
 	double stride = sqrt(delx*delx + dely*dely) / (8. * PNG_dashlength_factor * lw);
 
 	double new_x, new_y;
-	double last_x = (int)png_state.x, last_y = (int)png_state.y;
+	double last_x = GD_PXF(png_state.x), last_y = GD_YF(png_state.y);
 	int i;
 	double this_step;
 
@@ -1663,11 +2482,11 @@ PNG_vector(unsigned int x, unsigned int y)
 		new_y = last_y + dely * this_step / stride;
 		stride -= this_step;
 		png_state.dashfraction = dashpattern[i];
-		delx = x - new_x;
-		dely = y - new_y;
+		delx = GD_PXF(x) - new_x;
+		dely = GD_YF(y) - new_y;
 	    } else {
-		new_x = x;
-		new_y = y;
+		new_x = GD_PXF(x);
+		new_y = GD_YF(y);
 		png_state.dashfraction += stride;
 		stride = 0;
 	    }
@@ -1677,14 +2496,14 @@ PNG_vector(unsigned int x, unsigned int y)
 		if (lw > 2) {
 		    if (png_state.dashfraction >= dashpattern[0])
 		    gdImageFilledArc(png_state.image,
-				     (int)(new_x + 0.5), Y((int)(new_y + 0.5)),
-				2 * lw, 2 * lw,
-			 	0, 360, png_state.color, gdArc);
+				     (int)(new_x + 0.5), (int)(new_y + 0.5),
+				     2 * lw, 2 * lw,
+				     0, 360, png_state.color, gdArc);
 		} else {
 		    gdImageLine(png_state.image,
-				(int)(last_x + 0.5), Y((int)(last_y + 0.5)),
-				(int)(new_x + 0.5), Y((int)(new_y + 0.5)),
-				    gdBrushed );
+				(int)(last_x + 0.5), (int)(last_y + 0.5),
+				(int)(new_x + 0.5), (int)(new_y + 0.5),
+				gdBrushed );
 		}
 	    }
 	    last_x = new_x;
@@ -1693,20 +2512,86 @@ PNG_vector(unsigned int x, unsigned int y)
 		png_state.dashfraction = 0.0;
 	}
 
-    /* All other (not dashed) vectors */
+    /* Dashed or solid thick TrueColor lines: use our AA rasterizer for
+     * proper antialiasing, endcap, and join handling.
+     * For linewidth 1 without a dash pattern the native libgd antialiased
+     * path works well enough, so we fall through to the final branch.
+     */
+    } else if (png_state.dashtype >= 1
+	       || png_state.dashtype == DASHTYPE_CUSTOM
+	       || (png_state.TrueColor && png_state.linewidth > 1)) {
+	float *pattern = NULL;
+	double scale = 0.0;
+	int save_cx1, save_cy1, save_cx2, save_cy2;
+	int color = png_state.color;
+
+	/* Activate alpha layer for semi-transparent lines to avoid
+	 * overlap artifacts from sub-segment and join-disc rendering.
+	 */
+	if (png_state.TrueColor && gdTrueColorGetAlpha(color) > 0
+	    && !png_state.alpha_layer_active)
+	    PNG_alpha_layer_begin(color);
+	if (png_state.alpha_layer_active)
+	    color = png_state.alpha_opaque_color;
+
+	/* Resolve dash pattern and scale (NULL pattern = solid line) */
+	if (png_state.dashtype == DASHTYPE_CUSTOM) {
+	    pattern = png_state.custom_dashpattern.pattern;
+	    /* Custom string patterns (".-_") have DSCALE=10 baked in;
+	     * apply empirical_scale=0.25 to match pngcairo visual output. */
+	    scale = 0.25 * PNG_dashlength_factor;
+	    if (png_state.linewidth > 1)
+		scale *= png_state.linewidth;
+	} else if (png_state.dashtype >= 1) {
+	    int d = ((png_state.dashtype - 1) % (PNG_NUM_DASHTYPES - 1)) + 1;
+	    pattern = PNG_dashpatterns[d];
+	    scale = png_state.linewidth * PNG_dashlength_factor;
+	}
+	if (pattern && scale < 0.1) scale = 0.1;
+
+	/* Clip drawing to the current gnuplot plot area so that thick
+	 * endcaps do not overshoot the graph border.
+	 */
+	gdImageGetClip(png_state.image, &save_cx1, &save_cy1, &save_cx2, &save_cy2);
+	if (clip_area) {
+	    gdImageSetClip(png_state.image,
+			   GD_PX(clip_area->xleft),  GD_Y(clip_area->ytop),
+			   GD_PX(clip_area->xright), GD_Y(clip_area->ybot));
+	}
+
+	PNG_draw_aa_vector(
+	    GD_PXF(png_state.x), GD_YF(png_state.y),
+	    GD_PXF(x),           GD_YF(y),
+	    pattern, scale, png_state.linewidth, color);
+
+	/* Restore previous clip region */
+	gdImageSetClip(png_state.image, save_cx1, save_cy1, save_cx2, save_cy2);
+
+    /* All other (not dashed, not thick TrueColor) vectors */
     } else {
-	if (png_state.capbutt) {
+	if (png_state.linecap != ROUNDED) {
 	    /* Assume working antialiasing (gd version >? 2.0.12) */
 	    gdImageSetThickness(png_state.image,png_state.linewidth);
 	    gdImageSetAntiAliased(png_state.image, png_state.color);
-	    gdImageLine(png_state.image, png_state.x, Y(png_state.y),
-			x, Y(y), gdAntiAliased);
+	    gdImageLine(png_state.image, GD_PX(png_state.x), GD_Y(png_state.y),
+			GD_PX(x), GD_Y(y), gdAntiAliased);
 	} else {
 	    /* EAM - Implement linewidth by using a brush */
 	    PNG_init_brush(lw);
 	    gdImageSetBrush(png_state.image, PNG_brush[lw]->im);
-	    gdImageLine(png_state.image, png_state.x, Y(png_state.y),
-			x, Y(y), gdBrushed );
+	    gdImageLine(png_state.image, GD_PX(png_state.x), GD_Y(png_state.y),
+			GD_PX(x), GD_Y(y), gdBrushed );
+	}
+    }
+
+    /* Update previous-direction state (for join disc logic) */
+    {
+	double dx = (double)x - (double)png_state.x;
+	double dy = (double)y - (double)png_state.y;
+	double len = sqrt(dx*dx + dy*dy);
+	if (len > 0.0) {
+	    PNG_prev_seg_dx = dx / len;
+	    PNG_prev_seg_dy = dy / len;
 	}
     }
 
@@ -1744,6 +2629,13 @@ PNG_linetype(int type)
 
     png_state.linetype = type;	/* NB: may still have type <= LT_NODRAW */
 
+    /* Reset dash state */
+    PNG_flush_pending_endcap();
+    if (png_state.alpha_layer_active)
+	PNG_alpha_layer_composite();
+    png_state.dashtype = DASHTYPE_SOLID;
+    PNG_dash_pos = 0.0;
+
     if (type == LT_AXIS)
 	png_state.dashfraction = -1.0;
 }
@@ -1760,6 +2652,38 @@ PNG_linewidth(double linewidth)
     if (png_state.linewidth < 1) png_state.linewidth = 1;
 }
 
+/*
+ * PNG_dashtype - Set the dash pattern for subsequent line drawing.
+ * type >= 1 selects a built-in pattern; DASHTYPE_CUSTOM uses the
+ * caller-supplied pattern.  DASHTYPE_SOLID clears any dash.
+ */
+TERM_PUBLIC void
+PNG_dashtype(int type, t_dashtype *custom_dash_pattern)
+{
+    PNG_flush_pending_endcap();
+    if (png_state.alpha_layer_active)
+	PNG_alpha_layer_composite();
+    PNG_dash_pos = 0.0;
+
+    /* Non-TrueColor mode cannot anti-alias properly; force solid */
+    if (!png_state.TrueColor) {
+	png_state.dashtype = DASHTYPE_SOLID;
+	return;
+    }
+
+    if (type == DASHTYPE_CUSTOM && custom_dash_pattern
+    &&  custom_dash_pattern->pattern[0] > 0) {
+	png_state.dashtype = DASHTYPE_CUSTOM;
+	png_state.custom_dashpattern = *custom_dash_pattern;
+    } else if (type >= 1) {
+	/* Cycle through the built-in dash patterns */
+	png_state.dashtype = type;
+    } else {
+	/* DASHTYPE_SOLID, DASHTYPE_AXIS, or unknown */
+	png_state.dashtype = DASHTYPE_SOLID;
+    }
+}
+
 /* _put_text(x,y,str)  Called to display text at the (x,y) position,
  * while in graphics mode.   The text should be vertically (with respect
  * to the text) justified about (x,y).  The text is rotated according
@@ -1772,6 +2696,10 @@ PNG_linewidth(double linewidth)
 TERM_PUBLIC void
 PNG_put_text(unsigned int x, unsigned int y, const char *string)
 {
+    /* Convert inflated terminal coords to pixel coords */
+    int px = GD_PX(x);
+    int py = GD_Y(y);
+
     /* Mar 2011 - added to handle SJIS/UTF8 conversion */
     if (contains8bit(string)) {
 	gd_iconv((char **)(&string));
@@ -1784,7 +2712,7 @@ PNG_put_text(unsigned int x, unsigned int y, const char *string)
 	 */
 	err = gdImageStringFT(NULL, brect, png_state.color,
 			png_state.ttffont, png_state.ttfsize*png_state.fontscale,
-			0., x, Y(y), (char *)string);
+			0., px, py, (char *)string);
 	if (err) {
 	    fprintf(stderr,"gdImageStringFT: %s while printing string %s with font %s\n",
 		err,string,png_state.ttffont);
@@ -1792,17 +2720,26 @@ PNG_put_text(unsigned int x, unsigned int y, const char *string)
 	    int textwidth = (brect[2]-brect[0]);
 	    int xoffset =  textwidth * cos(png_state.angle * M_PI_2/90.);
 	    int yoffset = -textwidth * sin(png_state.angle * M_PI_2/90.);
-	    /* center rotation on character, not on baseline */
-	    x += sin(png_state.angle * M_PI_2/90.) * (float)png_state.charh/4.;
-	    y -= cos(png_state.angle * M_PI_2/90.) * (float)png_state.charh/4.;
+	    /* Exact centering: compute center-to-baseline offset from
+	     * this string's actual brect.  The measurement was at baseline=py,
+	     * so text center = (brect[7]+brect[1])/2, and offset = py - center.
+	     * Apply in inflated space before pixel conversion. */
+	    {
+		double bl_offset_px = py - (brect[7] + brect[1]) / 2.0;
+		double bl_offset = bl_offset_px * GD_OVERSAMPLE;
+		double ax = (double)x + sin(png_state.angle * M_PI_2/90.) * bl_offset;
+		double ay = (double)y - cos(png_state.angle * M_PI_2/90.) * bl_offset;
+		px = (int)(ax / (double)GD_OVERSAMPLE + 0.5);
+		py = (int)(((double)png_state.height - ay) / (double)GD_OVERSAMPLE + 0.5);
+	    }
 	    switch (png_state.justify) {
 		case RIGHT:
-				x -= xoffset;
-				y += yoffset;
+				px -= xoffset;
+				py -= yoffset;
 				break;
 		case CENTRE:
-				x -= xoffset / 2.;
-				y += yoffset / 2.;
+				px -= xoffset / 2.;
+				py -= yoffset / 2.;
 				break;
 		case LEFT:
 		default:	break;
@@ -1810,7 +2747,7 @@ PNG_put_text(unsigned int x, unsigned int y, const char *string)
 	    err = gdImageStringFT(png_state.image, brect, png_state.color,
 			png_state.ttffont, png_state.ttfsize*png_state.fontscale,
 			png_state.angle * M_PI_2 / 90.,
-			x, Y(y), (char *)string);
+			px, py, (char *)string);
 	    if (err)
 		fprintf(stderr,"gdImageStringFT: %s while printing string %s with font %s\n",
 		    err,string,png_state.ttffont);
@@ -1828,30 +2765,34 @@ PNG_put_text(unsigned int x, unsigned int y, const char *string)
 
 	}
     } else if (png_state.angle != 0) {
-	x -= png_state.charh / 2;
+	int charw_px = GD_PX(png_state.charw);
+	/* Apply charh/2 offset in inflated space before pixel conversion */
+	px = (int)(((double)x - (double)png_state.charh / 2.0) / (double)GD_OVERSAMPLE + 0.5);
 	switch (png_state.justify) {
-	    case RIGHT:	y -= png_state.charw * strlen(string);
+	    case RIGHT:	py += charw_px * strlen(string);
 			break;
-	    case CENTRE:y -= png_state.charw * strlen(string) / 2;
+	    case CENTRE:py += charw_px * strlen(string) / 2;
 			break;
 	    case LEFT:
 	    default:	break;
 	}
 	gdImageStringUp(png_state.image, png_state.font,
-			x, Y(y),
+			px, py,
 			(unsigned char *)string, png_state.color);
     } else {
-	y += png_state.charh / 2;
+	int charw_px = GD_PX(png_state.charw);
+	/* Apply charh/2 offset in inflated space before pixel conversion */
+	py = (int)(((double)png_state.height - ((double)y + (double)png_state.charh / 2.0)) / (double)GD_OVERSAMPLE + 0.5);
 	switch (png_state.justify) {
-	    case RIGHT:	x -= png_state.charw * strlen(string);
+	    case RIGHT:	px -= charw_px * strlen(string);
 			break;
-	    case CENTRE:x -= png_state.charw * strlen(string) / 2;
+	    case CENTRE:px -= charw_px * strlen(string) / 2;
 			break;
 	    case LEFT:
 	    default:	break;
 	}
 	gdImageString(png_state.image, png_state.font,
-		      x, Y(y),
+		      px, py,
 		      (unsigned char *)string, png_state.color);
     }
 
@@ -1862,15 +2803,21 @@ PNG_put_text(unsigned int x, unsigned int y, const char *string)
 TERM_PUBLIC void
 PNG_put_text(unsigned int x, unsigned int y, const char *string)
 {
+    int px = GD_PX(x);
+    int py;
+
     if (png_state.angle == 0) {
-	y += png_state.charh / 2;
+	/* Apply charh/2 offset in inflated space before pixel conversion */
+	py = (int)(((double)png_state.height - ((double)y + (double)png_state.charh / 2.0)) / (double)GD_OVERSAMPLE + 0.5);
 	gdImageString(png_state.image, png_state.font,
-		      x, Y(y),
+		      px, py,
 		      (unsigned char *)string, png_state.color);
     } else {
-	x -= png_state.charh / 2;
+	/* Apply charh/2 offset in inflated space before pixel conversion */
+	px = (int)(((double)x - (double)png_state.charh / 2.0) / (double)GD_OVERSAMPLE + 0.5);
+	py = GD_Y(y);
 	gdImageStringUp(png_state.image, png_state.font,
-			x, Y(y),
+			px, py,
 			(unsigned char *)string, png_state.color);
     }
 }
@@ -1902,6 +2849,7 @@ TERM_PUBLIC void
 PNG_point(unsigned int x, unsigned int y, int number)
 {
     int save_color = png_state.color;
+    unsigned int px, py;
 
     /* Use current linewidth to draw the point symbol */
     if (png_state.linewidth > 1) {
@@ -1912,10 +2860,12 @@ PNG_point(unsigned int x, unsigned int y, int number)
 	png_state.color = gdBrushed;
     }
 
-    y = Y(y);
+    /* Convert inflated coords to pixel coords */
+    px = GD_PX(x);
+    py = GD_Y(y);
 
     if (number < 0) { /* Dot */
-	gdImageSetPixel(png_state.image, x, y, png_state.color);
+	gdImageSetPixel(png_state.image, px, py, png_state.color);
 	png_state.color = save_color;
 	return;
     }
@@ -1923,48 +2873,48 @@ PNG_point(unsigned int x, unsigned int y, int number)
     switch (number % 13) {
     case 0: /* plus */
     default:
-	PNG_PointPlus(x, y);
+	PNG_PointPlus(px, py);
 	break;
     case 1: /* X */
-	PNG_PointX(x, y);
+	PNG_PointX(px, py);
 	break;
     case 2: /* star */
-	PNG_PointPlus(x, y);
-	PNG_PointX(x, y);
+	PNG_PointPlus(px, py);
+	PNG_PointX(px, py);
 	break;
     case 3: /* box */
-	gdImageRectangle(png_state.image, x - PNG_ps, y - PNG_ps,
-			 x + PNG_ps, y + PNG_ps, png_state.color);
+	gdImageRectangle(png_state.image, px - PNG_ps, py - PNG_ps,
+			 px + PNG_ps, py + PNG_ps, png_state.color);
 	break;
     case 4: /* box                   filled */
-	gdImageFilledRectangle(png_state.image, x - PNG_ps, y - PNG_ps,
-			       x + PNG_ps, y + PNG_ps, png_state.color);
+	gdImageFilledRectangle(png_state.image, px - PNG_ps, py - PNG_ps,
+			       px + PNG_ps, py + PNG_ps, png_state.color);
 	break;
     case 5: /* circle */
-	gdImageArc(png_state.image, x, y, 2 * PNG_ps, 2 * PNG_ps,
+	gdImageArc(png_state.image, px, py, 2 * PNG_ps, 2 * PNG_ps,
 		   0, 360, png_state.color);
 	break;
     case 6: /* circle (disk)         filled */
-	gdImageFilledArc(png_state.image, x, y, 2 * PNG_ps, 2 * PNG_ps,
+	gdImageFilledArc(png_state.image, px, py, 2 * PNG_ps, 2 * PNG_ps,
 		   0, 360, png_state.color, gdArc);
 	break;
     case 7: /* triangle */
-	PNG_Triangle(x, y, 1, gp_gdImagePolygon);
+	PNG_Triangle(px, py, 1, gp_gdImagePolygon);
 	break;
     case 8: /* triangle              filled */
-	PNG_Triangle(x, y, 1, gp_gdImageFilledPolygon);
+	PNG_Triangle(px, py, 1, gp_gdImageFilledPolygon);
 	break;
     case 9: /* upside down triangle */
-	PNG_Triangle(x, y, -1, gp_gdImagePolygon);
+	PNG_Triangle(px, py, -1, gp_gdImagePolygon);
 	break;
     case 10: /* upside down triangle  filled */
-	PNG_Triangle(x, y, -1, gp_gdImageFilledPolygon);
+	PNG_Triangle(px, py, -1, gp_gdImageFilledPolygon);
 	break;
     case 11: /* diamond */
-	PNG_Diamond(x, y, gp_gdImagePolygon);
+	PNG_Diamond(px, py, gp_gdImagePolygon);
 	break;
     case 12: /* diamond               filled */
-	PNG_Diamond(x, y, gp_gdImageFilledPolygon);
+	PNG_Diamond(px, py, gp_gdImageFilledPolygon);
 	break;
     }
 
@@ -2009,12 +2959,12 @@ PNG_set_font(const char *fontname)
     free(name);
 
     png_state.font  = font;
-    png_state.charw = font->w;
-    png_state.charh = font->h;
+    png_state.charw = font->w * GD_OVERSAMPLE;
+    png_state.charh = font->h * GD_OVERSAMPLE;
 
 /* EAM 9-Feb-2003 Make new font size visible to higher level routines like write_multiline */
-    term->h_char = font->w;
-    term->v_char = font->h;
+    term->h_char = font->w * GD_OVERSAMPLE;
+    term->v_char = font->h * GD_OVERSAMPLE;
 #ifdef HAVE_GD_TTF
     /* Find approximate character width and height of selected TTF font */
     if (png_state.ttffont) {
@@ -2034,8 +2984,9 @@ PNG_set_font(const char *fontname)
 		0.0, 0, 0, "f00000000g");
 	}
 	if (!err) {
-	    term->h_char = .11 * (double)(brect[2] - brect[0]) + 0.5;
-	    term->v_char = 1.1 * (double)(brect[1] - brect[7]) + 0.5;
+	    term->h_char = (.11 * (double)(brect[2] - brect[0]) + 0.5) * GD_OVERSAMPLE;
+	    term->v_char = (1.1 * (double)(brect[1] - brect[7]) + 0.5) * GD_OVERSAMPLE;
+	    png_state.baseline_offset = -(brect[7] + brect[1]) / 2.0 * GD_OVERSAMPLE;
 	}
     }
 #endif
@@ -2116,6 +3067,7 @@ ENHGD_FLUSH()
 {
     int brect[8]; char *err;
     unsigned int x, y;
+    int px, py;  /* pixel coordinates for gd calls */
     char *fragment = enhanced_text;
 
     if (!ENHgd_opened_string)
@@ -2129,12 +3081,19 @@ ENHGD_FLUSH()
 	gd_iconv(&fragment);
     }
 
+    /* Compute position in inflated coords with baseline offsets.
+     * ENHgd_base is in pixel-point scale (from enhanced_recursion)
+     * so we must scale it to inflated coords before using as offset. */
     x = png_state.x;
     y = png_state.y;
-    x -= sin(png_state.angle * M_PI_2/90.) * ENHgd_base;
-    y += cos(png_state.angle * M_PI_2/90.) * ENHgd_base;
-    x += sin(png_state.angle * M_PI_2/90.) * (float)png_state.charh/4.;
-    y -= cos(png_state.angle * M_PI_2/90.) * (float)png_state.charh/4.;
+    x -= sin(png_state.angle * M_PI_2/90.) * ENHgd_base * GD_OVERSAMPLE;
+    y += cos(png_state.angle * M_PI_2/90.) * ENHgd_base * GD_OVERSAMPLE;
+    x += sin(png_state.angle * M_PI_2/90.) * png_state.baseline_offset;
+    y -= cos(png_state.angle * M_PI_2/90.) * png_state.baseline_offset;
+
+    /* Convert to pixel coords for gd text rendering */
+    px = GD_PX(x);
+    py = GD_Y(y);
 
     /* First try the old GDFONTPATH mechanism for locating fonts */
     (void)gdUseFontConfig(0);
@@ -2153,14 +3112,14 @@ ENHGD_FLUSH()
 		brect, png_state.color,
 		ENHgd_font, ENHgd_fontsize,
 		png_state.angle * M_PI_2/90.,
-		x, Y(y), fragment, &PNG_FONT_INFO);
+		px, py, fragment, &PNG_FONT_INFO);
     if (err && gdUseFontConfig(1)) {
 	err = gdImageStringFTEx(
 		(ENHgd_show && !ENHgd_sizeonly) ? png_state.image : NULL,
 		brect, png_state.color,
 		ENHgd_font, ENHgd_fontsize,
 		png_state.angle * M_PI_2/90.,
-		x, Y(y), fragment, &PNG_FONT_INFO);
+		px, py, fragment, &PNG_FONT_INFO);
     }
 #else
     err = gdImageStringFT(
@@ -2168,14 +3127,14 @@ ENHGD_FLUSH()
 		brect, png_state.color,
 		ENHgd_font, ENHgd_fontsize,
 		png_state.angle * M_PI_2/90.,
-		x, Y(y), fragment);
+		px, py, fragment);
     if (err && gdUseFontConfig(1)) {
 	err = gdImageStringFT(
 		(ENHgd_show && !ENHgd_sizeonly) ? png_state.image : NULL,
 		brect, png_state.color,
 		ENHgd_font, ENHgd_fontsize,
 		png_state.angle * M_PI_2/90.,
-		x, Y(y), fragment);
+		px, py, fragment);
     }
 #endif
     if (err)
@@ -2193,12 +3152,13 @@ ENHGD_FLUSH()
 	if (ymax > bounding_box[3]) bounding_box[3] = ymax;
     }
 
+    /* brect values are in pixel space; scale back to inflated for cursor advance */
     if (ENHgd_overprint == 1) {
-	png_state.x += ((brect[2] - brect[0]))/2;
-	png_state.y -= (brect[3] - brect[1]);
+	png_state.x += ((brect[2] - brect[0]))/2 * GD_OVERSAMPLE;
+	png_state.y -= (brect[3] - brect[1]) * GD_OVERSAMPLE;
     } else if (ENHgd_widthflag) {
-	png_state.x += (brect[2] - brect[0]);
-	png_state.y -= (brect[3] - brect[1]);
+	png_state.x += (brect[2] - brect[0]) * GD_OVERSAMPLE;
+	png_state.y -= (brect[3] - brect[1]) * GD_OVERSAMPLE;
     }
 }
 
@@ -2294,20 +3254,38 @@ ENHGD_boxed_text(unsigned int x, unsigned int y, int option)
 {
     switch (option) {
     case TEXTBOX_INIT:
-	/* Initialize bounding box for this text string */
-	bounding_box[0] = bounding_box[2] = x;
-	bounding_box[1] = bounding_box[3] = Y(y);
+	/* Initialize bounding box for this text string (pixel coords) */
+	bounding_box[0] = bounding_box[2] = GD_PX(x);
+	bounding_box[1] = bounding_box[3] = GD_Y(y);
 	break;
     case TEXTBOX_OUTLINE:
-	/* Stroke the outline of the bounding box for previous text */
-	PNG_move  (bounding_box[0]-bounding_xmargin, Y(bounding_box[1]-bounding_ymargin));
-	PNG_vector(bounding_box[0]-bounding_xmargin, Y(bounding_box[3]+bounding_ymargin));
-	PNG_vector(bounding_box[2]+bounding_xmargin, Y(bounding_box[3]+bounding_ymargin));
-	PNG_vector(bounding_box[2]+bounding_xmargin, Y(bounding_box[1]-bounding_ymargin));
-	PNG_vector(bounding_box[0]-bounding_xmargin, Y(bounding_box[1]-bounding_ymargin));
+	/* Stroke the outline of the bounding box for previous text.
+	 * bounding_box is in pixel coords; PNG_move/PNG_vector expect
+	 * inflated terminal coords, so convert back.
+	 */
+	{
+	    int bx0 = bounding_box[0] - bounding_xmargin;
+	    int bx1 = bounding_box[2] + bounding_xmargin;
+	    int by0 = bounding_box[1] - bounding_ymargin;
+	    int by1 = bounding_box[3] + bounding_ymargin;
+	    /* Convert pixel coords to inflated terminal coords.
+	     * For X: inflated = pixel * GD_OVERSAMPLE
+	     * For Y: inflated = png_state.height - pixel * GD_OVERSAMPLE
+	     *   (since GD_Y(inflated) = (height - inflated) / GD_OVERSAMPLE)
+	     */
+	    unsigned int ix0 = GD_TERM(bx0);
+	    unsigned int ix1 = GD_TERM(bx1);
+	    unsigned int iy0 = png_state.height - GD_TERM(by0);
+	    unsigned int iy1 = png_state.height - GD_TERM(by1);
+	    PNG_move  (ix0, iy0);
+	    PNG_vector(ix0, iy1);
+	    PNG_vector(ix1, iy1);
+	    PNG_vector(ix1, iy0);
+	    PNG_vector(ix0, iy0);
+	}
 	break;
     case TEXTBOX_BACKGROUNDFILL:
-	/* Fill the box with current color. */
+	/* Fill the box with current color (pixel coords). */
 	gdImageFilledRectangle(png_state.image,
 		bounding_box[0] - bounding_xmargin,
 		bounding_box[1] - bounding_ymargin,
@@ -2316,7 +3294,7 @@ ENHGD_boxed_text(unsigned int x, unsigned int y, int option)
 		png_state.color);
 	break;
     case TEXTBOX_MARGINS:
-	/* Change the text margins */
+	/* Change the text margins (in pixels) */
 	bounding_xmargin = GD_TEXTBOX_MARGIN * (double)x / 100.;
 	bounding_ymargin = GD_TEXTBOX_MARGIN * (double)y / 100.;
 	break;
@@ -2349,17 +3327,17 @@ PNG_image (unsigned int M, unsigned int N, coordval * image, gpiPoint * corner, 
 	gdImagePaletteCopy(im, png_state.image);
     }
 
-    /* Set clipping bound for area into which we will copy */
-    xclip1 = GPMIN(corner[2].x, corner[3].x);
-    xclip2 = GPMAX(corner[2].x, corner[3].x);
-    yclip1 = GPMIN(Y(corner[2].y), Y(corner[3].y));
-    yclip2 = GPMAX(Y(corner[2].y), Y(corner[3].y));
+    /* Set clipping bound for area into which we will copy (pixel coords) */
+    xclip1 = GPMIN(GD_PX(corner[2].x), GD_PX(corner[3].x));
+    xclip2 = GPMAX(GD_PX(corner[2].x), GD_PX(corner[3].x));
+    yclip1 = GPMIN(GD_Y(corner[2].y), GD_Y(corner[3].y));
+    yclip2 = GPMAX(GD_Y(corner[2].y), GD_Y(corner[3].y));
     gdImageGetClip(png_state.image, &x1, &y1, &x2, &y2);
     gdImageSetClip(png_state.image, xclip1, yclip1, xclip2, yclip2);
 
-    /* Initialize image area with current contents of plot. */
-    mout = abs( (int)corner[1].x - (int)corner[0].x );
-    nout = abs( (int)corner[1].y - (int)corner[0].y );
+    /* Initialize image area with current contents of plot (pixel sizes). */
+    mout = abs( GD_PX(corner[1].x) - GD_PX(corner[0].x) );
+    nout = abs( GD_Y(corner[1].y) - GD_Y(corner[0].y) );
 
     if (color_mode == IC_RGBA) {
 	/* RGB + Alpha channel
@@ -2367,6 +3345,8 @@ PNG_image (unsigned int M, unsigned int N, coordval * image, gpiPoint * corner, 
 	 * routine in order not to apply the alpha correction more than
 	 * once when building up any given output pixel.
 	 */
+	int px0 = GD_PX(corner[0].x);
+	int py0 = GD_Y(corner[0].y);
 	for (n=0; n<nout; n++) {
 	for (m=0; m<mout; m++) {
 	    rgb_color rgb1;
@@ -2383,7 +3363,7 @@ PNG_image (unsigned int M, unsigned int N, coordval * image, gpiPoint * corner, 
 	    rgb255_from_rgb1( rgb1, &rgb255 );
 	    pixel = gdImageColorResolveAlpha( png_state.image,
 		(int)rgb255.r, (int)rgb255.g, (int)rgb255.b, alpha);
-	    gdImageSetPixel( png_state.image, m + corner[0].x, n + Y(corner[0].y), pixel );
+	    gdImageSetPixel( png_state.image, m + px0, n + py0, pixel );
 	}
 	}
 
@@ -2425,7 +3405,7 @@ PNG_image (unsigned int M, unsigned int N, coordval * image, gpiPoint * corner, 
     /* Copy and resize onto requested region of plot */
     if (color_mode != IC_RGBA)
 	gdImageCopyResized(png_state.image, im,
-		(corner[0].x), Y(corner[0].y),	/* Destination X, Y */
+		GD_PX(corner[0].x), GD_Y(corner[0].y),	/* Destination X, Y */
 		0, 0, 				/* Source X, Y */
 		mout, nout,			/* Destination Width, Height */
 		M, N				/* Source Width, Height */
@@ -2522,13 +3502,13 @@ gd_iconv(char **string)
 
 TERM_TABLE_START(png_driver)
     "png", "PNG images using libgd and TrueType fonts",
-    GREG_XMAX, GREG_YMAX, PNG_VCHAR, PNG_HCHAR,
+    GREG_XMAX * GD_OVERSAMPLE, GREG_YMAX * GD_OVERSAMPLE, PNG_VCHAR, PNG_HCHAR,
     PNG_TICSIZE, PNG_TICSIZE, PNG_options, PNG_init, PNG_reset,
     PNG_text, null_scale, PNG_graphics, PNG_move, PNG_vector,
     PNG_linetype, PNG_put_text, PNG_text_angle,
     PNG_justify_text, PNG_point, do_arrow, PNG_set_font,
     PNG_pointsize,
-    TERM_CAN_MULTIPLOT|TERM_BINARY|TERM_LINEWIDTH|TERM_FONTSCALE, /* TERM_ALPHA_CHANNEL only if truecolor */
+    TERM_CAN_MULTIPLOT|TERM_BINARY|TERM_CAN_DASH|TERM_LINEWIDTH|TERM_FONTSCALE,
     0 /*suspend*/, 0 /*resume*/,
     PNG_boxfill /*EAM - fillbox*/,
     PNG_linewidth /*EAM - linewidth*/
@@ -2543,9 +3523,11 @@ TERM_TABLE_START(png_driver)
     , ENHGD_OPEN, ENHGD_FLUSH, do_enh_writec
     , NULL		/* layering */
     , NULL		/* path */
-    , 0.0		/* tscale */
+    , (double)GD_OVERSAMPLE	/* tscale */
     , NULL		/* hypertext */
     , ENHGD_boxed_text
+    , NULL		/* modify_plots */
+    , PNG_dashtype
 TERM_TABLE_END(png_driver)
 
 #undef LAST_TERM
@@ -2665,6 +3647,10 @@ JPEG_text()
 {
 int quality = 90;
 
+    PNG_flush_pending_endcap();
+    if (png_state.alpha_layer_active)
+	PNG_alpha_layer_composite();
+    PNG_alpha_layer_destroy();
     image_do_crop();
     if (png_state.flags & PNG_USE_INTERLACE)
 	gdImageInterlace(png_state.image, 1);
@@ -2678,13 +3664,13 @@ int quality = 90;
 
 TERM_TABLE_START(jpeg_driver)
     "jpeg", "JPEG images using libgd and TrueType fonts",
-    GREG_XMAX, GREG_YMAX, PNG_VCHAR, PNG_HCHAR,
+    GREG_XMAX * GD_OVERSAMPLE, GREG_YMAX * GD_OVERSAMPLE, PNG_VCHAR, PNG_HCHAR,
     PNG_TICSIZE, PNG_TICSIZE, PNG_options, PNG_init, PNG_reset,
     JPEG_text, null_scale, PNG_graphics, PNG_move, PNG_vector,
     PNG_linetype, PNG_put_text, PNG_text_angle,
     PNG_justify_text, PNG_point, do_arrow, PNG_set_font,
     PNG_pointsize,
-    TERM_CAN_MULTIPLOT|TERM_BINARY|TERM_ALPHA_CHANNEL|TERM_LINEWIDTH|TERM_FONTSCALE,
+    TERM_CAN_MULTIPLOT|TERM_BINARY|TERM_ALPHA_CHANNEL|TERM_CAN_DASH|TERM_LINEWIDTH|TERM_FONTSCALE,
     0 /*suspend*/, 0 /*resume*/,
     PNG_boxfill /*EAM - fillbox*/,
     PNG_linewidth /*EAM - linewidth*/
@@ -2699,9 +3685,11 @@ TERM_TABLE_START(jpeg_driver)
     , ENHGD_OPEN, ENHGD_FLUSH, do_enh_writec
     , NULL		/* layering */
     , NULL		/* path */
-    , 0.0		/* tscale */
+    , (double)GD_OVERSAMPLE	/* tscale */
     , NULL		/* hypertext */
     , ENHGD_boxed_text
+    , NULL		/* modify_plots */
+    , PNG_dashtype
 TERM_TABLE_END(jpeg_driver)
 
 #undef LAST_TERM
@@ -2791,6 +3779,10 @@ TERM_PUBLIC void GIF_text(void);
 TERM_PUBLIC void
 GIF_text()
 {
+    PNG_flush_pending_endcap();
+    if (png_state.alpha_layer_active)
+	PNG_alpha_layer_composite();
+    PNG_alpha_layer_destroy();
     image_do_crop();
 
 #ifdef GIF_ANIMATION
@@ -2803,15 +3795,12 @@ GIF_text()
 		png_state.loop_count );
 	}
 	gdImageGifAnimAdd(png_state.image, gpoutfile,
-	    png_state.frame_optimization ? 0  /* use global map  */
-	                                 : 1, /* use private map */
+	    1, /* use private map */
 	    0, 0 /* No offset */,
 	    png_state.frame_delay,
 	    (png_state.flags & PNG_USE_TRANSPARENT)
 			? gdDisposalRestorePrevious
-			: gdDisposalNone,
-	    (png_state.frame_optimization && !(png_state.flags & PNG_USE_TRANSPARENT))
-	    ? png_state.previous_image : NULL);
+			: gdDisposalNone, NULL);
 	png_state.frame_count++;
 	if (png_state.previous_image)
 	    gdImageDestroy(png_state.previous_image);
@@ -2830,7 +3819,7 @@ GIF_text()
 
 TERM_TABLE_START(gif_driver)
     "gif", "GIF images using libgd and TrueType fonts",
-    GREG_XMAX, GREG_YMAX, PNG_VCHAR, PNG_HCHAR,
+    GREG_XMAX * GD_OVERSAMPLE, GREG_YMAX * GD_OVERSAMPLE, PNG_VCHAR, PNG_HCHAR,
     PNG_TICSIZE, PNG_TICSIZE, PNG_options, PNG_init, PNG_reset,
     GIF_text, null_scale, PNG_graphics, PNG_move, PNG_vector,
     PNG_linetype, PNG_put_text, PNG_text_angle,
@@ -2851,9 +3840,11 @@ TERM_TABLE_START(gif_driver)
     , ENHGD_OPEN, ENHGD_FLUSH, do_enh_writec
     , NULL		/* layering */
     , NULL		/* path */
-    , 0.0		/* tscale */
+    , (double)GD_OVERSAMPLE	/* tscale */
     , NULL		/* hypertext */
     , ENHGD_boxed_text
+    , NULL		/* modify_plots */
+    , PNG_dashtype
 TERM_TABLE_END(gif_driver)
 
 #undef LAST_TERM
@@ -2881,7 +3872,7 @@ START_HELP(gif)
 "              {font \"<face> {,<pointsize>}\"} {fontscale <scale>}",
 "              {size <x>,<y>} {{no}crop}",
 "              {background <rgb_color>}",
-"              {animate {delay <d>} {loop <n>} {optimize}}",
+"              {animate {delay <d>} {loop <n>}}",
 "",
 " PNG, JPEG and GIF images are created using the external library libgd.",
 " GIF plots may be viewed interactively by piping the output to the",
@@ -2914,7 +3905,7 @@ START_HELP(gif)
 "?term gif animate",
 "?gif animate",
 "",
-"       set term gif animate {delay <d>} {loop <n>} {{no}optimize}}",
+"       set term gif animate {delay <d>} {loop <n>}",
 "",
 " The gif terminal `animate` option creates a single gif file containing",
 " multiple frames. The delay between display of successive frames may be",
@@ -2934,11 +3925,6 @@ START_HELP(gif)
 "          splot f(x,y) with pm3d",
 "      }",
 "      unset output",
-"",
-" The `optimize` option [DEPRECATED] is passed to the gd library when the",
-" output file is opened. It attempts to reduce the size of the output file",
-" by saving incremental changes rather than full frames.",
-" Caveat: The implementation is known to be buggy. Do not use.",
 "",
 "2 fonts",
 "?set term gif fonts",
@@ -2993,6 +3979,10 @@ TERM_PUBLIC void SIXELGD_text(void);
 TERM_PUBLIC void
 SIXELGD_text()
 {
+    PNG_flush_pending_endcap();
+    if (png_state.alpha_layer_active)
+	PNG_alpha_layer_composite();
+    PNG_alpha_layer_destroy();
     image_do_crop();
 
     /* The 'anchor' option restarts each plot at the top left */
@@ -3013,7 +4003,7 @@ SIXELGD_text()
 
 TERM_TABLE_START(sixelgd_driver)
     "sixelgd", "sixel using libgd and TrueType fonts",
-    GREG_XMAX, GREG_YMAX, PNG_VCHAR, PNG_HCHAR,
+    GREG_XMAX * GD_OVERSAMPLE, GREG_YMAX * GD_OVERSAMPLE, PNG_VCHAR, PNG_HCHAR,
     PNG_TICSIZE, PNG_TICSIZE, PNG_options, PNG_init, PNG_reset,
     SIXELGD_text, null_scale, PNG_graphics, PNG_move, PNG_vector,
     PNG_linetype, PNG_put_text, PNG_text_angle,
@@ -3034,9 +4024,11 @@ TERM_TABLE_START(sixelgd_driver)
     ENHGD_OPEN, ENHGD_FLUSH, do_enh_writec,
     NULL,		/* layering */
     NULL,		/* path */
-    0.0,		/* tscale */
+    (double)GD_OVERSAMPLE,	/* tscale */
     NULL		/* hypertext */
     , ENHGD_boxed_text
+    , NULL		/* modify_plots */
+    , PNG_dashtype
 TERM_TABLE_END(sixelgd_driver)
 
 #undef LAST_TERM
@@ -3154,6 +4146,10 @@ KITTYGD_text()
 {
     base64s *b64;
     KITTYGD_io_ctx ioctx;
+    PNG_flush_pending_endcap();
+    if (png_state.alpha_layer_active)
+	PNG_alpha_layer_composite();
+    PNG_alpha_layer_destroy();
     image_do_crop();
 
     /* The 'anchor' option makes each plot write in place rather than scrolling */
@@ -3186,13 +4182,13 @@ KITTYGD_text()
 
 TERM_TABLE_START(kittygd_driver)
     "kittygd", "kitty in-terminal graphics using libgd",
-    GREG_XMAX, GREG_YMAX, PNG_VCHAR, PNG_HCHAR,
+    GREG_XMAX * GD_OVERSAMPLE, GREG_YMAX * GD_OVERSAMPLE, PNG_VCHAR, PNG_HCHAR,
     PNG_TICSIZE, PNG_TICSIZE, PNG_options, PNG_init, PNG_reset,
     KITTYGD_text, null_scale, PNG_graphics, PNG_move, PNG_vector,
     PNG_linetype, PNG_put_text, PNG_text_angle,
     PNG_justify_text, PNG_point, do_arrow, PNG_set_font,
     PNG_pointsize,
-    TERM_CAN_MULTIPLOT|TERM_BINARY|TERM_ALPHA_CHANNEL|TERM_LINEWIDTH|TERM_FONTSCALE,
+    TERM_CAN_MULTIPLOT|TERM_BINARY|TERM_ALPHA_CHANNEL|TERM_CAN_DASH|TERM_LINEWIDTH|TERM_FONTSCALE,
     0 /*suspend*/, 0 /*resume*/,
     PNG_boxfill,
     PNG_linewidth,
@@ -3207,9 +4203,11 @@ TERM_TABLE_START(kittygd_driver)
     ENHGD_OPEN, ENHGD_FLUSH, do_enh_writec,
     NULL,		/* layering */
     NULL,		/* path */
-    0.0,		/* tscale */
+    (double)GD_OVERSAMPLE,	/* tscale */
     NULL		/* hypertext */
     , ENHGD_boxed_text
+    , NULL		/* modify_plots */
+    , PNG_dashtype
 TERM_TABLE_END(kittygd_driver)
 
 #undef LAST_TERM

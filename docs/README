@@ -30,15 +30,6 @@ gnuplot.doc -> gnuplot.gih
 On Unix and MSDOS the interactive help is built into the
 program, and uses the file "gnuplot.gih" ('make gih').
 
-On VMS, the interactive help is supplied by the system help facility,
-using the file "gnuplot.hlp".  This is built by default, either by 
-doc2hlp, or doc2rnh and RUNOFF which format gnuplot.doc for the VMS
-HELP indenting conventions.  The help file is placed in a help library, 
-"gnuplot.hlb" but it may be also be placed in one of the system-wide 
-help libraries, using lib/help ('help lib').  If VMS users prefer the 
-gnuplot interactive help facility to the system facility, this can be 
-easily changed by not defining NO_GIH.
-
 The PDF and HTML versions of the gnuplot manual can include hyperlinks to
 demonstration plots.  There is a special makefile target "make pdf"
 to generate and include sample plots directly in the manual itself.
@@ -122,7 +113,7 @@ Ffigure_acos
 
 Some notes about the format:
 ----------------------------
-Remember that all text must be able to be processed by gnuplot, VMS,
+Remember that all text must be able to be processed by gnuplot,
  nroff, troff, itl, and latex, and always do something reasonable.
 The first column is reserved for control characters.
 Text does not start in the first column.
@@ -131,9 +122,6 @@ Lines that have a space in column 2 are to be printed in a verbatim
  environment by LaTeX.
 Tables must have a space in column 2.
 Do NOT use tabs in the help file.
-Conversion from this format to vax .hlp file involves removal of
- lines starting with [?@#$%] (see doc2hlp). VMS uses the numbers
- to represent a tree. 
 Conversion from this format to gnuplot .gih file involves removal of
  lines starting with [0-9@#$%] (see doc2gih). Gnuplot matches your
  help query against the ? lines to find the help information.
@@ -149,7 +137,7 @@ Backquote pairs are converted by the doc2tex program into boldface;
 
 Control characters in first column:
 ?    used by .gih format, for builtin interactive help - keyword
-0-9  used by VMS help and by doc2{tex,ms,html} formatters to define level,keyword
+0-9  used by doc2{tex,ms,html} formatters to define level,keyword
 @    used by doc2{tex,ms,rnh} to define table start/end
 #    used by doc2tex: table entry
 #TeX used by doc2tex: LaTeX command to be inserted in output stream (e.g. \newpage)

@@ -243,8 +243,6 @@ prepare_call(int calltype, udvt_entry *functionblock)
 void
 load_file(FILE *fp, char *name, int calltype)
 {
-    int len;
-
     int start, left;
     int more;
     int stop = FALSE;
@@ -324,36 +322,56 @@ load_file(FILE *fp, char *name, int calltype)
 		 * Either way we have to process line-ending '\' as a 
 		 * continuation request.
 		 */
-		if (!fp && datablock_input_line) {
+		int len = strlen(gp_input_line);
+		if (fp) {
+		    left = gp_input_line_len - len;
+		    if (left <= MAX_LINE_LEN) {
+			extend_input_line();
+			left = gp_input_line_len - len;
+		    }
+		} else if (datablock_input_line) {
+		    int chunk_len = strlen(*datablock_input_line);
+		    while (left <= chunk_len) {
+			extend_input_line();
+			left = gp_input_line_len - (start + chunk_len);
+		    }
 		    safe_strncpy(&(gp_input_line[start]), *datablock_input_line, left);
+		    len = strlen(gp_input_line);
+		    /* strip trailing whitespace */
+		    while (len > 0 && isblank(gp_input_line[len-1]))
+			gp_input_line[len--] = '\0';
+		    left = gp_input_line_len - len;
 		    datablock_input_line++;
 		}
+
 		inline_num++;
 		gpval_lineno->udv_value.v.int_val = inline_num;	/* User visible copy */
-		if ((len = strlen(gp_input_line)) == 0)
+
+		/* nothing added to command line */
+		if (len == 0)
 		    continue;
+
+		/* point to last character in gp_input_line */
 		--len;
 		if (gp_input_line[len] == '\n') {	/* remove any newline */
-		    gp_input_line[len] = '\0';
-		    /* Look, len was 1-1 = 0 before, take care here! */
-		    if (len > 0)
-			--len;
+		    gp_input_line[len--] = '\0';
 		    if (gp_input_line[len] == '\r') {	/* remove any carriage return */
-			gp_input_line[len] = NUL;
-			if (len > 0)
-			    --len;
+			gp_input_line[len--] = '\0';
 		    }
-		} else if (len + 2 >= left) {
-		    extend_input_line();
-		    left = gp_input_line_len - len - 1;
-		    start = len + 1;
-		    continue;	/* don't check for '\' */
+		    /* Remove trailing whitespace leading up to the newline */
+		    while (len > 0 && isblank(gp_input_line[len]))
+			gp_input_line[len--] = '\0';
 		}
+		start = len+1;
+		left = gp_input_line_len - start;
+
 		if (gp_input_line[len] == '\\') {
 		    /* line continuation */
 		    start = len;
 		    left = gp_input_line_len - start;
-		} else {
+		}
+
+		else {
 		    /* EAM May 2011 - handle multi-line bracketed clauses {...}.
 		     * Introduces a requirement for scanner.c and scanner.h
 		     * This code is redundant with part of do_line(),
@@ -377,19 +395,17 @@ load_file(FILE *fp, char *name, int calltype)
 		    if (curly_brace_count < 0)
 			int_error(NO_CARET, "Unexpected }");
 		    if (curly_brace_count > 0) {
-			if ((len + 4) > gp_input_line_len)
+			if ((strlen(gp_input_line) + 4) > gp_input_line_len)
 			    extend_input_line();
 			strcat(gp_input_line,";\n");
 			start = strlen(gp_input_line);
 			left = gp_input_line_len - start;
 			continue;
 		    }
-
 		    more = FALSE;
 		}
-
 	    }
-	}
+	}   /* end while (more) */
 
 	/* If we hit a 'break' or 'continue' statement in the lines just processed */
 	if (iteration_early_exit())
@@ -549,7 +565,7 @@ lf_push(FILE *fp, char *name, char *cmdline)
     lf->call_argc = call_argc;
 
     lf->depth = lf_head ? lf_head->depth+1 : 1;	/* recursion depth */
-    if (lf->depth > STACK_DEPTH)
+    if (lf->depth > MAX_RECURSION_DEPTH)
 	int_error(NO_CARET, "load/eval nested too deeply");
 
     /* call/load/functionblock all establish a new scope for local variables.

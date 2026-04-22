@@ -1825,6 +1825,8 @@ clip_filled_polygon( struct surface_points *from_plot, int index,
 	    zmin = from_plot->zclip[index].zlow;
 	if (zmax > from_plot->zclip[index].zhigh)
 	    zmax = from_plot->zclip[index].zhigh;
+	if (zmin > zmax)
+	    return -1;
     }
     for (current = 0; current < nv; current++) {
 	if (inrange( inpts[current].z, zmin, zmax )) {

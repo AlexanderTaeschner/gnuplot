@@ -5,7 +5,7 @@ This is a test version built from gnuplot's git development branch,
 not a release.
 
 gnuplot is a command-line driven interactive function plotting utility
-for Linux, OSX, Windows, VMS, and many other platforms.  The software is
+for Linux, mac-OS, Windows, and many other platforms.  The software is
 copyrighted but freely distributed (i.e., you don't have to pay for it).
 It was originally intended as graphical program to allow scientists
 and students to visualize mathematical functions and data.

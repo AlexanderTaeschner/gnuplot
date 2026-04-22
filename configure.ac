@@ -8,7 +8,7 @@ dnl
 AC_INIT(gnuplot, 6.1.0)
 
 AC_CONFIG_SRCDIR(src/graphics.c)
-AC_PREREQ([2.69])
+AC_PREREQ([2.70])
 AC_CONFIG_HEADERS(config.h:config.hin)
 
 dnl The line below is for use during development
@@ -78,6 +78,49 @@ else
 fi
 AM_PROG_CC_C_O
 AC_SUBST(CC_FOR_BUILD)
+
+dnl WASI cross-compilation support
+AC_ARG_WITH([wasi-sysroot],
+            [AS_HELP_STRING([--with-wasi-sysroot=DIR], [where to find the WASI includes/libraries])],
+  [wasi_sysroot="$withval"],
+  [wasi_sysroot=no]
+)
+
+AC_CANONICAL_HOST
+
+case "$host_os" in
+  wasi*)
+    is_wasi="yes"
+    AC_MSG_NOTICE([WASI target detected. Checking compiler.])
+
+    AC_MSG_CHECKING([for clang compiler version >= 20.1])
+    AC_COMPILE_IFELSE([AC_LANG_PROGRAM([], [[
+                       #if (__clang_major__ < 20) || (__clang_major__ == 20 && __clang_minor__ == 0)
+                       #error
+                       #endif
+                       ]])],
+                       [AC_MSG_RESULT([yes])],
+                       [AC_MSG_RESULT([no])
+                       AC_MSG_ERROR([Clang 20.1 or newer is required for WASI.])
+                       ])
+
+    AC_MSG_CHECKING([for WASI sysroot])
+    if test "$wasi_sysroot" = "no"; then
+      AC_MSG_ERROR([WASI requires --with-wasi-sysroot=DIR to be set.])
+    fi
+
+    if ! test -d "$wasi_sysroot"; then
+      AC_MSG_ERROR([WASI sysroot not found.])
+    fi
+
+    AC_MSG_RESULT([found at $wasi_sysroot])
+
+    CC="$CC -target $host_alias --sysroot=$wasi_sysroot"
+    CFLAGS="$CFLAGS -D_WASI_EMULATED_SIGNAL -mllvm -wasm-enable-sjlj -mllvm -wasm-use-legacy-eh=false"
+    LDFLAGS="$LDFLAGS -lwasi-emulated-signal -lsetjmp"
+    EXEEXT=".wasm"
+    ;;
+esac
 
 dnl large file support
 AC_CHECK_TYPES([off_t])
@@ -198,7 +241,11 @@ fi
 
 dnl X Window System files.
 AC_SUBST(LIBRARIES_FOR_X)
-AC_PATH_XTRA
+if test "x$is_wasi" = "xyes"; then
+  no_x=yes
+else
+  AC_PATH_XTRA
+fi
 
 dnl Needed for LynxOS until AC_PATH_XTRA is fixed
 if test "$ac_cv_func_gethostbyname" = no; then
@@ -306,7 +353,7 @@ AC_CHECK_FUNCS(atexit memcpy memmove memset \
   erf erfc gamma lgamma tgamma \
   getcwd poll pclose popen fdopen select sleep stpcpy strlcpy \
   strcspn strdup strndup strnlen strcasecmp stricmp strncasecmp strnicmp \
-  sysinfo tcgetattr vfprintf doprnt uname usleep \
+  sysinfo tcgetattr vfprintf doprnt uname usleep system nanosleep \
   cbrt jn
 )
 
@@ -374,6 +421,10 @@ AC_ARG_WITH(readline,dnl
   --without-readline       disable readline support], ,
   test -z "$with_readline" && with_readline=gnu)
 
+AS_IF([test "x${is_wasi}" = "xyes" && test "x${with_readline}" != "xno"], [
+  AC_MSG_WARN([Readline not supported on WASI.])
+  with_readline=no
+])
 
 dnl Gnuplot history
 AC_ARG_ENABLE(history-file,dnl
@@ -969,9 +1020,13 @@ if test "$with_gd" = no && test "$with_cairo" = no; then
     AC_CHECK_LIB(stbi, stbi_load_from_file,
        [AC_DEFINE(HAVE_STBI,1,[ Define to use libstbi as a fallback for reading image data])
         with_stbi=yes && TERMLIBS="$TERMLIBS -lstbi"
-        AC_CHECK_HEADERS(stb_image.h,,
-            AC_MSG_WARN([please add path to stb_image.h to CPPFLAGS in Makefile]))
     ])
+    if test "$with_stbi" != yes; then
+        AC_CHECK_HEADERS(stb_image.h,
+            [AC_MSG_RESULT([Will include libstbi routines via stb_image.h])
+            AC_DEFINE(HAVE_STBI,1,,[ Define to use stbi routines for reading image data])
+            ],)
+    fi
 fi
 dnl end check for libstbi
 
@@ -1440,6 +1495,8 @@ elif test "$with_cairo" = yes; then
   AC_MSG_RESULT([  Support for image file input:                    yes (using cairo)])
 elif test "$with_stbi" = yes; then
   AC_MSG_RESULT([  Support for image file input:                    yes (using libstbi)])
+elif test "x$ac_cv_header_stb_image_h" = xyes; then
+  AC_MSG_RESULT([  Support for image file input:                    yes (using stb_image.h)])
 elif test "$with_gd" = no; then
   AC_MSG_RESULT([  Support for image file input:                    no])
 fi

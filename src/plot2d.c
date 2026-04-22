@@ -131,6 +131,9 @@ cp_alloc(int num)
     cp = (struct curve_points *) gp_alloc(sizeof(struct curve_points), "curve");
     memset(cp, 0, sizeof(struct curve_points));
 
+    free_at(df_plot_title_at);
+    df_plot_title_at = NULL;
+
     cp->p_max = (num >= 0 ? num : 0);
     if (num > 0) {
 	cp->points = (struct coordinate *)
@@ -278,23 +281,40 @@ plotrequest()
     /* Axis range limits for the entire plot are optional but must be given
      * in the fixed order x y x2 y2.
      * A sampling range [var=start:end:increment] terminates parsing of axis
-     * range limits.  The keyword 'sample' also terminates range parsing.
+     * range limits.  The keyword 'sample' also terminates axis range parsing.
+     * NB: Parametric mode is an exception. Sampling is not supported.
      */
-    if (parametric || polar)
+    #define SAMPLING_RANGE -2
+    if (!parametric) {
+	if (polar)
+	    dummy_token = parse_range(T_AXIS);
+	else
+	    dummy_token = parse_range(FIRST_X_AXIS);
+	if (dummy_token == SAMPLING_RANGE)
+	    dummy_token = 0;
+	else if ((parse_range(FIRST_Y_AXIS) != SAMPLING_RANGE)
+	     &&  (parse_range(SECOND_X_AXIS) != SAMPLING_RANGE)
+	     &&  (parse_range(SECOND_Y_AXIS) != SAMPLING_RANGE))
+		    ; /* Nothing to do */
+	/* FIXME: would like to deprecate the "sample" keyword altogether */
+	if (equals(c_token,"sample"))
+	    c_token++;
+    }
+    /* Parametric mode
+     * Not necessary since introduction of pseudofile '+' but kept for
+     * backwards compatibility.
+     */
+    else {
 	dummy_token = parse_range(T_AXIS);
-    else
-	dummy_token = parse_range(FIRST_X_AXIS);
-#define SAMPLING_RANGE -2
-    if (dummy_token == SAMPLING_RANGE)
-	dummy_token = 0;
-    else if ((parse_range(FIRST_Y_AXIS) != SAMPLING_RANGE)
-         &&  (parse_range(SECOND_X_AXIS) != SAMPLING_RANGE)
-         &&  (parse_range(SECOND_Y_AXIS) != SAMPLING_RANGE))
-		; /* Nothing to do */
-#undef SAMPLING_RANGE
-    /* FIXME: would like to deprecate the "sample" keyword altogether */
-    if (equals(c_token,"sample"))
-	c_token++;
+	if ((dummy_token == SAMPLING_RANGE)
+	||  (parse_range(FIRST_X_AXIS) == SAMPLING_RANGE)
+	||  (parse_range(FIRST_Y_AXIS) == SAMPLING_RANGE)
+	||  (parse_range(SECOND_X_AXIS) == SAMPLING_RANGE)
+	||  (parse_range(SECOND_Y_AXIS) == SAMPLING_RANGE)
+	||  equals(c_token, "sample"))
+	    int_error(c_token, "parametric mode does not support axis sampling");
+    }
+    #undef SAMPLING_RANGE
 
     /* Clear out any tick labels read from data files in previous plot */
     for (axis=0; axis<AXIS_ARRAY_SIZE; axis++) {

@@ -59,6 +59,9 @@
 ]*/
 
 #include "gp_types.h"
+#ifdef _WIN32
+#include <windows.h>
+#endif
 #include "alloc.h"
 #include "command.h"
 #include "datablock.h"
@@ -419,9 +422,10 @@ append_multiline_to_datablock(struct value *datablock_value, const char *lines)
 void
 save_set_to_datablock(char *datablock_name)
 {
-    FILE *fp = tmpfile();
     struct udvt_entry *datablock;
     char line[256];
+    FILE *fp;
+    gp_open_tempfile(fp);	/* syscfg macro! */
 
 #if defined(_MSC_VER) || defined(__MINGW32__)
     /* On Windows tmpfile() fails because it tries to write to the root directory */
@@ -430,7 +434,7 @@ save_set_to_datablock(char *datablock_name)
 	/* We really want the "ANSI" version */
 	GetTempPathA(sizeof(tempname), tempname);
 	strcat(tempname, "gnuplot-save.tmp");
-	fp = fopen(tempname, "wt+, ccs=UTF-8");
+	fp = fopen(tempname, "w+");
     }
 #endif
 
@@ -439,7 +443,7 @@ save_set_to_datablock(char *datablock_name)
 
     /* Save to temp file */
     save_set_all(fp);
-    rewind(fp);
+    gp_rewind_tempfile(fp);	/* syscfg macro! */
 
     /* Read back from temp file into a datablock */
     datablock = add_udv_by_name(datablock_name);
@@ -455,6 +459,7 @@ save_set_to_datablock(char *datablock_name)
     }
 
     fclose(fp);
+    gp_free_tempfile(fp);	/* syscfg macro! */
 }
 
 

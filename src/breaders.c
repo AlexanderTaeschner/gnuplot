@@ -549,6 +549,9 @@ df_image_get_pixel(int i, int j, int component)
  *
  *	Ethan A Merritt - May 2024
  */
+#ifdef HAVE_STB_IMAGE_H	/* routines from source in header file rather than from library */
+  #define STB_IMAGE_IMPLEMENTATION 1
+#endif
 #include <stb_image.h>
 
 /* local prototypes for libstbi */

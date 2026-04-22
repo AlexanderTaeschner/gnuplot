@@ -286,7 +286,6 @@ HPLJII_putc(unsigned int x, unsigned int y, int c, int ang)
 TERM_PUBLIC void
 HPLJII_reset()
 {
-    fflush_binary();	/* Only needed for VMS */
 }
 
 

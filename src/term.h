@@ -227,7 +227,9 @@
  * Someone please update this terminal to adhere to a newer DXF standard!
  * http://images.autodesk.com/adsk/files/autocad_2012_pdf_dxf-reference_enu.pdf
  */
+#ifndef __wasi__
 #include "dxf.trm"
+#endif
 
 /* Enhanced Metafile Format driver */
 #include "emf.trm"
@@ -239,8 +241,10 @@
 /* #include "qms.trm" */
 /* #include "excl.trm" */
 
-/* fig graphics */
+/* file for use with Xfig interactive graphics */
+#ifdef X11
 #include "fig.trm"
+#endif
 
 /* geographical info system */
 /* #include "grass.trm" */
@@ -252,7 +256,9 @@
 /* #include "hp2648.trm" */
 
 /* HP7475, HP7220 plotters, and (hopefully) lots of others */
+#ifndef __wasi__
 #include "hpgl.trm"
+#endif
 
 #ifndef NO_BITMAP_SUPPORT
 /* HP DeskJet 500 C */

@@ -3,7 +3,7 @@ The Gnuplot Plotting Utility
 ============================
 
  Gnuplot is a command-line driven interactive function plotting utility
-for linux, OSX, MSWin, VMS, and many other platforms.  The software is
+for linux, mac-OS, MSWin, and many other platforms.  The software is
 copyrighted but freely distributed (i.e., you don't have to pay for it).
 It was originally written to allow scientists and students to visualize
 mathematical functions and data.  Gnuplot supports output to many types

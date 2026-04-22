@@ -33,7 +33,7 @@
 #ifndef GNUPLOT_GPLT_X11_H
 #define GNUPLOT_GPLT_X11_H
 
-#if defined(HAVE_SYS_SELECT_H) && !defined(VMS)
+#if defined(HAVE_SYS_SELECT_H)
 # include <sys/select.h>
 #endif
 

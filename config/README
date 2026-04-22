@@ -2,6 +2,7 @@ Notes:
 - EAM Oct 2007: give up on Atari platforms
 - EAM Mar 2010: give up on Amiga and 16-bit DOS, WIN
 - BM  Oct 2025: add support for Windows on ARM
+- EAM Apr 2026: a sad farewell to VMS
 
 List of files:
 cygwin/Makefile: Makefile for Cygwin on Windows
@@ -10,9 +11,6 @@ mingw/Makefile:  Makefile for MSYS2/MINGW64/CLANG64 on Windows
 msvc/Makefile:   Makefile for Microsoft Visual C++ and nmake on Windows
 watcom/Makefile: Makefile for OpenWatcom C++ on Windows
 woa/Makefile:    Makefile for MSYS2/CLANG64/CLANGARM64 for cross-compilation for Windows on ARM
-buildvms.com: Shell script on VMS
-make_vms.com: Shell script on VMS
 makefile.g:   Makefile on GRASS (a geographic information system)
 makefile.os2: Makefile for gcc/emx on OS/2
-makefile.vms: Makefile on VMS
 makefile.wc:  Makefile for cross-compilation on Windows with OpenWatcom for DOS/32bit

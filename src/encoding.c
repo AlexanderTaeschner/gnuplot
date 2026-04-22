@@ -154,6 +154,17 @@ encoding_from_locale(void)
     return encoding;
 }
 
+void
+save_encoding(FILE *fp)
+{
+    char *l = locale_encoding;
+
+    if ((encoding == S_ENC_EUCJP)
+    &&   (strstr(l, "EUC-JP") || strstr(l, "euc-jp") || strstr(l, "eucJP")))
+	fprintf(fp, "set encoding locale\n");
+    else
+	fprintf(fp, "set encoding %s\n", encoding_names[encoding]);
+}
 
 void
 init_special_chars(void)

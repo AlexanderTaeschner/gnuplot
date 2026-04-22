@@ -87,8 +87,8 @@ char *clabel_font = NULL;		/* default to current font */
 t_contourfill contourfill = {
     .mode = CFILL_AUTO,
     .nslices = 5,
-    .tic_level = 0,
-    .firstlinetype = -1
+    .firstlinetype = -1,
+    .slices = NULL
 };
 static zslice *zslice_array;		/* shared by plot3d_contourfill and zslice_callback */
 static int current_slice = 0;		/* shared index to zslice_array */
@@ -4419,6 +4419,7 @@ plot3d_contourfill(struct surface_points *plot)
      */
     zslice *slice = gp_alloc( MAX_ZSLICES * sizeof(zslice), "contourfill" );
     zslice_array = slice;
+    free(plot->zclip);
     plot->zclip = slice;
 
     /*
@@ -4469,7 +4470,7 @@ plot3d_contourfill(struct surface_points *plot)
 	    break;
 
 	case CFILL_LIST:
-	    int_error(NO_CARET, "list of contour slices not supported yet");
+	    memcpy( slice, contourfill.slices, MAX_ZSLICES * sizeof(zslice));
 	    break;
     }
 
@@ -4477,6 +4478,9 @@ plot3d_contourfill(struct surface_points *plot)
      * Process the pm3d surface once for each slice in the list
      */
     for (level = 0; level < nslices; level++) {
+	double zmax = axis_array[FIRST_Z_AXIS].max;
+	if (zmax < slice[level].zlow && zmax < slice[level].zhigh)
+	    continue;
 	plot->zclip_index = level;
 	pm3d_draw_one(plot);
     }
@@ -4499,7 +4503,7 @@ zslice_callback(
     if (!inrange(place,zmin,zmax))
 	return;
 
-    if (ticlevel != contourfill.tic_level)	/* Currently always 0 */
+    if (ticlevel != 0)
 	return;
     if (current_slice >= MAX_ZSLICES)
 	return;

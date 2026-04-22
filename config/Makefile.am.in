@@ -10,8 +10,8 @@ all:
 Makefile.am: Makefile.am.in
 	rm -f $@ $@t
 	sed -n '1,/^##m4-files-begin/p' Makefile.am.in > $@t
-	echo EXTRA_DIST = MacOSX Makefile.am.in buildvms.com	\
-	  config.* djconfig.sh make_vms.com makefile.* watcom/Makefile	\
+	echo EXTRA_DIST = MacOSX Makefile.am.in \
+	  config.* djconfig.sh makefile.* watcom/Makefile	\
 	  watcom/config.h cygwin/Makefile mingw/Makefile msvc/Makefile \
 	  | fmt \
           | (tr '\012' @; echo) \

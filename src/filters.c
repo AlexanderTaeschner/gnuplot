@@ -662,7 +662,7 @@ gen_2d_path_splines( struct curve_points *plot )
 	for (i = 1; i < nold; i++) {
 	    dx = (old_points[i].x - old_points[i-1].x) / xrange;
 	    dy = (old_points[i].y - old_points[i-1].y) / yrange;
-	    tsum += sqrt( dx*dx + dy*dy );
+	    tsum += hypot(dx, dy);
 	    old_points[i].CRD_PATH = tsum;
 	}
 
@@ -989,7 +989,7 @@ expand_hull(struct curve_points *plot)
 
 	/* concave vertex (over-emphasizes steep holes) */
 	} else {
-	    double dnorm = d / sqrt((dx1+dx2)*(dx1+dx2) + (dy1+dy2)*(dy1+dy2));
+	    double dnorm = d / hypot(dx1+dx2, dy1+dy2);
 	    newpoints[ni] = points[i];
 	    newpoints[ni].x = v2->x + dnorm * (dx1 + dx2);
 	    newpoints[ni].y = v2->y + dnorm * (dy1 + dy2);
@@ -1662,7 +1662,7 @@ find_circumcircle( struct coordinate *points, triangle *t)
     cent_y = BB_x * (CC_x*CC_x + CC_y*CC_y) - CC_x * (BB_x*BB_x + BB_y*BB_y);
     cent_y /= DD;
 
-    t->r = sqrt( cent_x * cent_x + cent_y * cent_y );
+    t->r = hypot(cent_x, cent_y);
     t->cx = cent_x + points[t->v1].x;
     t->cy = cent_y + points[t->v1].y;
 }
@@ -1739,7 +1739,7 @@ edge_length( t_edge *edge, struct coordinate *p )
 {
     double dx = p[edge->v1].x - p[edge->v2].x;
     double dy = p[edge->v1].y - p[edge->v2].y;
-    return sqrt(dx*dx + dy*dy);
+    return hypot(dx, dy);
 }
 
 static void

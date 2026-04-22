@@ -239,7 +239,6 @@ HP500C_init()
 TERM_PUBLIC void
 HP500C_reset()
 {
-    fflush_binary();	/* Only needed for VMS */
 }
 
 

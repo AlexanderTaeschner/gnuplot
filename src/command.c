@@ -1756,6 +1756,7 @@ link_command()
 	/* Clear previous log status */
 	secondary_axis->log = FALSE;
 	secondary_axis->ticdef.logscaling = FALSE;
+	secondary_axis->ticdef.force_linear_tics = FALSE;
 
     /*
      * "set link" applies to either x|x2 or y|y2
@@ -2012,17 +2013,25 @@ local_command()
 }
 
 /* helper routine to multiplex mouse event handling with a timed pause command */
+/* sleep_time is given in seconds.
+ * Mar 2026:
+ *	usleep has been deprecated in POSIX due to cross-platform incompatibility
+ *	nanosleep is in POSIX since 1993
+ *	MSVC still fails to provide either as of 2025
+ */
 static void
 timed_pause(double sleep_time)
 {
-#if defined(HAVE_USLEEP) && defined(USE_MOUSE) && !defined(_WIN32)
+#if defined (HAVE_NANOSLEEP) && defined(USE_MOUSE) && !defined(_WIN32)
+    struct timespec ts = { .tv_sec = 0, .tv_nsec = (long)(0.05 * 1.e09)  };
     if (term->waitforinput)		/* If the terminal supports it */
 	while (sleep_time > 0.05) {	/* we poll 20 times a second */
-	    usleep(50000);		/* Sleep for 50 msec */
+	    nanosleep(&ts, NULL);
 	    check_for_mouse_events();
 	    sleep_time -= 0.05;
 	}
-    usleep((useconds_t)(sleep_time * 1e6));
+    ts.tv_nsec = sleep_time * 1.e09;
+    nanosleep(&ts, NULL);
     check_for_mouse_events();
 #else
     GP_SLEEP(sleep_time);
@@ -2301,8 +2310,8 @@ print_set_output(char *name, TBOOLEAN datablock, TBOOLEAN append_p)
 	return;
     }
 
-#ifdef PIPES
     if (name[0] == '|') {
+#ifdef PIPES
 	restrict_popen();
 	print_out = popen(name + 1, "w");
 	if (!print_out)
@@ -2310,8 +2319,10 @@ print_set_output(char *name, TBOOLEAN datablock, TBOOLEAN append_p)
 	else
 	    print_out_name = name;
 	return;
-    }
+#else
+	int_error(c_token-1, "This copy of gnuplot does not support piped output");
 #endif
+    }
 
     if (!datablock) {
 	print_out = fopen(name, append_p ? "a" : "w");
@@ -2748,14 +2759,15 @@ save_command()
 	append = TRUE;
 	c_token++;
     }
-#ifdef PIPES
     if (save_file[0]=='|') {
+#ifdef PIPES
 	restrict_popen();
 	fp = popen(save_file+1,"w");
 	ispipe = TRUE;
-    } else
+#else
+	int_error(c_token-1, "this copy of gnuplot does not support piped output");
 #endif
-    {
+    } else {
     gp_expand_tilde(&save_file);
 #ifdef _WIN32
     fp = !strcmp(save_file,"-") ? stdout
@@ -2930,7 +2942,8 @@ $PALETTE u 1:2 t 'red' w l lt 1 lc rgb 'red',\
 '' u 1:5 t 'NTSC' w l lt 1 lc rgb 'black'\
 \n";
 
-    FILE *f = tmpfile();
+    FILE *f;
+    gp_open_tempfile(f);	/* syscfg macro! */
 
 #if defined(_MSC_VER) || defined(__MINGW32__)
     /* On Vista/Windows 7 tmpfile() fails. */
@@ -2988,8 +3001,9 @@ $PALETTE u 1:2 t 'red' w l lt 1 lc rgb 'red',\
     save_pixmaps(f);
 
     /* execute all commands from the temporary file */
-    rewind(f);
+    gp_rewind_tempfile(f);
     load_file(f, NULL, 1); /* note: it does fclose(f) */
+    gp_free_tempfile(f);
 
     /* enable reset_palette() and restore replot line */
     enable_reset_palette = 1;
@@ -3264,139 +3278,6 @@ replotrequest()
 
 /* Support for input, shell, and help for various systems */
 
-#ifdef VMS
-
-# include <descrip.h>
-# include <rmsdef.h>
-# include <smgdef.h>
-# include <smgmsg.h>
-# include <ssdef.h>
-
-extern lib$get_input(), lib$put_output();
-extern smg$read_composed_line();
-extern sys$putmsg();
-extern lbr$output_help();
-extern lib$spawn();
-
-int vms_len;
-
-unsigned int status[2] = { 1, 0 };
-
-static char Help[MAX_LINE_LEN+1] = "gnuplot";
-
-$DESCRIPTOR(prompt_desc, PROMPT);
-/* temporary fix until change to variable length */
-struct dsc$descriptor_s line_desc =
-{0, DSC$K_DTYPE_T, DSC$K_CLASS_S, NULL};
-
-$DESCRIPTOR(help_desc, Help);
-$DESCRIPTOR(helpfile_desc, "GNUPLOT$HELP");
-
-/* VMS-only version of read_line */
-static int
-read_line(const char *prompt, int start)
-{
-    int more;
-    char expand_prompt[40];
-
-    current_prompt = prompt;	/* HBB NEW 20040727 */
-
-    prompt_desc.dsc$w_length = strlen(prompt);
-    prompt_desc.dsc$a_pointer = (char *) prompt;
-    strcpy(expand_prompt, "_");
-    strncat(expand_prompt, prompt, sizeof(expand_prompt) - 2);
-    do {
-	line_desc.dsc$w_length = MAX_LINE_LEN - start;
-	line_desc.dsc$a_pointer = &gp_input_line[start];
-	switch (status[1] = smg$read_composed_line(&vms_vkid, &vms_ktid, &line_desc, &prompt_desc, &vms_len)) {
-	case SMG$_EOF:
-	    done(EXIT_SUCCESS);	/* ^Z isn't really an error */
-	    break;
-	case RMS$_TNS:		/* didn't press return in time */
-	    vms_len--;		/* skip the last character */
-	    break;		/* and parse anyway */
-	case RMS$_BES:		/* Bad Escape Sequence */
-	case RMS$_PES:		/* Partial Escape Sequence */
-	    sys$putmsg(status);
-	    vms_len = 0;	/* ignore the line */
-	    break;
-	case SS$_NORMAL:
-	    break;		/* everything's fine */
-	default:
-	    done(status[1]);	/* give the error message */
-	}
-	start += vms_len;
-	gp_input_line[start] = NUL;
-	inline_num++;
-	if (gp_input_line[start - 1] == '\\') {
-	    /* Allow for a continuation line. */
-	    prompt_desc.dsc$w_length = strlen(expand_prompt);
-	    prompt_desc.dsc$a_pointer = expand_prompt;
-	    more = 1;
-	    --start;
-	} else {
-	    line_desc.dsc$w_length = strlen(gp_input_line);
-	    line_desc.dsc$a_pointer = gp_input_line;
-	    more = 0;
-	}
-    } while (more);
-    return 0;
-}
-
-
-# ifdef NO_GIH
-void
-help_command()
-{
-    int first = c_token;
-
-    while (!END_OF_COMMAND)
-	++c_token;
-
-    strcpy(Help, "GNUPLOT ");
-    capture(Help + 8, first, c_token - 1, sizeof(Help) - 9);
-    help_desc.dsc$w_length = strlen(Help);
-    if ((vaxc$errno = lbr$output_help(lib$put_output, 0, &help_desc,
-				      &helpfile_desc, 0, lib$get_input)) != SS$_NORMAL)
-	os_error(NO_CARET, "can't open GNUPLOT$HELP");
-}
-# endif				/* NO_GIH */
-
-
-void
-do_shell()
-{
-    screen_ok = FALSE;
-    c_token++;
-
-    if ((vaxc$errno = lib$spawn()) != SS$_NORMAL) {
-	os_error(NO_CARET, "spawn error");
-    }
-}
-
-
-static void
-do_system(const char *cmd)
-{
-
-     if (!cmd)
-	return;
-
-    /* gp_input_line is filled by read_line or load_file, but
-     * line_desc length is set only by read_line; adjust now
-     */
-    line_desc.dsc$w_length = strlen(cmd);
-    line_desc.dsc$a_pointer = (char *) cmd;
-
-    if ((vaxc$errno = lib$spawn(&line_desc)) != SS$_NORMAL)
-	os_error(NO_CARET, "spawn error");
-
-    (void) putc('\n', stderr);
-
-}
-#endif /* VMS */
-
-
 #ifdef NO_GIH
 #ifdef _WIN32
 void
@@ -3447,7 +3328,6 @@ help_command()
     }
 }
 #else  /* !_WIN32 */
-#ifndef VMS
 void
 help_command()
 {
@@ -3455,14 +3335,13 @@ help_command()
 	c_token++;
     fputs("This gnuplot was not built with inline help\n", stderr);
 }
-#endif /* VMS */
 #endif /* _WIN32 */
 #endif /* NO_GIH */
 
 
 /*
- * help_command: (not VMS, although it would work) Give help to the user. It
- * parses the command line into helpbuf and supplies help for that string.
+ * help_command: Give help to the user.
+ * It parses the command line into helpbuf and supplies help for that string.
  * Then, if there are subtopics available for that key, it prompts the user
  * with this string. If more input is given, help_command is called
  * recursively, with argument 0.  Thus a more specific help can be supplied.
@@ -3490,6 +3369,7 @@ help_command()
     TBOOLEAN more_help;
     TBOOLEAN only;		/* TRUE if only printing subtopics */
     TBOOLEAN subtopics;		/* 0 if no subtopics for this topic */
+    TBOOLEAN overview = FALSE;
     int start;			/* starting token of help string */
     char *help_ptr;		/* name of help file */
 # if defined(SHELFIND)
@@ -3567,14 +3447,32 @@ help_command()
 	only = FALSE;
     }
 
+   /* A bare "help" command is reinterpreted as "help overview" so that
+    * it dumps general information and a suggestion to type "help ?".
+    * However the "subtopics" for overview are really topics in their
+    * own right, so we need to promote them to be the leading keyword.
+    */
+    if (len == 0) {
+	strcpy(helpbuf, "overview");
+	len = strlen(helpbuf);
+	overview = TRUE;
+    }
+    if ((len > 8) && !strncmp(helpbuf, "overview", 8) && helpbuf[9] != '?') {
+	memmove(helpbuf, &helpbuf[9], strlen(helpbuf)-8);
+	len = base = strlen(helpbuf);
+    }
+
     switch (help(helpbuf, help_ptr, &subtopics)) {
     case H_FOUND:{
 	    /* already printed the help info */
 	    /* subtopics now is true if there were any subtopics */
 	    screen_ok = FALSE;
-
 	    do {
 		if (subtopics && !only) {
+		    if (overview) {
+			strcpy(helpbuf,"overview");
+			len = 8;
+		    }
 		    /* prompt for subtopic with current help string */
 		    if (len > 0) {
 			strcpy (prompt, "Subtopic of ");
@@ -3613,8 +3511,6 @@ help_command()
 }
 #endif /* !NO_GIH */
 
-#ifndef VMS
-
 static void
 do_system(const char *cmd)
 {
@@ -3639,8 +3535,10 @@ do_system(const char *cmd)
 	ierr = _wsystem(wcmd);
 	free(wcmd);
     }
-#else
+#elif defined(HAVE_SYSTEM)
     ierr = system(cmd);
+#else
+    int_error(NO_CARET, "This copy of gnuplot does not support system commands");
 #endif
     report_error(ierr);
 }
@@ -3797,7 +3695,7 @@ do_shell()
     (void) putc('\n', stderr);
 }
 
-#  else				/* !OS2 */
+#elif defined(HAVE_SYSTEM) /* !OS2 */
 
 /* plain old Unix */
 
@@ -3819,9 +3717,17 @@ do_shell()
     (void) putc('\n', stderr);
 }
 
+#else // !HAVE_SYSTEM
+
+void
+do_shell()
+{
+    int_error(NO_CARET, "This copy of gnuplot does not support bare shell commands");
+}
+
 # endif				/* !MSDOS */
 
-/* read from stdin, everything except VMS */
+/* read from stdin */
 
 # ifndef USE_READLINE
 #  if defined(MSDOS) && !defined(__DJGPP__)
@@ -3926,7 +3832,6 @@ gp_get_string(char * buffer, size_t len, const char * prompt)
 # endif
 }
 
-/* Non-VMS version */
 static int
 read_line(const char *prompt, int start)
 {
@@ -3992,8 +3897,6 @@ read_line(const char *prompt, int start)
     } while (more);
     return (0);
 }
-
-#endif /* !VMS */
 
 
 /*
@@ -4105,35 +4008,17 @@ int
 do_system_func(const char *cmd, char **output)
 {
 
-#if defined(VMS) || defined(PIPES)
+#if defined(PIPES)
     int c;
     FILE *f;
     int result_allocated, result_pos;
     char* result;
     int ierr = 0;
-# if defined(VMS)
-    int chan, one = 1;
-    struct dsc$descriptor_s pgmdsc = {0, DSC$K_DTYPE_T, DSC$K_CLASS_S, 0};
-    static $DESCRIPTOR(lognamedsc, "PLOT$MAILBOX");
-# endif /* VMS */
 
     /* open stream */
-# ifdef VMS
-    pgmdsc.dsc$a_pointer = cmd;
-    pgmdsc.dsc$w_length = strlen(cmd);
-    if (!((vaxc$errno = sys$crembx(0, &chan, 0, 0, 0, 0, &lognamedsc)) & 1))
-	os_error(NO_CARET, "sys$crembx failed");
-
-    if (!((vaxc$errno = lib$spawn(&pgmdsc, 0, &lognamedsc, &one)) & 1))
-	os_error(NO_CARET, "lib$spawn failed");
-
-    if ((f = fopen("PLOT$MAILBOX", "r")) == NULL)
-	os_error(NO_CARET, "mailbox open failed");
-# else	/* everyone else */
     restrict_popen();
     if ((f = popen(cmd, "r")) == NULL)
 	os_error(NO_CARET, "popen failed");
-# endif	/* everyone else */
 
     /* get output */
     result_pos = 0;
@@ -4170,13 +4055,13 @@ do_system_func(const char *cmd, char **output)
 
     return ierr;
 
-#else /* VMS || PIPES */
+#else /* PIPES */
 
     int_warn(NO_CARET, "system() requires support for pipes");
     *output = gp_strdup("");
     return 0;
 
-#endif /* VMS || PIPES */
+#endif /* PIPES */
 
 }
 

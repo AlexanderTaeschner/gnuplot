@@ -3746,7 +3746,7 @@ int wxt_waitforinput(int options)
 			return '\0';
 		else if (paused_for_mouse && !isatty(0))
 			/* We are still paused for mouse but input is from a pipe */
-			usleep(50000);
+			GP_SLEEP(0.05);
 		else if (retval)
 			/* select indicated something to read on stdin */
 			read_and_return_character();

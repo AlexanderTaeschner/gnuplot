@@ -68,29 +68,6 @@
 # define GNUPLOT_HISTORY_FILE "~\\gnuplot_history"
 #endif /* OS/2 */
 
-#if defined(vms) || defined(VMS)
-# define OS "VMS"
-# ifndef VMS
-#  define VMS
-# endif
-# define HOME   "sys$login"
-# define PLOTRC "gnuplot.ini"
-# ifdef NO_GIH
-   /* for show version long */
-#  define HELPFILE "GNUPLOT$HELP"
-# else
-#  define HELPFILE "sys$login:gnuplot.gih"
-# endif
-# if !defined(VAXCRTL) && !defined(DECCRTL)
-#  define VAXCRTL VAXCRTL_AND_DECCRTL_UNDEFINED
-#  define DECCRTL VAXCRTL_AND_DECCRTL_UNDEFINED
-# endif
-/* avoid some IMPLICITFUNC warnings */
-# ifdef __DECC
-#  include <starlet.h>
-# endif  /* __DECC */
-#endif /* VMS */
-
 #ifdef _WIN32
 # ifdef _WIN64
 #  define OS "MS-Windows 64 bit"
@@ -296,14 +273,8 @@ typedef double coordval;
  */
 #define MAX_NUM_VAR	12
 
-#ifdef VMS
-# define DEFAULT_COMMENTS_CHARS "#!"
-# define is_system(c) ((c) == '$')
-# define BACKUP_FILESYSTEM 1
-#else /* not VMS */
 # define DEFAULT_COMMENTS_CHARS "#"
 # define is_system(c) ((c) == '!')
-#endif /* not VMS */
 
 /* HBB NOTE 2014-12-16: no longer defined by autoconf; hardwired here instead */
 #ifndef RETSIGTYPE
@@ -369,6 +340,39 @@ typedef RETSIGTYPE (*sigfunc) (void);
 #define FALSE false
 
 #define TBOOLEAN bool
+
+/* WASI/WASM support
+ * temp files must be memory-backed rather than using tmpfile().
+ * These are macros rather than subroutine calls because the buffer pointers
+ * must be local to the calling routine.
+ *	FILE *f
+ *	gp_open_tempfile(f);
+ *	gp_rewind_tempfile(f);
+ *	gp_free_tempfile(f);
+ */
+#ifdef __wasi__		/* memory-backed tempfile handling */
+#  define gp_open_tempfile(f) \
+	static char *fbuf = NULL; \
+	size_t fbuf_len; \
+	free(fbuf); \
+	f = open_memstream(&fbuf, &fbuf_len);
+#  define gp_rewind_tempfile(f) \
+	do { \
+	    fclose(f); \
+	    f = fmemopen(fbuf, fbuf_len, "r"); \
+	} while (0);
+#  define gp_free_tempfile(f) \
+	free(fbuf); \
+	fbuf = NULL;
+
+#else 			/* generic tempfile handling */
+#  define gp_open_tempfile(f) \
+	f = tmpfile()
+#  define gp_rewind_tempfile(f) \
+	rewind(f)
+#  define gp_free_tempfile(f) \
+	/* nothing */
+#endif
 
 #if defined(READLINE) || defined(HAVE_LIBREADLINE) || defined(HAVE_LIBEDITLINE) || defined(HAVE_WINEDITLINE)
 # ifndef USE_READLINE

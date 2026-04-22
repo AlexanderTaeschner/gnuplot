@@ -33,7 +33,7 @@ GNUPLOT_SHARE_DIR=$(pkgdatadir)/$(VERSION_MAJOR)
 
 # There is probably no need to edit anything below this line
 
-bin_PROGRAMS = gnuplot
+bin_PROGRAMS = gnuplot$(EXEEXT)
 noinst_PROGRAMS = bf_test
 binonly: $(bin_PROGRAMS)
 
@@ -89,15 +89,12 @@ endif
 
 SUBDIRS = $(d_beos) wxterminal qtterminal
 
-EXTRA_gnuplot_SOURCES = vms.c vms.h
+EXTRA_gnuplot_SOURCES = 
 
 EXTRA_DIST = GNUmakefile Makefile.maint \
-genopt.com gnuplot.opt x11.opt linkopt.vms \
+gnuplot.opt x11.opt \
 makefile.all makefile.awc os2 win \
 $(EXTRA_gnuplot_SOURCES)
-
-# Hercules and original pc graphics driver code
-# corgraph.asm header.mac hrcgraph.asm pcgraph.asm lineproc.mac
 
 if BUILD_WXWIDGETS
 gnuplot_SOURCES += wxterminal/wxt_gui.cpp
