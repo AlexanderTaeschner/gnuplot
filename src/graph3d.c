@@ -1092,8 +1092,11 @@ do_3dplot(
 	    hidden3d_layer = LAYER_DEPTHORDER;
 #endif
 	(term->layer)(TERM_LAYER_BEFORE_PLOT);
+	if (splot_map && draw_border && clip_area)
+	    (term->clip_state)(clip_area, 0);
 	plot3d_hidden(plots, pcount);
 	(term->layer)(TERM_LAYER_AFTER_PLOT);
+	(term->clip_state)(NULL, 0);
     }
 
     /* Set up bookkeeping for the individual key titles */
@@ -1149,6 +1152,8 @@ do_3dplot(
 
 	    /* Sync point for start of new curve (used by svg, post, ...) */
 	    (term->layer)(TERM_LAYER_BEFORE_PLOT);
+	    if (splot_map && draw_border && clip_area)
+		(term->clip_state)(clip_area, 0);
 
 	    if (!key_pass && this_plot->plot_type != KEYENTRY)
 	    if (can_pm3d && (pm3d.implicit == PM3D_IMPLICIT)) {
@@ -1638,6 +1643,7 @@ do_3dplot(
 
 	    /* Sync point for end of this curve (used by svg, post, ...) */
 	    (term->layer)(TERM_LAYER_AFTER_PLOT);
+	    (term->clip_state)(NULL, 0);
 
 	} /* loop over surfaces */
 
@@ -1654,8 +1660,11 @@ do_3dplot(
     if (!key_pass && (replot_mode != AXIS_ONLY_ROTATE)) {
 	if (hidden3d && draw_surface && hidden3d_layer == LAYER_FRONT) {
 	    (term->layer)(TERM_LAYER_BEFORE_PLOT);
+	    if (splot_map && draw_border && clip_area)
+		(term->clip_state)(clip_area, 0);
 	    plot3d_hidden(plots, pcount);
 	    (term->layer)(TERM_LAYER_AFTER_PLOT);
+	    (term->clip_state)(NULL, 0);
 	}
     }
 

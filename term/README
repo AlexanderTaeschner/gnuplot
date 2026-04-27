@@ -88,6 +88,13 @@ struct TERMENTRY {
    void (*modify_plots)(unsigned int operations, int plotno);
    
    void (*dashtype)(int type, t_dashtype *custom_dash_pattern);
+
+/* Terminal-level clipping control (optional).
+ * bbox != NULL: enable clipping to this bounding box.
+ * bbox == NULL: disable clipping (safe even if already disabled).
+ * state is reserved for future use (always 0 for now).
+ */
+   void (*clip_state)(struct BoundingBox *bbox, int state);
 };
 
 One consequence of (1) is that we would like drivers to be backwards
@@ -497,6 +504,21 @@ _dashtype(int type, t_dashtype *custom_dash_pattern) - set dash/dot
    Alternating numbers in the pattern field of this parameter specify
    dash lengths and spaces between them, in units of the terminal's
    dashlength.
+
+_clip_state(struct BoundingBox *bbox, int state) - enable or disable
+   terminal-level clipping to the plot area bounding box.
+   If bbox is non-NULL, the terminal should clip subsequent drawing
+   operations to the given bounding box (plot area).
+   If bbox is NULL, the terminal should restore full-canvas drawing.
+   Disable calls must be safe and idempotent; the core may issue
+   clip_state(NULL, 0) at curve ends, normal plot shutdown, reset,
+   or error cleanup even if no enable call is active.
+   The state parameter is reserved for future use (always 0 for now).
+   This callback is optional; terminals that do not define it get a
+   no-op default (null_clip_state) assigned by change_term().
+   The core only passes a non-NULL bbox when there is a real rectangular
+   plot border (draw_border is set and clip_area is valid).  In 3D,
+   non-NULL calls are further restricted to splot_map mode.
 
 
 The following should illustrate the order in which calls to these

@@ -841,6 +841,8 @@ do_plot(struct curve_points *plots, int pcount)
 	    (term->hypertext)(TERM_HYPERTEXT_TITLE, plaintext);
 	}
 	(term->layer)(TERM_LAYER_BEFORE_PLOT);
+	if (draw_border && clip_area)
+	    (term->clip_state)(clip_area, 0);
 
 	/* set scaling for this plot's axes */
 	x_axis = this_plot->x_axis;
@@ -1144,6 +1146,7 @@ do_plot(struct curve_points *plots, int pcount)
 
 	/* Sync point for end of this curve (used by svg, post, ...) */
 	(term->layer)(TERM_LAYER_AFTER_PLOT);
+	(term->clip_state)(NULL, 0);
 	previous_plot_style = this_plot->plot_style;
 
     }

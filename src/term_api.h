@@ -290,6 +290,8 @@ typedef enum t_imagecolor { IC_PALETTE, IC_RGB, IC_RGBA }
  * function without that terminal feature
  */
 
+struct BoundingBox;  /* forward declaration for clip_state() */
+
 typedef struct TERMENTRY {
     const char *name;
     const char *description;
@@ -382,6 +384,8 @@ typedef struct TERMENTRY {
     void (*modify_plots)(unsigned int operations, int plotno);
 
     void (*dashtype)(int type, t_dashtype *custom_dash_pattern);
+
+    void (*clip_state)(struct BoundingBox *bbox, int state);
 
 } TERMENTRY;
 

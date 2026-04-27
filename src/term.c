@@ -231,6 +231,7 @@ static void do_point(unsigned int x, unsigned int y, int number);
 static void do_pointsize(double size);
 static void do_arrow(unsigned int sx, unsigned int sy, unsigned int ex, unsigned int ey, int headstyle);
 static void null_dashtype(int type, t_dashtype *custom_dash_pattern);
+static void null_clip_state(struct BoundingBox *bbox, int state);
 
 static int null_text_angle(float ang);
 static int null_justify_text(enum JUSTIFY just);
@@ -579,6 +580,9 @@ term_end_plot()
     if (!term_initialised)
 	return;
 
+    /* Ensure terminal clipping is disabled before end-of-plot handling */
+    (term->clip_state)(NULL, 0);
+
     /* Sync point for epslatex text positioning */
     (*term->layer)(TERM_LAYER_END_TEXT);
 
@@ -654,6 +658,7 @@ term_reset()
 	term_suspended = FALSE;
     }
     if (term_graphics) {
+	(term->clip_state)(NULL, 0);
 	(*term->text) ();
 	term_graphics = FALSE;
     }
@@ -1447,6 +1452,13 @@ null_dashtype(int type, t_dashtype *custom_dash_pattern)
     term->linetype(type);
 }
 
+static void
+null_clip_state(struct BoundingBox *bbox, int state)
+{
+    (void) bbox;
+    (void) state;
+}
+
 #ifdef USE_MOUSE
 
 /*
@@ -1744,6 +1756,8 @@ change_term(const char *origname, int length)
     }
     if (term->dashtype == 0)
 	term->dashtype = null_dashtype;
+    if (term->clip_state == 0)
+	term->clip_state = null_clip_state;
 
     if (interactive && !term_on_entry)
 	fprintf(stderr, "\nTerminal type is now '%s'\n", term->name);

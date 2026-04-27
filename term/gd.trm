@@ -167,6 +167,8 @@ TERM_PUBLIC void ENHGD_FLUSH(void);
 TERM_PUBLIC void ENHGD_boxed_text(unsigned int, unsigned int, int);
 
 TERM_PUBLIC void PNG_dashtype(int type, t_dashtype *custom_dash_pattern);
+TERM_PUBLIC void PNG_layer(t_termlayer layer);
+TERM_PUBLIC void PNG_clip_state(struct BoundingBox *bbox, int state);
 TERM_PUBLIC void PNG_path(int p);
 
 #include <gd.h>
@@ -438,6 +440,23 @@ static struct {
     int thick;
     int color;
 } PNG_pending_endcap;
+
+/* Saved clip region that was active before PNG_clip_state(bbox, 0)
+ * enabled per-curve plot-area clipping.  PNG_clip_state(NULL, 0)
+ * restores it after curve drawing, while PNG_layer() temporarily
+ * suspends/restores the active plot clip around key samples.
+ */
+static int  PNG_saved_clip_x1, PNG_saved_clip_y1;
+static int  PNG_saved_clip_x2, PNG_saved_clip_y2;
+static TBOOLEAN PNG_plot_clip_active = FALSE;
+
+/* Plot-area clip rectangle in pixel coordinates, computed by
+ * PNG_clip_state() from its bbox argument.  Stored separately so
+ * PNG_layer() can suspend/restore the same plot clip around key
+ * samples without consulting core clip_area state.
+ */
+static int  PNG_plot_clip_x1, PNG_plot_clip_y1;
+static int  PNG_plot_clip_x2, PNG_plot_clip_y2;
 
 /* shige takeno:
  * libgd can be built to prefer UTF-8 or SJIS encoding for Japanese.
@@ -988,6 +1007,22 @@ PNG_draw_aa_thick_line(double ax, double ay, double bx, double by,
 	xmax = (int)ceil (fmax(fmax(ex0, ex1), fmax(ax, bx)) + halfw + 1.0);
 	ymin = (int)floor(fmin(fmin(ey0, ey1), fmin(ay, by)) - halfw - 1.0);
 	ymax = (int)ceil (fmax(fmax(ey0, ey1), fmax(ay, by)) + halfw + 1.0);
+    }
+
+    /* Clamp iteration bounds to the current libgd clip rectangle.
+     * PNG_SetAAPixelColor already rejects out-of-clip pixels via
+     * gdImageBoundsSafe; this avoids the wasted SDF evaluation for
+     * those pixels and provides an early-out for fully clipped segments.
+     */
+    {
+	int cx1, cy1, cx2, cy2;
+	gdImageGetClip(png_state.image, &cx1, &cy1, &cx2, &cy2);
+	if (xmin < cx1) xmin = cx1;
+	if (xmax > cx2) xmax = cx2;
+	if (ymin < cy1) ymin = cy1;
+	if (ymax > cy2) ymax = cy2;
+	if (xmin > xmax || ymin > ymax)
+	    return;
     }
 
     for (y = ymin; y <= ymax; y++) {
@@ -2093,6 +2128,7 @@ TERM_PUBLIC void
 PNG_reset()
 {
     int i;
+    PNG_clip_state(NULL, 0);
     /* EAM - Clean up the brushes used for linewidth */
     for (i=2; i<=MAXLINEWIDTH; i++) {
 	if (PNG_brush[i]) {
@@ -2416,6 +2452,7 @@ PNG_graphics()
 TERM_PUBLIC void
 PNG_text()
 {
+    PNG_clip_state(NULL, 0);
     PNG_flush_pending_endcap();
     if (png_state.alpha_layer_active)
 	PNG_alpha_layer_composite();
@@ -3495,6 +3532,97 @@ gd_iconv(char **string)
 }
 
 /*
+ * PNG_layer - Handle per-curve key sample clipping.
+ * Plot-area clipping enable/disable is now handled by PNG_clip_state().
+ * BEGIN_KEYSAMPLE / END_KEYSAMPLE suspend/restore the driver's internal
+ * clip state using values already stored by PNG_clip_state().
+ */
+TERM_PUBLIC void
+PNG_layer(t_termlayer layer)
+{
+    switch (layer) {
+    case TERM_LAYER_BEGIN_KEYSAMPLE:
+	/* Key samples may be drawn outside the plot area (e.g. key lmargin,
+	 * key outside, key under).  Temporarily restore the saved full-image
+	 * clip so that the sample line and filled rectangle are not clipped
+	 * away by the per-curve plot-area clip enabled by PNG_clip_state().
+	 * Flush any deferred endcap and composite any pending alpha layer
+	 * first, using the current per-curve plot-area clip and transparency
+	 * context, before switching to the full-image clip.
+	 */
+	if (PNG_plot_clip_active) {
+	    PNG_flush_pending_endcap();
+	    if (png_state.alpha_layer_active)
+		PNG_alpha_layer_composite();
+	    gdImageSetClip(png_state.image,
+			    PNG_saved_clip_x1, PNG_saved_clip_y1,
+			    PNG_saved_clip_x2, PNG_saved_clip_y2);
+	}
+	break;
+    case TERM_LAYER_END_KEYSAMPLE:
+	/* Restore the per-curve plot-area clip captured from the bbox
+	 * argument to PNG_clip_state().  PNG_layer() only swaps between
+	 * gd-local clip rectangles while key samples are drawn.
+	 * Flush any deferred endcap and composite any key-sample alpha
+	 * layer content first, under the full-image clip and current
+	 * transparency context, before switching back to the plot-area clip.
+	 */
+	if (PNG_plot_clip_active) {
+	    PNG_flush_pending_endcap();
+	    if (png_state.alpha_layer_active)
+		PNG_alpha_layer_composite();
+	    gdImageSetClip(png_state.image,
+			    PNG_plot_clip_x1, PNG_plot_clip_y1,
+			    PNG_plot_clip_x2, PNG_plot_clip_y2);
+	}
+	break;
+    default:
+	break;
+    }
+}
+
+/*
+ * PNG_clip_state - Enable/disable terminal-level plot-area clipping.
+ * Non-NULL bbox calls bracket curve drawing; NULL bbox calls may also
+ * be issued as idempotent cleanup from reset or plot shutdown paths.
+ * bbox != NULL: enable clipping to this bounding box.
+ * bbox == NULL: disable clipping (restore full-canvas drawing).
+ */
+TERM_PUBLIC void
+PNG_clip_state(struct BoundingBox *bbox, int state)
+{
+    (void) state;  /* reserved for future use */
+
+    if (bbox && !PNG_plot_clip_active) {
+	PNG_flush_pending_endcap();
+	if (png_state.alpha_layer_active)
+	    PNG_alpha_layer_composite();
+
+	/* Save current full-image clip and apply plot-area clip */
+	gdImageGetClip(png_state.image,
+	    &PNG_saved_clip_x1, &PNG_saved_clip_y1,
+	    &PNG_saved_clip_x2, &PNG_saved_clip_y2);
+	PNG_plot_clip_x1 = GD_PX(bbox->xleft);
+	PNG_plot_clip_y1 = GD_Y(bbox->ytop);
+	PNG_plot_clip_x2 = GD_PX(bbox->xright);
+	PNG_plot_clip_y2 = GD_Y(bbox->ybot);
+	gdImageSetClip(png_state.image,
+	    PNG_plot_clip_x1, PNG_plot_clip_y1,
+	    PNG_plot_clip_x2, PNG_plot_clip_y2);
+	PNG_plot_clip_active = TRUE;
+    } else if (!bbox && PNG_plot_clip_active) {
+	/* Disable: flush pending drawing ops, then restore full-image clip */
+	PNG_flush_pending_endcap();
+	if (png_state.alpha_layer_active)
+	    PNG_alpha_layer_composite();
+	gdImageSetClip(png_state.image,
+	    PNG_saved_clip_x1, PNG_saved_clip_y1,
+	    PNG_saved_clip_x2, PNG_saved_clip_y2);
+	PNG_plot_clip_active = FALSE;
+    }
+}
+
+/*
  * PNG_path - Handle newpath/closepath for proper closed-path corners.
  * On closepath, flush the deferred endcap and draw a join disc at the
  * closing corner so that the junction between the last and first
@@ -3571,13 +3699,14 @@ TERM_TABLE_START(png_driver)
     PNG_filled_polygon
     , PNG_image
     , ENHGD_OPEN, ENHGD_FLUSH, do_enh_writec
-    , NULL		/* layering */
+    , PNG_layer		/* layering */
     , PNG_path		/* path */
     , (double)GD_OVERSAMPLE	/* tscale */
     , NULL		/* hypertext */
     , ENHGD_boxed_text
     , NULL		/* modify_plots */
     , PNG_dashtype
+    , PNG_clip_state
 TERM_TABLE_END(png_driver)
 
 #undef LAST_TERM
@@ -3733,13 +3862,14 @@ TERM_TABLE_START(jpeg_driver)
     PNG_filled_polygon
     , PNG_image
     , ENHGD_OPEN, ENHGD_FLUSH, do_enh_writec
-    , NULL		/* layering */
+    , PNG_layer		/* layering */
     , PNG_path		/* path */
     , (double)GD_OVERSAMPLE	/* tscale */
     , NULL		/* hypertext */
     , ENHGD_boxed_text
     , NULL		/* modify_plots */
     , PNG_dashtype
+    , PNG_clip_state
 TERM_TABLE_END(jpeg_driver)
 
 #undef LAST_TERM
@@ -3888,13 +4018,14 @@ TERM_TABLE_START(gif_driver)
     PNG_filled_polygon
     , PNG_image
     , ENHGD_OPEN, ENHGD_FLUSH, do_enh_writec
-    , NULL		/* layering */
+    , PNG_layer		/* layering */
     , PNG_path		/* path */
     , (double)GD_OVERSAMPLE	/* tscale */
     , NULL		/* hypertext */
     , ENHGD_boxed_text
     , NULL		/* modify_plots */
     , PNG_dashtype
+    , PNG_clip_state
 TERM_TABLE_END(gif_driver)
 
 #undef LAST_TERM
@@ -4072,13 +4203,14 @@ TERM_TABLE_START(sixelgd_driver)
     PNG_filled_polygon,
     PNG_image,
     ENHGD_OPEN, ENHGD_FLUSH, do_enh_writec,
-    NULL,		/* layering */
+    PNG_layer,		/* layering */
     PNG_path,		/* path */
     (double)GD_OVERSAMPLE,	/* tscale */
     NULL		/* hypertext */
     , ENHGD_boxed_text
     , NULL		/* modify_plots */
     , PNG_dashtype
+    , PNG_clip_state
 TERM_TABLE_END(sixelgd_driver)
 
 #undef LAST_TERM
@@ -4251,13 +4383,14 @@ TERM_TABLE_START(kittygd_driver)
     PNG_filled_polygon,
     PNG_image,
     ENHGD_OPEN, ENHGD_FLUSH, do_enh_writec,
-    NULL,		/* layering */
+    PNG_layer,		/* layering */
     PNG_path,		/* path */
     (double)GD_OVERSAMPLE,	/* tscale */
     NULL		/* hypertext */
     , ENHGD_boxed_text
     , NULL		/* modify_plots */
     , PNG_dashtype
+    , PNG_clip_state
 TERM_TABLE_END(kittygd_driver)
 
 #undef LAST_TERM
