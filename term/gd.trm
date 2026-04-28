@@ -1013,13 +1013,10 @@ PNG_draw_aa_thick_line(double ax, double ay, double bx, double by,
 	    }
 
 	    /* === Hard-clip rejection === */
-	    {
-		const double hard_overlap = 0.5;
-		if (cap_start == PNG_CAP_HARD && a < -hard_overlap)
-		    continue;
-		if (cap_end == PNG_CAP_HARD && a > len + hard_overlap)
-		    continue;
-	    }
+	    if (cap_start == PNG_CAP_HARD && a < -0.5)
+		continue;
+	    if (cap_end == PNG_CAP_HARD && a > len + 0.5)
+		continue;
 
 	    /* === Rectangular SDF === */
 	    {
@@ -1217,14 +1214,15 @@ PNG_draw_aa_vector(double x1, double y1, double x2, double y2,
 	    double pnx = PNG_prev_dash_dx / prev_len;
 	    double pny = PNG_prev_dash_dy / prev_len;
 	    double dot = pnx * seg_nx + pny * seg_ny;
-	    if (dot < 0.97) {  /* angle change > ~14° */
+	    double cross = pnx * seg_ny - pny * seg_nx;  /* sin(turn angle) */
+
+	    if ((0.0 < (1.0 + dot)) && ((1.0 + dot) < fabs(cross) * thick)) {
 		TBOOLEAN in_drawn = pattern
 		    ? (PNG_dash_pos > 0.0
 		       && PNG_in_drawn_phase(PNG_dash_pos, pattern, scale))
 		    : TRUE;
 		if (in_drawn) {
-		    double half_width = (double)thick / 2.0;
-		    PNG_draw_join_disc(x1, y1, half_width,
+		    PNG_draw_join_disc(x1, y1, thick / 2.0,
 				       pnx, pny, seg_nx, seg_ny,
 				       color);
 		}
