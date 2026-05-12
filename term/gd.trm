@@ -251,6 +251,7 @@ static struct {
     int flags;
     int linetype;
     int linewidth;
+    double linewidth_f;	/* Original floating-point linewidth for dash scaling */
     t_linecap linecap; /* BUTT, ROUNDED, or SQUARE endcap style */
     TBOOLEAN use_builtin;
     double ttfsize;
@@ -951,12 +952,32 @@ PNG_draw_aa_thick_line(double ax, double ay, double bx, double by,
 
     /* Thin lines: use libgd native AA (caps irrelevant at 1 px) */
     if (thick <= 1) {
+	int ix1 = (int)(ax + 0.5);
+	int iy1 = (int)(ay + 0.5);
+	int ix2 = (int)(bx + 0.5);
+	int iy2 = (int)(by + 0.5);
+
+	/* gdImageLine/gdImageAALine draw inclusive endpoints and step
+	 * one pixel per iteration along the dominant axis.  For dash
+	 * endpoints (cap != HARD), pull back one pixel on the dominant
+	 * axis so the last drawn pixel doesn't encroach into the gap.
+	 * Skip the correction for single-pixel dashes (start == end).
+	 */
+	if (cap_end != PNG_CAP_HARD) {
+	    if (ix2 != ix1 || iy2 != iy1) {
+		if (abs(ix2 - ix1) >= abs(iy2 - iy1)) {
+		    if (ix2 > ix1) ix2--;
+		    else ix2++;
+		} else {
+		    if (iy2 > iy1) iy2--;
+		    else iy2++;
+		}
+	    }
+	}
+
 	gdImageSetAntiAliased(png_state.image, color);
 	gdImageSetThickness(png_state.image, 1);
-	gdImageLine(png_state.image,
-		    (int)(ax + 0.5), (int)(ay + 0.5),
-		    (int)(bx + 0.5), (int)(by + 0.5),
-		    gdAntiAliased);
+	gdImageLine(png_state.image, ix1, iy1, ix2, iy2, gdAntiAliased);
 	return;
     }
 
@@ -1299,6 +1320,13 @@ PNG_draw_aa_vector(double x1, double y1, double x2, double y2,
 	int i;
 	double s;	/* distance walked along this segment */
 
+	/* DASH_EPSILON is the Minimum meaningful step size in dash walker,
+	 * used to guard against infinite-loops at gap-dash boundaries when
+	 * the step size is tiny.
+	 */
+	const double DASH_EPSILON = 0.001;
+	const double DASH_BOUNDARY_TOL = 0.01; /* Must be larger than DASH_EPSILON */
+
 	/* Build scaled pattern and total cycle length */
 	for (i = 0; pattern[i] > 0.0 && i < DASHPATTERN_LENGTH; i++) {
 	    scaled_pat[i] = pattern[i] * scale;
@@ -1315,11 +1343,11 @@ PNG_draw_aa_vector(double x1, double y1, double x2, double y2,
 
 	/* Walk the dash pattern along this polyline segment */
 	s = 0.0;
-	while (s < seg_len - 0.001) {
+	while (s < seg_len - DASH_EPSILON) {
 	    double pos, accum;
 	    int idx;
 	    double pos_in_elem, remaining, step;
-	    TBOOLEAN at_dash_start, at_dash_end;
+	    TBOOLEAN at_element_start, at_element_end;
 
 	    /* Current position within one pattern cycle */
 	    pos = fmod(PNG_dash_pos, dash_total);
@@ -1340,8 +1368,19 @@ PNG_draw_aa_vector(double x1, double y1, double x2, double y2,
 	    if (step > seg_len - s)
 		step = seg_len - s;
 
-	    at_dash_start = (pos_in_elem < 0.01);
-	    at_dash_end   = (remaining - step < 0.01);
+	    /* Guard against floating-point stall at dash-gap boundaries. A stall will otherwise
+	     * happen if step is too small to advance PNG_dash_pos to the next possible value.
+	     */
+	    if (step < DASH_EPSILON) {
+		double next_boundary = accum + scaled_pat[idx];
+		/* Advance PNG_dash_pos to be safely within the next element */
+		PNG_dash_pos = PNG_dash_pos - pos + next_boundary + DASH_EPSILON;
+		continue;
+	    }
+
+	    /* Detect if we are at the start/end of the current pattern element */
+	    at_element_start = (pos_in_elem < DASH_BOUNDARY_TOL);
+	    at_element_end   = (remaining - step < DASH_BOUNDARY_TOL);
 
 	    if ((idx % 2) == 0) {
 		/* === DASH (on) segment === */
@@ -1358,7 +1397,7 @@ PNG_draw_aa_vector(double x1, double y1, double x2, double y2,
 		 * we will now draw this sub-segment with HARD start cap
 		 * that overlaps seamlessly.
 		 */
-		if (at_dash_start) {
+		if (at_element_start) {
 		    PNG_flush_pending_endcap();
 		    cs = user_cap;
 		} else {
@@ -1367,7 +1406,7 @@ PNG_draw_aa_vector(double x1, double y1, double x2, double y2,
 		    cs = PNG_CAP_HARD;
 		}
 
-		if (at_dash_end) {
+		if (at_element_end) {
 		    ce = user_cap;
 		    PNG_pending_endcap.active = 0;
 		} else {
@@ -1402,7 +1441,7 @@ PNG_draw_aa_vector(double x1, double y1, double x2, double y2,
 		 * If there's a pending endcap from mid-dash, flush it now
 		 * because we're transitioning into a gap.
 		 */
-		if (at_dash_start && PNG_pending_endcap.active)
+		if (at_element_start && PNG_pending_endcap.active)
 		    PNG_flush_pending_endcap();
 	    }
 
@@ -2589,12 +2628,10 @@ PNG_vector(unsigned int x, unsigned int y)
 	    pattern = png_state.custom_dashpattern.pattern;
 	    /* Custom string patterns (".-_") have DSCALE=10 baked in;
 	     * apply empirical_scale=0.25 to match pngcairo visual output. */
-	    scale = 0.25 * PNG_dashlength_factor;
-	    if (png_state.linewidth > 1)
-		scale *= png_state.linewidth;
+	    scale = 0.25 * png_state.linewidth_f * PNG_dashlength_factor;
 	} else if (png_state.dashtype > 0) {
 	    pattern = PNG_dashpatterns[png_state.dashtype];
-	    scale = png_state.linewidth * PNG_dashlength_factor;
+	    scale = png_state.linewidth_f * PNG_dashlength_factor;
 	}
 	if (pattern && scale < 0.1) scale = 0.1;
 
@@ -2683,7 +2720,10 @@ PNG_linetype(int type)
 TERM_PUBLIC void
 PNG_linewidth(double linewidth)
 {
-    png_state.linewidth = (int)(PNG_linewidth_factor * linewidth+0.49);
+    png_state.linewidth_f = PNG_linewidth_factor * linewidth;
+    if (png_state.linewidth_f > MAXLINEWIDTH) png_state.linewidth_f = MAXLINEWIDTH;
+    if (png_state.linewidth_f < 1.0) png_state.linewidth_f = 1.0;
+    png_state.linewidth = (int)(png_state.linewidth_f + 0.49);
     if (png_state.linewidth > MAXLINEWIDTH) png_state.linewidth = MAXLINEWIDTH;
     if (png_state.linewidth < 1) png_state.linewidth = 1;
 }
