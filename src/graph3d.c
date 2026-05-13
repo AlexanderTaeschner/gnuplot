@@ -1281,8 +1281,12 @@ do_3dplot(
 		if (draw_this_surface) {
 		    if (can_pm3d && pm3d.implicit != PM3D_IMPLICIT) {
 			pm3d_draw_one(this_plot);
-			if (!pm3d_order_depth)
-			    pm3d_depth_queue_flush();
+			if (!pm3d_order_depth) {
+			    if (splot_map && draw_border && clip_area)
+				pm3d_depth_queue_flush_with_clip(clip_area);
+			    else
+				pm3d_depth_queue_flush();
+			}
 		    }
 		}
 		break;
@@ -4163,8 +4167,12 @@ plot3d_zerrorfill(struct surface_points *plot)
     /* Default is to write out each zerror plot as we come to it     */
     /* (most recent plot occludes all previous plots). To get proper */
     /* sorting, use "set pm3d depthorder".                           */
-    if (pm3d.direction != PM3D_DEPTH)
-	pm3d_depth_queue_flush();
+    if (pm3d.direction != PM3D_DEPTH) {
+	if (splot_map && draw_border && clip_area)
+	    pm3d_depth_queue_flush_with_clip(clip_area);
+	else
+	    pm3d_depth_queue_flush();
+    }
 
 }
 
@@ -4290,7 +4298,10 @@ plot3d_boxes(struct surface_points *plot)
     /* them together with all other pm3d elements to draw later. */
     if (pm3d.direction != PM3D_DEPTH) {
 	pm3d.base_sort = TRUE;
-	pm3d_depth_queue_flush();
+	if (splot_map && draw_border && clip_area)
+	    pm3d_depth_queue_flush_with_clip(clip_area);
+	else
+	    pm3d_depth_queue_flush();
 	pm3d.base_sort = FALSE;
     }
 }
@@ -4383,8 +4394,12 @@ plot3d_polygons(struct surface_points *plot)
 
     /* Default is to write out each polygon as we come to it. */
     /* To get proper sorting, use "set pm3d depthorder".      */
-    if (pm3d.direction != PM3D_DEPTH)
-	pm3d_depth_queue_flush();
+    if (pm3d.direction != PM3D_DEPTH) {
+	if (splot_map && draw_border && clip_area)
+	    pm3d_depth_queue_flush_with_clip(clip_area);
+	else
+	    pm3d_depth_queue_flush();
+    }
 
     /* Clean up */
     free(quad);

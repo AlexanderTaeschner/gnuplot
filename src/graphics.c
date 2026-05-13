@@ -515,6 +515,7 @@ place_objects(struct object *listhead, int layer, int dimensions)
 	    if ((e->center.scalex == screen || e->center.scaley == screen)
 	    ||  (this_object->clip == OBJ_NOCLIP))
 	    	clip_area = &canvas;
+	    (term->clip_state)(clip_area, 0);
 
 	    if (style != FS_EMPTY)
 		do_arc((int)x1, (int)y1, radius, e->arc_begin, e->arc_end, style, FALSE);
@@ -523,6 +524,7 @@ place_objects(struct object *listhead, int layer, int dimensions)
 	    if (need_fill_border(fillstyle))
 		do_arc((int)x1, (int)y1, radius, e->arc_begin, e->arc_end, 0, e->wedge);
 
+	    (term->clip_state)(NULL, 0);
 	    clip_area = clip_save;
 	    break;
 	}
@@ -536,17 +538,20 @@ place_objects(struct object *listhead, int layer, int dimensions)
 	    ||  (this_object->clip == OBJ_NOCLIP))
 	    	clip_area = &canvas;
 
-	    if (dimensions == 2)
+	    if (dimensions == 2) {
+		(term->clip_state)(clip_area, 0);
 		do_ellipse(2, e, style, TRUE);
-	    else if (splot_map)
+	    } else if (splot_map) {
+		(term->clip_state)(clip_area, 0);
 		do_ellipse(3, e, style, TRUE);
-	    else
+	    } else
 		break;
 
 	    /* Retrace the border if the style requests it */
 	    if (need_fill_border(fillstyle))
 		do_ellipse(dimensions, e, 0, TRUE);
 
+	    (term->clip_state)(NULL, 0);
 	    clip_area = clip_save;
 	    break;
 	}
@@ -608,6 +613,7 @@ place_objects(struct object *listhead, int layer, int dimensions)
 	    if ((e->center.scalex == screen || e->center.scaley == screen)
 	    ||  (this_object->clip == OBJ_NOCLIP))
 		clip_area = &canvas;
+	    (term->clip_state)(clip_area, 0);
 
 	    vertex   = (gpiPoint *) gp_alloc(vertices*sizeof(gpiPoint), "draw mark");
 	    fillarea = (gpiPoint *) gp_alloc(2*vertices*sizeof(gpiPoint), "draw mark");
@@ -624,6 +630,7 @@ place_objects(struct object *listhead, int layer, int dimensions)
 	    free(vertex);
 	    free(fillarea);
 
+	    (term->clip_state)(NULL, 0);
 	    clip_area = clip_save;
 	    break;
 	}
@@ -5248,6 +5255,7 @@ do_polygon( int dimensions, t_object *this_object, int style, int facing )
 
     if (clip == OBJ_NOCLIP)
 	clip_area = &canvas;
+    (term->clip_state)(clip_area, 0);
 
     if (term->filled_polygon && style) {
 	int out_length;
@@ -5302,7 +5310,7 @@ do_polygon( int dimensions, t_object *this_object, int style, int facing )
 		    quad[2].c = border->rgbcolor;
 		quad[3].c = this_object->lp_properties.l_width;
 	    }
-	    pm3d_add_polygon( NULL, quad, vertices );
+	    pm3d_add_polygon_with_clip( NULL, quad, vertices, clip_area );
 
 	} else { /* Not depth-sorted; draw it now */
 	    if (out_length > 1)
@@ -5313,6 +5321,7 @@ do_polygon( int dimensions, t_object *this_object, int style, int facing )
 	draw_clip_polygon(nv, corners);
     }
 
+    (term->clip_state)(NULL, 0);
     clip_area = clip_save;
     in_3d_polygon = FALSE;
 }
