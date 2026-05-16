@@ -1650,6 +1650,7 @@ WinGetCodepage(enum set_encoding_id encoding)
 	case S_ENC_KOI8_R:     codepage = 20866; break;
 	case S_ENC_KOI8_U:     codepage = 21866; break;
 	case S_ENC_SJIS:       codepage =   932; break;
+	case S_ENC_EUCJP:      codepage = 20932; break;
 	case S_ENC_UTF8:       codepage = CP_UTF8; break;
 	default: {
 	    /* unknown encoding, fall back to default "ANSI" codepage */
