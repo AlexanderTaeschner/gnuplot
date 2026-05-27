@@ -950,34 +950,17 @@ PNG_draw_aa_thick_line(double ax, double ay, double bx, double by,
     int xmin, xmax, ymin, ymax;
     int x, y;
 
-    /* Thin lines: use libgd native AA (caps irrelevant at 1 px) */
-    if (thick <= 1) {
-	int ix1 = (int)(ax + 0.5);
-	int iy1 = (int)(ay + 0.5);
-	int ix2 = (int)(bx + 0.5);
-	int iy2 = (int)(by + 0.5);
-
-	/* gdImageLine/gdImageAALine draw inclusive endpoints and step
-	 * one pixel per iteration along the dominant axis.  For dash
-	 * endpoints (cap != HARD), pull back one pixel on the dominant
-	 * axis so the last drawn pixel doesn't encroach into the gap.
-	 * Skip the correction for single-pixel dashes (start == end).
-	 */
-	if (cap_end != PNG_CAP_HARD) {
-	    if (ix2 != ix1 || iy2 != iy1) {
-		if (abs(ix2 - ix1) >= abs(iy2 - iy1)) {
-		    if (ix2 > ix1) ix2--;
-		    else ix2++;
-		} else {
-		    if (iy2 > iy1) iy2--;
-		    else iy2++;
-		}
-	    }
-	}
-
+    /* Thin solid lines: use libgd native line drawing for performance.
+     * Dashed thin lines always use the SDF rasterizer below, which handles
+     * sub-pixel dash/gap boundaries correctly.
+     */
+    if (thick <= 1 && png_state.dashtype == DASHTYPE_SOLID) {
 	gdImageSetAntiAliased(png_state.image, color);
 	gdImageSetThickness(png_state.image, 1);
-	gdImageLine(png_state.image, ix1, iy1, ix2, iy2, gdAntiAliased);
+	gdImageLine(png_state.image,
+		    (int)(ax + 0.5), (int)(ay + 0.5),
+		    (int)(bx + 0.5), (int)(by + 0.5),
+		    gdAntiAliased);
 	return;
     }
 
