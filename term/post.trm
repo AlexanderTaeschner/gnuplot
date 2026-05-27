@@ -4329,7 +4329,7 @@ PS_load_glyphlist()
 
 	next++;
 	len = strchr(next,';') - next;
-	safe_strncpy(glyph_name, next, len);
+	safe_strncpy(glyph_name, next, len+1);
 	FPRINTF((stderr, "%04X   %s\n", code, glyph_name));
 	if (aglist_size + sizeof(ps_glyph) > aglist_alloc) {
 	    aglist_alloc += 2048;

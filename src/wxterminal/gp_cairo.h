@@ -141,6 +141,7 @@ typedef struct plot_struct {
 
 	/* "polyline" */
 	TBOOLEAN opened_path;
+	TBOOLEAN close_path;	/* TRUE if closepath was requested */
 
 	/* font handling */
 	char fontname[MAX_ID_LEN + 1];

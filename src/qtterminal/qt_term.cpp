@@ -152,6 +152,16 @@ struct QtGnuplotState {
 
 static QtGnuplotState* qt = NULL;
 
+static quint32 qt_fontRequestSequence = 0;
+static quint32 qt_pendingFontRequest = 0;
+static QPair<QString, double> qt_pendingFont("", 0.0);
+static QPair<QString, double> qt_lastFont("", 0.0);
+static QMap< QPair<QString, double>, QPair<int, int> > qt_fontMetricCache;
+#ifdef _WIN32
+static const int qt_firstFontMetricGrace_ms = 5000;
+static bool qt_firstFontMetricRequest = true;
+#endif
+
 static const int qt_oversampling = 10;
 static const double qt_oversamplingF = double(qt_oversampling);
 
@@ -233,6 +243,22 @@ QPoint qt_gnuplotCoord(int x, int y)
 {
 	return QPoint(x*qt_oversampling,
 			int(term->ymax) - QT_YBASE - y*qt_oversampling);
+}
+
+static void
+qt_clearPendingFontRequest()
+{
+	qt_pendingFontRequest = 0;
+	qt_pendingFont = QPair<QString, double>("", 0.0);
+}
+
+static void
+qt_applyFontMetric(const QPair<int, int>& metric)
+{
+	term->v_char = qt_oversampling * metric.first;
+	term->h_char = qt_oversampling * metric.second;
+	term->v_tic = (unsigned int)(term->v_char / 2.5);
+	term->h_tic = (unsigned int)(term->v_char / 2.5);
 }
 
 #ifndef GNUPLOT_QT
@@ -388,10 +414,16 @@ bool qt_processTermEvent(gp_event_t* event)
 	// Intercepts resize event
 	if (event->type == GE_fontprops)
 	{
-		// This is an answer to a font metric request. We don't send it back to gnuplot
+		/* Font metric response */
 		if ((event->par1 > 0) && (event->par2 > 0))
 		{
-			fprintf(stderr, "qt_processTermEvent received a GE_fontprops event. This should not have happened\n");
+			if (qt_pendingFontRequest && ((quint32)event->mx == qt_pendingFontRequest)) {
+				QPair<int, int> metric(event->par1, event->par2);
+				qt_fontMetricCache[qt_pendingFont] = metric;
+				qt_lastFont = qt_pendingFont;
+				qt_applyFontMetric(metric);
+				qt_clearPendingFontRequest();
+			}
 			return false;
 		}
 		// This is a resize event
@@ -480,43 +512,68 @@ void qt_sendFont()
 	qt->out << GESetFont << qt->currentFontName << qt->currentFontSize;
 
 	QPair<QString, double> currentFont(qt->currentFontName, qt->currentFontSize);
-	static QPair<QString, double> lastFont("", 0.0);
+	quint32 requestId;
 
 	// The font has not changed
-	if (currentFont == lastFont)
+	if (qt_pendingFontRequest && currentFont != qt_pendingFont)
+		qt_clearPendingFontRequest();
+
+	if (currentFont == qt_lastFont)
 		return;
 
-	static QMap< QPair<QString, double>, QPair<int, int> > fontMetricCache;
 	QPair<int, int> metric;
 
 	// Try to find the font metric in the cache or ask the GUI for the font metrics
-	if (fontMetricCache.contains(currentFont))
-		metric = fontMetricCache[currentFont];
+	if (qt_fontMetricCache.contains(currentFont))
+		metric = qt_fontMetricCache[currentFont];
 	else
 	{
-		qt->out << GEFontMetricRequest;
+		requestId = ++qt_fontRequestSequence;
+		qt_pendingFontRequest = requestId;
+		qt_pendingFont = currentFont;
+
+		qt->out << GEFontMetricRequest << requestId;
 		qt_flushOutBuffer();
 
 		bool receivedFontProps = false;
 		int waitcount = 0;
+		int wait_timeout = 1000;
+#ifdef _WIN32
+		bool first_font_metric_request = qt_firstFontMetricRequest;
+		QElapsedTimer font_metric_timer;
+		if (first_font_metric_request) {
+			font_metric_timer.start();
+			wait_timeout = qt_firstFontMetricGrace_ms;
+		}
+#endif
 		while (!receivedFontProps)
 		{
-			qt->socket.waitForReadyRead(1000);
+			qt->socket.waitForReadyRead(wait_timeout);
 			if (qt->socket.bytesAvailable() < (int)sizeof(gp_event_t)) {
+		#ifdef _WIN32
+				if (first_font_metric_request && font_metric_timer.elapsed() < qt_firstFontMetricGrace_ms) {
+					wait_timeout = (int)(qt_firstFontMetricGrace_ms - font_metric_timer.elapsed());
+					continue;
+				}
+		#endif
 				fprintf(stderr, (waitcount++ % 10 > 0) ? "  ."
 					: "\nWarning: slow font initialization");
 #ifndef Q_OS_MAC
 				// OSX can be slow (>30 seconds?!) in determining font metrics
 				// Always give it more time rather than failing after 1 second
 				// Everyone else can use --slow on the command line
-				if (slow_font_startup)
+				// Always wait for the first font metric response, since
+				// Qt font initialization can take several seconds.
+				if (slow_font_startup || waitcount < 5)
 #endif
 				{
 				    GP_SLEEP(0.5);
+				    wait_timeout = 1000;
 				    continue;
 				}
 				return;
 			}
+			wait_timeout = 1000;
 			while (qt->socket.bytesAvailable() >= (int)sizeof(gp_event_t))
 			{
 				gp_event_t event;
@@ -524,20 +581,26 @@ void qt_sendFont()
 				// Here, we discard other events than fontprops.
 				if ((event.type == GE_fontprops) && (event.par1 > 0) && (event.par2 > 0))
 				{
+					if ((quint32)event.mx != requestId)
+						continue;
 					receivedFontProps = true;
 					metric = QPair<int, int>(event.par1, event.par2);
-					fontMetricCache[currentFont] = metric;
+					qt_fontMetricCache[currentFont] = metric;
+					qt_clearPendingFontRequest();
 					break;
 				}
 			}
 		}
+	#ifdef _WIN32
+		if (first_font_metric_request)
+			qt_firstFontMetricRequest = false;
+	#endif
 		if (waitcount > 0)
 			fprintf(stderr,"\n");
 	}
 
-	term->v_char = qt_oversampling*metric.first;
-	term->h_char = qt_oversampling*metric.second;
-	lastFont = currentFont;
+	qt_applyFontMetric(metric);
+	qt_lastFont = currentFont;
 }
 
 // Called just before a plot is going to be displayed.
@@ -600,8 +663,6 @@ void qt_graphics()
 	qt->out << GEClear;
 	// Initialize the font
 	qt_sendFont();
-	term->v_tic = (unsigned int) (term->v_char/2.5);
-	term->h_tic = (unsigned int) (term->v_char/2.5);
 	// Tell user what scale factor relates term coordinates to pixels
 	term->tscale = qt_oversamplingF;
 

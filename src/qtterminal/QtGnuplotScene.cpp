@@ -662,10 +662,12 @@ void QtGnuplotScene::processEvent(QtGnuplotEventType type, QDataStream& in)
 	}
 	else if (type == GEFontMetricRequest)
 	{
+		quint32 requestId;
+		in >> requestId;
 		QFontMetrics metrics(m_font);
 		int par1 = (metrics.ascent() + metrics.descent());
 		int par2 = round(metrics.horizontalAdvance("0123456789")/10.);
-		m_eventHandler->postTermEvent(GE_fontprops, 0, 0, par1, par2, m_widget);
+		m_eventHandler->postTermEvent(GE_fontprops, (int)requestId, 0, par1, par2, m_widget);
 	}
 	else if (type == GEDone)
 	{

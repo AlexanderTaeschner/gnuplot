@@ -112,6 +112,7 @@
  *        including butt/rounded/squared linecaps by introducing custom SDF
  *        thick-line antialiased rasterizer, coord. oversampling and off-screen
  *        alpha layer with MAX compositing.
+ *        Add PNG_path().
  */
 
 #define GD_DEFINED_COLORS	96	/* Must not exceed size of pm3d_color_names_tbl[] */
@@ -166,6 +167,7 @@ TERM_PUBLIC void ENHGD_FLUSH(void);
 TERM_PUBLIC void ENHGD_boxed_text(unsigned int, unsigned int, int);
 
 TERM_PUBLIC void PNG_dashtype(int type, t_dashtype *custom_dash_pattern);
+TERM_PUBLIC void PNG_path(int p);
 
 #include <gd.h>
 /* Include files for bitmap fonts */
@@ -405,6 +407,18 @@ static double PNG_prev_seg_dy = 0.0;
 /* Previous sub-segment direction within dash walker (pixel space) */
 static double PNG_prev_dash_dx = 0.0;
 static double PNG_prev_dash_dy = 0.0;
+
+/* Closed-path state for join disc at the closing corner.
+ * newpath marks the path as open and clears the saved state; the
+ * first PNG_vector() call records the start position and the first
+ * segment's direction; closepath draws a join disc between the last
+ * and first segments.
+ */
+static TBOOLEAN PNG_path_is_open = FALSE;
+static double PNG_path_start_x = 0.0;
+static double PNG_path_start_y = 0.0;
+static double PNG_path_first_dx = 0.0;
+static double PNG_path_first_dy = 0.0;
 
 /* Endcap types for PNG_draw_aa_thick_line() */
 enum {
@@ -999,13 +1013,10 @@ PNG_draw_aa_thick_line(double ax, double ay, double bx, double by,
 	    }
 
 	    /* === Hard-clip rejection === */
-	    {
-		const double hard_overlap = 0.5;
-		if (cap_start == PNG_CAP_HARD && a < -hard_overlap)
-		    continue;
-		if (cap_end == PNG_CAP_HARD && a > len + hard_overlap)
-		    continue;
-	    }
+	    if (cap_start == PNG_CAP_HARD && a < -0.5)
+		continue;
+	    if (cap_end == PNG_CAP_HARD && a > len + 0.5)
+		continue;
 
 	    /* === Rectangular SDF === */
 	    {
@@ -1055,21 +1066,12 @@ PNG_flush_pending_endcap(void)
 	double eps = 0.5;
 	double ax = PNG_pending_endcap.ex - eps * PNG_pending_endcap.ux;
 	double ay = PNG_pending_endcap.ey - eps * PNG_pending_endcap.uy;
-	int save_cx1, save_cy1, save_cx2, save_cy2;
 
-	/* Apply plot-area clipping so endcaps don't overshoot borders */
-	gdImageGetClip(png_state.image, &save_cx1, &save_cy1, &save_cx2, &save_cy2);
-	if (clip_area) {
-	    gdImageSetClip(png_state.image,
-			   GD_PX(clip_area->xleft),  GD_Y(clip_area->ytop),
-			   GD_PX(clip_area->xright), GD_Y(clip_area->ybot));
-	}
 	PNG_draw_aa_thick_line(ax, ay,
 			       PNG_pending_endcap.ex, PNG_pending_endcap.ey,
 			       PNG_pending_endcap.thick,
 			       PNG_pending_endcap.color,
 			       PNG_CAP_HARD, cap);
-	gdImageSetClip(png_state.image, save_cx1, save_cy1, save_cx2, save_cy2);
     }
     PNG_pending_endcap.active = 0;
 }
@@ -1212,14 +1214,15 @@ PNG_draw_aa_vector(double x1, double y1, double x2, double y2,
 	    double pnx = PNG_prev_dash_dx / prev_len;
 	    double pny = PNG_prev_dash_dy / prev_len;
 	    double dot = pnx * seg_nx + pny * seg_ny;
-	    if (dot < 0.97) {  /* angle change > ~14° */
+	    double cross = pnx * seg_ny - pny * seg_nx;  /* sin(turn angle) */
+
+	    if ((0.0 < (1.0 + dot)) && ((1.0 + dot) < fabs(cross) * thick)) {
 		TBOOLEAN in_drawn = pattern
 		    ? (PNG_dash_pos > 0.0
 		       && PNG_in_drawn_phase(PNG_dash_pos, pattern, scale))
 		    : TRUE;
 		if (in_drawn) {
-		    double half_width = (double)thick / 2.0;
-		    PNG_draw_join_disc(x1, y1, half_width,
+		    PNG_draw_join_disc(x1, y1, thick / 2.0,
 				       pnx, pny, seg_nx, seg_ny,
 				       color);
 		}
@@ -1377,6 +1380,17 @@ done:
     /* Save current direction for next segment's join disc logic */
     PNG_prev_dash_dx = dx;
     PNG_prev_dash_dy = dy;
+
+    /* For closed paths, save the first segment's pixel-space direction
+     * and start position (x1,y1 is the path start in pixel coords).
+     */
+    if (PNG_path_is_open
+    &&  PNG_path_first_dx == 0.0 && PNG_path_first_dy == 0.0) {
+	PNG_path_first_dx = dx;
+	PNG_path_first_dy = dy;
+	PNG_path_start_x = x1;
+	PNG_path_start_y = y1;
+    }
 }
 
 static void
@@ -2522,7 +2536,6 @@ PNG_vector(unsigned int x, unsigned int y)
 	       || (png_state.TrueColor && png_state.linewidth > 1)) {
 	float *pattern = NULL;
 	double scale = 0.0;
-	int save_cx1, save_cy1, save_cx2, save_cy2;
 	int color = png_state.color;
 
 	/* Activate alpha layer for semi-transparent lines to avoid
@@ -2542,30 +2555,16 @@ PNG_vector(unsigned int x, unsigned int y)
 	    scale = 0.25 * PNG_dashlength_factor;
 	    if (png_state.linewidth > 1)
 		scale *= png_state.linewidth;
-	} else if (png_state.dashtype >= 1) {
-	    int d = ((png_state.dashtype - 1) % (PNG_NUM_DASHTYPES - 1)) + 1;
-	    pattern = PNG_dashpatterns[d];
+	} else if (png_state.dashtype > 0) {
+	    pattern = PNG_dashpatterns[png_state.dashtype];
 	    scale = png_state.linewidth * PNG_dashlength_factor;
 	}
 	if (pattern && scale < 0.1) scale = 0.1;
-
-	/* Clip drawing to the current gnuplot plot area so that thick
-	 * endcaps do not overshoot the graph border.
-	 */
-	gdImageGetClip(png_state.image, &save_cx1, &save_cy1, &save_cx2, &save_cy2);
-	if (clip_area) {
-	    gdImageSetClip(png_state.image,
-			   GD_PX(clip_area->xleft),  GD_Y(clip_area->ytop),
-			   GD_PX(clip_area->xright), GD_Y(clip_area->ybot));
-	}
 
 	PNG_draw_aa_vector(
 	    GD_PXF(png_state.x), GD_YF(png_state.y),
 	    GD_PXF(x),           GD_YF(y),
 	    pattern, scale, png_state.linewidth, color);
-
-	/* Restore previous clip region */
-	gdImageSetClip(png_state.image, save_cx1, save_cy1, save_cx2, save_cy2);
 
     /* All other (not dashed, not thick TrueColor) vectors */
     } else {
@@ -2675,11 +2674,12 @@ PNG_dashtype(int type, t_dashtype *custom_dash_pattern)
     &&  custom_dash_pattern->pattern[0] > 0) {
 	png_state.dashtype = DASHTYPE_CUSTOM;
 	png_state.custom_dashpattern = *custom_dash_pattern;
-    } else if (type >= 1) {
+    } else if (type > 0) {
 	/* Cycle through the built-in dash patterns */
-	png_state.dashtype = type;
+	png_state.dashtype = type % PNG_NUM_DASHTYPES;
     } else {
 	/* DASHTYPE_SOLID, DASHTYPE_AXIS, or unknown */
+	/* FIXME: other terminal use a fine dotted line for DASHTYPE_AXIS */
 	png_state.dashtype = DASHTYPE_SOLID;
     }
 }
@@ -3494,6 +3494,56 @@ gd_iconv(char **string)
 #endif /* HAVE_ICONV */
 }
 
+/*
+ * PNG_path - Handle newpath/closepath for proper closed-path corners.
+ * On closepath, flush the deferred endcap and draw a join disc at the
+ * closing corner so that the junction between the last and first
+ * segments is rendered as a line join rather than two butt caps.
+ */
+TERM_PUBLIC void
+PNG_path(int p)
+{
+    switch (p) {
+    case 0: /* newpath */
+	PNG_path_is_open = TRUE;
+	PNG_path_start_x = 0.0;
+	PNG_path_start_y = 0.0;
+	PNG_path_first_dx = 0.0;
+	PNG_path_first_dy = 0.0;
+	break;
+    case 1: /* closepath */
+	if (PNG_path_is_open
+	&&  (PNG_path_first_dx != 0.0 || PNG_path_first_dy != 0.0)) {
+	    double half_w = (double)png_state.linewidth / 2.0;
+	    double prev_len, first_len;
+
+	    /* Flush the deferred endcap from the last segment */
+	    PNG_flush_pending_endcap();
+	    if (png_state.alpha_layer_active)
+		PNG_alpha_layer_composite();
+
+	    /* Normalize the direction vectors (they are raw pixel deltas) */
+	    prev_len = sqrt(PNG_prev_dash_dx*PNG_prev_dash_dx
+			  + PNG_prev_dash_dy*PNG_prev_dash_dy);
+	    first_len = sqrt(PNG_path_first_dx*PNG_path_first_dx
+			   + PNG_path_first_dy*PNG_path_first_dy);
+
+	    if (prev_len > 0.0 && first_len > 0.0) {
+		/* Draw a join disc connecting last->first segment */
+		PNG_draw_join_disc(
+		    PNG_path_start_x, PNG_path_start_y, half_w,
+		    PNG_prev_dash_dx / prev_len,
+		    PNG_prev_dash_dy / prev_len,
+		    PNG_path_first_dx / first_len,
+		    PNG_path_first_dy / first_len,
+		    png_state.color);
+	    }
+	}
+	PNG_path_is_open = FALSE;
+	break;
+    }
+}
+
 #undef MAXLINEWIDTH
 #undef Y
 
@@ -3522,7 +3572,7 @@ TERM_TABLE_START(png_driver)
     , PNG_image
     , ENHGD_OPEN, ENHGD_FLUSH, do_enh_writec
     , NULL		/* layering */
-    , NULL		/* path */
+    , PNG_path		/* path */
     , (double)GD_OVERSAMPLE	/* tscale */
     , NULL		/* hypertext */
     , ENHGD_boxed_text
@@ -3684,7 +3734,7 @@ TERM_TABLE_START(jpeg_driver)
     , PNG_image
     , ENHGD_OPEN, ENHGD_FLUSH, do_enh_writec
     , NULL		/* layering */
-    , NULL		/* path */
+    , PNG_path		/* path */
     , (double)GD_OVERSAMPLE	/* tscale */
     , NULL		/* hypertext */
     , ENHGD_boxed_text
@@ -3839,7 +3889,7 @@ TERM_TABLE_START(gif_driver)
     , PNG_image
     , ENHGD_OPEN, ENHGD_FLUSH, do_enh_writec
     , NULL		/* layering */
-    , NULL		/* path */
+    , PNG_path		/* path */
     , (double)GD_OVERSAMPLE	/* tscale */
     , NULL		/* hypertext */
     , ENHGD_boxed_text
@@ -4023,7 +4073,7 @@ TERM_TABLE_START(sixelgd_driver)
     PNG_image,
     ENHGD_OPEN, ENHGD_FLUSH, do_enh_writec,
     NULL,		/* layering */
-    NULL,		/* path */
+    PNG_path,		/* path */
     (double)GD_OVERSAMPLE,	/* tscale */
     NULL		/* hypertext */
     , ENHGD_boxed_text
@@ -4202,7 +4252,7 @@ TERM_TABLE_START(kittygd_driver)
     PNG_image,
     ENHGD_OPEN, ENHGD_FLUSH, do_enh_writec,
     NULL,		/* layering */
-    NULL,		/* path */
+    PNG_path,		/* path */
     (double)GD_OVERSAMPLE,	/* tscale */
     NULL		/* hypertext */
     , ENHGD_boxed_text

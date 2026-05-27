@@ -269,10 +269,6 @@ IsWindowsXPorLater(void)
 char *
 appdata_directory(void)
 {
-    HMODULE hShell32;
-    FARPROC pSHGetSpecialFolderPath;
-    typedef UINT (CALLBACK* GETFOLDERPATH)
-		(HWND  hwnd, LPSTR pszPath, int csidl, BOOL fCreate);
     static char dir[MAX_PATH] = {'\0'};
 
     if (dir[0])
@@ -280,16 +276,10 @@ appdata_directory(void)
 
     /* FIMXE: "ANSI" Version, no Unicode support */
 
-    /* Make sure that SHGetSpecialFolderPath is supported. */
-    hShell32 = LoadLibrary(TEXT("shell32.dll"));
-    if (hShell32) {
-	pSHGetSpecialFolderPath =
-	    GetProcAddress(hShell32, "SHGetSpecialFolderPathA");
-	if (pSHGetSpecialFolderPath)
-	    (*(GETFOLDERPATH)(pSHGetSpecialFolderPath))(NULL, dir, CSIDL_APPDATA, FALSE);
-	FreeModule(hShell32);
+    if (SUCCEEDED(SHGetFolderPathA(HWND_DESKTOP, CSIDL_APPDATA, NULL, SHGFP_TYPE_CURRENT, dir)))
 	return dir;
-    }
+    else
+	dir[0] = NUL;
 
     /* use APPDATA environment variable as fallback */
     if (dir[0] == NUL) {
@@ -1660,6 +1650,7 @@ WinGetCodepage(enum set_encoding_id encoding)
 	case S_ENC_KOI8_R:     codepage = 20866; break;
 	case S_ENC_KOI8_U:     codepage = 21866; break;
 	case S_ENC_SJIS:       codepage =   932; break;
+	case S_ENC_EUCJP:      codepage = 20932; break;
 	case S_ENC_UTF8:       codepage = CP_UTF8; break;
 	default: {
 	    /* unknown encoding, fall back to default "ANSI" codepage */

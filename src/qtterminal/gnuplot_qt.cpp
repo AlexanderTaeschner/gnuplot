@@ -43,9 +43,31 @@
 
 #include "QtGnuplotApplication.h"
 #include <QtCore>
+#include <QtGui>
 #include <signal.h>
 #ifdef _WIN32
 # include <windows.h>
+#endif
+
+#ifdef _WIN32
+/*
+ * On Windows, Qt's first use of QFontMetrics triggers enumeration of the
+ * entire system font database, which can take several seconds especially
+ * when an AV scanner is involved. By running a throwaway QFontDatabase
+ * query in a background thread at startup, the font database is populated
+ * before the first plot request arrives, eliminating the visible delay.
+ */
+class FontWarmupThread : public QThread
+{
+	void run() override {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+		QFontDatabase::families();
+#else
+		QFontDatabase db;
+		db.families();
+#endif
+	}
+};
 #endif
 
 int main(int argc, char* argv[])
@@ -86,6 +108,15 @@ int main(int argc, char* argv[])
 
 	QtGnuplotApplication application(argc, argv);
 
+	int exitStatus;
+
+#ifdef _WIN32
+	// Warm up the font database in a background thread so that font
+	// metrics are available immediately when the first plot arrives.
+	FontWarmupThread fontWarmup;
+	fontWarmup.start();
+#endif
+
 	// Load translations for the qt library
 	QTranslator qtTranslator;
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
@@ -104,7 +135,13 @@ int main(int argc, char* argv[])
 		application.installTranslator(&translator);
 
 	// Start
-	application.exec();
+	exitStatus = application.exec();
 
-	return 0;
+
+#ifdef _WIN32
+	if (fontWarmup.isRunning())
+		fontWarmup.wait();
+#endif
+
+	return exitStatus;
 }

@@ -16,6 +16,8 @@ set tics nomirror
 set y2tics 0.25
 set link y2
 
+set xrange [0:125]
+
 set multiplot
 set title "Use watchpoints to find threshold values on a smoothed curve"
 plot 'moli3.dat' using 0:(abs($2)*sin($0/6.)**2) smooth cnormal lt -1 lw 2 \

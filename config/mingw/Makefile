@@ -20,6 +20,7 @@
 # This makefile was tested with 
 #   MSYS, MinGW32
 #   MSYS2/MINGW64, MSYS2/CLANG64, MinGW-w64
+#   MSYS2/CLANGARM64
 #   Microsoft HTML Help 1.4 SDK and the Free Pascal Help Compiler
 
 
@@ -52,6 +53,7 @@ VARIANT = PLAIN
 # Define if you want a 32bit version (even using a 64bit compiler)
 #M32=1
 # Define if you use clang instead of gcc, requires MSYS2/CLANG64
+# or MSYS2/CLANGARM64 for Windows on ARM
 CLANG64=1
 # Use the colorgcc frontend explicitly
 #COLORGCC=1
@@ -123,7 +125,7 @@ CAIROLIBS=1
 WXT=1
 CAIROLIBS=1
 
-# Include webp terminal 
+# Include webp terminal
 # Requires webp lib and cairo libraries.
 WEBP=1
 
@@ -137,7 +139,11 @@ ifndef MINGW64
 ifndef CLANG64
 QT_DIR = /d/Source/Qt-5.2.1-mingw/5.2.1/mingw48_32
 else
+ifeq ("$(MSYSTEM)","CLANGARM64")
+QT_DIR = /clangarm64
+else
 QT_DIR = /clang64
+endif
 endif
 else
 ifdef M32
@@ -362,7 +368,7 @@ M=$(TOP)/demo/
 
 VPATH = $(S):$(S)/wxterminal
 
-CFLAGS += -DGNUPLOT_PS_DIR=\"$(GNUPLOT_PS_DIR)\" 
+CFLAGS += -DGNUPLOT_PS_DIR=\"$(GNUPLOT_PS_DIR)\"
 TERMFLAGS = -DGNUPLOT_JS_DIR=\"$(GNUPLOT_JS_DIR)\"
 
 TERMLIBS =
@@ -509,7 +515,7 @@ endif
 	TERMLIBS += $(QT_LIBS)
 	CXXFLAGS += $(QT_CXXFLAGS)
 	LDFLAGS  += $(QT_LDFLAGS)
-	QT_OBJS = qt_term.$(O) 
+	QT_OBJS = qt_term.$(O)
 	GNUPLOTQTOBJS = gnuplot_qt.o QtGnuplotWindow.o \
 		QtGnuplotApplication.o QtGnuplotWidget.o \
 		QtGnuplotScene.o QtGnuplotItems.o \
@@ -675,7 +681,7 @@ include $(S)/makefile.all
 
 OBJS = $(COREOBJS) version.$(O) gpexecute.$(O) $(WX_OBJS) $(CAIRO_OBJS) $(QT_OBJS)
 WINOBJS = winmain.$(O) wgnuplib.$(O) wgraph.$(O) wprinter.$(O) \
-	  wpause.$(O) wgdiplus.$(O) wd2d.$(O) 
+	  wpause.$(O) wgdiplus.$(O) wd2d.$(O)
 WINOBJS_WGNUPLOT = wtext.$(O) screenbuf.$(O) wmenu.$(O) wredirect.$(O)
 
 # default rules
@@ -1247,23 +1253,23 @@ ifdef DLLS
 ifdef MINGW64
 ifndef M32
 ifdef QT
-	ldd gnuplot.exe gnuplot_qt.exe | cut -d " " -f 3 | grep "^/mingw64/bin" | sort | uniq | xargs -t -i cp {} $(DESTDIR)/bin
+	ldd gnuplot.exe wgnuplot.exe wgnuplot_pipes.exe gnuplot_qt.exe | cut -d " " -f 3 | grep "^/mingw64/bin" | sort | uniq | xargs -t -i cp {} $(DESTDIR)/bin
 else
-	ldd gnuplot.exe | cut -d " " -f 3 | grep "^/mingw64/bin" | sort | uniq | xargs -t -i cp {} $(DESTDIR)/bin
+	ldd gnuplot.exe wgnuplot.exe wgnuplot_pipes.exe | cut -d " " -f 3 | grep "^/mingw64/bin" | sort | uniq | xargs -t -i cp {} $(DESTDIR)/bin
 endif # QT
 else # !M32
 ifdef QT
-	ldd gnuplot.exe gnuplot_qt.exe | cut -d " " -f 3 | grep "^/mingw32/bin" | sort | uniq | xargs -t -i cp {} $(DESTDIR)/bin
+	ldd gnuplot.exe wgnuplot.exe wgnuplot_pipes.exe gnuplot_qt.exe | cut -d " " -f 3 | grep "^/mingw32/bin" | sort | uniq | xargs -t -i cp {} $(DESTDIR)/bin
 else
-	ldd gnuplot.exe | cut -d " " -f 3 | grep "^/mingw32/bin" | sort | uniq | xargs -t -i cp {} $(DESTDIR)/bin
+	ldd gnuplot.exe wgnuplot.exe wgnuplot_pipes.exe | cut -d " " -f 3 | grep "^/mingw32/bin" | sort | uniq | xargs -t -i cp {} $(DESTDIR)/bin
 endif # QT
 endif # M32
 endif # MINGW64
 ifdef CLANG64
 ifdef QT
-	ldd gnuplot.exe gnuplot_qt.exe | cut -d " " -f 3 | grep "^/clang64/bin" | sort | uniq | xargs -t -i cp {} $(DESTDIR)/bin
+	ldd gnuplot.exe wgnuplot.exe wgnuplot_pipes.exe gnuplot_qt.exe | cut -d " " -f 3 | grep "^$(MSYSTEM_PREFIX)/bin" | sort | uniq | xargs -t -i cp {} $(DESTDIR)/bin
 else
-	ldd gnuplot.exe | cut -d " " -f 3 | grep "^/clang64/bin" | sort | uniq | xargs -t -i cp {} $(DESTDIR)/bin
+	ldd gnuplot.exe wgnuplot.exe wgnuplot_pipes.exe | cut -d " " -f 3 | grep "^$(MSYSTEM_PREFIX)/bin" | sort | uniq | xargs -t -i cp {} $(DESTDIR)/bin
 endif # QT
 endif
 ifdef QT
@@ -1279,6 +1285,20 @@ endif
 
 endif # DLLS
 
+ifndef M32
+ifeq ("$(MSYSTEM)","CLANGARM64")
+SYSSTRING = "woa"
+else
+ifdef CLANG64
+SYSSTRING = "win64-clang"
+else
+SYSSTRING = "win64-mingw"
+endif
+endif
+else
+SYSSTRING = "win32-mingw"
+endif
+
 installer:
 	$(MAKE) DESTDIR=./dist install
 	cp -p $(W)/grpicon.ico ./dist/bin/
@@ -1293,61 +1313,45 @@ installer:
 	    -e "s/\.alpha/\.0/" \
 	    $(TOP)/win/gnuplot.iss > ./dist/gnuplot.iss
 ifndef M32
+ifeq ("$(MSYSTEM)","CLANGARM64")
+	sed -i \
+	    -e "s/@INSTALLER@/gp$(SHORTVERSION)-woa-setup/" \
+	    -e 's/^\(ArchitecturesAllowed\)=/\1=arm64/g' \
+	    -e 's/^\(ArchitecturesInstallIn64BitMode\)=/\1=x64compatible/g' \
+	    ./dist/gnuplot.iss
+else
 	sed -i \
 	    -e "s/@INSTALLER@/gp$(SHORTVERSION)-win64-setup/" \
 	    -e 's/^\(ArchitecturesAllowed\)=/\1=x64compatible/g' \
 	    -e 's/^\(ArchitecturesInstallIn64BitMode\)=/\1=x64compatible/g' \
 	    ./dist/gnuplot.iss
+endif
 else
 	sed -i \
 	    -e "s/@INSTALLER@/gp$(SHORTVERSION)-win32-setup/" \
 	    ./dist/gnuplot.iss
 endif
 	(cd ./dist; $(ISCC) gnuplot.iss)
-ifndef M32
 ifdef RELEASE
-	mv ./dist/gp*-setup.exe gp$(SHORTVERSION)-win64-mingw.exe
+	mv ./dist/gp*-setup.exe gp$(SHORTVERSION)-$(SYSSTRING).exe
 else
-	mv ./dist/gp*-setup.exe gp$(SHORTVERSION)-`date +%Y%m%d`-win64-mingw.exe
-endif
-else
-ifdef RELEASE
-	mv ./dist/gp*-setup.exe gp$(SHORTVERSION)-win32-mingw.exe
-else
-	mv ./dist/gp*-setup.exe gp$(SHORTVERSION)-`date +%Y%m%d`-win32-mingw.exe
-endif
+	mv ./dist/gp*-setup.exe gp$(SHORTVERSION)-`date +%Y%m%d`-$(SYSSTRING).exe
 endif
 
 zip:
 	$(MAKE) DESTDIR=./gnuplot install
-ifndef M32
 ifdef RELEASE
-	zip -mro9 gp$(SHORTVERSION)-win64-mingw.zip gnuplot
+	zip -mro9 gp$(SHORTVERSION)-$(SYSSTRING).zip gnuplot
 else
-	zip -mro9 gp$(SHORTVERSION)-`date +%Y%m%d`-win64-mingw.zip gnuplot
-endif
-else
-ifdef RELEASE
-	zip -mro9 gp$(SHORTVERSION)-win32-mingw.zip gnuplot
-else
-	zip -mro9 gp$(SHORTVERSION)-`date +%Y%m%d`-win32-mingw.zip gnuplot
-endif
+	zip -mro9 gp$(SHORTVERSION)-`date +%Y%m%d`-$(SYSSTRING).zip gnuplot
 endif
 
 7z:
 	$(MAKE) DESTDIR=./gnuplot install
-ifndef M32
 ifdef RELEASE
-	7z u -mx9 gp$(SHORTVERSION)-win64-mingw.7z gnuplot
+	7z u -mx9 gp$(SHORTVERSION)-$(SYSSTRING).7z gnuplot
 else
-	7z u -mx9 gp$(SHORTVERSION)-`date +%Y%m%d`-win64-mingw.7z gnuplot
-endif
-else
-ifdef RELEASE
-	7z u -mx9 gp$(SHORTVERSION)-win32-mingw.7z gnuplot
-else
-	7z u -mx9 gp$(SHORTVERSION)-`date +%Y%m%d`-win32-mingw.7z gnuplot
-endif
+	7z u -mx9 gp$(SHORTVERSION)-`date +%Y%m%d`-$(SYSSTRING).7z gnuplot
 endif
 
 # rebuild makefile.all

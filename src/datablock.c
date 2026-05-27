@@ -70,6 +70,7 @@
 #include "misc.h"
 #include "multiplot.h"
 #include "util.h"
+#include "parse.h"	/* for string_result_only */
 #include "save.h"	/* used by save_set_to_datablock() */
 #ifdef _MSC_VER
 # include <windows.h>
@@ -494,7 +495,18 @@ f_eval(union argument *arg)
 	    eval_parameters[i].type = NOTDEFINED;
     }
 
-    load_file( NULL, (void *)(functionblock), 8);
+    /* Function blocks execute arbitrary gnuplot commands that are parsed
+     * from scratch.  If the calling context set string_result_only (e.g.
+     * "set output" uses try_to_get_string), that flag would leak into the
+     * nested parser invocation and block arithmetic operators like + and -.
+     * Save and restore it so the function block body sees a clean state.
+     */
+    {
+	TBOOLEAN save_string_result_only = string_result_only;
+	string_result_only = FALSE;
+	load_file( NULL, (void *)(functionblock), 8);
+	string_result_only = save_string_result_only;
+    }
     push(&eval_return_value);
 
     /* Clear staged return value after "push" so that it cannot be mistakenly accessed

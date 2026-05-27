@@ -69,6 +69,7 @@
 #include "gp_cairo.h"
 
 #include "alloc.h"
+#include "encoding.h"	/* for advance_one_utf8_char() */
 
 #include <pango/pangocairo.h>
 #include <glib.h>
@@ -202,6 +203,7 @@ void gp_cairo_initialize_plot(plot_struct *plot)
 	plot->cr = NULL;
 
 	plot->polygon_path_last = NULL;
+	plot->close_path = FALSE;
 
 	plot->interrupt = FALSE;
 
@@ -618,6 +620,13 @@ void gp_cairo_stroke(plot_struct *plot)
 	/* add last point */
 	cairo_line_to (plot->cr, plot->current_x, plot->current_y);
 
+	/* If closepath was requested, close the subpath so that the
+	 * closing corner is rendered as a line join, not two butt caps. */
+	if (plot->close_path) {
+		cairo_close_path(plot->cr);
+		plot->close_path = FALSE;
+	}
+
 
 	cairo_save(plot->cr);
 
@@ -829,6 +838,97 @@ void gp_cairo_set_resolution(int dpi)
 	pango_cairo_font_map_set_resolution(PANGO_CAIRO_FONT_MAP(pango_cairo_font_map_get_default()), dpi);
 }
 
+/* Workaround for a Pango / cairo bug.
+ *
+ * When a font has no glyph for a requested character, Pango falls back on a
+ * "hex box" rendered via a cairo user font (see pango_cairo_hex_box_render_glyph
+ * in pango/pangocairo-font.c).  That code begins with cairo_identity_matrix(),
+ * which discards gnuplot's 1/200 oversampling matrix.  As a result the hex box
+ * is drawn at coordinates derived from a 3000pt-equivalent font size and ends
+ * up filling the canvas (see demo/armillary.dem and demo/charset.dem).
+ *
+ * Side stepping the buggy renderer entirely is simpler and more robust than
+ * trying to compensate for it after the fact.  Older code rendered with a
+ * device-scale font as a workaround, but Pango's reported text metrics
+ * (extents, baseline) were still those of the oversampled layout, which made
+ * boxed text and right/center justification of strings containing missing
+ * glyphs go wrong.
+ *
+ * Walk the layout's glyph runs, locate every glyph carrying
+ * PANGO_GLYPH_UNKNOWN_FLAG, and overwrite the corresponding bytes in 'utf8'
+ * with ASCII spaces.  Spaces are 1 byte each, so an N-byte UTF-8 sequence is
+ * replaced by N spaces -- preserving byte offsets so any byte-indexed
+ * PangoAttrList attached to the layout remains valid.  The caller is
+ * responsible for re-binding the modified text to the layout (so that Pango
+ * re-shapes and recomputes extents from the all-known-glyph string).
+ *
+ * Returns TRUE if any replacement occurred, FALSE otherwise.
+ */
+static TBOOLEAN
+gp_cairo_replace_missing_glyphs(PangoLayout *layout, char *utf8)
+{
+	PangoLayoutIter *iter;
+	TBOOLEAN replaced = FALSE;
+	int len;
+
+	if (utf8 == NULL || pango_layout_get_unknown_glyphs_count(layout) <= 0)
+		return FALSE;
+
+	len = (int) strlen(utf8);
+	iter = pango_layout_get_iter(layout);
+	if (iter == NULL)
+		return FALSE;
+
+	do {
+		PangoLayoutRun *run = pango_layout_iter_get_run_readonly(iter);
+		int i, item_offset, num_glyphs;
+
+		if (run == NULL)
+			continue; /* paragraph separator */
+
+		item_offset = run->item->offset;
+		num_glyphs = run->glyphs->num_glyphs;
+		for (i = 0; i < num_glyphs; i++) {
+			PangoGlyph g = run->glyphs->glyphs[i].glyph;
+			int b;
+			char *this_char;
+			char *next_char;
+
+			if (!(g & PANGO_GLYPH_UNKNOWN_FLAG))
+				continue;
+
+			b = item_offset + run->glyphs->log_clusters[i];
+			if (b < 0 || b >= len)
+				continue;
+
+			/* Determine the byte length of the UTF-8 codepoint at b
+			 * and overwrite all of its bytes with ASCII spaces. */
+			this_char = next_char = &(utf8[b]);
+			advance_one_utf8_char(next_char);
+			while (this_char < next_char)
+				*(this_char++) = ' ';
+			replaced = TRUE;
+		}
+	} while (pango_layout_iter_next_run(iter));
+
+	pango_layout_iter_free(iter);
+	return replaced;
+}
+
+/* Convenience wrapper: replace missing-glyph bytes in 'utf8' with ASCII
+ * spaces (re-binding the text to 'layout' if anything changed) and then
+ * query the layout's extents.  This pairs the substitution with the
+ * extents query so callers can't accidentally read pre-substitution
+ * (hex-box-inflated) extents. */
+static void
+gp_cairo_layout_get_extents(PangoLayout *layout, char *utf8,
+		PangoRectangle *ink_rect, PangoRectangle *logical_rect)
+{
+	if (gp_cairo_replace_missing_glyphs(layout, utf8))
+		pango_layout_set_text(layout, utf8, -1);
+	pango_layout_get_extents(layout, ink_rect, logical_rect);
+}
+
 void gp_cairo_draw_text(plot_struct *plot, int x1, int y1, const char* string,
 		    int *width, int *height)
 {
@@ -872,7 +972,6 @@ void gp_cairo_draw_text(plot_struct *plot, int x1, int y1, const char* string,
 	layout = gp_cairo_create_layout (plot->cr);
 
 	pango_layout_set_text (layout, string_utf8, -1);
-	g_free(string_utf8);
 	desc = pango_font_description_new ();
 	pango_font_description_set_family (desc, (const char*) plot->fontname);
 #ifdef MAP_SYMBOL
@@ -886,10 +985,10 @@ void gp_cairo_draw_text(plot_struct *plot, int x1, int y1, const char* string,
 	pango_font_description_set_style (desc,
 		plot->fontstyle ? PANGO_STYLE_ITALIC : PANGO_STYLE_NORMAL);
 	pango_layout_set_font_description (layout, desc);
-	FPRINTF((stderr, "pango font description: %s\n", pango_font_description_to_string(desc)));
 	pango_font_description_free (desc);
 
-	pango_layout_get_extents(layout, &ink_rect, &logical_rect);
+	gp_cairo_layout_get_extents(layout, string_utf8, &ink_rect, &logical_rect);
+	g_free(string_utf8);
 	if (width)
 		*width = logical_rect.width / PANGO_SCALE;
 	if (height)
@@ -1350,7 +1449,8 @@ void gp_cairo_enhanced_flush(plot_struct *plot)
 		save_layout = gp_cairo_create_layout (plot->cr);
 		pango_layout_set_text (save_layout, gp_cairo_save_utf8, -1);
 		pango_layout_set_attributes (save_layout, gp_cairo_enhanced_save_AttrList);
-		pango_layout_get_extents(save_layout, NULL, &save_logical_rect);
+		gp_cairo_layout_get_extents(save_layout, gp_cairo_save_utf8,
+			NULL, &save_logical_rect);
 		g_clear_object (&save_layout);
 
 		pango_attr_list_unref( gp_cairo_enhanced_save_AttrList );
@@ -1381,7 +1481,8 @@ void gp_cairo_enhanced_flush(plot_struct *plot)
 			fprintf(stderr,"uninitialized gp_cairo_enhanced_underprinted_AttrList!\n");
 		else
 			pango_layout_set_attributes (underprinted_layout, gp_cairo_enhanced_underprinted_AttrList);
-		pango_layout_get_extents(underprinted_layout, NULL, &underprinted_logical_rect);
+		gp_cairo_layout_get_extents(underprinted_layout, gp_cairo_underprinted_utf8,
+			NULL, &underprinted_logical_rect);
 		g_clear_object (&underprinted_layout);
 
 		/* compute the size of the text to overprint*/
@@ -1398,7 +1499,8 @@ void gp_cairo_enhanced_flush(plot_struct *plot)
 
 		pango_layout_set_font_description (current_layout, current_desc);
 		pango_font_description_free (current_desc);
-		pango_layout_get_extents(current_layout, &current_ink_rect, &current_logical_rect);
+		gp_cairo_layout_get_extents(current_layout, enhanced_text_utf8,
+			&current_ink_rect, &current_logical_rect);
 		g_clear_object (&current_layout);
 
 		/* calculate the distance to remove to center the overprinted text */
@@ -1427,7 +1529,8 @@ void gp_cairo_enhanced_flush(plot_struct *plot)
 		current_layout = gp_cairo_create_layout (plot->cr);
 		pango_layout_set_text (current_layout, gp_cairo_utf8, -1);
 		pango_layout_set_attributes (current_layout, gp_cairo_enhanced_AttrList);
-		pango_layout_get_extents(current_layout, &current_ink_rect, &current_logical_rect);
+		gp_cairo_layout_get_extents(current_layout, gp_cairo_utf8,
+			&current_ink_rect, &current_logical_rect);
 		g_clear_object (&current_layout);
 
 		/* we first compute the size of the text */
@@ -1443,7 +1546,8 @@ void gp_cairo_enhanced_flush(plot_struct *plot)
 		pango_layout_set_font_description (hide_layout, hide_desc);
 		pango_font_description_free (hide_desc);
 
-		pango_layout_get_extents(hide_layout, &hide_ink_rect, &hide_logical_rect);
+		gp_cairo_layout_get_extents(hide_layout, enhanced_text_utf8,
+			&hide_ink_rect, &hide_logical_rect);
 		g_clear_object (&hide_layout);
 
 		/* rect.y must be reworked to take previous text into account, which may be smaller */
@@ -1472,7 +1576,8 @@ void gp_cairo_enhanced_flush(plot_struct *plot)
 			plot->fontstyle ? PANGO_STYLE_ITALIC : PANGO_STYLE_NORMAL);
 		pango_layout_set_font_description (zerowidth_layout, zerowidth_desc);
 		pango_font_description_free (zerowidth_desc);
-		pango_layout_get_extents(zerowidth_layout, NULL, &zerowidth_logical_rect);
+		gp_cairo_layout_get_extents(zerowidth_layout, enhanced_text_utf8,
+			NULL, &zerowidth_logical_rect);
 		g_clear_object (&zerowidth_layout);
 
 		/* invert the size, so we will go back to the start of the string */
@@ -1608,10 +1713,8 @@ void gp_cairo_enhanced_finish(plot_struct *plot, int x, int y)
 	layout = gp_cairo_create_layout (plot->cr);
 
 	pango_layout_set_text (layout, gp_cairo_utf8, -1);
-
 	pango_layout_set_attributes (layout, gp_cairo_enhanced_AttrList);
-
-	pango_layout_get_extents(layout, &ink_rect, &logical_rect);
+	gp_cairo_layout_get_extents(layout, gp_cairo_utf8, &ink_rect, &logical_rect);
 
 	/* NB: See explanatory comments in gp_cairo_draw_text() */
 	baseline_offset = pango_layout_get_baseline(layout) / PANGO_SCALE;
@@ -1646,6 +1749,7 @@ void gp_cairo_enhanced_finish(plot_struct *plot, int x, int y)
 
 	cairo_set_source_rgba(plot->cr, plot->color.r, plot->color.g, plot->color.b,
 				1. - plot->color.alpha);
+
 	/* Inform Pango to re-layout the text with the new transformation */
 	pango_cairo_update_layout (plot->cr, layout);
 	pango_cairo_show_layout (plot->cr, layout);
