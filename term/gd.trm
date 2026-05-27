@@ -314,19 +314,19 @@ enum PNG_id {
  * Text, points, fills, polygons, and images all convert at the boundary. */
 
 /* Convert inflated terminal coordinate to pixel coordinate (integer) */
-#define GD_PX(c)  ((int)((c) / (double)GD_OVERSAMPLE + 0.5))
+#define GD_PX(c)  ((int)(((int)c) / (double)GD_OVERSAMPLE + 0.5))
 
 /* Convert inflated terminal coordinate to pixel coordinate (float) */
-#define GD_PXF(c) ((double)(c) / (double)GD_OVERSAMPLE)
+#define GD_PXF(c) ((double)((int)c) / (double)GD_OVERSAMPLE)
 
 /* Convert pixel coordinate to inflated terminal coordinate */
-#define GD_TERM(p) ((int)((p) * GD_OVERSAMPLE))
+#define GD_TERM(p) ((int)(((int)p) * GD_OVERSAMPLE))
 
 /* Y-flip in pixel space: converts inflated Y to pixel Y */
-#define GD_Y(y) ((int)(((double)png_state.height - (double)(y)) / GD_OVERSAMPLE + 0.5))
+#define GD_Y(y) ((int)(((double)png_state.height - (double)((int)y)) / GD_OVERSAMPLE + 0.5))
 
 /* Y-flip to pixel float */
-#define GD_YF(y) (((double)png_state.height - (double)(y)) / GD_OVERSAMPLE)
+#define GD_YF(y) (((double)png_state.height - (double)((int)y)) / GD_OVERSAMPLE)
 
 static int PNG_XMAX = GREG_XMAX;
 static int PNG_YMAX = GREG_YMAX;
