@@ -1,5 +1,5 @@
-C RCS $Id: gnuplot-ja.doc,v 1.829 2025-05-15 17:38:20+09 shige Exp $
-C corresponding original gnuplot.doc at 2025-05-15
+C RCS $Id: gnuplot-ja.doc,v 1.847 2026-05-07 16:35:49+09 shige Exp $
+C corresponding original gnuplot.doc at 2026-05-07
 C
 C Copyright (C) 1986 - 1993, 1998, 1999, 2000, 2001, 2004   Thomas Williams, Colin Kelley et al.
 C
@@ -27,20 +27,21 @@ C で書かれているが、それを HTML 名前参照形式に変更している。
 ^  James R. Van Zandt, Alex Woo, Johannes Zellner<br>
 ^</p>
 ^<p align="center">  Copyright (C) 1986 - 1993, 1998 - 2004   Thomas Williams, Colin Kelley<br>
-^     Copyright (C) 2004 - 2024 various authors</p>
+^     Copyright (C) 2004 - 2025 various authors</p>
 ^<p align="center">   Mailing list for comments: <tt>gnuplot-info@lists.sourceforge.net</tt><br>
 ^   Gnuplot <a href="http://www.gnuplot.info"> home page </a><br>
 ^      Issue trackers: &nbsp;
 ^<a href="https://sourceforge.net/p/gnuplot/bugs"> bugs </a> &nbsp;&nbsp;
 ^<a href="https://sourceforge.net/p/gnuplot/feature-requests"> feature requests </a>
 ^<p align="center"> This manual was originally prepared by Dick Crawford</p>
+^<p align="center"> Japanese translation supervised by Shigeharu Takeno (竹野 茂治)</p>
 ^<!-- end of titlepage -->
 C 行が長いのは、できればなんとかしたい
 2 著作権 (Copyright)
 ?copyright
 ?license
      Copyright (C) 1986 - 1993, 1998, 2004, 2007  Thomas Williams, Colin Kelley
-     Copyright (C) 2004-2024  various authors
+     Copyright (C) 2004-2025  various authors
 
  Permission to use, copy, and distribute this software and its
  documentation for any purpose with or without fee is hereby granted,
@@ -115,9 +116,29 @@ C 行が長いのは、できればなんとかしたい
                   Gershon Elber とその他の人々。
                Gnuplot 4.0 およびそれ以降のリリース:
                   この文書の先頭の寄与者 (contributors) の一覧参照。
+2 概要 (Overview)
+?overview
+?
+ この文書は、gnuplot の開発ブランチである Gnuplot 6.1 について記述して
+ います。それは、現在の安定リリース版の 6.0 が持つすべての機能をカバー
+ し、現在作業中の新しい機能や変更を含んでいます。「試験段階」と書かれた
+ 機能は、安定版に含まれる前に変更される可能性があります。
+
+ バージョン 6 での新しい機能については、以下参照: `new`。
+
+ バージョン 6.1 での開発中の機能については、以下参照: `development`。
+
+ 対話型描画ウィンドウでの作業中は、グラフ上のいずれかの場所で 'h' を打
+ つとホットキー (`hotkeys`) とマウス機能 (`mousing`) に関するヘルプを見
+ ることができます。
+
+ gnuplot のコマンドプロンプトからヘルプの任意の項目に入るには、`help`
+ に続けてその項目名を打ってください。`help ?` とすれば、現在有効な項目
+ のメニューが見られます。
+
 2 はじめに (Introduction)
 ?introduction
-?
+?overview introduction
  `gnuplot` は、ポータブルなコマンド入力方式のグラフユーティリティで、
  Linux, OS/2, MS Windows, macOS, その他多くのプラットホーム上で動作しま
  す。ソースコードには著作権がありますが、無料で配布されています (すなわ
@@ -155,14 +176,13 @@ C 行が長いのは、できればなんとかしたい
 
  コマンドは、複数行にまたがることができます。その場合は、最終行以外の
  全ての行の行末にバックスラッシュ (\) を書く必要があります。バックスラ
- ッシュは必ず各行 *最後* の文字でなくてはなりません。その結果としてバッ
- クスラッシュと、それに続く改行文字が存在しなかったかのように扱われます。
- つまり、改行文字がスペースの役をすることもありませんし、改行によってコ
- メントが終了することもありません。ですから複数行にまたがる行の先頭をコ
- メントアウトすると、そのコマンド全体がコメントアウトされることになりま
- す (以下参照: `comments`)。なお注意しますが、もし、複数行のコマンドの
- どこかでエラーが起きたとき、パーサはその場所を正確には指示することがで
- きませんし、また、正しい行に指示する必要もないでしょう。
+ ッシュは必ず各行の最後の空白以外の文字でなくてはなりません。その結果と
+ してバックスラッシュと、それに続く改行文字を存在しなかったかのように扱
+ います。バックスラッシュはコメントを終了しませんので、複数行にまたがる
+ 行の先頭をコメントアウトすると、そのコマンド全体をコメントアウトするこ
+ とになります (以下参照: `comments`)。複数行のコマンドでエラーが起きた
+ ときは、エラーメッセージに含まれる行番号は、最初の行に対応することに注
+ 意してください。
 
  このドキュメントにおいて、中括弧 ({}) は省略可能な引数を表すものとし、
  縦棒 (|) は、互いに排他的な引数を区切るものとします。`gnuplot` のキー
@@ -171,10 +191,6 @@ C 行が長いのは、できればなんとかしたい
  換えられるべきものを表します。多くの場合、オプションの引数には、それが
  省略されるとデフォルトの値が使用されます。しかし、これらの場合、必ずし
  も角括弧が中括弧で囲まれて書かれているわけではありません。
-
- ある項目についてのヘルプが必要なときには、`help` に続けてその項目名を
- 入力して下さい。または単に `help ?` でもヘルプの項目のメニューが現われ
- ます。
 
  大量のグラフサンプルが、以下の Web ページにあります。
 ^ <a href="http://www.gnuplot.info/demo/">
@@ -197,8 +213,6 @@ C 行が長いのは、できればなんとかしたい
  は以下を実行してください。
        gnuplot --help
 
- 対話型描画ウィンドウでの作業中は、'h' を打つとホットキー (`hotkeys`)
- とマウス機能 (`mousing`) に関するヘルプを見ることができます。
 2 探し出す手助け/バグ (Seeking-assistance / Bugs)
 ?help-desk
 ?faq
@@ -252,6 +266,7 @@ C 行が長いのは、できればなんとかしたい
 ?new version_6
 ?new
 ?version
+?overview new
  バージョン 6 は、遡ること 1986 年からの gnuplot 開発での最新メジャーリ
  リースです。それは、メジャーバージョン 5 (2015)、そしてその後のマイナ
  ーリリース 5.2 (2017), 5.4 (2020) に続くものです。開発は、SouceForge
@@ -392,10 +407,10 @@ D rank_sequence 1
 ## `convexhull`。その境界の曲線を滑らかにするには、
 ## "convexhull smooth path with filledcurves" を使って塗り潰し領域とし
 ## て描画することでできます。以下参照: `convexhull`。
-#b 試験的なフィルタ `concavehull` は、凸とは限らない、凹の度合を制御す
-## る特性長パラメータで決定されるχ-形状の、多角形のデータ境界を生成し
-## ます。これはデータ点の回りの本質的なしみを描画します。以下参照:
-## `concavehull`。
+#b フィルタ `concavehull` は、凸とは限らない、凹の度合を制御する特性長
+## パラメータで決定されるχ-形状の、多角形のデータ境界を生成します。
+## これはデータ点の回りの本質的なしみを描画します。
+## 以下参照: `concavehull`。
 #b pm3d 曲面や image 描画の選択した一部分のみを表示するようマスクするの
 ## に、凸包 (convex hull) や他の多角形 (polygon) を使用できます。新しい
 ## 描画スタイル `with mask` (マスクを定義) や、キーワード `mask` (その
@@ -487,36 +502,58 @@ D viridis 1
 
 3 多重描画モード (Multiplots)
 ?new multiplots
- 現在は、多重描画グラフ (multiplot) の生成時に実行したコマンドを、デー
- タブロック $GPVAL_LAST_MULTIPLOT に保存します。そしてこれは、新しいコ
- マンド `remultiplot` で再実行できます。保存したコマンドのうち再実行に
- 問題があるコマンドは、再実行はされません。再生成した多重描画グラフは、
- その間にグラフの設定 (軸の範囲や対数軸設定等) が変更されていれば、元の
- ものと完全に一致するとは限りません。
+ 多重描画グラフ (multiplot) の仕組みは、複数の plot, splot コマンドの出
+ 力を一つのページ、あるいは一つの画面に結合するのに使います。この仕組み
+ は、gnuplot 6.1 で、結合された画面に対する対話型マウス操作を可能にする
+ こと、および再描画に既に存在するコマンド `replot` か新しいコマンド
+ `remultiplot` を使うことを可能にすることを目的として再構築されています。
+ 多重描画グラフモードは、コマンド `set multiplot` で開始し、
+ `unset multiplot` でそれを閉じるまで続きます。
+#start
+#b コマンド `set multiplot` は現在の描画設定の状態を新しいデータブロッ
+## ク $GPVAL_PRE_MULTIPLOT に保存し、引き続くコマンドの新しいデータブロ
+## ック $GPVAL_LAST_MULTIPLOT への記録を開始します。
+#b `plot`, `splot` コマンドそれぞれは、多重描画グラフ内に新しいパネルを
+## 作ります。各パネルの位置、サイズ、軸の範囲、その他の属性を、後での利
+## 用のために保存します。
+#b `unset multiplot` 後に、上記の 2 つのコマンドデータブロックとパネル
+## 毎のデータが完結します。それらの内容は、その後の gnuplot のコマンド
+## では影響を受けません。対話型セッションではこの時点で多重描画グラフ全
+## 体をスクリーンに表示します。マウス操作では、保存したデータを使い、可
+## 能ならばパネル毎に適切な座標と視角を報告します。
+#b コマンド `replot` は $GPVAL_LAST_MULTIPLOT のコマンドを再実行します。
+## それは、元の描画設定の状態を再構成しようとはせず、よってその結果
+## は元の図を完全に復元したものにはならない可能性があります。これは、単
+## 一グラフに対する `replot` と同様で、`replot` コマンドを発行する前に、
+## 例えば塗りつぶしスタイルや軸範囲の位置などをあえて変更することで、そ
+## の新しい設定が再描画される図に影響を与えるようにできます。
+#b コマンド `remultiplot` は違います。これは $GPVAL_PRE_MULTIPLOT に保
+## 存したコマンドを読み込むことで、最初に元の描画設定の状態を再構成し、
+## その次に保存した multiplot コマンド列を再実行します。これにより、例
+## えば違う出力形式への出力でも、元の図を再現できるようになります。
+## `replot` とは違い、元の multiplot と remultiplot の間に行われた画面
+## 設定はほぼすべて失われます。
+#b `replot`, `remultiplot` のいずれの仕様もあなたが気にいらない場合は、
+## 以下のようなカスタマイズしたコマンド列を使用することも可能です。
+#end
 
- 以下のコマンド列は、元のグラフの状態と multiplot コマンドの両方をスク
- リプトファイルに保存し、後で再読み込みできるようにします。
+    load $GPVAL_PRE_MULTIPLOT    # 元の描画設定を復帰
+    set style fill transparent   # 設定を一つ変更
+    load #GPVAL_LAST_MULTIPLOT   # multiplot コマンド列を再実行
 
-      save "my_multiplot.gp"
-      set multiplot
-      ... (グラフ要素を生成するいくつかのコマンドが並ぶ) ...
-      unset multiplot
-      set print "my_multiplot.gp" append
-      print $GPVAL_LAST_MULTIPLOT
-      unset print
+ [試験段階] 詳細は変更の可能性あり。現時点でいくつかの制限あり。
 
 #start
-#b 試験段階: コマンド `replot` は、直近の plot コマンドが完了済みの
-## multiplot の一部分であるかどうかをチェックします。もしそうなら、単一
-## の plot コマンドを実行する代わりに `remultiplot` を実行します。
-#b 試験段階: 多重描画グラフを表示している間のマウス操作では、現在は
-## replot/refresh の要求を自動的に `remultiplot` として処理します。
-## しかし、マウス座標の読み出し、拡大/視点移動の操作は、以前の gnuplot
-## の版でそうだったように、最後の plot 要素に対する軸設定にのみ基づいて
-## 行われます。$GPVAL_LAST_MULTIPLOT に保存されるコマンドが、各 plot 要
-## 素に対する適切なグラフ設定を再生成するには不十分である可能性があるた
-## め、multiplot でのマウス操作は、あなたが望むようなものにはならないか
-## もしれません。これは今後改善されるかもしれません。
+#b 保存コマンドのうち再実行の際に問題になりそうなある種のコマンド、例え
+## ば `reset`, `pause`, 新しいデータブロックの定義などは、再実行しませ
+## ん。
+#b パネル毎に保存するデータは、非線形軸割り当てを解釈するには不十分です
+## ので、そのグラフは正しく表示されますが、マウス操作では座標を正しく表
+## 示できません。
+#b 一つの multiplot に対し最大 16 のパネルでマウス操作できます。
+## multiplot のパネル数が 16 より多い場合、追加パネルは正しく表示されま
+## すが、マウス操作は正しく行えません。
+## この制限は、今後改善されるでしょう。
 #end
 
 3 新しい出力形式とオプション (New terminals and terminal options)
@@ -541,6 +578,15 @@ D viridis 1
 ## 例えば、左/右/上/下矢印キーは、3 次元グラフでは視方向を変え、2 次元
 ## グラフでは視点移動/拡大の増分ステップを実行します。
 #end
+
+3 WebAssembly + WASI サポート (WebAssembly + WASI platform support)
+?WASI
+?WebAssembly
+ 今の configure スクリプトには、WASI API プロトコルを使用するランタイム
+ 環境と接続する、機種異存の WebAssembly バイトコード (Wasm) へ gnuplot
+ をクロスコンパイルするためのオプションがあります。
+      ./configure --host=wasm32-wasi --with-wasi-sysroot=${WASI}
+ さらなる説明は、ファイル INSTALL を参照してください。
 
 3 ウォッチポイント (Watchpoints)
 ?new watchpoints
@@ -578,6 +624,7 @@ D epi_data 1
 
 3 その他の新しい機能
 ?new other_features
+ バージョン 6.0 以降に追加された機能については、以下参照: `development`。
 #start
 #b `時間軸の主目盛りと副目盛り用の時間単位`
 ## 時間軸の主目盛りと副目盛りは、minutes/hours/days/weeks/months/years
@@ -706,6 +753,8 @@ D epi_data 1
 
 2 開発ブランチ (Development branch (version 6.1))
 ?development
+?overview 6.1
+?6.1
  バージョン 6.0 は最も最近の gnuplot 安定リリース版です。新しい機能の開
  発と破壊性を内在するソースコードの改変は、バージョン 6.1 と呼ばれる別な
  ブランチで行われています。開発ブランチのソースコードは、いつ何時でも変
@@ -729,30 +778,51 @@ D epi_data 1
 ## 共有していました。この制限は、現在では取り除かれています。境界の属性
 ## はグラフ毎、部品毎に指定できます。この変更は "set pm3d" が 3 次元多
 ## 角形と箱の境界に影響すると期待するすべてのスクリプトに影響を与えます。
-#b splot with contourfill at base
+## (6.0.3 に導入)
+#b splot `with contourfill at base` (6.0.3 に導入)
 #b 局所変数の実装の改良 (より速く、よりよく定義される通用範囲で) (6.0.2
 ## に導入)
-#b "linestyle variable"
-#b 3 次元面体に対する pm3d 色付け (例えば Delaunay モザイク曲面)。以下
-## 参照: `delaunay`。
-#b plot と splot に "using" の外で条件式を与える入力データフィルタ。例:
+#b plot と splot で描画する入力データを "using" の外の条件式でフィルタ
+## 可能に。例:
 ## `plot DATA using 2:3 with boxes if (stringcolumn(1) eq "ABC")`
+## (6.0.3 に導入)
 #b 以前外部スクリプト `gpsavediff` として配布してたものと同等の新しいコ
 ## マンド `save changes`。このコマンドは、今の gnuplot セッションの開始
 ## 時のプログラムの状態から、現在の状況を特徴付けるようなプログラムの設
-## 定、変数、関数のみを保存します。以下参照: `save changes`。
-#b より頑健なスレッド、エラー復帰による wxt 出力ドライバの改良
+## 定、変数、関数のみを保存します。以下参照: `save changes`。(6.0.3 に
+## 導入)
+#b より頑健なスレッド、エラー復帰による wxt 出力ドライバの改良 (6.0.3
+## に導入)
+#b 複素数値を出力するための新しい gprintf 書式指定子 %C と %Ci。
+## 以下参照: `gprintf complex`, `imaginary_i`。(6.0.4 に導入)
+#b gnuplot が提供する定義済み変数 I, Inf, Nan (6.0.4 に導入)
+#b "linestyle variable"
+#b 3 次元面体に対する pm3d 色付け (例えば Delaunay モザイク曲面)。以下
+## 参照: `delaunay`。
 #b 画像ファイルのデータ処理での gdlib の代用品
-#b 配列要素に渡る繰り返し `array A; for [e in A] { ... }` [試験段階]
 #b キーワード "sample" の非推奨
+#b 新しい数値演算 "prod" (累積的な積)。以下参照: `product`。(6.0.5)
+#TeX \newline
+##  例:     N! は prod [i=1:N] i で表現できます。
 #b "marks" と呼ぶ新しいグラフィカルな物体のカテゴリ。これは、複雑な記号
 ## を定義し、plot で利用できます。以下参照: `marks`。
+#b 以下参照: `escape sequences`。
+## 拡張文字列 ("enhanced") と 非拡張文字列 ("noenhenced") の両方の文字
+## 列内で Unicode エスケープシーケンスが使えます。部分文字列評価の際に
+## Unicode エスケープシーケンスを展開します。
+## 8 進エスケープシーケンスは丁度 3 桁の数字でなくてはいけません (6.0.5)
+#b パレット viridis と同族の名前付きパレット "magma"
+#b multiplot でのマウス操作。マウス座標の読み出しを multiplot のすべて
+## のパネルに提供します。視点移動/拡大/回転のマウス操作も任意のパネルに
+## 適用できます。
+## 以下参照: `new multiplots`。
 #end
 
 2 デモ、ネット上のサンプル (Demos and Online Examples)
 ?demos
 ?online examples
 ?examples
+?overview examples
  `gnuplot` の配布物の `demo` ディレクトリ内には、多くのサンプルが収めら
  れています。これらのサンプルの png, svg, canvas 出力形式による出力を、
  以下のネット上で見ることもできます:
@@ -765,6 +835,7 @@ D epi_data 1
 
 2 バッチ/対話型操作 (Batch/Interactive)
 ?batch/interactive
+?overview batch/interactive
  `gnuplot` は、バッチ処理形式、あるいは対話型のどちらの形式でも実行でき、
  それらを組み合わせることも可能です。
 
@@ -822,6 +893,7 @@ D epi_data 1
 ?canvas size
 ?canvas
 ?set term size
+?overview canvas size
 
  ここの文書で使用する "canvas" という用語は、グラフやそれに関連するラベ
  ルやタイトル、凡例などを配置するのに利用可能な描画領域全体を意味します。
@@ -856,6 +928,7 @@ D epi_data 1
 ?line-editing
 ?editing
 ?command-line-editing
+?overview command-editing
  コマンドラインでの編集機能とコマンドヒストリの機能は、外部の GNU
  readline ライブラリか外部の BSD libedit ライブラリ、または組み込まれて
  いる同等のもののいずれかを使ってサポートしています。この選択は、
@@ -966,8 +1039,16 @@ D epi_data 1
 ^<tr>    <td><tt>^R</tt></td>    <td>後方検索を開始</td></tr>
 ^</tbody>
 ^</table>
+
+ gnuplot へのコマンドラインを最初に読み込んだ時点、すなわちまだそれを解
+ 釈して実行する前の段階で、2 つの形式の単語の置換を行います。置換する文
+ 字列は、逆引用符 (バッククォート) 内のもの、または @ が頭についた文字
+ 列です。
+ 以下参照: `substitution`。
+
 2 コメント (Comments)
 ?comments
+?overview comments
  コメント記号 `#` は、コマンド行中のほとんどどこにでも書くことができま
  す。このとき `gnuplot` は、その行の残りの部分を無視します。ただし、記
  号 `#` は引用符内ではこの効果がありません。コメント行が '\' で終わって
@@ -977,6 +1058,7 @@ D epi_data 1
  `set datafile commentschars`。
 2 座標系 (Coordinates)
 ?coordinates
+?overview coordinates
 =axes
  コマンド `set arrow`, `set key`, `set label`, `set object` はグラフ上
  の任意の位置が指定できます。その位置は以下の書式で指定します:
@@ -1021,6 +1103,7 @@ D epi_data 1
  す。
 2 文字列データ (Datastrings)
 ?datastrings
+?overview datastrings
  データファイルには、ホワイトスペース (空白やタブ) を含まない任意の印字
  可能な文字列、あるいは 2 重引用符で囲まれた任意の文字列 (ホワイトスペ
  ースが含まれても良い)、のいずれかの形からなる文字列データを持たせるこ
@@ -1067,6 +1150,7 @@ D epi_data 1
 ?markup
 ?bold
 ?italic
+?overview markup
  多くの出力形式が、拡張文字列処理モード (enhanced text mode) をサポート
  しています。これは、文字列に追加の書式情報を埋めこみます。例えば "x^2"
  は x の自乗を、通常我々が見る上付きの 2 がついた形で書き出します。この
@@ -1203,31 +1287,58 @@ C  need @ in table, so end and restart the table !
 ?escape sequences
 ?enhanced text escape sequences
 ?unicode
- バックスラッシュ文字 \ は、1 バイト文字コード、または Unicode コードポ
- イントをエスケープするのに使います。
+ バックスラッシュ文字 \ は、単一文字を意味するエスケープシーケンスの開
+ 始意味します。
 
- \ooo の形式 (ooo は 8 進値の 3 文字) は、特定のフォントエンコード内の
- 文字コード番号を指し示すのに使えます。例えば、Adobe Symbol フォントは、
- 無限大の記号を 8 進 245 番で示すようなカスタムエンコードを使用します。
- これは、拡張文字列としてフォント名と文字コードを "{/Symbol \245}" のよ
- うに指定することで埋め込むことができます。これは主に PostScript 出力形
- 式で有用ですが、これは UTF-8 エンコーディングの処理は容易には行えませ
- ん。
+ \X の形式 (X は 1 文字) は、単一引用符内と二重引用符内では別の処理をし
+ ます。以下参照: `quotes`。非拡張文字テキスト (non-enhanced text) での
+ 単一引用符内の "\X" は文字通りに使用し、二重引用符内では、\n (改行) \r
+ (復帰) \t (タブ) 等の特別な文字以外の "\X" は "X" になります。
+
+ \ooo の形式 (ooo は 3 桁の 8 進数値) は、特定のフォントエンコード内の
+ 文字コード番号を指し示すのに使えます。これは PostScript 出力形式で最も
+ 有用ですが、それはそれが UTF-8 エンコーディングを簡単に処理できないか
+ らです。例えば、PostScript 出力は、歴史的な理由で Adobe Symbol フォン
+ トに依っていますが、それは無限大の記号を 8 進 245 番で示すようなカスタ
+ ムエンコードを使用しています。これは、拡張文字列 (enhanced text) とし
+ てフォント名と文字コードを "{/Symbol \245}" のように指定することで埋め
+ 込むことができます。この仕組みは、UTF-8 でないフォントやロケールでの文
+ 字アクセスについても有用かもしれません。
 
  \U+hhhh の形式の Unicode のコードポイントで文字を指定することができま
- す。ここで hhhh は 16 進値の 4 または 5 文字です。例えば、無限大の記号
+ す。ここで hhhh は 16 進数の 4 桁または 5 桁です。例えば、無限大の記号
  ∞のコードポイントは \U+221E です。これは、必要ならば出力時に UTF-8 の
  バイト列に変換されます。UTF-8 環境では、印字可能な特殊文字は他の文字と
  同様に文字列内で処理できるので、この仕組みは必要ありません。しかしこれ
  は結合文字や発音区別符号 (例えばベクトルを意味するための文字の上の矢印
- など) には有用です。以下参照: `set encoding`, `utf8`。または
-^ <a href="http://www.gnuplot.info/demo_5.4/unicode.html">
+ など) には有用です。以下参照: `utf8`, `string encoding`。または
+^ <a href="http://www.gnuplot.info/demo/unicode.html">
  オンラインユニコードデモ
 ^ </a>
  を参照。
 
+ Unicode のコードポイントは 4 桁か 5 桁になるので、書式があいまいになる
+ 可能性があり、4 桁のエスケープシーケンスの直後に文字がつく場合は、それ
+ を 5 桁のエスケープシーケンスと間違って解釈するかもしれません。そのよ
+ うな場合は、エスケープシーケンスとそれに続く文字を明確に分離する必要が
+ あります。
+      例:  以下のラベルを作成 "α1 + α2"
+      拡張文字列:    set label "{\U+03B1}1 + {\U+03B1}2"   enhanced
+      非拡張文字列:  set label "\U+03B1\1 + \U+03B1\2"   noenhanced
+
+ Unicode エスケープコードは、解釈されずに文字列に保存されることに注意し
+ てください。エスケープコードは、その文字列が出力されるか部分文字列処理
+ の評価の際に、それが示す文字に置き換えます。よって、文字列
+ S = "A + \U+03A3 B" の定義後では、S[5:5] は "\" でなく "Σ" と評価しま
+ すが、(S eq S[1:*]) は FALSE と評価します。それは、S には処理されてい
+ ないエスケープシーケンス自身が含まれるのに対し、S[1:*] の評価の際には
+ エスケープシーケンスが Σ に対する UTF-8 のバイト列に置き換わるからで
+ す。plot で使用する際は、S と S[1:*] のどちらも "A + Σ B" と表示され
+ ます。
+
 2 環境変数 (Environment)
 ?environment
+?overview environment
  `gnuplot` は多くのシェル環境変数を認識します。必須のものはありません。
 
  GNUTERM は、それが定義されていれば、起動時に "set term" に渡されます。
@@ -1278,6 +1389,7 @@ C  need @ in table, so end and restart the table !
 2 式 (Expressions)
 ?expressions
 ?division
+?overview expressions
  基本的には C, FORTRAN, Pascal, BASIC において利用可能な数学表現を使用
  できます。 演算子の優先順位は C 言語の仕様に従います。数式中の空白文字
  とタブ文字は無視されます。
@@ -1427,8 +1539,8 @@ Ffigure_E0
 ^<tr>    <td>EllipticK(k)</td>    <td>(-1:1) 内の実数 k</td>    <td><i>K(k)</i> 第 1 種完全楕円積分</td></tr>
 ^<tr>    <td>EllipticE(k)</td>    <td>[-1:1] 内の実数 k</td>    <td><i>E(k)</i> 第 2 種完全楕円積分</td></tr>
 ^<tr>    <td>EllipticPi(n,k)</td>    <td>実数 n&lt;1, (-1:1) 内の実数 k</td>    <td> &Pi;(<i>n,k</i>) 第 3 種完全楕円積分</td></tr>
-^<tr>    <td>erf(x)</td>    <td>任意</td>    <td>erf(Re(<i>x</i>)), <i>x</i> の実部の誤差関数</td></tr>
-^<tr>    <td>erfc(x)</td>    <td>任意</td>    <td>erfc(Re(<i>x</i>)), 1.0 - (<i>x</i> の実部の誤差関数)</td></tr>
+^<tr>    <td>erf(x)</td>    <td>実数</td>    <td>erf(Re(<i>x</i>)), <i>x</i> の実部の誤差関数</td></tr>
+^<tr>    <td>erfc(x)</td>    <td>実数</td>    <td>erfc(Re(<i>x</i>)), 1.0 - (<i>x</i> の実部の誤差関数)</td></tr>
 ^<tr>    <td>exp(x)</td>    <td>任意</td>    <td><i>e<sup>x</sup></i>, <i>x</i> の指数関数</td></tr>
 ^<tr>    <td>expint(n,x)</td>    <td>任意</td>    <td><i>E<sub>n</sub></i>(<i>x</i>), <i>x</i> の指数積分</td></tr>
 ^<tr>    <td>floor(x)</td>    <td>任意</td>    <td>&lfloor;<i>x</i>&rfloor;, <i>x</i> (の実部) 以下の最大の整数</td></tr>
@@ -1621,7 +1733,8 @@ C マーカを doc2html へのこのシグナルとして使用します。
 %airy(x)@ 実数 @実数 x に対するエアリー関数 Ai(x)
  関数 `airy(x)` は、エアリー (Airy) 関数 Ai(x) の値を返します。関数
  Ai(x) は、微分方程式 y'' - x y = 0 の、実数全体で有界な解です。引数が
- 複素数の場合、その虚数部分は無視されます。
+ 複素数の場合、虚数部分は無視します。複素エアリー関数については、
+ 以下参照: `Ai`。
 4 arg
 ?expressions functions arg
 ?arg
@@ -1787,17 +1900,17 @@ C ?expressions functions ceil
 4 erf
 ?expressions functions erf
 ?erf
-#erf(x) & ~~ & ~ & $\mbox{erf}(\mbox{real}(x))$,  $x$ の 実部の誤差関数\\
-%erf(x)@ ~~ @$erf ( roman real (x))$, $x$ の実部の誤差関数
- 関数 `erf(x)` は引数の実部の誤差関数の値を返します。引数が複素数の場合
- は虚部は無視されます。以下参照: `cerf`, `erfc`, `inverf`, `norm`。
+#erf(x) & 実数 & ~ & $\mbox{erf}(\mbox{real}(x))$,  $x$ の 実部の誤差関数\\
+%erf(x)@ 実数 @$erf ( roman real (x))$, $x$ の実部の誤差関数
+ 関数 `erf(x)` は引数の実部の誤差関数の値を返します。引数が複素数の場合、
+ 虚数部分は無視します。以下参照: `cerf`, `erfc`, `inverf`, `norm`。
 4 erfc
 ?expressions functions erfc
 ?erfc
-#erfc(x) & ~~ & ~ & $\mbox{erfc}(\mbox{real}(x))$,  1.0 - ($x$ の実部の誤差関数) \\
-%erfc(x)@ ~~ @$erfc ( roman real (x))$, 1.0 - ($x$ の実部の誤差関数)
+#erfc(x) & 実数 & ~ & $\mbox{erfc}(\mbox{real}(x))$,  1.0 - ($x$ の実部の誤差関数) \\
+%erfc(x)@ 実数 @$erfc ( roman real (x))$, 1.0 - ($x$ の実部の誤差関数)
  関数 `erfc(x)` は 1.0 から、引数の実部の誤差関数の値を引いたものを返し
- ます。引数が複素数の場合は虚部は無視されます。以下参照: `cerf`, `erf`,
+ ます。引数が複素数の場合、虚数部分は無視します。以下参照: `cerf`, `erf`,
  `inverf`, `norm`。
 4 exp
 ?expressions functions exp
@@ -1822,7 +1935,7 @@ C ?expressions functions floor
 #gamma(x) &  ~~  & ~ & $\Gamma(x)$, $x$ の実部のガンマ関数\\
 %gamma(x)@ ~~ @$GAMMA ( roman real (x))$, $x$ の実部のガンマ関数
  関数 `gamma(x)` は引数の実部のガンマ関数の値を返します。整数 n に対し
- ては gamma(n+1) = n! です。引数が複素数の場合、虚数部分は無視されます。
+ ては gamma(n+1) = n! です。引数が複素数の場合、虚数部分は無視します。
  複素引数に関しては、以下参照: `lnGamma`。
 ??
 C C 4 ibeta
@@ -1886,8 +1999,8 @@ C C 4 invigamma
 #lgamma(x) & 実数 & ~ & 実数 $x$ に対する $\ln\Gamma(x)$ (ガンマ対数関数) \\
 %lgamma(x)@実数@実数 $x$ に対する lgamma 関数 (ガンマ対数関数)
  関数 `lgamma(x)` は引数の実部のガンマ関数値の自然対数の値を返します。
- 引数が複素数の場合、虚部は無視されます。複素数には lnGamma(z) を使用し
- てください。
+ 引数が複素数の場合、虚部は無視します。複素数には lnGamma(z) を使用して
+ ください。
 4 lngamma
 #lnGamma(x) & 複素数 & \gpCX & 複素平面全体で正当な $\ln\Gamma(x)$ \\
 %lnGamma(x)@複素数@複素平面全体で正当な lgamma 関数
@@ -1940,7 +2053,7 @@ C ?expressions functions round
 #sgn(x) &  ~~  & ~ & $x>0$ なら 1, $x<0$ なら -1, $x=0$ なら 0 (虚部は無視) \\
 %sgn(x)@ ~~ @$x>0$ なら 1, $x<0$ なら -1, $x=0$ なら 0 (虚部は無視)
  関数 `sgn(x)` は引数が正なら 1 を、負なら -1 を、0 ならば 0 を返します。
- 引数が複素数の場合虚部は無視されます。
+ 引数が複素数の場合、虚数部分は無視します。
 4 Sign
 #Sign(x) & 複素数 & \gpCX & $x = 0$ なら 0、それ以外は $x/|x|$ \\
 %Sign(x)@複素数@$x = 0$ なら 0、それ以外は $x/|x|$
@@ -2051,9 +2164,12 @@ C C 4 zeta
 ?expressions functions erfi
 ?erfi
 %erfi(x)@実数@虚誤差関数 erfi(x) = -i * erf(ix)
-#erfi(x)&実数&~&虚誤差関数 $erf(x) = -i * erf(ix)$ \\
+#erfi(x)&実数&~&虚誤差関数 $erfi(x) = -i * erf(ix)$ \\
  虚誤差関数 erfi(x) = -i * erf(ix)
- 外部ライブラリ libcerf が必要です。
+ `erfi(x)` は実引数の虚誤差関数値を返します。引数が複素数の場合は虚数部
+ 分は無視します。複素数引数の複素誤差関数値が必要なら、関数を
+ cerfi(z) = -I * cerf(I*z) と定義して使用してください。
+ 外部ライブラリ libcerf が必要です。以下参照: `libcerf`, `cerf`。
 ??
 C C 4 FresnelC
 %FresnelC(x)@実数@ C(x) = integral[0;x] cos(pi/2 t^2)dt
@@ -2127,12 +2243,15 @@ C C 4 FresnelS
 %_
 4 gprintf
 ?expressions functions gprintf
-#gprintf("format",x,...) & 任意 & gnuplot の書式解析器を適用した結果の文字列 \\
-%gprintf("format",x,...)@任意@gnuplot の書式解析器を適用した結果の文字列 \\
- `gprintf("format",x)` は、gnuplot 独自の書式指定子に一つの変数 x を適
- 用し、その結果の文字列を返します。標準的な C 言語書式指定子を使いたい
- 場合は、代わりに `sprintf("format",x)` を使う必要があります。
- 以下参照: `format specifiers`。
+?gprintf
+#gprintf("format",x) & 任意 & gnuplot の書式解析器を適用した結果の文字列 \\
+%gprintf("format",x)@任意@gnuplot の書式解析器を適用した結果の文字列 \\
+ 文字列関数 gprintf("format",x) は gnuplot 独自の書式指定子を使用し、そ
+ れは C 言語の sprintf() ルーチンで使われるものとは同じではありません。
+ gprintf() は書式化する一つの数値変数のみを受けつけ、その結果の文字列を
+ 返します。以下参照: `format_numeric`。
+ gnuplot は sprintf("format",x1,x2,...) ルーチンも提供するので、好い分
+ けてください。
 4 sprintf
 ?expressions functions sprintf
 ?sprintf
@@ -2386,7 +2505,7 @@ C C 4 weekdata_cdc
 #palette(z) & 実数 & z に割り当てられた 24 ビット RGB パレット色 \\
 %palette(z)@実数@z に割り当てられた 24 ビット RGB パレット色
  `palette(z)` は cbrange の現在の範囲で z に割り当てられるパレット色の
- 24 ビット RGB 表現を返します。
+ 24 ビット RGB 表現を返します。以下参照: `set palette`。
 4 rgbcolor
 ?expressions functions rgbcolor
 ?rgbcolor
@@ -2644,6 +2763,9 @@ C C 4 weekdata_cdc
 #TeX ($\lessapprox 0.05$)
  invibeta() は 1.0 に近づくので、その相対精度は浮動小数精度に制限される
  ことに注意してください。
+C TeX での \lessapprox は、現在の original document では U+2272
+C に置き換えられた。EUC-JP では表現できないので、とりあえず #TeX の
+C コードを残しておく。
 
 4 LambertW
 ?expressions functions LambertW
@@ -2747,6 +2869,7 @@ C C 4 weekdata_cdc
  1 秒未満の秒数は、どんな場合でも tm_sec() からは取得できないことに注意
  してください。各要素には、以下の関数を利用して個別にアクセスできます。
 #start
+#0
 #b `tm_hour(t)` 整数 0--23 の範囲の時間
 #b `tm_mday(t)` 整数 1--31 の範囲のその月の日
 #b `tm_min(t)`  整数 0--59 の範囲の分
@@ -3367,6 +3490,9 @@ C ... and restart the table:
 ?user-defined variables
 ?user-defined
 ?variables
+?Inf
+?NaN
+?pi
  新たなユーザ定義変数と 1 個から 12 個までの引数を持つユーザ定義関数を、
  任意の場所で定義したり使ったりすることができます。それは `plot` コマン
  ド上でも可能です。
@@ -3402,12 +3528,13 @@ C ... and restart the table:
 
 =NaN
 =pi
- 変数 `pi` (3.14159...) と `NaN` (IEEE 非数 ("Not a Number")) はあらか
- じめ定義されています。これらが必要なければ、他のものに再定義することも
- 可能ですし、以下のようにして元の値に復帰することもできます:
+=Inf
+ 変数 `pi` (3.14159...), `Inf` (無限大) と `NaN` (IEEE 非数
+ ("Not a Number")) は、プログラムの起動時に定義されます。これらが必要な
+ ければ、他のものに再定義することも可能ですし、`reset session` か以下の
+ ようにして元の値に復帰することもできます:
 
-       NaN = GPVAL_NaN
-       pi  = GPVAL_pi
+       pi  = GPVAL_pi;  Inf = GPVAL_Inf;  NaN = GPVAL_NaN
 
  他にもいくつかの変数が、例えば対話型入出力形式でのマウス操作や当てはめ
  (fit) などの gnuplot の動作状態に応じて定義されます。詳細は
@@ -3528,6 +3655,7 @@ C ... and restart the table:
 
 2 フォント
 ?fonts
+?overview fonts
  gnuplot それ自身にはどんなフォントも含まれてはおらず、外部フォント処理
  に頼っているだけで、その細部は悲しいことに出力形式毎に異なります。ここ
  では、複数の出力形式に適用されるフォント機構について説明します。ここに
@@ -3563,9 +3691,9 @@ C ... and restart the table:
       set term pdfcairo font "Times-New-Roman,12"
 
 3 gd (png, gif, jpeg, sixel terminals)
-?gd
 ?fonts gd
 =fonts
+=libgd
 =png
 =jpeg
 =gif
@@ -3671,6 +3799,7 @@ C ... and restart the table:
 ?data inline
 ?datablocks
 ?data datablocks
+?overview inline data
  gnuplot のコマンド入力の中にデータを埋め込む仕組みは 2 種類用意されて
  います。まず、特殊ファイル名 '-' が plot コマンド中に与えると、その
  plot コマンド以下に続く行がインラインデータと解釈されます。以下参照:
@@ -3693,6 +3822,11 @@ C ... and restart the table:
  要があります。データの終わりの区切り (上の例では EOD) は、任意のアルフ
  ァベット、数字からなる文字列で構いません。
 
+ データブロックは、文字列の配列のように振舞い、それにより任意の 1 行を
+ 取り出したり置き換えたりできます。例えば、存在するデータブロックの最初
+ の行をコメント行で入れ替える例:
+      $Mydata[1] = "# Last plotted " . time("%d-%m-%Y %H:%M:%S")
+
  データブロック定義は、繰り返しや if/else/while 条件のかっこの内部には
  置くことはできません。
 
@@ -3705,6 +3839,7 @@ C ... and restart the table:
 2 繰り返し (iteration)
 ?iteration
 ?iterate
+?overview iteration
 Ffigure_newsyntax
  gnuplot は、繰り返し (iteration) コマンドやブロック構造を扱うための
  if/else/while/do をサポートしています。以下参照: `if`, `while`, `do`。
@@ -3727,17 +3862,11 @@ Ffigure_newsyntax
 
       for [<var> in "string of N elements"]
       for [<var> = <start> : <end> { : <increment> }]
-      for [<var> in Array]
 
  最初の書式では <var> は文字列変数で、その後ろに指定した文字列に含まれ
  る 1 番目から N 番目までの単語文字列を順に値として取ります。
  2 番目の書式では、<start>, <end>, <increment> は整数、または整数値を取
  る数式です。
-
- 3 番目の書式では <var> は配列 Array の要素を順番に取りますが、要素が数
- 値であるか文字列であるかは考慮しません。未定義要素は、黙ってスキップし
- ます。配列要素に渡る繰り返しは試験段階です (詳細は、gnuplot の安定リリ
- ース版が出るまえに変更されるかもしれません)。
 
 =scope
  繰り返し変数の有効範囲 (scope) は、その繰り返しの中だけです。以下参照:
@@ -3753,6 +3882,7 @@ Ffigure_newsyntax
 2 線種、色、スタイル (linetypes)
 ?linetypes
 ?colors
+?overview linetypes
  とても古い版の gnuplot では、各出力形式は "線種 (linetype)" をある程度
  用意していて、それらは色、太さ、点線/破線のパターン、または色と点線/破
  線の組合せで違いを表現していました。それらの色、点線/破線のパターンは、
@@ -4023,7 +4153,19 @@ Ffigure_newsyntax
 =bgnd
 =background
 =black
- 特別な (数値ではない) 線種 (linetype) がいくつか用意されています。
+ 2 つの特別な数値の線種 (linetype) には知る価値があります。これらは、
+ `set linetype` では変更できません。
+
+ 線種 0 は、出力形式に依存する線種で、gnuplot が軸と格子線を描くときの
+ デフォルトとして使用します。以下参照: `zeroaxis`, `grid`。それは、出力
+ 形式がサポートしていれば、常に点線になります。個別の破線属性をサポート
+ していない出力形式では、これが点線を得るための唯一の方法でしょう。
+
+ 線種 -1 は、基本の線種です。これは、幅 1.0 の、前景色 (通常黒) の実線
+ に対応します。gnuplot は、多くの描画要素 (描画境界、ラベル、文字列、矢)
+ の描くときのデフォルトとして使用します。
+
+ gnuplot は、いくつか数値でない線種も認識します。
 
  `lt black` は、黒い実線を意味します。
 
@@ -4045,6 +4187,7 @@ Ffigure_newsyntax
 ?behind
 ?front
 ?back
+?overview layers
  gnuplot のグラフは、色々な要素を固定された順番で描き上げていくことで構
  成されています。この順番は、キーワード `behind`, `back`, `front` を使
  って要素に特定の階層を割り当てることで変更できます。例えば、グラフ領域
@@ -4074,6 +4217,7 @@ Ffigure_newsyntax
 #TeX \newpage
 2 マーク (marks)
 ?marks
+?overview marks
  バージョン 6.1 では、新しいオブジェクトクラス `marks` (マーク) を導入
  しました。これは、線や多角形で構成されるユーザ定義の形状です。マークは、
  長方形や円などの既存のオブジェクト型と同様に `set object mark` で個々
@@ -4141,7 +4285,7 @@ Ffigure_newsyntax
 
  ファイルやデータブロックで与える書式の例については、以下参照:
  `marks examples annotation`, `marks examples windbarbs`。
-#TeX \newpage
+
 3 マークの例 (Marks examples)
 ?marks examples
  以下の例は、マークに使用できる色々な方法を示しています。
@@ -4228,6 +4372,7 @@ Ffigure_markscatter1
  しない場合、それは `set style fill` の大域的な属性を継承することを示し
  ています。fillcolor を指定しない場合、それはデフォルトの plot 色の列に
  従います。
+#TeX \vspace{1.1cm}
 
       set object 1 rectangle from graph 0,0 to graph 1,1
       set object 1 fillstyle solid fc "gray" behind
@@ -4242,6 +4387,7 @@ Ffigure_markscatter1
 Ffigure_markscatter2
  2 つ目のグラフは、塗り潰し色 (fillcolor) と線描色の両方を指定したもの
  です。そのため、keyentry が異なる塗り潰し色用に必要です。
+#TeX \vspace{1.5cm}
 
       set style fill solid
       plot $setosa     with marks mt 1 ps 1.5 lw 2 notitle \
@@ -4343,7 +4489,6 @@ Ffigure_windbarbs
  windbarbs.dem
 ^ </a>
 D windbarbs 1
-
       #
       # 5, 25, 50 ノットの風力を示す風向風力記号
       # 5 列の plot コマンドで一定の大きさで回転させる
@@ -4457,6 +4602,7 @@ Ffigure_parametric_marks
 #TeX \newpage
 2 マウス入力 (mouse input)
 ?mouse input
+?overview mouse
  多くの出力形式で、現在の描画にマウスを使って作用をすることが可能になっ
  ています。そのうちいくつかはホットキーの定義もサポートしていて、マウス
  カーソルが有効な描画ウィンドウにあるときに、あるキーを押すことであらか
@@ -4597,6 +4743,7 @@ Ffigure_parametric_marks
  以下参照: `gnuplot-defined variables`。
 2 残留 (Persist)
 ?persist
+?overview persist
  gnuplot の多くの出力形式 (aqua, pm, qt, x11, windows, wxt, ...) が、ス
  クリーン上にグラフをその中に描いた表示用のウィンドウを別に開きます。オ
  プション `persist` は、主たるプログラムが終了したときにも、それらのウ
@@ -4622,6 +4769,7 @@ Ffigure_parametric_marks
 
 2 描画 (Plotting)
 ?plotting
+?overview plotting
  `gnuplot` にはグラフを描画する 4 つのコマンド `plot`, `splot`, `replot`,
  `refresh` があります。他のコマンドは、最終的にグラフ上に生成される描画
  要素や、レイアウト、スタイルの制御を行います。
@@ -4669,6 +4817,7 @@ Ffigure_parametric_marks
  次元描画にのみ可能であることを除けば `plot` と全く同じです。
 2 プラグイン (Plugins)
 ?plugins
+?overview plugins
  グラフや数式に利用できる関数群は、共有ライブラリから実行可能な関数を取
  り込むプラグインの仕組みにより拡張できます。例えば、gnuplot のバージョ
  ン 5.4 では、上方不完全ガンマ関数 Q(a,x) は組み込み関数としては実装し
@@ -4699,6 +4848,7 @@ C 変数の有効範囲 (スコープ) (Scope of variables)
 2 Scope of variables
 ?scope
 ?variables local
+?overview scope
 =local
 =global
  gnuplot の変数は、以下に示す特別な場合を除いては大域的 (global) です。
@@ -4740,6 +4890,7 @@ C 変数の有効範囲 (スコープ) (Scope of variables)
 ?initialization
 ?.gnuplot
 ?gnuplotrc
+?overview startup
  起動時に、gnuplot はまずシステム用の初期設定ファイル `gnuplotrc` を探
  します。そのファイルの置き場所は gnuplot のインストール時に決定され、
  `show loadpath` で知ることができます。次にユーザのホームディレクトリ内
@@ -4752,6 +4903,7 @@ C 変数の有効範囲 (スコープ) (Scope of variables)
 2 文字列定数、文字列変数、文字列関数 (Strings)
 ?string
 ?strings
+?overview strings
  文字列定数に加えて、ほとんどの gnuplot コマンドは文字列変数、文字列式
  または文字列を返す関数も受け付けます。例えば、以下の 4 つの plot のや
  り方は結果として全て同じ描画タイトルを生成します:
@@ -4935,6 +5087,7 @@ C 変数の有効範囲 (スコープ) (Scope of variables)
 ?syntax
 ?specify
 ?punctuation
+?overview syntax
  リストや座標がコンマ (,) 区切りであるのに対し、オプションやそれに伴う
  パラメータはスペース ( ) 区切りです。範囲はコロン (:) で区切ってかぎか
  っこ ([]) でくくりますし、文字列やファイル名は引用符でくくり、他にいく
@@ -4977,40 +5130,33 @@ C 変数の有効範囲 (スコープ) (Scope of variables)
  引用符 (ASCII コード 39 番)、および逆引用符 (｀) (ASCII コード 96 番)
  の 3 種類の引用符を使います。
 
- ファイル名は単一引用符、あるいは二重引用符内で囲みます。このマニュアル
- では一般にコマンドの例示では、わかりやすくするためにファイル名は単一引
- 用符でくくり、他の文字列は二重引用符でくくります。
-
+ ファイル名は単一引用符、あるいは二重引用符内で囲みます。
  見出し (label)、タイトル (title)、またはその他の描画要素で使用される文
- 字列定数や複数行文字列は単一引用符、あるいは二重引用符内で囲みます。引
- 用符で囲まれた文字列のさらなる処理の結果は、どの引用符記号を選ぶかによ
- って変わります。
+ 字列定数や複数行文字列は、単一引用符、あるいは二重引用符内で囲みます。
+ 引用符で囲まれた文字列のさらなる処理の結果は、どの引用符記号を選ぶかに
+ よって変わります。
 
- \n (改行) や \345 (8 進表記の文字コード) のようなバックスラッシュ (\)
- による特殊文字表現は、2 重引用符内の文字列でのみ効力を持ちます。単一引
- 用符内では、バックスラッシュ自体が通常の文字と見なされます。単一引用符
- 内の文字列で単一引用符自体 (ASCII コード 39 番) を使うには、それを重ね
- て書く必要があります。つまり、文字列 "d\" s' b\\" と、'd" s'' b\' は完
- 全に同じものとなります。
-
- 1 つの複数行文字列に関する行揃えは各行に同等に働きます。よって、中央に
- 行揃えされた文字列
-       "This is the first line of text.\nThis is the second line."
- は次のように表示されます:
-                        This is the first line of text.
-                           This is the second line.
- しかし
-       'This is the first line of text.\nThis is the second line.'
- だと次のようになります。
-           This is the first line of text.\nThis is the second line.
-
- 拡張文字列処理 (enhanced text processing) は二重引用符に対しても単一引
- 用符に対しても機能します。以下参照: `enhanced text`。
+ 単一引用符文字列と二重引用符文字列の違いは以下の通り。
+#start
+#b 特殊文字 \n (改行), \r (復帰), \t (タブ) のバックスラッシュ (\) 処理
+## は、2 重引用符内の文字列でのみ処理されます。
+#b 単一引用符内では、バックスラッシュ自体が通常の文字と見なされます。単
+## 一引用符文字列内で単一引用符自体を使うには、重ねて書いてください。つ
+## まり、文字列 "d\" s' b\\" と、'd" s'' b\' は全く同じになります。
+#b Unicode エスケープシーケンス \U+xxxx は、単一引用符内でも二重引用符
+## 内でも処理します。
+#b 拡張文字列 (enhanced text) 処理は、単一引用符文字列でも二重引用符文
+## 字列でも利用できます。
+#b 単一引用符内の 8 進エスケープシーケンス \ooo は、拡張文字列処理
+## (enhanced text) が有効な場合のみ処理します。二重引用符内の 8 進エス
+## ケープシーケンスは、常に処理します。
+#end
 
  逆引用符は,コマンドライン中の置換のためにシステムコマンドを囲むのに使
  います。以下参照: `substitution`。
 2 時間/日付データ (Time/Date)
 ?time/date
+?overview time/date
  `gnuplot` は入力データとして時間/日付情報の使用をサポートしています。
  この機能は `set xdata time`, `set ydata time` などのコマンドによって有
  効になります。
@@ -5086,6 +5232,7 @@ C 変数の有効範囲 (スコープ) (Scope of variables)
 2 ウォッチポイント (Watchpoints)
 ?watchpoints
 ?watch
+?overview watchpoints
  ウォッチポイントは、あなたが使用する gnuplot が configure 時にオプショ
  ン --enable-watchpoints をつけて作られた場合にのみサポートされます。こ
  の機能は試験段階です (詳細は、今後の版で変更される可能性があります)。
@@ -5198,7 +5345,7 @@ Ffigure_watchpoints
 
       Line(x,y) = (a*x + b) - y
       plot cos(x) watch Line(x,y)=0,   a*x + b
- 
+
  評価の際に、対応する点の x, y, z の値は、それらが名前付きパラメータで
  あるかどうかに係わらず、その関数に対して有効なので、以下の変種も上の例
  と同じ結果を産みます。
@@ -5222,6 +5369,7 @@ Ffigure_watch_contours
 
  以下の例は、描画領域を横断する直線を選択し、そして等高線ラベルは、等高
  線がその一つの直線を横切る場所にのみ配置します。
+ 完全に機能する例は、デモ `watch_contours.dem` を参照してください。
 
       set style watchpoint labels center nopoint font ",9"
       set style textbox noborder opaque margins 0.5, 0.5
@@ -6066,10 +6214,10 @@ Ffigure_polar_grid
  じパターンで与えられます; しかし、以下も参照: `histograms colors`。
 
  箱の固まりそれぞれは、データファイルの 1 つの行から得られます。そのよ
- うな入力ファイルの各行の最初の項目が見出し (ラベル) でることは良くある
- ことです。その列にある見出し (ラベル) は、`using` に `xticlabels` オプ
- ションをつけることで、それに対応する箱の固まりの真下の x 軸に沿ったと
- ころに置くことができます。
+ うな入力ファイルの各行の最初の項目が見出し (ラベル) であることは良くあ
+ ることです。その列にある見出し (ラベル) は、`using` に `xticlabels` オ
+ プションをつけることで、それに対応する箱の固まりの真下の x 軸に沿った
+ ところに置くことができます。
 
  `errorbars` スタイル は、各エントリに対して追加の入力列を必要とする以
  外は `clustered` スタイルにとても良く似ています。最初の列は、
@@ -6513,6 +6661,7 @@ D argb_hexdata 2
  例:
        plot 'data' with image pixels
 
+#TeX \newpage
 2 impulses
 ?plotting styles impulses
 ?style impulses
@@ -6585,6 +6734,49 @@ Ffigure_labels2
 
    plot $Data using 1:2:3:4:5 with labels tc variable rotate variable
 
+ `splot with labels` のとても特別な例があります。等高線付けが有効な場合
+ `with labels` での描画は、標準的な文字ラベルでなく、自動生成した数値を
+ 等高線に沿って配置します。以下参照: `labels contours`。
+
+3 labels contours
+?with labels contours
+?labels contours
+Ffigure_contour_labels
+ 等高線付けが有効な場合、`with labels` での描画は、自動生成した数値を等
+ 高線に沿って配置します。自動生成した数値に加えて、通常の文字ラベルを配
+ 置したい場合は、キーワード `nocontours` を追加しなければいけません。
+ 以下参照: `set cntrlabel`。
+
+ 例:
+
+    $LABELS << EOD
+       0 0 "Text A"
+       1 1 "Text B"
+    EOD
+
+    set contours
+    set view map
+    unset key
+    g(x,y) = x**2 + y**2 * (1 - x)**3
+    set xrange [-1:4]; set yrange [-3:3]
+    set cntrparam levels incremental -20,10,20
+    set cntrlabel onecolor
+    set style textbox opaque
+    splot g(x,y) with lines nosurface, \
+          g(x,y) with labels font "Times,10" boxed, \
+          $LABELS using 1:2:(0):3 with labels nocontours
+    set view map
+    unset key
+    g(x,y) = x**2 + y**2 * (1 - x)**3
+    set xrange [-1:4]; set yrange [-3:3]
+    set cntrparam levels incremental -20,10,20
+    set cntrlabel onecolor
+    set style textbox opaque
+    splot g(x,y) with lines nosurface, \
+          g(x,y) with labels font "Times,10" boxed, \
+          $LABELS using 1:2:(0):3 with labels nocontours
+
+#TeX \newpage
 2 lines
 ?plotting styles lines
 ?style lines
@@ -6764,9 +6956,6 @@ Ffigure_mask
  内にあります。
 
  ここには示しませんが、一つのマスクが複数の多角形領域を含み得ます。
-
- マスキングコマンドは試験段階です。詳細は、将来のリリースで変更されるか
- もしれません。
 
 2 parallelaxes
 Ffigure_parallel
@@ -7224,7 +7413,6 @@ Ffigure_xyerrorbars
  入力列を追加 (5,7 列目) するとそれらを variable color として使います。
  このスタイルでは、variable point 属性は使えません。
 
-#TeX \newpage
 2 xerrorlines
 ?plotting styles xerrorlines
 ?style xerrorlines
@@ -7553,8 +7741,8 @@ Ffigure_zerror
  $0, $1, ..., $9 をマクロのように置換することで表現していました。この古
  い仕組みは、もはやサポートしていません。
 
- 試験段階: 関数ブロック (このバージョンからの新機能) は、`call` に代わ
- るより柔軟な機能を提供します。以下参照: `function blocks`。
+ 関数ブロック (このバージョンからの新機能) は、`call` に代わるより柔軟
+ な機能を提供します。以下参照: `function blocks`。
 
 3 ARGV[ ]
 ?argv
@@ -8431,9 +8619,6 @@ Ffigure_zerror
 #TeX }
 #TeX \end{minipage}
 #TeX \end{center}
-
- 関数ブロックの使用は試験段階です。
- 詳細は、リリース版に含まれる前に変更される可能性があります。
 #TeX \newpage
 2 help
 ?commands help
@@ -8516,7 +8701,6 @@ Ffigure_zerror
 
        for [intvar = start:end{:increment}]
        for [stringvar in "A B C D"]
-       for [element in Array]
 
  例:
 
@@ -8524,12 +8708,6 @@ Ffigure_zerror
        plot for [basename in "A B C"] basename.".dat" using 1:2 with lines
        set for [i = 1:10] style line i lc rgb "blue"
        unset for [tag = 100:200] label tag
-       Array animals = ["dog", "cat", "mouse", "llama"]
-       do for [creature in animals] {
-              INFILE = creature.".dat"
-              OUTFILE = creature.".pdf"
-              plot INFILE with boxes title creature
-       }
 
  繰り返しの入れ子もサポートしています:
 
@@ -8596,11 +8774,11 @@ Ffigure_zerror
  マンドによって実行されます。これらは、指定された順にロードされ、その後
  `gnuplot` は終了します。
 
- 試験段階: 内部で保存したテキストの行からコマンドを実行することも可能で
- す。以下参照: `function blocks`。関数ブロックは、コマンドラインで、あ
- るいは外部ファイルで定義できます。一度関数ブロックを定義されば、そのコ
- マンドは、あらためてファイルから読み込むのでなく内部のコピーに対して
- `evaluate` を使うことで繰り返し実行できます。
+ 内部で保存したテキストの行からコマンドを実行することも可能です。以下
+ 参照: `function blocks`。関数ブロックは、コマンドラインで定義するか、
+ ファイルから読み込めます。関数ブロック内のコマンドは、`evaluate` を使
+ うことで、あらためてファイルから読み込まなくても内部のコピーを繰り返し
+ 実行できます。
 
 2 local
 ?local
@@ -9162,8 +9340,8 @@ Ffigure_zerror
                           {if (<expression>)}
 
  修正子の `binary`, `index`, `every`, `skip`, `using`, `smooth`, `bins`,
- `mask`, `convexhull`, `concavehull`, `zsort`, `if` をそれぞれに分けて
- 説明します。簡単に言うと以下の通り:
+ `mask`, `convexhull`, `concavehull`, `volatile`, `zsort`, `if` をそれ
+ ぞれに分けて説明します。簡単に言うと以下の通り:
 #start
 #b `skip N` は入力ファイルの先頭 N 行を無視するよう gnuplot に指示
 #b `binary` はファイルがテキストでなくバイナリデータを持つと指示
@@ -9563,7 +9741,7 @@ Ffigure_concave_hull_2
 ^ </a>
  も参照。
 
- これは試験段階 です (実装の詳細は将来の版で変更の可能性あり)。あなたの
+ これは試験段階です (実装の詳細は将来の版で変更の可能性あり)。あなたの
  gnuplot が --enable-chi-shapes で configure した場合のみ利用できます。
 
  2 次元の例
@@ -9611,6 +9789,10 @@ D delaunay 1
  の y の極小値は見た目には 0.02 から 0.20 の間になります。
  キーワード "sharpen" をつけることで、その関数の正しい見た目である、周
  期的で鋭く y=0 に達する極小値を持つグラフを生成します。
+
+ sharpen フィルタは、階段関数にある垂直なへりのような垂直な不連続も探し、
+ そして直ちにへりのどちらかの側に追加点を配置することで、それが対角線だ
+ と誤って伝わらないようにしようとします。
 D sharpen 1
 
 5 条件フィルタ (if)
@@ -10662,7 +10844,6 @@ C using の書式 (format)
  書式:
        plot for [<variable> = <start> : <end> {:<increment>}]
        plot for [<variable> in "string of words"]
-       plot for [<variable> in Array]
 
  繰り返しの適用範囲 (scope) は、次のコンマ (,) かコマンドの終わり、のい
  ずれか先に現れたところまでです。ただし、描画する項目の前に定義式 (複数
@@ -11054,14 +11235,12 @@ C using の書式 (format)
 2 remultiplot
 ?commands remultiplot
 ?remultiplot
- `remultiplot` は、直前の multiplot を生成した際に名前付きデータブロッ
- ク $GPAL_LAST_MULTIPLOT に前に保存したコマンド列を再実行します。以下
- 参照: `new multiplots`。
-
- 試験段階: 直前の plot コマンドが完了済みの multiplot の一部であれば、
- `replot` は暗黙に `remultiplot` を呼び出します。
- `set mouse multiplot` が有効であれば、視線移動/拡大などのマウス操作で
- も `remultiplot` を呼び出します。
+ `remultiplot` は、直前の multiplot の開始時に $GPAVL_PRE_MULTIPLOT に
+ 保存した描画設定を最初に復帰し、次に $GPVAL_LAST_MULTIPLOT という名前
+ 付きデータブロックのコマンドを再実行します。その結果、元の multiplot
+ が生成した図を再生成します。
+ それに対し、`replot` は `remultiplot` とは違い、最初の描画設定の復帰を
+ 行いません。以下参照: `new multiplots`。
 
 2 replot
 ?commands replot
@@ -11095,13 +11274,9 @@ C using の書式 (format)
  以前の gnuplot の版では、multiplot 全体は再描画できず、`replot` コマン
  ドはそのうち最後の plot 要素しか再生成しませんでした。gnuplot バージョ
  ン 6 では、multiplot を生成するのに使用したコマンドをデータブロック
- $GPVAL_LAST_MULTIPLOT に保存し、それは新しいコマンド `remultiplot` を
- 使って multiplot 全体を再生成するのに再実行できます。
-
- 試験段階 (詳細は今後の gnuplot の版で変更の可能性あり):
- 直前に書いたグラフが multiplot の一部だった場合、`replot` コマンドは現
- 在は自動的に `remultiplot` として扱います。いくつかの注意事項がありま
- す。以下参照: `new multiplots`, `remultiplot`。
+ $GPVAL_LAST_MULTIPLOT に保存します。そして `replot` か、新しいコマンド
+ `remultiplot` を使って再実行し multiplot 全体を再生できます。
+ 注意がいくつかあります。以下参照: `new multiplots`, `remultiplot`。
 
 2 reread
 ?commands reread
@@ -11128,7 +11303,7 @@ C using の書式 (format)
  以下のものは、`reset` の影響を受けません:
       `set term` `set output` `set loadpath` `set linetype` `set fit`
       `set encoding` `set decimalsign` `set locale` `set psdir`
-      `set overflow` `set multiplot`
+      `set overflow` `set multiplot` `set minussign` `set micro`
 
  `reset` は、必ずしもプログラム立ち上がった初期状態には戻さないことに注
  意してください。それは、初期設定ファイル gnuplotrc や $HOME/.gnuplot、
@@ -11747,9 +11922,9 @@ C using の書式 (format)
  `set boxdepth square` は、y 軸方向の奥行きを、x と y の軸の縮尺とは無
  関係に、見た目が正方形の断面になるように選択しようとします。
 3 χ-形状 (chi_shapes)
-?command set chi_shapes
+?commands set chi_shapes
 ?set chi_shapes
-?command unset chi_shapes
+?commands unset chi_shapes
 ?unset chi_shapes
 ?chi_shapes
       set chi_shapes fraction <value>
@@ -12135,9 +12310,9 @@ D discrete 3
  フォルトの境界の line style を使います。
 
  カラーボックスの軸は `cb` と呼ばれ、通常の軸のコマンドで制御されます。
- すなわち `set/unset/show` で `cbrange`, `[m]cbtics`, `format cb`,
- `grid [m]cb`, `cblabel` などが、そして多分 `cbdata`, `[no]cbdtics`,
- `[no]cbmtics` なども使えるでしょう。
+ すなわち対象となる属性 `cbrange`, `[m]cbtics`, `format cb`,
+ `grid [m]cb`, `cblabel` に対する `set/unset/show`、そして多分 `cbdata`,
+ `[no]cbdtics`, `[no]cbmtics` なども使えるでしょう。
 
  パラメータ無しの `set colorbox` はデフォルトの位置へ切替えます。
  `unset colorbox` はカラーボックスのパラメータをデフォルト値にリセット
@@ -12203,6 +12378,7 @@ Ffigure_colornames
  `set contour` が有効な際に生成する等高線に、ファイルから読み込んだラベ
  ルなどのその他の描画要素も混ぜたい場合は、splot コマンド内のその命令の
  後ろにキーワード `nocontours` を追加しないといけません。
+ 以下参照: `labels contours`。
 
  曲面をスイッチオフ (以下参照: `unset surface`) にして、等高線のみのグ
  ラフにすることも可能です。等高線の 2 次元射影とオプションのラベルは以
@@ -12232,7 +12408,7 @@ Ffigure_colornames
  ^ </a>
  も参照。
 3 グラフ角の支柱 (cornerpoles)
-?command set cornerpoles
+?commands set cornerpoles
 ?set cornerpoles
 ?cornerpoles
  デフォルトで、splot は 3 次元曲面のそれぞれの角から床面への鉛直線を描
@@ -12251,6 +12427,7 @@ Ffigure_colornames
       set contourfill ztics           # z 軸の各主目盛りで切り分け
       set contourfill cbtics          # cb 軸の各主目盛りで切り分け
       set contourfill {palette | firstlinetype N}
+      set contourfill defined [zmin1:zmax1] color1, [zmin2:zmax2] color2, ...
 
  デフォルトは `set contourfill auto 5 palette` で、これは現在の z 軸の
  範囲を 5 等分し (6 つの平面で区切る)、その曲面の各断片にその z の中点
@@ -12268,6 +12445,9 @@ Ffigure_colornames
       set contourfill firstlinetype 101
  `set contourfill palette` でパレットによる色付けに復帰できます。
 
+ 他に、z の範囲のリストを、それぞれの範囲に色名や 16 進の RGB 色値をつ
+ けて与えることもできます:
+      set contourfill defined [-10:-1] "blue", [-1:1] 0Xeeffee, [1:10] "red"
 D contourfill 3
 
 3 点線/破線設定 (dashtype)
@@ -12401,8 +12581,7 @@ D dashtypes 2
  コマンド `set datafile commentschars` は、データファイル中のコメント行
  の開始文字としてどの文字を使うかを指定します。指定した文字の中の一つが
  データ行の最初の非空白文字として現われた場合、そのデータ行のそれ以降の
- 部分を無視します。デフォルト文字列は、VMS では "#!"、それ以外では "#"
- です。
+ 部分を無視します。デフォルト文字列は "#" です。
 
  書式:
        set datafile commentschars {"<string>"}
@@ -12842,17 +13021,16 @@ D heatmap_points 3
  内に埋め込むフォントにのみ関係します。
  他の gnuplot 出力形式には何の影響も与えません。
  あなたがフォントを埋めこまなければ、このコマンドはあなたには必要ありま
- せんし、埋めこむ場合でも、以下に示す他のパスにフォントが見つからない場
- 合にのみ必要なだけです。
-
- 以前の版の gnuplot は、フォントを含む複数のディレクトリツリーを探索す
- ることでフォント管理ソフトをまねていました。
- しかし現在は、以下の場所を検索する方法に置き換わっています。
- (1) `set term postscript fontfile` コマンドで与えた絶対パス
- (2) 現在のディレクトリ (カレントディレクトリ)
- (3) `set loadpath` で指定したディレクトリのすべて
- (4) `set fontpath` で指定したディレクトリ
- (5) 環境変数 GNUPLOT_FONTPATH に指定されているディレクトリ
+ せん。埋めこむ場合でも、以下に示す他のパスにフォントが見つからない場合
+ にのみ必要なだけです。検索順に:
+#start
+#0
+#b `set term postscript fontfile` コマンドで与えた絶対パス
+#b 現在のディレクトリ (カレントディレクトリ)
+#b `set loadpath` で指定したディレクトリのすべて
+#b `set fontpath` で指定したディレクトリ
+#b 環境変数 GNUPLOT_FONTPATH に指定されているディレクトリ
+#end
 
  注意: libgd の出力形式 (png gif jpeg sixel) 用にファイル名で指定するフ
  ォントの検索パスは、環境変数 GDFONTPATH で制御できます。
@@ -12862,7 +13040,6 @@ D heatmap_points 3
 ?set format
 ?show format
 ?format
-?format cb
  座標軸の刻みの見出しは、コマンド `set format` または `set tics format`
  または個別にコマンド `set {軸}tics format` で書式を設定できます。入力
  データに対する明示的な書式の使用法については、以下参照: `using format`。
@@ -12877,10 +13054,17 @@ D heatmap_points 3
        set format y "%.2f"
        set ytics format "%.2f"
 
+ 書式の型 (numeric (数値)、timedate (日時)、geographic (地理座標)) は、
+ 書式文字列の解釈を変更します。数値書式は gnuplot の `gprintf` ルーチン
+ で処理します。以下参照: `format numeric`。これは、軸が timedate でも
+ geographic でもない場合のデフォルトです。以下参照: `set xdata time`,
+ `format time_specifiers`, `geographic`。
+
  書式文字列の長さは 100 文字まで、と制限されています。デフォルトの書式
- 文字列は "% h" で、LaTeX 系の出力形式では "$%h$" です。他に "%.2f" や
- "%3.0em" のような書式が好まれることも多いでしょう。"set format" の後ろ
- に何もつけずに実行すると、デフォルトに戻します。
+ 文字列は "% h" で、LaTeX 系の出力形式では "$%h$" です。これは、例えば
+ 'set xtics format "%.2f MHz"' のように単位や、異なる数値書式を与えるこ
+ とで変更することも可能です。"set format" の後ろに何もつけずに実行する
+ と、デフォルトに戻します。
 
  空文字列 "" を指定した場合、刻み自身は表示しますが見出しはつけません。
  刻み自身を消すには、 `unset xtics` または `set tics scale 0` を使用し
@@ -12901,21 +13085,17 @@ D heatmap_points 3
 ^ <a href="http://www.gnuplot.info/demo/electron.html">
  エレクトロン (電子) デモ (electron.dem).
 ^ </a>
-4 gprintf
-?gprintf
- 文字列関数 gprintf("format",x) は、gnuplot コマンドの `set format`,
- `set timestamp` などと同様の、gnuplot 独自の書式指定子を使います。これ
- らの書式指定子は、標準的な C 言語の関数である sprintf() のものと全く同
- じではありません。gprintf() は、整形化される引数は一つしか受けつけませ
- ん。そのために、gnuplot には sprintf("format",x1,x2,...) 関数も用意さ
- れています。gnuplot の書式オプションの一覧については、以下参照:
- `format specifiers`。
-4 書式指定子 (format specifiers)
-?commands set format specifiers
-?set format specifiers
-?format specifiers
-?format_specifiers
- 使用可能な書式 (時間/日付モードでない場合) は以下の通りです:
+
+4 数値書式指定子 (numeric format specifiers)
+?set format numeric
+?format numeric
+?gprintf numeric
+?numeric
+ 数値書式指定子は、gnuplot の gprintf 関数が解釈します。これらの指定子
+ は、sprintf で使われている書式指定に基づきますが、完全に同じというわけ
+ ではありません。軸が日時 (time/date) や地理 (geographic) 座標データ表
+ 示に設定 (以下参照: `set xdata`) されていなければ、軸の刻みはこの書式
+ を使用します。
 
 @start table - first is interactive cleartext form
        書式       説明
@@ -12925,6 +13105,7 @@ D heatmap_points 3
        %h, %H     %g に "e%S" でなく "x10^{%S}" か "*10^{%S}" をつける
        %x, %X     16 進表記
        %o, %O     8 進表記
+       %C, %Ci    複素数値
        %t         10 進の仮数部
        %l         現在の対数尺の底を基数とする仮数部
        %s         現在の対数尺の底を基数とする仮数部; 補助単位 (scientific power)
@@ -12942,9 +13123,10 @@ D heatmap_points 3
 #\verb@%f@ & 固定小数点表記 \\
 #\verb@%e@, \verb@%E@ & 指数表記; 指数の前に "e", "E" をつける \\
 #\verb@%g@, \verb@%G@ & \verb@%e@ (または \verb@%E@) と \verb@%f@ の略記 \\
-#\verb@%h@, \verb@%H@ & \verb@%g に "e%S" でなく "x10^{%S}" か "*10^{%S}" をつける@\\
+#\verb@%h@, \verb@%H@ & \verb@%g@ に "e\verb@%S@" でなく \verb@"x10^{%S}"@ か \verb@"*10^{%S}"@ をつける\\
 #\verb@%x@, \verb@%X@ & 16 進表記 \\
 #\verb@%o@, \verb@%O@ & 8 進表記 \\
+#\verb@%C@, \verb@%Ci@ & 複素数値 \\
 #\verb@%t@ & 10 進の仮数部 \\
 #\verb@%l@ & 現在の対数尺の底を基数とする仮数部 \\
 #\verb@%s@ & 現在の対数尺の底を基数とする仮数部; 補助単位 (scientific power) \\
@@ -12964,6 +13146,7 @@ D heatmap_points 3
 %%h, %H@%g に "e%S" でなく "x10^{%S}" か "*10^{%S}" をつける
 %%x, %X@16 進表記
 %%o, %O@8 進表記
+%%C, %Ci@複素数値
 %%t@10 進の仮数部
 %%l@現在の対数尺の底を基数とする仮数部
 %%s@現在の対数尺の底を基数とする仮数部; 補助単位 (scientific power)
@@ -12991,6 +13174,7 @@ D heatmap_points 3
 ^<tr>    <td><tt>%h</tt>, <tt>%H</tt></td>    <td><tt>%g</tt> に "e%S" の代わりに "x10^{%S}" か "*10^{%S}" をつける</td></tr>
 ^<tr>    <td><tt>%x</tt>, <tt>%X</tt></td>    <td>16 進表記</td></tr>
 ^<tr>    <td><tt>%o</tt>, <tt>%O</tt></td>    <td>8 進表記</td></tr>
+^<tr>    <td><tt>%C</tt>, <tt>%Ci</tt></td>   <td>複素数値</td></tr>
 ^<tr>    <td><tt>%t</tt></td>    <td>10 進の仮数部</td></tr>
 ^<tr>    <td><tt>%l</tt></td>    <td>現在の対数尺の底を基数とする仮数部</td></tr>
 ^<tr>    <td><tt>%s</tt></td>    <td>現在の対数尺の底を基数とする仮数部; 補助単位 (scientific power)</td></tr>
@@ -13022,6 +13206,9 @@ D heatmap_points 3
  以外のものをもサポートする OS もあるでしょう。疑わしい場合は、適切な資
  料を調べ、そして実験してみてください。
 
+ 複素数値は、"%C" か "%Ci" を使って書式化できます (以下参照:
+ `gprintf complex`)。
+
  例:
        set format y "%t"; set ytics (5,10)          # "5.0" と "1.0"
        set format y "%s"; set ytics (500,1000)      # "500" と "1.0"
@@ -13038,24 +13225,48 @@ D heatmap_points 3
  丸めと指数が必要となるような書式で 9.999 の様な数字が書かれる場合は
  問題が起こることがあります。
 
- 軸のデータ型が日時データ (time/date) の場合、書式文字列は 'strftime'
- 関数 ('gnuplot' 外。"man strftime" としてみてください) に関する有効な
- 指定を行う必要があります。使える入力書式指定の一覧に関しては、以下参照:
- `set timefmt`。
+5 複素数値書式指定子 (complex format specifiers)
+?set format numeric complex
+?format numeric complex
+?numeric complex
+?gprintf complex
+ gnuplot は、複素数値を出力する %C と %Ci の 2 つの書式指定子を提供しま
+ す。いずれも、実数成分と虚数成分に別々に書式 %g を適用し、オプションの
+ フィールド修飾子が与えられた場合はそれも使用します。[試験段階]
+
+ 例えば複素数 Z = {1.2, -3.4} に対し、
+      gprintf("%C", Z) は文字列 "{1.2, -3.4}" を生成
+      gprintf("%Ci", Z) は文字列 "1.2 - 3.4i" を生成
+
+ "%Ci" の出力は、コマンド `set imaginary_i` でさらにカスタマイズでき、
+ 虚数成分につく文字 "i" を、違う文字、または文字列で置き換えることがで
+ きます。以下参照: `imaginary_i`。
+
+ 例:
+      Z = {1.2222, 0.3333}
+      gprintf("%.2C", Z)            # {1.2, 0.33}
+      gprintf("%.3Ci", Z)           # 1.22 + 0.333i
+      set imaginary_i "{/Times*0.5 im}"
+      gprintf("[%Ci]", Z)           # [1.2222 + 0.3333im]
+      gprintf("[%.1Ci]", -Z)        # [-1 - 0.3im]
+
 4 日時データ指定子 (time/date specifiers)
 ?commands set format date_specifiers
 ?commands set format time_specifiers
 ?set format date_specifiers
 ?set format time_specifiers
-?set date_specifiers
-?set time_specifiers
+?format date_specifiers
+?format time_specifiers
 ?date_specifiers
 ?time_specifiers
+ 以下の書式指定子は、軸が日時データを表す場合に軸の刻みラベルを生成する
+ のに使用します。以下参照: `set xdata time`。
+ gnuplot の strftime 関数でもこれらを使用します。
+
  日時書式指定には、日時指定と相対時刻の 2 つのグループがあります。これ
  らは、 軸の刻みのラベルを生成したり、時刻を文字列にエンコードするのに
- 使われます。以下参照: `set xtics time`, `strftime`, `strptime`。
-
- 日時書式は以下の通りです。
+ 使われます。以下参照: `set xtics time`, `strftime`, `strptime`。日時書
+ 式は以下の通りです。
 
 @start table - first is interactive cleartext form
        書式         説明
@@ -13086,7 +13297,7 @@ D heatmap_points 3
        %Y           西暦 (4 桁)
        %z           タイムゾーン、[+-]hh:mm
        %Z           タイムゾーン名、文字列は無視
-#\begin{tabular}{|cl|} \hline
+#\begin{longtable}{|cl|} \hline
 #\multicolumn{2}{|c|}{日付指定子}\\
 #\hline \hline
 #書式 & 説明 \\ \hline
@@ -13117,6 +13328,9 @@ D heatmap_points 3
 #\verb@%Y@ & 西暦 (4 桁) \\
 #\verb@%z@ & タイムゾーン、[+-]hh:mm \\
 #\verb@%Z@ & タイムゾーン名、文字列は無視 \\
+#\hline \end{longtable}
+#%% ダミーの tabular を開始 (@end 処理がそれで終わることを要求する)
+#\begin{tabular}{|lcl|}
 %c l .
 %書式@説明
 %_
@@ -13243,15 +13457,12 @@ D heatmap_points 3
  きます。書式 %S と %t は精度指定も受けつけるので、小数の時/分/秒を書く
  こともできます。
 
-5 例 (Examples)
-?commands set format date_specifiers examples
-?commands set format time_specifiers examples
-?set format date_specifiers examples
-?set format time_specifiers examples
-?set date_specifiers examples
-?set time_specifiers examples
-?date_specifiers examples
-?time_specifiers examples
+4 例 (Examples)
+?commands set format examples
+?set format examples
+?format date_specifiers examples
+?format time_specifiers examples
+?format examples
 
  日付書式の例:
 
@@ -13483,6 +13694,66 @@ D hidden 6
  で、コマンド履歴内の重複する行の数を減らします。
 
  デフォルトの設定: `set history size 500 numbers trim`
+3 imaginary_i
+?commands set imaginary_i
+?set imaginary_i
+?imaginary_i
+ 書式:
+      set imaginary_i {"<character string>"}
+
+ gprintf の書式指定子 %Ci は、複素数値 {A,B} を A + Bi のように出力しま
+ す (以下参照: `gprintf complex`)。コマンド `set imaginary_i "<文字列>"`
+ は、%Ci の挙動の文字 "i" を指定した文字列で置き換えるよう変更します。
+ その文字列の一般的な慣習は以下の表の通りです。文字列を与えなかった場合
+ は、デフォルトに復帰します。(訳注: 以下の表の U+2148, U+1D456 に対する
+ 結果の部分、元々はそれらの UTF-8 の文字が書かれていますが、ここでは全
+ 角のｉで代用しています。)
+C HTML は Unicode は番号参照で書こうと思えば書けるんだけど。
+C けどそれ用の文字がひっかかりそうな気もする。
+
+@start table
+  文字列              結果      慣習
+                      A + Bi    デフォルト
+  "\imath"            A + Bi    LaTeX 出力では必要かも
+  "{/:Italic i}"      A + Bi    gnuplot の拡張文字列処理
+  "\U+2148"           A + Bｉ   Unicode DOUBLE-STRUCK ITALIC SMALL I (U+2148)
+  "\U+1D456"          A + Bｉ   Unicode MATHEMATICAL ITALIC SMALL I (U+1D456)
+  "im"                A + Bim   Julia
+  "j"                 A + Bj    Numpy
+
+#\begin{tabular}{|lll|} \hline
+#文字列 & 結果 & 慣習 \\
+#\hline
+#\verb~   ~ & A+Bi & デフォルト \\
+#\verb~"\imath"~ & {$A+B\imath$} & LaTeX 出力では必要かも \\
+#\verb~"{/:Italic i}"~ & A + B{\emph i} & gnuplot の拡張文字列処理 \\
+#\verb~"\U+2148"~ & A + Bｉ & Unicode DOUBLE-STRUCK ITALIC SMALL I (U+2148) \\
+#\verb~"\U+1D456"~ & A + B$i$ & Unicode MATHEMATICAL ITALIC SMALL I (U+1D456) \\
+#\verb~"im"~ & A + Bim & Julia \\
+#\verb~"j"~ & A + Bj & Numpy \\
+#
+@end table
+
+^<table align="center" border="1" rules="groups" frame="hsides" cellpadding="3">
+^<colgroup>
+^  <col align="left">
+^  <col align="left">
+^  <col align="left">
+^</colgroup>
+^<thead>
+^<tr>    <th>文字列</th>  <th>結果</th>  <th>慣習</th> </tr>
+^</thead>
+^<tbody>
+^<tr>  <td></td>    <td>A+Bi</td>  <td>デフォルト</td> </tr>
+^<tr>  <td>"\imath"</td>    <td><em>A+Bi</em></td>  <td>LaTeX 出力では必要かも</td> </tr>
+^<tr>  <td>"{/:Italic i}"</td>    <td>A+B<em>i</em></td>  <td>gnuplot の拡張文字列処理</td> </tr>
+^<tr>  <td>"\U+2148"</td>    <td>A+Bｉ</td>  <td>Unicode DOUBLE-STRUCK ITALIC SMALL I (U+2148)</td> </tr>
+^<tr>  <td>"\U+1D456"</td>    <td>A+Bｉ</td>  <td>Unicode MATHEMATICAL ITALIC SMALL I (U+1D456)</td> </tr>
+^<tr>  <td>"im"</td>    <td>A+Bim</td>  <td>Julia</td> </tr>
+^<tr>  <td>"j"</td>    <td>A+Bj</td>  <td>Numpy</td> </tr>
+^</tbody>
+^</table>
+
 3 孤立線サンプル数 (isosamples)
 ?commands set isosamples
 ?commands show isosamples
@@ -13726,8 +13997,10 @@ Ffigure_keyentry
  ませることを可能にします。同じ keyentry に title も与えた場合は、両方
  の文字列が同じ行に現れ、それにより 2 列の凡例のエントリの生成が可能に
  なります。
- 位置合わせ用のキーワード `left/right/center` や, `boxed` などが利用で
- きます。
+ keyentry のタイトルは、key 内の他のタイトルと同じように扱います。しか
+ し、'title' に続くものとは違う部分の追加文字列については、`boxed`,
+ `textcolor`, `hypertext` のような通常 labels で使用するキーワードによ
+ ってさらなる変更が可能です。以下参照: `set label`。
  例:
       plot ..., keyentry "West Linn" boxed title "locations"
 4 凡例の自動タイトル (key autotitle)
@@ -13948,10 +14221,10 @@ Ffigure_multiple_keys
  約して作ることができるようになります。
         set multiplot layout 3,2 columnsfirst
         set style data boxes
-        plot $D using 0:6  lt 1 title at 0.75, 0.20
-        plot $D using 0:12 lt 2 title at 0.75, 0.17
-        plot $D using 0:13 lt 3 title at 0.75, 0.14
-        plot $D using 0:14 lt 4 title at 0.75, 0.11
+        plot $D using 0:6  lt 1 title at .75, .20
+        plot $D using 0:12 lt 2 title at .75, .17
+        plot $D using 0:13 lt 3 title at .75, .14
+        plot $D using 0:14 lt 4 title at .75, .11
         set label 1 at screen 0.75, screen 0.22 "Custom combined key area"
         plot $D using 0:($6+$12+$13+$14) with linespoints title "total"
         unset multiplot
@@ -14232,10 +14505,11 @@ Ffigure_multiple_keys
 
  このコマンドは、x 軸と x2 軸の、順方向と逆方向の対応を設定しています。
  順方向の対応は、x2 軸の刻みラベルと、マウスの x2 座標を生成するのに使
- い、逆方向の対応は、x2 軸系で指定された座標を描画するのに使います。こ
- の対応は、非負の x 座標にのみ有効であることに注意してください。y2 軸に
- 対応させた場合、<expression1> と <expression2> には仮変数として y を使
- う必要があります。
+ い、逆方向の対応は、x2 軸系で指定された座標を描画するのに使います。上
+ の例のこの対応は、非負の x 座標にのみ有効であることに注意してください。
+
+ y2 軸に対応させた場合、<expression1> と <expression2> には仮変数として
+ y を使う必要があります。
 3 lmargin
 ?commands set lmargin
 ?set lmargin
@@ -14479,7 +14753,7 @@ Ffigure_multiple_keys
  ます。コマンド `set micro` は、それとは異なる印字用文字 (unicode
  U+00B5) を使用するよう gnuplot に指示します。その文字を表現するのに使
  用されるバイト列は、現在の encoding に依存します。以下参照:
- `format specifiers`, `encoding`。
+ `format numeric`, `encoding`。
 
  現在のエンコーディングによるデフォルトが満足いかない場合、欲しい表現を
  生成する文字列をオプションとして与えることもできます。これは、latex 系
@@ -15488,7 +15762,7 @@ Ffigure_multiple_keys
                     | functions <R>,<G>,<B>
                   }
                   { cubehelix {start <val>} {cycles <val>} {saturation <val>} }
-                  { viridis }
+                  { viridis | magma }
                   { model { RGB | CMY | HSV {start <radians>} } }
                   { positive | negative }
                   { nops_allcF | ps_allcF }
@@ -15513,7 +15787,7 @@ Ffigure_palette1
 #TeX \\
  - 必要ならカスタマイズ用の追加パラメータ付きで名前付きパレットを指定。
  現在提供している名前付きパレットは、`cubehelix` (パターンの族でカスタ
- マイズ可能) と `viridis` です。
+ マイズ可能) と `magma` と `viridis` です。
 
  オプションのない `set palette` は、デフォルト値に戻します。
 
@@ -15676,19 +15950,33 @@ Ffigure_palette2
  デフォルト値は以下の通りです。
        set palette cubehelix start 0.5 cycles -1.5 saturation 1
        set palette gamma 1.5
-4 viridis
+4 viridis と magma (viridis and magma)
 ?commands set palette viridis
 ?set palette viridis
 ?viridis
+?set palette magma
+?magma
        set palette viridis
- パレット "viridis" は、色覚に障害のあるユーザ向けの青から黄色へのグラ
- デーションです。viridis は、Ste'fan van der Walt と Nathaniel Smith に
- より開発されました。それは、感覚的な明るさ (輝度) の近似的に線形なグラ
- デーションとなります。gnuplot が使用するカラーマップ版は、以下に基づい
- ています。
+       set palette magma
+
+ 色勾配 (グラデーション) の "viridis" と "magma" は、色覚に障害のあるユ
+ ーザ向けに設計されたものです。これらは、Ste'fan van der Walt と
+ Nathaniel Smith が開発しました。"viridis" は、青->緑->黄色のグラデーシ
+ ョン、"magma" は、紫->黄色->赤のグラデーションです。これらは、感覚的な
+ 明るさ (輝度) の近似的に線形なグラデーションとなります。以下参照:
+ `test palette`。gnuplot が使用するカラーマップ版は、以下に基づいていま
+ す。
        "Viridis - Colorblind-Friendly Color Maps for R", Garnier et al (2021)
        https://CRAN.R-project.org/package=viridis
 D viridis 1
+D viridis 2
+ viridis と magma グラデーションは、それらが現在のパレット設定ではない
+ ときでも gnuplot コマンド上で使用できますが、その場合は colorbox (もし
+ 使っていれば) はグラフの色付けとは一致しくなります。
+ 例:
+      set style data points
+      plot $DATA1 using 1:2:3 pt 7 fillcolor palette magma, \
+           $DATA2 using 1:2:3 pt 7 fillcolor palette viridis
 4 colormap
 ?commands set palette colormap
 ?palette colormap
@@ -16047,10 +16335,10 @@ D viridis 1
  描画オプションを追加することが可能です。これにより、同じグラフ上で、違
  う曲面に別々の色付けの仕組みを使うことが可能になります。
 
- 試験段階: このバージョンの gnuplot は、オプション `zclip` を導入してい
- て、それは z の値の境界で曲面を滑らかな曲面を生成するようにクリッピン
- グします。以下の例は、2 色の 3 次元曲面の頂上の部分を徐々に消していく
- アニメーションを表示します。
+ このバージョンの gnuplot は、オプション `zclip` を導入していて、それは
+ z の値の境界で曲面を滑らかな曲面を生成するようにクリッピングします。以
+ 下の例は、2 色の 3 次元曲面の頂上の部分を徐々に消していくアニメーショ
+ ンを表示します。
       set style line 101 lc "gray"
       set style line 102 lc "blue"
       set pm3d depthorder
@@ -16962,13 +17250,17 @@ Ffigure_polar_grid
 
  デフォルトの塗りつぶしスタイル (fillstyle) は `empty` です。
 
- オプション `solid` は、出力形式がサポートしている場合、その色での単色
- 塗りを行います。パラメータ <density> は塗りつぶし色の強さを表していて
- <density> が 0.0 なら箱は空、<density> が 1.0 なら箱はその内部は現在の
- 線種と完全に同じ色で塗られます。出力形式によっては、この強さを連続的に
- 変化させられるものもありますが、その他のものは、部分的な塗りつぶしの幾
- つかのレベルを実装しているに過ぎません。パラメータ <density> が与えら
- れなかった場合はデフォルトの 1 になります。
+ オプション `solid` は、その色での単色塗りを行います。
+ パラメータ <density> は塗りつぶし色の彩度を表しています。
+ <density> が 0.0 なら箱は白 (出力形式によってはその背景色)。
+ <density> が 1.0 なら塗りつぶし領域は現在の線種か塗りつぶし色と完全に
+ 同じ色になります。出力形式によっては、この彩度を連続的に変化させられる
+ ものもありますが、その他のものは、部分的な塗りつぶしレベルを幾つか実装
+ しているに過ぎません。
+ パラメータ <density> を与えなかった場合はデフォルトの 1 になります。
+
+ `transparent solid` は、<density> をアルファ値と解釈する以外は同様に機
+ 能します。<density> 0.0 は完全な透過で、1.0 は透過なしのベタ塗りです。
 
  オプション `pattern` は、出力ドライバによって与えられるパターンでの塗
  りつぶしを行います。利用できる塗りつぶしパターンの種類と数は出力ドライ
@@ -17338,6 +17630,7 @@ Ffigure_polar_grid
  plot コマンドでラベル文字列、ラベル関数のどちらも与えなかった場合、
  gnuplot は、現在のグラフに対する軸の見出しに使用する書式を使用して、文
  字列 " x-座標 : y-座標" を自動生成します。
+ 以下参照: `watchpoint labels`。
 
  例:
       set style watchpoint labels point pt 4 ps 2
@@ -18735,6 +19028,9 @@ Ffigure_walls
 ?commands set xtics geographic
 ?set xtics geographic
 ?geographic
+?format geographic
+?set xdata geographic
+?set format geographic
  `set xtics geographic` は、x 軸の値が度の単位の地理座標であることを意
  味します。その軸の刻みの見出しの表現の指定には、`set xtics format` か
  `set format x` を使います。地理座標データに関する書式指定子は以下の通
@@ -20035,12 +20331,12 @@ Ffigure_sparsematrix
  `test` または `test terminal` は、現在使用中の出力形式 (`terminal`) で
  使える線の種類、点の種類、または利用可能なその他の描画を生成します。
 
+Ffigure_magma
  `test palette` は、R(z),G(z),B(z) (0<=z<=1) の状態を描画します。これら
  は、`set palatte` で定義した現在のカラーパレットの RGB 成分を示します。
  また、RGB を灰色階調に写像する NTSC 係数を用いて計算された視光度も描画
  します。さらにこのコマンドはこの対応関係を $PALETTE という名前のデータ
  ブロックに取り込みます。
-D viridis 1
 2 toggle
 ?commands toggle
 ?toggle
