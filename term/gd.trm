@@ -972,8 +972,8 @@ PNG_draw_aa_thick_line(double ax, double ay, double bx, double by,
 	    int cxi = (int)(ax + 0.5), cyi = (int)(ay + 0.5);
 	    for (yi = cyi - r; yi <= cyi + r; yi++)
 		for (xi = cxi - r; xi <= cxi + r; xi++) {
-		    double ddx = xi + 0.5 - ax;
-		    double ddy = yi + 0.5 - ay;
+		    double ddx = (double)xi - ax;
+		    double ddy = (double)yi - ay;
 		    double dist = sqrt(ddx*ddx + ddy*ddy) - halfw;
 		    double cov = 0.5 - dist;
 		    if (cov <= 0.0) continue;
@@ -1031,8 +1031,8 @@ PNG_draw_aa_thick_line(double ax, double ay, double bx, double by,
 
     for (y = ymin; y <= ymax; y++) {
 	for (x = xmin; x <= xmax; x++) {
-	    double px = x + 0.5;
-	    double py = y + 0.5;
+	    double px = (double)x;
+	    double py = (double)y;
 	    double rx = px - ax;
 	    double ry = py - ay;
 	    double a = rx * ux + ry * uy;	/* along line */
@@ -1172,8 +1172,8 @@ PNG_draw_join_disc(double cx, double cy, double radius,
 
     for (iy = iy_min; iy <= iy_max; iy++) {
         for (ix = ix_min; ix <= ix_max; ix++) {
-            double dx = (double)ix + 0.5 - cx;
-            double dy = (double)iy + 0.5 - cy;
+            double dx = (double)ix - cx;
+            double dy = (double)iy - cy;
 
             /* SDF: distance from disc boundary (positive = inside) */
             double dist_disc = radius - sqrt(dx*dx + dy*dy);
