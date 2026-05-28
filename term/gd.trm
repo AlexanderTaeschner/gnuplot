@@ -224,7 +224,7 @@ static void PNG_init_brush(int);
 #define PNG_VCHAR (13 * GD_OVERSAMPLE)
 #define PNG_HCHAR (7 * GD_OVERSAMPLE)
 
-#define PNG_TICSIZE (GREG_YMAX/100 * GD_OVERSAMPLE)
+#define PNG_TICSIZE (GREG_YMAX * GD_OVERSAMPLE / 100.)
 
 #define PNG_MAX_COLORS 256
 #define GOT_NEXT_PROTO
@@ -239,7 +239,6 @@ static struct {
     gdImagePtr image;
     gdFontPtr font;
     unsigned int x, y;
-    int height;
     int charh, charw;
     int color;             /* Magic index returned by libgd */
     int rgb;               /* Our guess at the corresponding rgb */
@@ -306,33 +305,33 @@ enum PNG_id {
 #ifdef Y
 #   undef Y
 #endif
-#define Y(y) (png_state.height - (y))
+#define Y(y) (term->ymax - (y))
 
 /* Coordinate conversion macros.
  * Inflation of term->xmax/ymax by GD_OVERSAMPLE while gdImage is kept
  * at actual pixel size.
  * All drawing functions convert inflated coords to pixel coords via 
- * GD_PX()/GD_Y() before calling libgd. png_state.height is in inflated units;
+ * GD_PX()/GD_Y() before calling libgd. term->ymax is in inflated units;
  * Y() works in inflated space, GD_Y()/GD_YF() combine Y-flip and downscale in one step.
  * Text, points, fills, polygons, and images all convert at the boundary. */
 
-/* Convert inflated terminal coordinate to pixel coordinate (integer) */
-#define GD_PX(c)  ((int)(((int)c) / (double)GD_OVERSAMPLE + 0.5))
+/* Convert inflated terminal x coordinate to pixel coordinate (integer) */
+#define GD_PX(c)  ((int)(((int)(c)) / (double)GD_OVERSAMPLE + 0.5))
 
-/* Convert inflated terminal coordinate to pixel coordinate (float) */
-#define GD_PXF(c) ((double)((int)c) / (double)GD_OVERSAMPLE)
+/* Convert inflated terminal x coordinate to pixel coordinate (float) */
+#define GD_PXF(c) ((double)((int)(c)) / GD_OVERSAMPLE)
 
 /* Convert pixel coordinate to inflated terminal coordinate */
-#define GD_TERM(p) ((int)(((int)p) * GD_OVERSAMPLE))
+#define GD_TERM(p) ((int)(((int)(p)) * GD_OVERSAMPLE))
 
 /* Y-flip in pixel space: converts inflated Y to pixel Y */
-#define GD_Y(y) ((int)(((double)png_state.height - (double)((int)y)) / GD_OVERSAMPLE + 0.5))
+#define GD_Y(y) (int)floor((double)((int)term->ymax - (int)(y)) / GD_OVERSAMPLE)
 
 /* Y-flip to pixel float */
-#define GD_YF(y) (((double)png_state.height - (double)((int)y)) / GD_OVERSAMPLE)
+#define GD_YF(y) (double)((int)term->ymax - (int)(y)) / GD_OVERSAMPLE
 
-static int PNG_XMAX = GREG_XMAX;
-static int PNG_YMAX = GREG_YMAX;
+static int GD_XSIZE = GREG_XMAX;
+static int GD_YSIZE = GREG_YMAX;
 static const int PNG_POINT_SCALE = 3;
 static int PNG_ps = 3;
 
@@ -1594,10 +1593,10 @@ PNG_options()
 	int xpixels, ypixels;
 	term_get_termsize( &xpixels, &ypixels );
 	if (xpixels > 0 && ypixels > 0) {
-	    PNG_XMAX = xpixels;
-	    PNG_YMAX = ypixels * 0.75;
-	    term->xmax = PNG_XMAX * GD_OVERSAMPLE;
-	    term->ymax = PNG_YMAX * GD_OVERSAMPLE;
+	    GD_XSIZE = xpixels;
+	    GD_YSIZE = ypixels * 0.75;
+	    term->xmax = (GD_XSIZE-1) * GD_OVERSAMPLE;
+	    term->ymax = (GD_YSIZE-1) * GD_OVERSAMPLE;
 	    term->h_tic = term->v_tic = 10 * GD_OVERSAMPLE;
 	}
     }
@@ -1755,23 +1754,23 @@ PNG_options()
 	case PNG_SIZE:
 	    c_token++;
 	    if (END_OF_COMMAND) {
-		PNG_XMAX = GREG_XMAX;
-		PNG_YMAX = GREG_YMAX;
+		GD_XSIZE = GREG_XMAX;
+		GD_YSIZE = GREG_YMAX;
 	    } else {
-		PNG_XMAX = real_expression();
+		GD_XSIZE = real_expression();
 		if (equals(c_token, ",")) {
 		    c_token++;
-		    PNG_YMAX = real_expression();
+		    GD_YSIZE = real_expression();
 		}
-		if (PNG_XMAX <= 0)
-		    PNG_XMAX = GREG_XMAX;
-		if (PNG_YMAX <= 0)
-		    PNG_YMAX = GREG_YMAX;
+		if (GD_XSIZE <= 0)
+		    GD_XSIZE = GREG_XMAX;
+		if (GD_YSIZE <= 0)
+		    GD_YSIZE = GREG_YMAX;
 	    }
-	    term->ymax = PNG_YMAX * GD_OVERSAMPLE;
-	    term->xmax = PNG_XMAX * GD_OVERSAMPLE;
+	    term->ymax = (GD_YSIZE-1) * GD_OVERSAMPLE;
+	    term->xmax = (GD_XSIZE-1) * GD_OVERSAMPLE;
 	    /* EAM Apr 2003 - same tic size on both x and y axes */
-	    term->v_tic = GD_OVERSAMPLE * ((PNG_XMAX < PNG_YMAX) ? PNG_XMAX/100 : PNG_YMAX/100);
+	    term->v_tic = GD_OVERSAMPLE * ((GD_XSIZE < GD_YSIZE) ? GD_XSIZE/100 : GD_YSIZE/100);
 	    if (term->v_tic < GD_OVERSAMPLE)
 		term->v_tic = GD_OVERSAMPLE;
 	    term->h_tic = term->v_tic;
@@ -2033,7 +2032,7 @@ PNG_options()
     }
 
     sprintf(term_options + strlen(term_options),
-	    "size %d,%d ", PNG_XMAX, PNG_YMAX);
+	    "size %d,%d ", GD_XSIZE, GD_YSIZE);
 
     if (png_state.n_colors == 1)
 	sprintf(term_options + strlen(term_options),
@@ -2413,7 +2412,7 @@ PNG_graphics()
     /* see only background through the topmost transparent layer.		*/
     if (png_state.TrueColor) {
         unsigned int brgb = png_state.rgb_table[0];
-	png_state.image = gdImageCreateTrueColor(PNG_XMAX, PNG_YMAX);
+	png_state.image = gdImageCreateTrueColor(GD_XSIZE, GD_YSIZE);
 	if (!png_state.image)
 	    int_error(NO_CARET,"libgd: failed to create output image structure");
 	if (png_state.flags & PNG_USE_TRANSPARENT) {
@@ -2429,11 +2428,10 @@ PNG_graphics()
 	gdImageAlphaBlending(png_state.image, gdEffectNormal);
 
     } else
-	png_state.image = gdImageCreate(PNG_XMAX, PNG_YMAX);
+	png_state.image = gdImageCreate(GD_XSIZE, GD_YSIZE);
     if (!png_state.image)
 	int_error(NO_CARET,"libgd: failed to create output image structure");
 
-    png_state.height = PNG_YMAX * GD_OVERSAMPLE - 1;
     png_state.charw = term->h_char;	/* already inflated */
     png_state.charh = term->v_char;	/* already inflated */
     if (png_state.baseline_offset <= 0.0)
@@ -2790,7 +2788,7 @@ PNG_put_text(unsigned int x, unsigned int y, const char *string)
 		double ax = (double)x + sin(png_state.angle * M_PI_2/90.) * bl_offset;
 		double ay = (double)y - cos(png_state.angle * M_PI_2/90.) * bl_offset;
 		px = (int)(ax / (double)GD_OVERSAMPLE + 0.5);
-		py = (int)(((double)png_state.height - ay) / (double)GD_OVERSAMPLE + 0.5);
+		py = (int)(((double)(term->ymax) - ay) / (double)GD_OVERSAMPLE + 0.5);
 	    }
 	    switch (png_state.justify) {
 		case RIGHT:
@@ -2842,7 +2840,7 @@ PNG_put_text(unsigned int x, unsigned int y, const char *string)
     } else {
 	int charw_px = GD_PX(png_state.charw);
 	/* Apply charh/2 offset in inflated space before pixel conversion */
-	py = (int)(((double)png_state.height - ((double)y + (double)png_state.charh / 2.0)) / (double)GD_OVERSAMPLE + 0.5);
+	py = (int)(((double)(term->ymax) - ((double)y + (double)png_state.charh / 2.0)) / (double)GD_OVERSAMPLE + 0.5);
 	switch (png_state.justify) {
 	    case RIGHT:	px -= charw_px * strlen(string);
 			break;
@@ -2868,7 +2866,7 @@ PNG_put_text(unsigned int x, unsigned int y, const char *string)
 
     if (png_state.angle == 0) {
 	/* Apply charh/2 offset in inflated space before pixel conversion */
-	py = (int)(((double)png_state.height - ((double)y + (double)png_state.charh / 2.0)) / (double)GD_OVERSAMPLE + 0.5);
+	py = (int)(((double)(term->ymax) - ((double)y + (double)png_state.charh / 2.0)) / (double)GD_OVERSAMPLE + 0.5);
 	gdImageString(png_state.image, png_state.font,
 		      px, py,
 		      (unsigned char *)string, png_state.color);
@@ -3330,13 +3328,12 @@ ENHGD_boxed_text(unsigned int x, unsigned int y, int option)
 	    int by1 = bounding_box[3] + bounding_ymargin;
 	    /* Convert pixel coords to inflated terminal coords.
 	     * For X: inflated = pixel * GD_OVERSAMPLE
-	     * For Y: inflated = png_state.height - pixel * GD_OVERSAMPLE
-	     *   (since GD_Y(inflated) = (height - inflated) / GD_OVERSAMPLE)
+	     * For Y: inflated = (ymax - pixel) * GD_OVERSAMPLE
 	     */
 	    unsigned int ix0 = GD_TERM(bx0);
 	    unsigned int ix1 = GD_TERM(bx1);
-	    unsigned int iy0 = png_state.height - GD_TERM(by0);
-	    unsigned int iy1 = png_state.height - GD_TERM(by1);
+	    unsigned int iy0 = term->ymax - GD_TERM(by0);
+	    unsigned int iy1 = term->ymax - GD_TERM(by1);
 	    PNG_move  (ix0, iy0);
 	    PNG_vector(ix0, iy1);
 	    PNG_vector(ix1, iy1);
@@ -3703,7 +3700,7 @@ PNG_path(int p)
 
 TERM_TABLE_START(png_driver)
     "png", "PNG images using libgd and TrueType fonts",
-    GREG_XMAX * GD_OVERSAMPLE, GREG_YMAX * GD_OVERSAMPLE, PNG_VCHAR, PNG_HCHAR,
+    (GREG_XMAX-1) * GD_OVERSAMPLE, (GREG_YMAX-1) * GD_OVERSAMPLE, PNG_VCHAR, PNG_HCHAR,
     PNG_TICSIZE, PNG_TICSIZE, PNG_options, PNG_init, PNG_reset,
     PNG_text, null_scale, PNG_graphics, PNG_move, PNG_vector,
     PNG_linetype, PNG_put_text, PNG_text_angle,
@@ -3866,7 +3863,7 @@ int quality = 90;
 
 TERM_TABLE_START(jpeg_driver)
     "jpeg", "JPEG images using libgd and TrueType fonts",
-    GREG_XMAX * GD_OVERSAMPLE, GREG_YMAX * GD_OVERSAMPLE, PNG_VCHAR, PNG_HCHAR,
+    (GREG_XMAX-1) * GD_OVERSAMPLE, (GREG_YMAX-1) * GD_OVERSAMPLE, PNG_VCHAR, PNG_HCHAR,
     PNG_TICSIZE, PNG_TICSIZE, PNG_options, PNG_init, PNG_reset,
     JPEG_text, null_scale, PNG_graphics, PNG_move, PNG_vector,
     PNG_linetype, PNG_put_text, PNG_text_angle,
@@ -4022,7 +4019,7 @@ GIF_text()
 
 TERM_TABLE_START(gif_driver)
     "gif", "GIF images using libgd and TrueType fonts",
-    GREG_XMAX * GD_OVERSAMPLE, GREG_YMAX * GD_OVERSAMPLE, PNG_VCHAR, PNG_HCHAR,
+    (GREG_XMAX-1) * GD_OVERSAMPLE, (GREG_YMAX-1) * GD_OVERSAMPLE, PNG_VCHAR, PNG_HCHAR,
     PNG_TICSIZE, PNG_TICSIZE, PNG_options, PNG_init, PNG_reset,
     GIF_text, null_scale, PNG_graphics, PNG_move, PNG_vector,
     PNG_linetype, PNG_put_text, PNG_text_angle,
@@ -4207,7 +4204,7 @@ SIXELGD_text()
 
 TERM_TABLE_START(sixelgd_driver)
     "sixelgd", "sixel using libgd and TrueType fonts",
-    GREG_XMAX * GD_OVERSAMPLE, GREG_YMAX * GD_OVERSAMPLE, PNG_VCHAR, PNG_HCHAR,
+    (GREG_XMAX-1) * GD_OVERSAMPLE, (GREG_YMAX-1) * GD_OVERSAMPLE, PNG_VCHAR, PNG_HCHAR,
     PNG_TICSIZE, PNG_TICSIZE, PNG_options, PNG_init, PNG_reset,
     SIXELGD_text, null_scale, PNG_graphics, PNG_move, PNG_vector,
     PNG_linetype, PNG_put_text, PNG_text_angle,
@@ -4387,7 +4384,7 @@ KITTYGD_text()
 
 TERM_TABLE_START(kittygd_driver)
     "kittygd", "kitty in-terminal graphics using libgd",
-    GREG_XMAX * GD_OVERSAMPLE, GREG_YMAX * GD_OVERSAMPLE, PNG_VCHAR, PNG_HCHAR,
+    (GREG_XMAX-1) * GD_OVERSAMPLE, ((GREG_YMAX-1)-1) * GD_OVERSAMPLE, PNG_VCHAR, PNG_HCHAR,
     PNG_TICSIZE, PNG_TICSIZE, PNG_options, PNG_init, PNG_reset,
     KITTYGD_text, null_scale, PNG_graphics, PNG_move, PNG_vector,
     PNG_linetype, PNG_put_text, PNG_text_angle,
