@@ -113,6 +113,9 @@
  *        thick-line antialiased rasterizer, coord. oversampling and off-screen
  *        alpha layer with MAX compositing.
  *        Add PNG_path().
+ *
+ * Ethan Merritt Jun 2026:
+ *	Given Sethur's implementation of thick lines, we no longer need to use brushes.
  */
 
 #define GD_DEFINED_COLORS	96	/* Must not exceed size of pm3d_color_names_tbl[] */
@@ -214,7 +217,6 @@ static void PNG_Triangle(unsigned int x, unsigned int y, int direction,
 			void (*draw_func)(gdImagePtr, gdPointPtr, int, int));
 static void PNG_Diamond(unsigned int x, unsigned int y,
 			void (*draw_func)(gdImagePtr, gdPointPtr, int, int));
-static void PNG_init_brush(int);
 
 #define GREG_XMAX 640
 #define GREG_YMAX 480
@@ -470,17 +472,6 @@ static int  PNG_plot_clip_x2, PNG_plot_clip_y2;
 #include <iconv.h>
 #endif
 static void gd_iconv(char **string);
-
-/* EAM - gdImage structure to hold brushes for linewidth */
-/* We will allocate and initialize these on demand */
-typedef struct {
-    gdImagePtr im;
-    unsigned int last_rgb;
-    int bgnd;
-    int fgnd;
-}   PNG_BRUSH;
-
-static PNG_BRUSH *PNG_brush[MAXLINEWIDTH+1];
 
 typedef struct {
     gdImagePtr im;
@@ -1453,18 +1444,18 @@ static void
 PNG_PointX(unsigned int x, unsigned int y)
 {
     gdImageLine(png_state.image, x - PNG_ps, y - PNG_ps,
-	    x + PNG_ps, y + PNG_ps, png_state.color);
+		x + PNG_ps, y + PNG_ps, png_state.color);
     gdImageLine(png_state.image, x + PNG_ps, y - PNG_ps,
-	    x - PNG_ps, y + PNG_ps, png_state.color);
+		x - PNG_ps, y + PNG_ps, png_state.color);
 }
 
 static void
 PNG_PointPlus(unsigned int x, unsigned int y)
 {
     gdImageLine(png_state.image, x - PNG_ps, y,
-	    x + PNG_ps, y, png_state.color);
+		x + PNG_ps, y, png_state.color);
     gdImageLine(png_state.image, x, y - PNG_ps,
-	    x, y + PNG_ps, png_state.color);
+		x, y + PNG_ps, png_state.color);
 }
 
 static void
@@ -2074,70 +2065,8 @@ PNG_options()
 TERM_PUBLIC void
 PNG_init()
 {
-int i;
-
     png_state.linetype = 0;
     png_state.linewidth = 1;
-
-    /* Clear brush array, then initialize a few small ones */
-    for (i=2; i<=MAXLINEWIDTH; i++)
-	PNG_brush[i] = NULL;
-}
-
-/*
- * Internal helper routine to initialize brushes used for stroking linewidth > 1
- */
-static void
-PNG_init_brush(int width)
-{
-    PNG_BRUSH *brush = PNG_brush[width];
-
-    if (!brush) {
-	brush = gp_alloc(sizeof(PNG_BRUSH),"gd brush");
-	PNG_brush[width] = brush;
-	brush->last_rgb = -99;  /* Something invalid */
-	if (!((brush->im = gdImageCreateTrueColor(width,width))))
-	    int_error(NO_CARET,"libgd: failed to create brush structure");
-	/* Whatever is chosen here is unavailable as a brush color */
-	brush->bgnd = gdImageColorAllocate( brush->im, 254, 253, 252 );
-	gdImageSaveAlpha(brush->im, 1);
-	gdImageFill(brush->im, 0, 0, brush->bgnd);
-	gdImageColorTransparent(brush->im, brush->bgnd);
-    }
-
-    if (png_state.color != brush->last_rgb) {
-	if (png_state.TrueColor) {
-	    int alpha = (png_state.rgb >> 25) & 0x7f;
-	    /* NB: gdEffectAlphaBlend does not work! */
-	    gdImageAlphaBlending(brush->im, gdEffectReplace);
-	    brush->fgnd = gdImageColorExactAlpha(png_state.image,
-		(png_state.rgb >> 16) & 0xff,
-		(png_state.rgb >> 8) & 0xff,
-		 png_state.rgb & 0xff,
-		 alpha & 0x7f);
-	} else {
-	    brush->fgnd = gdImageColorResolve(brush->im,
-		gdImageRed(png_state.image,png_state.color),
-		gdImageGreen(png_state.image,png_state.color),
-		gdImageBlue(png_state.image,png_state.color) );
-	}
-	brush->last_rgb = png_state.color;
-
-	/* The simplest choice is to fill the entire brush (square nib).
-	 * Logically it would be better to approximate a circular nib by
-	 * selectively coloring the individual pixels of the brush image,
-	 * but the difference is only apparent for dots, not lines.
-	 * Version 6: Approximate by removing the corners.
-	 */
-	gdImageFilledRectangle(brush->im, 0, 0, width-1, width-1, brush->fgnd);
-	if (width > 2) {
-	    gdImageSetPixel(brush->im, 0, 0, brush->bgnd);
-	    gdImageSetPixel(brush->im, 0, width-1, brush->bgnd);
-	    gdImageSetPixel(brush->im, width-1, 0, brush->bgnd);
-	    gdImageSetPixel(brush->im, width-1, width-1, brush->bgnd);
-	}
-
-    }
 }
 
 /*
@@ -2148,16 +2077,7 @@ PNG_init_brush(int width)
 TERM_PUBLIC void
 PNG_reset()
 {
-    int i;
     PNG_clip_state(NULL, 0);
-    /* EAM - Clean up the brushes used for linewidth */
-    for (i=2; i<=MAXLINEWIDTH; i++) {
-	if (PNG_brush[i]) {
-	    if (PNG_brush[i]->im)
-		gdImageDestroy(PNG_brush[i]->im);
-	    PNG_brush[i] = NULL;
-	}
-    }
     if (PNG_fill_tile.im) {
 	gdImageDestroy(PNG_fill_tile.im);
 	PNG_fill_tile.im = (gdImagePtr)0;
@@ -2518,11 +2438,11 @@ PNG_vector(unsigned int x, unsigned int y)
 	/* Treat this as PNG_move */
 	;
 
-    /* LT_AXIS is rendered as a dotted line, used for zeroaxis and grid lines. */
-    /* Nov 2014 - rewritten using the algorithm from the canvas terminal. */
-    } else if (png_state.linetype == LT_AXIS
-	       && png_state.dashtype == DASHTYPE_SOLID) {
-	/* LT_AXIS with no dashtype override: use legacy dotted pattern */
+    /* LT_AXIS is rendered as a dotted line, used for zeroaxis and grid lines.
+     * Nov 2014 - rewritten using the algorithm from the canvas terminal.
+     * FIXME: can this instead use the new dashed line code?
+     */
+    } else if (png_state.linetype == LT_AXIS) {
 	static int last_lw = -1;
 	static int last_color = -1;
 	static double dashpattern[4] = {0.1, 0.5, 0.6, 1.0};
@@ -2538,8 +2458,6 @@ PNG_vector(unsigned int x, unsigned int y)
 
 	/* Adjust the style when linewidth or color has changed. */
 	if (png_state.dashfraction < 0 || lw != last_lw || last_color != png_state.color) {
-	    PNG_init_brush(lw);
-	    gdImageSetBrush(png_state.image, PNG_brush[lw]->im);
 	    last_lw = lw;
 	    last_color = png_state.color;
 	    png_state.dashfraction = 0.0;
@@ -2562,8 +2480,8 @@ PNG_vector(unsigned int x, unsigned int y)
 		stride = 0;
 	    }
 	    if (i%2 == 0) {
-		/* dashes are fine for thin lines, but true dots look better */
-		/* when the line is thick.			             */
+		/* dashes are fine for thin lines, but dots look better */
+		/* when the line is thick.		                */
 		if (lw > 2) {
 		    if (png_state.dashfraction >= dashpattern[0])
 		    gdImageFilledArc(png_state.image,
@@ -2574,7 +2492,7 @@ PNG_vector(unsigned int x, unsigned int y)
 		    gdImageLine(png_state.image,
 				(int)(last_x + 0.5), (int)(last_y + 0.5),
 				(int)(new_x + 0.5), (int)(new_y + 0.5),
-				gdBrushed );
+				png_state.color);
 		}
 	    }
 	    last_x = new_x;
@@ -2623,19 +2541,11 @@ PNG_vector(unsigned int x, unsigned int y)
 
     /* All other (not dashed, not thick TrueColor) vectors */
     } else {
-	if (png_state.linecap != ROUNDED) {
-	    /* Assume working antialiasing (gd version >? 2.0.12) */
-	    gdImageSetThickness(png_state.image,png_state.linewidth);
-	    gdImageSetAntiAliased(png_state.image, png_state.color);
-	    gdImageLine(png_state.image, GD_PX(png_state.x), GD_Y(png_state.y),
-			GD_PX(x), GD_Y(y), gdAntiAliased);
-	} else {
-	    /* EAM - Implement linewidth by using a brush */
-	    PNG_init_brush(lw);
-	    gdImageSetBrush(png_state.image, PNG_brush[lw]->im);
-	    gdImageLine(png_state.image, GD_PX(png_state.x), GD_Y(png_state.y),
-			GD_PX(x), GD_Y(y), gdBrushed );
-	}
+	/* Assume working antialiasing (gd version >? 2.0.12) */
+	gdImageSetThickness(png_state.image,png_state.linewidth);
+	gdImageSetAntiAliased(png_state.image, png_state.color);
+	gdImageLine(png_state.image, GD_PX(png_state.x), GD_Y(png_state.y),
+		    GD_PX(x), GD_Y(y), gdAntiAliased);
     }
 
     /* Update previous-direction state (for join disc logic) */
@@ -2694,9 +2604,8 @@ PNG_linetype(int type)
 	png_state.dashfraction = -1.0;
 }
 
-/* Use the "brush" tools in the gd library to control line width.
- * Pre-define brushes for linewidths 2, 3, 4, 5, 6 (1 doesn't need a brush!).
- * Here we just remember the state.
+/*
+ * Here we just remember the state
  */
 TERM_PUBLIC void
 PNG_linewidth(double linewidth)
@@ -2906,27 +2815,19 @@ PNG_justify_text(enum JUSTIFY mode)
 TERM_PUBLIC void
 PNG_point(unsigned int x, unsigned int y, int number)
 {
-    int save_color = png_state.color;
-    unsigned int px, py;
-
-    /* Use current linewidth to draw the point symbol */
-    if (png_state.linewidth > 1) {
-	/* EAM - Implement linewidth by using a brush */
-	int lw   = png_state.linewidth;
-	PNG_init_brush(lw);
-	gdImageSetBrush(png_state.image, PNG_brush[lw]->im);
-	png_state.color = gdBrushed;
-    }
-
     /* Convert inflated coords to pixel coords */
-    px = GD_PX(x);
-    py = GD_Y(y);
+    int px = GD_PX(x);
+    int py = GD_Y(y);
 
     if (number < 0) { /* Dot */
-	gdImageSetPixel(png_state.image, px, py, png_state.color);
-	png_state.color = save_color;
+	int size = png_state.linewidth / 2;
+	for (int i = -size; i <= size; i++)
+	    for (int j = -size; j <= size; j++)
+		gdImageSetPixel(png_state.image, px+i, py-j, png_state.color);
 	return;
     }
+
+    gdImageSetThickness(png_state.image,png_state.linewidth);
 
     switch (number % 13) {
     case 0: /* plus */
@@ -2975,8 +2876,6 @@ PNG_point(unsigned int x, unsigned int y, int number)
 	PNG_Diamond(px, py, gp_gdImageFilledPolygon);
 	break;
     }
-
-    png_state.color = save_color;
 }
 
 TERM_PUBLIC int
