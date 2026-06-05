@@ -1079,6 +1079,70 @@ dnl     AC_DEFINE(BACKWARD_COMPATIBLE,1,
 dnl                [ Define to allow use of certain deprecated syntax. ])
 dnl   fi])
 
+dnl
+dnl     ============================================================
+dnl     Begin security measures limiting execution of shell commands
+dnl     ============================================================
+dnl
+dnl --enable-shell
+dnl		Accept the "shell" command to spawn an interactive sessions
+dnl --disable-shell
+dnl		Never accept the "shell" command (new default)
+dnl
+dnl --enable-system-command
+dnl		Accept system command, system() function call,
+dnl		and leading ! on command line (pre-version 6.1 behavior)
+dnl --disable-system-command
+dnl		Do not accept the system command or function call.
+dnl		Also disables leading "!" as shorthand for system().
+dnl
+dnl --enable-backticks
+dnl		Execute shell command in backticks (pre-version 6.1 behavior)
+dnl --disable-backticks
+dnl		Do not expand backtick shell escapes (new default)
+dnl
+dnl IMPORTANT: None of these options prevent execution of a shell command via
+dnl		popen() used to open a file whose name is given as
+dnl		"< shell-command" or "| shell-command" or "> shell-command"
+dnl
+AC_ARG_ENABLE(shell,dnl
+  [
+Security-related settings:
+                                 ("old" means gnuplot versions through 6.0)
+  --enable-shell                 "shell" command spawns an interactive shell (old behavior)
+  --disable-shell                do not accept the "shell" command (new default)
+  ],
+  [ if test "$enable_shell" = yes; then
+      AC_DEFINE(ENABLE_SHELL_COMMAND,1,
+            [ Define to enable the "shell" command to spawn an interactive shell. ])
+    fi
+  ],)
+
+AC_ARG_ENABLE(system-command,dnl
+  [--enable-system-command        accept "system" command and system() function (default)
+  --disable-system-command       do not accept "system" command.
+  ],,)
+if test "$enable_system_command" = no; then
+   AC_DEFINE(DISABLE_SYSTEM_COMMAND,1,
+            [ Define to disable shell command via "system" command or leading "!".])
+fi
+
+AC_ARG_ENABLE(backticks,dnl
+  [--enable-backticks             execute backtick text as a shell command (old behavior)
+  --disable-backticks            never execute backtick text as a shell command (default)
+
+  ],
+  [ if test $enable_backticks != yes; then
+      AC_DEFINE(DISABLE_BACKTICKS,1,
+            [ Define to disable execution of shell commands in backticks. ])
+    fi
+  ],)
+
+dnl     ============================================================
+dnl      End security measures limiting execution of shell commands
+dnl     ============================================================
+
+
 dnl Qt terminal
 
 AC_ARG_WITH(qt,dnl
@@ -1447,6 +1511,30 @@ if test "$enable_qt_ok" = yes; then
   fi
 else
   AC_MSG_RESULT([  Qt                   : no (use --with-qt or --with-qt=qt4 or --with-qt=qt5 to enable])
+fi
+
+AC_MSG_RESULT([])
+AC_MSG_RESULT([gnuplot will be compiled with the security-related options listed below.])
+AC_MSG_RESULT([Please see README.security for a description of the available options.])
+AC_MSG_RESULT([])
+
+if test "$enable_shell" = yes; then
+  AC_MSG_RESULT([  shell command:                 enabled (pre-version 6 behavior)])
+else
+  AC_MSG_RESULT([  shell command:                 disabled (default)])
+fi
+
+if test "$enable_system_command"  = no; then
+  AC_MSG_RESULT([  system command:                disabled])
+else
+  AC_MSG_RESULT([  system command:                enabled (default, pre-version 6 behavior)])
+fi
+  AC_MSG_RESULT([                                 includes system() function and leading !])
+
+if test "$enable_backticks" = yes; then
+  AC_MSG_RESULT([  shell escapes in backticks:    allowed except in single quoted strings (old behavior)])
+else
+  AC_MSG_RESULT([  shell escapes in backticks:    disabled (default)])
 fi
 
 AC_MSG_RESULT([])

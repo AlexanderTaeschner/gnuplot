@@ -2219,6 +2219,10 @@ f_system(union argument *arg)
     (void) arg;
     pop(&val);
 
+#if defined(DISABLE_SYSTEM_COMMAND)
+    int_error(NO_CARET, "This copy of gnuplot does not support system commands");
+#endif
+
     /* Make sure parameters are of the correct type */
     if (val.type != STRING)
 	int_error(NO_CARET, "non-string argument to system()");

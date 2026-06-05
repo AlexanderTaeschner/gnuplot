@@ -3525,6 +3525,10 @@ do_system(const char *cmd)
 {
     int ierr;
 
+#if defined(DISABLE_SYSTEM_COMMAND)
+    int_error(NO_CARET, "This copy of gnuplot does not support system commands");
+#endif
+
 /* (am, 19980929)
  * OS/2 related note: cmd.exe returns 255 if called w/o argument.
  * i.e. calling a shell by "!" will always end with an error message.
@@ -4025,7 +4029,7 @@ int
 do_system_func(const char *cmd, char **output)
 {
 
-#if defined(PIPES)
+#if defined(HAVE_POPEN) && !defined(DISABLE_SYSTEM_COMMAND)
     int c;
     FILE *f;
     int result_allocated, result_pos;
@@ -4072,13 +4076,13 @@ do_system_func(const char *cmd, char **output)
 
     return ierr;
 
-#else /* PIPES */
+#else /* HAVE_POPEN */
 
-    int_warn(NO_CARET, "system() requires support for pipes");
+    int_warn(NO_CARET, "This copy of gnuplot does not support the system() function");
     *output = gp_strdup("");
     return 0;
 
-#endif /* PIPES */
+#endif /* HAVE_POPEN */
 
 }
 
