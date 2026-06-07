@@ -1300,7 +1300,8 @@ clear_command()
 
     if (in_multiplot) {
 	int p = multiplot_current_panel();
-	(*term->fillbox)(FS_EMPTY, panel_bounds[p].xleft, panel_bounds[p].ybot,
+	if (term->fillbox)
+	    (*term->fillbox)(FS_EMPTY, panel_bounds[p].xleft, panel_bounds[p].ybot,
 		    panel_bounds[p].xright - panel_bounds[p].xleft,
 		    panel_bounds[p].ytop - panel_bounds[p].ybot);
 	panel_flags[p] = 0;
