@@ -92,7 +92,6 @@ SUBDIRS = $(d_beos) wxterminal qtterminal
 EXTRA_gnuplot_SOURCES = 
 
 EXTRA_DIST = GNUmakefile Makefile.maint \
-gnuplot.opt x11.opt \
 makefile.all makefile.awc os2 win \
 $(EXTRA_gnuplot_SOURCES)
 
