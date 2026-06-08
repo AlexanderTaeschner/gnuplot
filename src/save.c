@@ -960,9 +960,7 @@ set isosamples %d, %d",
 		(boxplot_opts.labels == BOXPLOT_FACTOR_LABELS_AUTO) ? "auto" :"off",
 		boxplot_opts.sort_factors ? "" : "un");
 
-#ifdef WITH_CHI_SHAPES
     fprintf(fp, "set chi_shapes fraction %.2f\n", chi_shape_default_fraction);
-#endif
 
     fputs("set loadpath ", fp);
     {

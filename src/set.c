@@ -706,7 +706,6 @@ set_command()
 	    set_ticslevel();
 	    break;
 	default:
-#ifdef WITH_CHI_SHAPES
 	    if (almost_equals(c_token,"chi$_shapes")
 	    &&  equals(++c_token,"fraction")) {
 		extern double chi_shape_default_fraction;
@@ -714,7 +713,6 @@ set_command()
 		chi_shape_default_fraction = real_expression();
 		break;
 	    }
-#endif
 	    int_error(c_token, "unrecognized option - see 'help set'.");
 	    break;
 	}

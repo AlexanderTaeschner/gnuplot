@@ -2645,7 +2645,6 @@ eval_plots()
 		    continue;
 		}
 
-#ifdef WITH_CHI_SHAPES
 		if (equals(c_token, "concavehull")) {
 		    this_plot->plot_filter = FILTER_CONCAVE_HULL;
 		    c_token++;
@@ -2659,7 +2658,6 @@ eval_plots()
 		    c_token++;
 		    continue;
 		}
-#endif
 
 		if (this_plot->plot_filter == FILTER_CONVEX_HULL
 		||  this_plot->plot_filter == FILTER_CONCAVE_HULL)
@@ -3478,7 +3476,6 @@ eval_plots()
 		}
 #endif
 
-#ifdef WITH_CHI_SHAPES
 		if (this_plot->plot_filter == FILTER_CONCAVE_HULL) {
 		    delaunay_triangulation(this_plot);
 		    concave_hull(this_plot);
@@ -3489,7 +3486,6 @@ eval_plots()
 		    delaunay_triangulation(this_plot);
 		    save_delaunay_triangles(this_plot);
 		}
-#endif
 
 		/* Restore auto-scaling prior to smoothing operation */
 		switch (this_plot->plot_smooth) {

@@ -700,14 +700,12 @@ show_command()
 
     case S_INVALID:
     default:
-#ifdef WITH_CHI_SHAPES
 	if (almost_equals(c_token,"chi$_shapes")) {
 	    fprintf(stderr,"Default χ-shape parameter = %g of longest edge in convex hull\n",
 		chi_shape_default_fraction);
 	    c_token++;
 	    break;
 	}
-#endif
 	error_message = "Unrecognized option.";
 	break;
     }
@@ -1085,11 +1083,7 @@ show_version(FILE *fp)
 #endif
 
 	    const char *chi_shapes =
-#if defined(WITH_CHI_SHAPES)
 		"+CHI_SHAPES ";
-#else
-		"-CHI_SHAPES ";
-#endif
 
 	    const char *unicodebuild =
 #if defined(_WIN32) && defined(UNICODE)
