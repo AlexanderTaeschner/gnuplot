@@ -150,7 +150,10 @@ static void if_else_command(ifstate if_state);
 static void old_if_command(struct at_type *expr);
 static int report_error(int ierr);
 static void load_or_call_command( TBOOLEAN call );
-       void do_shell(void);
+
+#if defined (ENABLE_SHELL_COMMAND)
+static void do_shell(void);
+#endif
 
 static int expand_1level_macros(void);
 static void timed_pause(double sleep_time);
@@ -2858,13 +2861,22 @@ screendump_command()
 /* set_command() is in set.c */
 /* show_command() is in show.c */
 
+/*
+ * DEPRECATED (Nov 2026 gnuplot 6.1)
+ */
 /* 'shell' command is processed by do_shell(), see below */
 void
 shell_command()
 {
+#if defined(ENABLE_SHELL_COMMAND)
+    if (!interactive)
+	int_error(NO_CARET, "\"shell\" command accepted only in interactive mode");
     if (evaluate_inside_functionblock)
-	int_error(NO_CARET, "bare shell commands not accepted in a function block");
+	int_error(NO_CARET, "\"shell\" command not accepted in a function block");
     do_shell();
+#else
+    int_error(NO_CARET, "This copy of gnuplot does not accept the \"shell\" command");
+#endif
 }
 
 /* process the 'splot' command */
@@ -3656,10 +3668,15 @@ rlgets(char *s, size_t n, const char *prompt)
 }
 # endif				/* USE_READLINE */
 
+/*
+ * DEPRECATED
+ * configuration optiont --enable-shell
+ */
+#if defined (ENABLE_SHELL_COMMAND)
 
 # if defined(MSDOS) || defined(_WIN32)
 
-void
+static void
 do_shell()
 {
     screen_ok = FALSE;
@@ -3679,7 +3696,7 @@ do_shell()
 
 #  elif defined(OS2)
 
-void
+static void
 do_shell()
 {
     screen_ok = FALSE;
@@ -3697,7 +3714,7 @@ do_shell()
 /* plain old Unix */
 
 #define EXEC "exec "
-void
+static void
 do_shell()
 {
     static char exec[100] = EXEC;
@@ -3716,13 +3733,16 @@ do_shell()
 
 #else // !HAVE_SYSTEM
 
-void
+static void
 do_shell()
 {
     int_error(NO_CARET, "This copy of gnuplot does not support bare shell commands");
 }
 
 # endif				/* !MSDOS */
+
+#endif /* defined (ENABLE_SHELL_COMMAND) */
+
 
 /* read from stdin */
 

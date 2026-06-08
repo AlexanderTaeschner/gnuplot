@@ -19232,21 +19232,18 @@ Ffigure_walls
 2 shell
 ?commands shell
 ?shell
- The `shell` command spawns an interactive shell.  To return to `gnuplot`,
- type `exit` or the END-OF-FILE character if using Unix, or `exit` if using
- MS-DOS or OS/2.
+ The `shell` command spawns an interactive shell.
+ Everything else on the gnuplot command line is ignored.
+ To return to `gnuplot`, type `exit` or (linux) the END-OF-FILE character (^D).
 
- The `shell` command ignores anything else on the gnuplot command line.
- If instead you want to pass a command string to a shell for immediate
- execution, use the `system` function or the shortcut `!`. See `system`.
+ DEPRECATED in version 6.1
+ This command is available only in interactive mode and only if gnuplot
+ was configured with option
+      ./configure --enable-shell
 
- Examples:
-
-       shell
-       system "print previous_plot.ps"
-       ! print previous_plot.ps
-       current_time = system("date")
-
+ The preferred alternative if you want to pass a commands to a shell for
+ immediate execution is to use the `system` command or the shortcut `!`.
+ See `system`.
 2 show
 ?
  Most `set` commands have a corresponding show command with no special options.
