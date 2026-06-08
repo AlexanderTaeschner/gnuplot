@@ -3050,7 +3050,7 @@ eval_plots()
 		}
 #endif
 
-		/* EXPERIMENTAL filter plot ... if (<expression>) */
+		/* filter plot ... if (<expression>) */
 		if (equals(c_token,"if")) {
 		    if (this_plot->plot_type != DATA)
 			int_error(c_token, "'if' restriction not possible here");

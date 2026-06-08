@@ -1003,7 +1003,7 @@ get_3ddata(struct surface_points *this_plot)
 		goto come_here_if_undefined;
 	    }
 
-	    /* EXPERIMENTAL "splot .. if (<expr>)" */
+	    /* "splot .. if (<expr>)" */
 	    if (this_plot->if_filter_at) {
 		struct value keep;
 		evaluate_inside_using = TRUE;
@@ -2229,7 +2229,7 @@ eval_3dplots()
 		}
 #endif
 
-		/* EXPERIMENTAL filter splot ... if (<expression>) */
+		/* filter splot ... if (<expression>) */
 		if (equals(c_token,"if")) {
 		    if (this_plot->plot_type != DATA3D)
 			int_error(c_token, "'if' restriction not possible here");
