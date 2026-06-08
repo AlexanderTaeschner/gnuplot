@@ -422,13 +422,11 @@ unset_command()
 	unset_pointsize();
 	break;
     case S_POLAR:
-#ifdef USE_POLAR_GRID
 	if (equals(c_token,"grid")) {
 	    c_token++;
 	    unset_polar(TRUE);
 	} else
-#endif
-	unset_polar(FALSE);
+	    unset_polar(FALSE);
 	break;
     case S_PRINT:
 	unset_print();
@@ -1695,11 +1693,8 @@ unset_polar( TBOOLEAN grid )
     THETA_AXIS.tic_in = TRUE;
     THETA_AXIS.tic_rotate = 0;
 
-#ifdef USE_POLAR_GRID
-    if (grid) {
+    if (grid)
 	polar_grid = default_polar_grid;
-    }
-#endif
 }
 
 

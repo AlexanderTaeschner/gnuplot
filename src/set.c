@@ -3941,7 +3941,6 @@ set_polar()
     polar = TRUE;
     raxis = TRUE;
 
-#ifdef USE_POLAR_GRID
     /* set polar grid {<theta_segments>, <radial_segments>}
      *                { qnorm {<power>} | gauss | cauchy | exp | box | hann }
      *                { kdensity } { scale <scale> }
@@ -4030,7 +4029,6 @@ set_polar()
 
 	} /* while (!END_OF_COMMAND) */
     }
-#endif /* USE_POLAR_GRID */
 
     if (was_already_polar)
 	return;

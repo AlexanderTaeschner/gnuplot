@@ -1068,11 +1068,7 @@ show_version(FILE *fp)
 #ifdef HAVE_EXTERNAL_FUNCTIONS
 		"+EXTERNAL_FUNCTIONS "
 #endif
-#ifdef USE_POLAR_GRID
 		"+POLARGRID "
-#else
-		"-POLARGRID "
-#endif
 	    "";
 
 	    const char *fblocks =
@@ -2766,7 +2762,6 @@ show_polar()
 {
     SHOW_ALL_NL;
     fprintf(stderr, "\tpolar mode is %s\n", (polar) ? "ON" : "OFF");
-#ifdef USE_POLAR_GRID
     if (1) {
 	fprintf(stderr,"\tpolar grid uses %d theta wedges and %d radial segments\n",
 		polar_grid.theta_segments, polar_grid.r_segments);
@@ -2785,7 +2780,6 @@ show_polar()
 			polar_grid.kdensity ? "kdensity" : "", polar_grid.scale);
     } else
 	fprintf(stderr,"\tno polar gridding\n");
-#endif /* USE_POLAR_GRID */
 }
 
 

@@ -601,7 +601,6 @@ save_set_all(FILE *fp)
 
     if (polar) {
 	fprintf(fp, "set polar\n");
-#ifdef USE_POLAR_GRID
 	fprintf(fp, "set polar grid %d, %d %s ",
 		polar_grid.theta_segments, polar_grid.r_segments,
 		reverse_table_lookup(dgrid3d_mode_tbl, polar_grid.mode));
@@ -615,7 +614,6 @@ save_set_all(FILE *fp)
 	    fprintf(fp, "r [%g:%g]\n", polar_grid.rmin, polar_grid.rmax);
 	else
 	    fprintf(fp, "r [%g:*]\n", polar_grid.rmin);
-#endif
     } else {
 	fprintf(fp, "unset polar\n");
     }

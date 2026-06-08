@@ -1036,17 +1036,6 @@ if test "${with_cairo}" = yes; then
   )
 fi
 
-dnl Enable polar mode gridded surface plots
-AC_ARG_ENABLE(polar-grid,dnl
-[  --enable-polar-grid     include support for gridded polar surface plots],
-  [if test "$enableval" != no; then
-    AC_DEFINE(USE_POLAR_GRID,1,
-               [ Define to support polar gridded surface plots])
-   fi],
-    AC_DEFINE(USE_POLAR_GRID,1,
-               [ Define to support polar gridded surface plots])
-  )
-
 dnl Enable subsystem to generate statistical summary of file contents
 AC_ARG_ENABLE(stats,dnl
 [  --disable-stats         Omit calculation of statistical summary of data],
@@ -1555,12 +1544,6 @@ if test "$enable_watchpoints" != no; then
   AC_MSG_RESULT([  Support watchpoints during 2D plotting:          yes])
 else
   AC_MSG_RESULT([  Support watchpoints during 2D plotting:          no (--enable-watchpoints to enable)])
-fi
-
-if test "$enable_polar_grid" != no; then
-  AC_MSG_RESULT([  Support for polar gridded surfaces:              yes])
-else
-  AC_MSG_RESULT([  Support for polar gridded surfaces:              no (--enable-polar-grid to enable)])
 fi
 
 if test "$enable_function_blocks" != no; then

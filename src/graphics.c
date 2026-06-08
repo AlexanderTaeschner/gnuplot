@@ -6239,7 +6239,6 @@ spidertick_callback(struct axis *axis, double place, char *text, int ticlevel,
 }
 
 
-#ifdef USE_POLAR_GRID
 /*
  * Draw the polar grid elements that are within the requested
  * range on theta and r.
@@ -6312,6 +6311,3 @@ plot_polar_grid(struct curve_points *plot)
 	term->filled_polygon(4, quad);
     }
 }
-#else	/* USE_POLAR_GRID */
-static void plot_polar_grid(struct curve_points *plot) {}
-#endif
