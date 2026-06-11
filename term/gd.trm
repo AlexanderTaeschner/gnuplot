@@ -2526,8 +2526,9 @@ PNG_vector(unsigned int x, unsigned int y)
 	if (png_state.dashtype == DASHTYPE_CUSTOM) {
 	    pattern = png_state.custom_dashpattern.pattern;
 	    /* Custom string patterns (".-_") have DSCALE=10 baked in;
-	     * apply empirical_scale=0.25 to match pngcairo visual output. */
-	    scale = 0.25 * png_state.linewidth_f * PNG_dashlength_factor;
+	     * apply empirical_scale=0.50 to better match other terminals.
+	     */
+	    scale = 0.50 * png_state.linewidth_f * PNG_dashlength_factor;
 	} else if (png_state.dashtype > 0) {
 	    pattern = PNG_dashpatterns[png_state.dashtype];
 	    scale = png_state.linewidth_f * PNG_dashlength_factor;
