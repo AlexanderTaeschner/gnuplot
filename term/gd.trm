@@ -2139,7 +2139,7 @@ TERM_PUBLIC
 void PNG_set_color (t_colorspec *colorspec)
 {
     double gray = colorspec->value;
-    int save;
+    int lt_save, dt_save;
 
     /* A color change ends the current transparent polyline path */
     PNG_flush_pending_endcap();
@@ -2149,9 +2149,11 @@ void PNG_set_color (t_colorspec *colorspec)
     switch (colorspec->type) {
 
     case TC_LT:
-	save = png_state.linetype;
+	lt_save = png_state.linetype;
+	dt_save = png_state.dashtype;
 	PNG_linetype(colorspec->lt);
-	png_state.linetype = save;
+	png_state.linetype = lt_save;
+	png_state.dashtype = dt_save;
 	break;
 
     case TC_RGB:
