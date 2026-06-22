@@ -3305,10 +3305,6 @@ set_mouse()
 	    }
 	    mouse_setting.xmzoom_factor = x;
 	    mouse_setting.ymzoom_factor = y;
-	} else if (almost_equals(c_token, "multi$plot")
-		|| almost_equals(c_token, "nomulti$plot")) {
-	    /* used in 6.0, not needed in 6.1 */
-	    c_token++;
 	} else {
 	    if (!END_OF_COMMAND)
     		int_warn(c_token++, "unrecognized option");
