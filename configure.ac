@@ -1297,7 +1297,6 @@ else
   AC_MSG_RESULT([  These would include, if enabled])
 fi
 AC_MSG_RESULT([    block pbm sixeltek ])
-AC_MSG_RESULT([    note: not needed for sixel graphics output to vt100-series emulators])
 AC_MSG_RESULT([])
 
 if test "$with_old_printers" == yes; then
