@@ -700,14 +700,12 @@ show_command()
 
     case S_INVALID:
     default:
-#ifdef WITH_CHI_SHAPES
 	if (almost_equals(c_token,"chi$_shapes")) {
 	    fprintf(stderr,"Default χ-shape parameter = %g of longest edge in convex hull\n",
 		chi_shape_default_fraction);
 	    c_token++;
 	    break;
 	}
-#endif
 	error_message = "Unrecognized option.";
 	break;
     }
@@ -1070,11 +1068,7 @@ show_version(FILE *fp)
 #ifdef HAVE_EXTERNAL_FUNCTIONS
 		"+EXTERNAL_FUNCTIONS "
 #endif
-#ifdef USE_POLAR_GRID
 		"+POLARGRID "
-#else
-		"-POLARGRID "
-#endif
 	    "";
 
 	    const char *fblocks =
@@ -1085,11 +1079,7 @@ show_version(FILE *fp)
 #endif
 
 	    const char *chi_shapes =
-#if defined(WITH_CHI_SHAPES)
 		"+CHI_SHAPES ";
-#else
-		"-CHI_SHAPES ";
-#endif
 
 	    const char *unicodebuild =
 #if defined(_WIN32) && defined(UNICODE)
@@ -2772,7 +2762,6 @@ show_polar()
 {
     SHOW_ALL_NL;
     fprintf(stderr, "\tpolar mode is %s\n", (polar) ? "ON" : "OFF");
-#ifdef USE_POLAR_GRID
     if (1) {
 	fprintf(stderr,"\tpolar grid uses %d theta wedges and %d radial segments\n",
 		polar_grid.theta_segments, polar_grid.r_segments);
@@ -2791,7 +2780,6 @@ show_polar()
 			polar_grid.kdensity ? "kdensity" : "", polar_grid.scale);
     } else
 	fprintf(stderr,"\tno polar gridding\n");
-#endif /* USE_POLAR_GRID */
 }
 
 

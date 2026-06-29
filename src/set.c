@@ -706,7 +706,6 @@ set_command()
 	    set_ticslevel();
 	    break;
 	default:
-#ifdef WITH_CHI_SHAPES
 	    if (almost_equals(c_token,"chi$_shapes")
 	    &&  equals(++c_token,"fraction")) {
 		extern double chi_shape_default_fraction;
@@ -714,7 +713,6 @@ set_command()
 		chi_shape_default_fraction = real_expression();
 		break;
 	    }
-#endif
 	    int_error(c_token, "unrecognized option - see 'help set'.");
 	    break;
 	}
@@ -3307,10 +3305,6 @@ set_mouse()
 	    }
 	    mouse_setting.xmzoom_factor = x;
 	    mouse_setting.ymzoom_factor = y;
-	} else if (almost_equals(c_token, "multi$plot")
-		|| almost_equals(c_token, "nomulti$plot")) {
-	    /* used in 6.0, not needed in 6.1 */
-	    c_token++;
 	} else {
 	    if (!END_OF_COMMAND)
     		int_warn(c_token++, "unrecognized option");
@@ -3943,7 +3937,6 @@ set_polar()
     polar = TRUE;
     raxis = TRUE;
 
-#ifdef USE_POLAR_GRID
     /* set polar grid {<theta_segments>, <radial_segments>}
      *                { qnorm {<power>} | gauss | cauchy | exp | box | hann }
      *                { kdensity } { scale <scale> }
@@ -4032,7 +4025,6 @@ set_polar()
 
 	} /* while (!END_OF_COMMAND) */
     }
-#endif /* USE_POLAR_GRID */
 
     if (was_already_polar)
 	return;

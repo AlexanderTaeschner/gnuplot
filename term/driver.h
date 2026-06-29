@@ -48,7 +48,7 @@ static void options_null(void);
 static void UNKNOWN_null(void);
 
 #define set_font_null NULL
-#if  defined(WITH_METAPOST) || defined(WITH_METAFONT) || defined(WITH_TEKTRONIX) || !defined(NO_BITMAP_SUPPORT)
+#if  defined(WITH_METAPOST) || defined(WITH_METAFONT) || defined(WITH_TEKTRONIX) || defined(OLD_PRINTERS)
 static void line_and_point(unsigned int x, unsigned int y, int number);
 #endif
 

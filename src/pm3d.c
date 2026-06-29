@@ -51,6 +51,8 @@ typedef struct {
     short index;		/* Index into from_plot->zclip, if it exists */
 				/* this is really the fillstyle if this is an object */
     short type;			/* QUAD_TYPE_NORMAL or QUAD_TYPE_LARGEPOLYGON etc */
+    TBOOLEAN object_clip_active;	/* only used for depth-ordered object polygons */
+    BoundingBox object_clip_box;	/* terminal clip box saved when object was queued */
 #ifdef WITH_2ND_SORTKEY
     int sequence;		/* The original order of added quadrangles */
 #endif
@@ -91,10 +93,14 @@ static int apply_lighting_model(struct coordinate *, struct coordinate *,
 				double gray, TBOOLEAN gray_is_rgb );
 static void illuminate_one_quadrangle(quadrangle *q, double gray, TBOOLEAN gray_is_rgb);
 
+static void pm3d_depth_queue_flush_internal(BoundingBox *restore_clip_box);
 static void filled_polygon(struct surface_points *from_plot, int index,
-			    gpdPoint *corners, int nv);
+			    gpdPoint *corners, int nv, BoundingBox *object_clip_box,
+			    BoundingBox *restore_clip_box);
 static int clip_filled_polygon(struct surface_points *from_plot, int index,
 			    gpdPoint *inpts, gpdPoint *outpts, int nv );
+static void pm3d_add_polygon_internal(struct surface_points *plot,
+			    gpdPoint corners[], int vertices, BoundingBox *clipbox);
 
 static TBOOLEAN color_from_rgbvar = FALSE;
 static double light[3];
@@ -387,6 +393,18 @@ pm3d_depth_queue_clear(void)
 void
 pm3d_depth_queue_flush(void)
 {
+    pm3d_depth_queue_flush_internal(NULL);
+}
+
+void
+pm3d_depth_queue_flush_with_clip(struct BoundingBox *restore_clip_box)
+{
+    pm3d_depth_queue_flush_internal(restore_clip_box);
+}
+
+static void
+pm3d_depth_queue_flush_internal(BoundingBox *restore_clip_box)
+{
     if (pm3d.direction != PM3D_DEPTH && !track_pm3d_quadrangles)
 	return;
 
@@ -457,9 +475,13 @@ pm3d_depth_queue_flush(void)
 	    if (qp->type == QUAD_TYPE_LARGEPOLYGON) {
 		gpdPoint *vertices = &polygonlist[qp->vertex.array_index];
 		int nv = vertices[2].c;
-		filled_polygon(qp->from_plot, qp->index, vertices, nv);
+		filled_polygon(qp->from_plot, qp->index, vertices, nv,
+				(qp->object_clip_active ? &qp->object_clip_box : NULL),
+				restore_clip_box);
 	    } else {
-		filled_polygon(qp->from_plot, qp->index, qp->vertex.corners, 4);
+		filled_polygon(qp->from_plot, qp->index, qp->vertex.corners, 4,
+				(qp->object_clip_active ? &qp->object_clip_box : NULL),
+				restore_clip_box);
 	    }
 	}
     }
@@ -1004,6 +1026,7 @@ pm3d_plot(struct surface_points *this_plot, int at_which_z)
 			    quadrangle* qp = &quadrangles[current_quadrangle];
 			    memcpy(qp->vertex.corners, corners, 4 * sizeof (gpdPoint));
 			    qp->from_plot = this_plot;
+			    qp->object_clip_active = FALSE;
 			    if (color_from_rgbvar || pm3d_shade.strength > 0) {
 				qp->gray = PM3D_USE_RGB_COLOR_INSTEAD_OF_GRAY;
 				qp->qcolor = (unsigned int)gray;
@@ -1030,7 +1053,7 @@ pm3d_plot(struct surface_points *this_plot, int at_which_z)
 				set_color(gray);
 			    if (color_from_fillcolor && fillcolorspec.lt == LT_BACKGROUND)
 				set_color(not_a_number());
-			    filled_polygon(this_plot, this_plot->zclip_index, corners, 4);
+			    filled_polygon(this_plot, this_plot->zclip_index, corners, 4, NULL, NULL);
 			}
 		    }
 		}
@@ -1042,12 +1065,13 @@ pm3d_plot(struct surface_points *this_plot, int at_which_z)
 			continue;
 
 		if (pm3d.direction != PM3D_DEPTH) {
-		    filled_polygon(this_plot, this_plot->zclip_index, corners, 4);
+		    filled_polygon(this_plot, this_plot->zclip_index, corners, 4, NULL, NULL);
 		} else {
 		    /* copy quadrangle */
 		    quadrangle* qp = &quadrangles[current_quadrangle];
 		    memcpy(qp->vertex.corners, corners, 4 * sizeof (gpdPoint));
 		    qp->from_plot = this_plot;
+		    qp->object_clip_active = FALSE;
 		    if (color_from_rgbvar || pm3d_shade.strength > 0) {
 			qp->gray = PM3D_USE_RGB_COLOR_INSTEAD_OF_GRAY;
 			qp->qcolor = (unsigned int)gray;
@@ -1231,6 +1255,20 @@ pm3d_add_quadrangle(struct surface_points *plot, gpdPoint corners[])
 void
 pm3d_add_polygon(struct surface_points *plot, gpdPoint corners[], int vertices)
 {
+    pm3d_add_polygon_internal(plot, corners, vertices, NULL);
+}
+
+void
+pm3d_add_polygon_with_clip(struct surface_points *plot, gpdPoint corners[],
+			   int vertices, struct BoundingBox *clipbox)
+{
+    pm3d_add_polygon_internal(plot, corners, vertices, clipbox);
+}
+
+static void
+pm3d_add_polygon_internal(struct surface_points *plot, gpdPoint corners[],
+			  int vertices, BoundingBox *clipbox)
+{
     quadrangle *q;
 
     if (!plot || (plot->plot_style == ISOSURFACE))
@@ -1246,6 +1284,11 @@ pm3d_add_polygon(struct surface_points *plot, gpdPoint corners[], int vertices)
     current_quadrangle++;
     memcpy(q->vertex.corners, corners, 4*sizeof(gpdPoint));
     q->from_plot = plot;
+    q->object_clip_active = FALSE;
+    if (!plot && clipbox) {
+	q->object_clip_active = TRUE;
+	q->object_clip_box = *clipbox;
+    }
     if (plot)
 	q->index = plot->zclip_index;
     else /* this is a polygon object; "index" is really fillstyle */
@@ -1663,7 +1706,8 @@ apply_lighting_model( struct coordinate *v0, struct coordinate *v1,
  * is really the fill style of that object.
  */
 static void
-filled_polygon(struct surface_points *from_plot, int index, gpdPoint *corners, int nv)
+filled_polygon(struct surface_points *from_plot, int index, gpdPoint *corners, int nv,
+	       BoundingBox *object_clip_box, BoundingBox *restore_clip_box)
 {
     int i;
     double x, y;
@@ -1750,6 +1794,11 @@ filled_polygon(struct surface_points *from_plot, int index, gpdPoint *corners, i
     else
 	icorners[0].style = style_from_fill(&default_fillstyle);
 
+    if (object_clip_box) {
+	term->clip_state(NULL, 0);
+	term->clip_state(object_clip_box, 0);
+    }
+
     term->filled_polygon(nv, icorners);
 
     if (!from_plot) {
@@ -1758,24 +1807,24 @@ filled_polygon(struct surface_points *from_plot, int index, gpdPoint *corners, i
 	 * See graphics.c:do_polygon()
 	 */
 	if ((int)(corners[2].c) == LT_NODRAW)
-	    return;
+	    goto done;
 	term->linewidth(corners[3].c);
 	set_rgbcolor_const( (unsigned int)(corners[2].c) );
     } else if (from_plot->plot_style == CONTOURFILL) {
 	t_colorspec *bordercolor = &(from_plot->fill_properties.border_color);
 	if (bordercolor->type == TC_LT && bordercolor->lt == LT_NODRAW)
-	    return;
+	    goto done;
 	if (bordercolor->type != TC_DEFAULT)
 	    apply_pm3dcolor(bordercolor);
     } else if ((from_plot->plot_style == BOXES)
 	   ||  (from_plot->plot_style == POLYGONS)) {
 	t_colorspec *bordercolor = &(from_plot->fill_properties.border_color);
 	if (bordercolor->type == TC_LT && bordercolor->lt == LT_NODRAW)
-	    return;
+	    goto done;
 	apply_pm3dcolor(bordercolor);
     } else {
 	if (pm3d.border.l_type == LT_NODRAW)
-	    return;
+	    goto done;
 	/* LT_DEFAULT means draw border in current color (set pm3d border retrace) */
 	if (pm3d.border.l_type != LT_DEFAULT)
 	    term_apply_lp_properties(&pm3d.border);
@@ -1784,6 +1833,13 @@ filled_polygon(struct surface_points *from_plot, int index, gpdPoint *corners, i
     term->move(icorners[0].x, icorners[0].y);
     for (i = nv-1; i >= 0; i--) {
 	term->vector(icorners[i].x, icorners[i].y);
+    }
+
+done:
+    if (object_clip_box) {
+	term->clip_state(NULL, 0);
+	if (restore_clip_box)
+	    term->clip_state(restore_clip_box, 0);
     }
 }
 
@@ -2221,6 +2277,9 @@ split_intersecting_surface_tiles()
 		    qnew->gray = qt->gray;
 		    qnew->index = qt->index;
 		    qnew->qcolor = qt->qcolor;
+		    qnew->object_clip_active = qt->object_clip_active;
+		    if (qnew->object_clip_active)
+			qnew->object_clip_box = qt->object_clip_box;
 #ifdef WITH_2ND_SORTKEY
 		    qnew->sequence = qt->sequence;
 #endif
@@ -2249,6 +2308,9 @@ split_intersecting_surface_tiles()
 		    qnew->gray = qt->gray;
 		    qnew->index = qt->index;
 		    qnew->qcolor = qt->qcolor;
+		    qnew->object_clip_active = qt->object_clip_active;
+		    if (qnew->object_clip_active)
+			qnew->object_clip_box = qt->object_clip_box;
 #ifdef WITH_2ND_SORTKEY
 		    qnew->sequence = qt->sequence;
 #endif
@@ -2277,6 +2339,9 @@ split_intersecting_surface_tiles()
 		    qnew->gray = qt->gray;
 		    qnew->index = qt->index;
 		    qnew->qcolor = qt->qcolor;
+		    qnew->object_clip_active = qt->object_clip_active;
+		    if (qnew->object_clip_active)
+			qnew->object_clip_box = qt->object_clip_box;
 #ifdef WITH_2ND_SORTKEY
 		    qnew->sequence = qt->sequence;
 #endif

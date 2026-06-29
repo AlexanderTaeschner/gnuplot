@@ -1003,7 +1003,7 @@ get_3ddata(struct surface_points *this_plot)
 		goto come_here_if_undefined;
 	    }
 
-	    /* EXPERIMENTAL "splot .. if (<expr>)" */
+	    /* "splot .. if (<expr>)" */
 	    if (this_plot->if_filter_at) {
 		struct value keep;
 		evaluate_inside_using = TRUE;
@@ -1917,13 +1917,11 @@ eval_3dplots()
 		    continue;
 
 		/* filter options for splot */
-#ifdef WITH_CHI_SHAPES
 		if (equals(c_token, "delaunay")) {
                     this_plot->plot_filter = FILTER_DELAUNAY;
                     c_token++;
 		    continue;
 		}
-#endif
 
 		/* smoothing options for splot */
 		if (equals(c_token, "smooth")) {
@@ -2231,7 +2229,7 @@ eval_3dplots()
 		}
 #endif
 
-		/* EXPERIMENTAL filter splot ... if (<expression>) */
+		/* filter splot ... if (<expression>) */
 		if (equals(c_token,"if")) {
 		    if (this_plot->plot_type != DATA3D)
 			int_error(c_token, "'if' restriction not possible here");
@@ -2504,12 +2502,10 @@ eval_3dplots()
 		/* Filter operations are performed immediately after
                  * reading in the data, before any smoothing.
                  */
-#ifdef WITH_CHI_SHAPES
 		if (this_plot->plot_filter == FILTER_DELAUNAY) {
                     delaunay_triangulation( (struct curve_points *)this_plot );
 		    save3d_delaunay_triangles(this_plot);
 		}
-#endif
 
 		/* Plot-type specific range-fiddling */
 		if (!axis_array[FIRST_Z_AXIS].log

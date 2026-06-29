@@ -157,10 +157,13 @@ extern TBOOLEAN track_pm3d_quadrangles;
 void get_pm3d_at_option(char *pm3d_where);
 void pm3d_depth_queue_clear(void);
 void pm3d_depth_queue_flush(void);
+void pm3d_depth_queue_flush_with_clip(struct BoundingBox *restore_clip_box);
 void pm3d_reset(void);
 void pm3d_draw_one(struct surface_points* plots);
 void pm3d_add_quadrangle(struct surface_points* plot, gpdPoint *corners);
 void pm3d_add_polygon(struct surface_points* plot, gpdPoint *corners, int vertices);
+void pm3d_add_polygon_with_clip(struct surface_points* plot, gpdPoint *corners,
+    int vertices, struct BoundingBox *clipbox);
 void pm3d_init_lighting_model(void);
 int pm3d_side( struct coordinate *p0, struct coordinate *p1, struct coordinate *p2);
 double cb2gray(double cb);

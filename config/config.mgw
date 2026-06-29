@@ -526,7 +526,8 @@
 /* #undef MSDOS */
 
 /* Define to disable terminals that depend on code in bitmap.c */
-#define NO_BITMAP_SUPPORT 1
+/* #undef NO_BITMAP_SUPPORT */
+/* Don't change it here -- this define is set in config/mingw/Makefile. */
 
 /* Name of package */
 #define PACKAGE "gnuplot"

@@ -1092,8 +1092,11 @@ do_3dplot(
 	    hidden3d_layer = LAYER_DEPTHORDER;
 #endif
 	(term->layer)(TERM_LAYER_BEFORE_PLOT);
+	if (splot_map && draw_border && clip_area)
+	    (term->clip_state)(clip_area, 0);
 	plot3d_hidden(plots, pcount);
 	(term->layer)(TERM_LAYER_AFTER_PLOT);
+	(term->clip_state)(NULL, 0);
     }
 
     /* Set up bookkeeping for the individual key titles */
@@ -1149,6 +1152,8 @@ do_3dplot(
 
 	    /* Sync point for start of new curve (used by svg, post, ...) */
 	    (term->layer)(TERM_LAYER_BEFORE_PLOT);
+	    if (splot_map && draw_border && clip_area)
+		(term->clip_state)(clip_area, 0);
 
 	    if (!key_pass && this_plot->plot_type != KEYENTRY)
 	    if (can_pm3d && (pm3d.implicit == PM3D_IMPLICIT)) {
@@ -1276,8 +1281,12 @@ do_3dplot(
 		if (draw_this_surface) {
 		    if (can_pm3d && pm3d.implicit != PM3D_IMPLICIT) {
 			pm3d_draw_one(this_plot);
-			if (!pm3d_order_depth)
-			    pm3d_depth_queue_flush();
+			if (!pm3d_order_depth) {
+			    if (splot_map && draw_border && clip_area)
+				pm3d_depth_queue_flush_with_clip(clip_area);
+			    else
+				pm3d_depth_queue_flush();
+			}
 		    }
 		}
 		break;
@@ -1638,6 +1647,7 @@ do_3dplot(
 
 	    /* Sync point for end of this curve (used by svg, post, ...) */
 	    (term->layer)(TERM_LAYER_AFTER_PLOT);
+	    (term->clip_state)(NULL, 0);
 
 	} /* loop over surfaces */
 
@@ -1654,8 +1664,11 @@ do_3dplot(
     if (!key_pass && (replot_mode != AXIS_ONLY_ROTATE)) {
 	if (hidden3d && draw_surface && hidden3d_layer == LAYER_FRONT) {
 	    (term->layer)(TERM_LAYER_BEFORE_PLOT);
+	    if (splot_map && draw_border && clip_area)
+		(term->clip_state)(clip_area, 0);
 	    plot3d_hidden(plots, pcount);
 	    (term->layer)(TERM_LAYER_AFTER_PLOT);
+	    (term->clip_state)(NULL, 0);
 	}
     }
 
@@ -4154,8 +4167,12 @@ plot3d_zerrorfill(struct surface_points *plot)
     /* Default is to write out each zerror plot as we come to it     */
     /* (most recent plot occludes all previous plots). To get proper */
     /* sorting, use "set pm3d depthorder".                           */
-    if (pm3d.direction != PM3D_DEPTH)
-	pm3d_depth_queue_flush();
+    if (pm3d.direction != PM3D_DEPTH) {
+	if (splot_map && draw_border && clip_area)
+	    pm3d_depth_queue_flush_with_clip(clip_area);
+	else
+	    pm3d_depth_queue_flush();
+    }
 
 }
 
@@ -4281,7 +4298,10 @@ plot3d_boxes(struct surface_points *plot)
     /* them together with all other pm3d elements to draw later. */
     if (pm3d.direction != PM3D_DEPTH) {
 	pm3d.base_sort = TRUE;
-	pm3d_depth_queue_flush();
+	if (splot_map && draw_border && clip_area)
+	    pm3d_depth_queue_flush_with_clip(clip_area);
+	else
+	    pm3d_depth_queue_flush();
 	pm3d.base_sort = FALSE;
     }
 }
@@ -4374,8 +4394,12 @@ plot3d_polygons(struct surface_points *plot)
 
     /* Default is to write out each polygon as we come to it. */
     /* To get proper sorting, use "set pm3d depthorder".      */
-    if (pm3d.direction != PM3D_DEPTH)
-	pm3d_depth_queue_flush();
+    if (pm3d.direction != PM3D_DEPTH) {
+	if (splot_map && draw_border && clip_area)
+	    pm3d_depth_queue_flush_with_clip(clip_area);
+	else
+	    pm3d_depth_queue_flush();
+    }
 
     /* Clean up */
     free(quad);

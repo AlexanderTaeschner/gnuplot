@@ -601,7 +601,6 @@ save_set_all(FILE *fp)
 
     if (polar) {
 	fprintf(fp, "set polar\n");
-#ifdef USE_POLAR_GRID
 	fprintf(fp, "set polar grid %d, %d %s ",
 		polar_grid.theta_segments, polar_grid.r_segments,
 		reverse_table_lookup(dgrid3d_mode_tbl, polar_grid.mode));
@@ -615,7 +614,6 @@ save_set_all(FILE *fp)
 	    fprintf(fp, "r [%g:%g]\n", polar_grid.rmin, polar_grid.rmax);
 	else
 	    fprintf(fp, "r [%g:*]\n", polar_grid.rmin);
-#endif
     } else {
 	fprintf(fp, "unset polar\n");
     }
@@ -960,9 +958,7 @@ set isosamples %d, %d",
 		(boxplot_opts.labels == BOXPLOT_FACTOR_LABELS_AUTO) ? "auto" :"off",
 		boxplot_opts.sort_factors ? "" : "un");
 
-#ifdef WITH_CHI_SHAPES
     fprintf(fp, "set chi_shapes fraction %.2f\n", chi_shape_default_fraction);
-#endif
 
     fputs("set loadpath ", fp);
     {

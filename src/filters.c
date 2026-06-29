@@ -1285,8 +1285,6 @@ bisect_jump( struct curve_points *plot, double *x1, double *y1, double *x2, doub
     }
 }
 
-#ifdef WITH_CHI_SHAPES
-
 /*
  * The routines in this section support the generation of concave hulls.
  * Copyright Ethan A Merritt 2022
@@ -1959,4 +1957,3 @@ save3d_delaunay_triangles( struct surface_points *plot )
     free(point);
 }
 
-#endif /* WITH_CHI_SHAPES */

@@ -70,6 +70,11 @@ void sidebar(FILE *a, int start);
 void header(FILE *a, char * title);
 void footer(FILE *a);
 
+#ifdef HAVE_TIME_H
+    static char run_date[128];
+    static time_t now;
+#endif
+
 int
 main (int argc, char **argv)
 {
@@ -95,6 +100,14 @@ main (int argc, char **argv)
         *(++last_char) = DIRSEP1;
         *(++last_char) = 0;
     }
+
+#ifdef HAVE_TIME_H
+    /* Make a note of the time so that it can go in the header of the
+     * generated html output as a comment
+     */
+    time(&now);
+    strftime(run_date, sizeof(run_date), "%Y-%m-%d", localtime(&now));
+#endif
 
     /* Wrap the title page text in the same format as the manual.
      * Assume that if we can create and write the file here,
@@ -145,6 +158,9 @@ header(FILE *a, char * title)
     fprintf(a, "<meta http-equiv=\"Content-type\" content=\"text/html; charset=utf-8\">\n");
     fprintf(a, "<link text=\"text/css\" href=\"gnuplot_docs.css\" rel=\"stylesheet\">\n");
     fprintf(a, "<title>%s</title>\n", title);
+#ifdef HAVE_TIME_H
+    fprintf(a, "<!--- page generated %s --->\n", run_date);
+#endif
     fprintf(a, "</head>\n");
     fprintf(a, "<body>\n");
     fputs( 

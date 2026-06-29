@@ -79,23 +79,22 @@ static void parse_kdensity_options(struct curve_points *this_plot);
 static void parse_hull_options(struct curve_points *this_plot);
 static int evaluate_iteration(struct curve_points *this_plot);
 
-#ifdef USE_POLAR_GRID
-    static void grid_polar_data(struct curve_points *this_plot);
-    static double polar_dist( double t_data, double r_data, double t_grid, double r_grid );
-    static void store_polar_point(struct curve_points *, int i, double v[MAXDATACOLS]);
+/* Support for polar grid surfaces */
+static void grid_polar_data(struct curve_points *this_plot);
+static double polar_dist( double t_data, double r_data, double t_grid, double r_grid );
+static void store_polar_point(struct curve_points *, int i, double v[MAXDATACOLS]);
 
-    struct pgrid default_polar_grid = {
-	.mode = DGRID3D_QNORM,
-	.theta_segments = 24,
-	.r_segments = 10,
-	.norm_q = 1,
-	.kdensity = FALSE,
-	.scale = 1.0,
-	.rmin = 0.0,
-	.rmax = VERYLARGE
-    };
-    struct pgrid polar_grid;
-#endif /* USE_POLAR_GRID */
+struct pgrid default_polar_grid = {
+    .mode = DGRID3D_QNORM,
+    .theta_segments = 24,
+    .r_segments = 10,
+    .norm_q = 1,
+    .kdensity = FALSE,
+    .scale = 1.0,
+    .rmin = 0.0,
+    .rmax = VERYLARGE
+};
+struct pgrid polar_grid;
 
 /* internal and external variables */
 
@@ -1460,12 +1459,7 @@ get_data(struct curve_points *current_plot)
 	{   /* Avoid calling store2d_point(), which would convert to Cartesian coordinates. */
 	    if (!polar)
 		int_error(NO_CARET, "For non-polar gridded surfaces use splot");
-#ifdef USE_POLAR_GRID
 	    store_polar_point(current_plot, i++, v);
-#else
-	    int_error(NO_CARET,
-		"This copy of gnuplot was built without support for polar surfaces");
-#endif
 	    break;
 	}
 
@@ -2645,7 +2639,6 @@ eval_plots()
 		    continue;
 		}
 
-#ifdef WITH_CHI_SHAPES
 		if (equals(c_token, "concavehull")) {
 		    this_plot->plot_filter = FILTER_CONCAVE_HULL;
 		    c_token++;
@@ -2659,7 +2652,6 @@ eval_plots()
 		    c_token++;
 		    continue;
 		}
-#endif
 
 		if (this_plot->plot_filter == FILTER_CONVEX_HULL
 		||  this_plot->plot_filter == FILTER_CONCAVE_HULL)
@@ -3058,7 +3050,7 @@ eval_plots()
 		}
 #endif
 
-		/* EXPERIMENTAL filter plot ... if (<expression>) */
+		/* filter plot ... if (<expression>) */
 		if (equals(c_token,"if")) {
 		    if (this_plot->plot_type != DATA)
 			int_error(c_token, "'if' restriction not possible here");
@@ -3472,13 +3464,10 @@ eval_plots()
 		    zrange_points(this_plot);
 		}
 
-#ifdef USE_POLAR_GRID
 		if (this_plot->plot_style == SURFACEGRID) {
 		    grid_polar_data(this_plot);
 		}
-#endif
 
-#ifdef WITH_CHI_SHAPES
 		if (this_plot->plot_filter == FILTER_CONCAVE_HULL) {
 		    delaunay_triangulation(this_plot);
 		    concave_hull(this_plot);
@@ -3489,7 +3478,6 @@ eval_plots()
 		    delaunay_triangulation(this_plot);
 		    save_delaunay_triangles(this_plot);
 		}
-#endif
 
 		/* Restore auto-scaling prior to smoothing operation */
 		switch (this_plot->plot_smooth) {
@@ -4546,8 +4534,6 @@ reevaluate_plot_title(struct curve_points *this_plot)
     }
 }
 
-#ifdef USE_POLAR_GRID
-
 /*
  * Alternative to store2d_point(), which would convert to Cartesian coordinates.
  * Store theta in radians, r in user coordinates.
@@ -4741,4 +4727,3 @@ polar_dist( double t_data, double r_data, double t_grid, double r_grid )
     return dist;
 }
 
-#endif /* USE_POLAR_GRID */

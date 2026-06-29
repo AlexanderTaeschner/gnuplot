@@ -762,17 +762,10 @@ dnl end caca
 
 dnl Process rest of with and enable options
 
-dnl EXPERIMENTAL support for concave hulls via Delaunay triangulation and chi-shapes
-AC_ARG_ENABLE(chi-shapes,dnl
-[  --disable-chi-shapes    no support for Delaunay triangulation or chi-shapes],,)
-if test "$enable_chi_shapes" != no; then
-    AC_DEFINE(WITH_CHI_SHAPES,1,
-              [ Define to support Delaunay triangulation and chi-shapes ])
-fi
 dnl without-extra-coordinate may leave a hole in "struct coordinate"
 AC_ARG_ENABLE(extra-coordinate,dnl
 [  --disable-extra-coordinate    leave possible hole in struct coordinate],,)
-if test "$enable_extra_coordinate" != no -o "$enable_chi_shapes" != no; then
+if test "$enable_extra_coordinate" != no; then
      AC_DEFINE(WITH_EXTRA_COORDINATE,1,
                [ Define to make use of otherwise empty space in struct coordinate ])
 fi
@@ -939,6 +932,15 @@ AS_IF([test "x${with_bitmap_terminals}" = "xyes"],,
           [ Define to disable terminals that depend on code in bitmap.c ]))
 AM_CONDITIONAL(BUILD_BITMAP, test "${with_bitmap_terminals}" = yes)
 
+dnl  Allow to enable old printer terminals (which rely on bitmap support).
+if test "$with_bitmap_terminals" == yes; then
+  AC_ARG_WITH(old_printers,dnl
+  [  --with-old-printers      dot-matrix printer terminals])
+  AS_IF([test "x${with_old_printers}" = "xyes"],
+    AC_DEFINE(OLD_PRINTERS,1,
+            [ Define to enable old dot-matrix printer terminals ]))
+fi
+
 dnl  Allow to include support for tektronix terminal emulators
 AC_ARG_WITH(tektronix,dnl
 [  --with-tektronix         tektronix terminal emulators ])
@@ -1042,17 +1044,6 @@ if test "${with_cairo}" = yes; then
       with_webp=no
   )
 fi
-
-dnl Enable polar mode gridded surface plots
-AC_ARG_ENABLE(polar-grid,dnl
-[  --enable-polar-grid     include support for gridded polar surface plots],
-  [if test "$enableval" != no; then
-    AC_DEFINE(USE_POLAR_GRID,1,
-               [ Define to support polar gridded surface plots])
-   fi],
-    AC_DEFINE(USE_POLAR_GRID,1,
-               [ Define to support polar gridded surface plots])
-  )
 
 dnl Enable subsystem to generate statistical summary of file contents
 AC_ARG_ENABLE(stats,dnl
@@ -1300,14 +1291,22 @@ AC_MSG_RESULT([    pict2e pslatex pstex pstricks svg texdraw tkcanvas])
 AC_MSG_RESULT([])
 
 if test "$with_bitmap_terminals" = yes; then
-  AC_MSG_RESULT([  Dot-matrix terminals: yes ( --without-bitmap-terminals to disable)])
+  AC_MSG_RESULT([  Bitmap terminals: yes ( --without-bitmap-terminals to disable)])
 else
-  AC_MSG_RESULT([  Dot-matrix terminals: no (use --with-bitmap-terminals to enable)])
+  AC_MSG_RESULT([  Bitmap terminals: no (use --with-bitmap-terminals to enable)])
+  AC_MSG_RESULT([  These would include, if enabled])
+fi
+AC_MSG_RESULT([    block pbm sixeltek ])
+AC_MSG_RESULT([])
+
+if test "$with_old_printers" == yes; then
+  AC_MSG_RESULT([  Dot-matrix terminals: yes ( --without-old-printers to disable)])
+else
+  AC_MSG_RESULT([  Dot-matrix terminals: no (use --with-old-printers to enable)])
   AC_MSG_RESULT([  These would include, if enabled])
 fi
 AC_MSG_RESULT([    printers: epson nec okidata tandy seiko dpu414 ])
 AC_MSG_RESULT([              hp500c hpdj hpljii hppj starc])
-AC_MSG_RESULT([    other:    block pbm ])
 AC_MSG_RESULT([])
 
 if test "$with_tektronix" = yes; then
@@ -1316,7 +1315,6 @@ else
   AC_MSG_RESULT([  Tektronix terminal emulators: no ( --with-tektronix to enable)])
 fi
 AC_MSG_RESULT([    tek410x tek40 vttek xterm kc_tek40 km_tek40 selanar bitgraph])
-AC_MSG_RESULT([    sixeltek (not needed for sixel graphics output to vt100-series emulators)])
 
 AC_MSG_RESULT([])
 AC_MSG_RESULT([  Platform-specific, legacy, or specialized terminals omitted by default:])
@@ -1564,22 +1562,10 @@ else
   AC_MSG_RESULT([  Support watchpoints during 2D plotting:          no (--enable-watchpoints to enable)])
 fi
 
-if test "$enable_polar_grid" != no; then
-  AC_MSG_RESULT([  Support for polar gridded surfaces:              yes])
-else
-  AC_MSG_RESULT([  Support for polar gridded surfaces:              no (--enable-polar-grid to enable)])
-fi
-
 if test "$enable_function_blocks" != no; then
   AC_MSG_RESULT([  Support function blocks:                         yes])
 else
   AC_MSG_RESULT([  Support function blocks:                         no (--enable-function-blocks to enable)])
-fi
-
-if test "$enable_chi_shapes" != no; then
-  AC_MSG_RESULT([  Support concave hulls:                           yes])
-else
-  AC_MSG_RESULT([  Support concave hulls:                           no (--enable-chi-shapes to enable)])
 fi
 
 AC_MSG_RESULT([])

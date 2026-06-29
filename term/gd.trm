@@ -113,6 +113,9 @@
  *        thick-line antialiased rasterizer, coord. oversampling and off-screen
  *        alpha layer with MAX compositing.
  *        Add PNG_path().
+ *
+ * Ethan Merritt Jun 2026:
+ *	Given Sethur's implementation of thick lines, we no longer need to use brushes.
  */
 
 #define GD_DEFINED_COLORS	96	/* Must not exceed size of pm3d_color_names_tbl[] */
@@ -167,6 +170,8 @@ TERM_PUBLIC void ENHGD_FLUSH(void);
 TERM_PUBLIC void ENHGD_boxed_text(unsigned int, unsigned int, int);
 
 TERM_PUBLIC void PNG_dashtype(int type, t_dashtype *custom_dash_pattern);
+TERM_PUBLIC void PNG_layer(t_termlayer layer);
+TERM_PUBLIC void PNG_clip_state(struct BoundingBox *bbox, int state);
 TERM_PUBLIC void PNG_path(int p);
 
 #include <gd.h>
@@ -212,7 +217,6 @@ static void PNG_Triangle(unsigned int x, unsigned int y, int direction,
 			void (*draw_func)(gdImagePtr, gdPointPtr, int, int));
 static void PNG_Diamond(unsigned int x, unsigned int y,
 			void (*draw_func)(gdImagePtr, gdPointPtr, int, int));
-static void PNG_init_brush(int);
 
 #define GREG_XMAX 640
 #define GREG_YMAX 480
@@ -222,7 +226,7 @@ static void PNG_init_brush(int);
 #define PNG_VCHAR (13 * GD_OVERSAMPLE)
 #define PNG_HCHAR (7 * GD_OVERSAMPLE)
 
-#define PNG_TICSIZE (GREG_YMAX/100 * GD_OVERSAMPLE)
+#define PNG_TICSIZE (GREG_YMAX * GD_OVERSAMPLE / 100.)
 
 #define PNG_MAX_COLORS 256
 #define GOT_NEXT_PROTO
@@ -237,7 +241,6 @@ static struct {
     gdImagePtr image;
     gdFontPtr font;
     unsigned int x, y;
-    int height;
     int charh, charw;
     int color;             /* Magic index returned by libgd */
     int rgb;               /* Our guess at the corresponding rgb */
@@ -249,6 +252,7 @@ static struct {
     int flags;
     int linetype;
     int linewidth;
+    double linewidth_f;	/* Original floating-point linewidth for dash scaling */
     t_linecap linecap; /* BUTT, ROUNDED, or SQUARE endcap style */
     TBOOLEAN use_builtin;
     double ttfsize;
@@ -303,33 +307,33 @@ enum PNG_id {
 #ifdef Y
 #   undef Y
 #endif
-#define Y(y) (png_state.height - (y))
+#define Y(y) (term->ymax - (y))
 
 /* Coordinate conversion macros.
  * Inflation of term->xmax/ymax by GD_OVERSAMPLE while gdImage is kept
  * at actual pixel size.
  * All drawing functions convert inflated coords to pixel coords via 
- * GD_PX()/GD_Y() before calling libgd. png_state.height is in inflated units;
+ * GD_PX()/GD_Y() before calling libgd. term->ymax is in inflated units;
  * Y() works in inflated space, GD_Y()/GD_YF() combine Y-flip and downscale in one step.
  * Text, points, fills, polygons, and images all convert at the boundary. */
 
-/* Convert inflated terminal coordinate to pixel coordinate (integer) */
-#define GD_PX(c)  ((int)((c) / (double)GD_OVERSAMPLE + 0.5))
+/* Convert inflated terminal x coordinate to pixel coordinate (integer) */
+#define GD_PX(c)  ((int)(((int)(c)) / (double)GD_OVERSAMPLE + 0.5))
 
-/* Convert inflated terminal coordinate to pixel coordinate (float) */
-#define GD_PXF(c) ((double)(c) / (double)GD_OVERSAMPLE)
+/* Convert inflated terminal x coordinate to pixel coordinate (float) */
+#define GD_PXF(c) ((double)((int)(c)) / GD_OVERSAMPLE)
 
 /* Convert pixel coordinate to inflated terminal coordinate */
-#define GD_TERM(p) ((int)((p) * GD_OVERSAMPLE))
+#define GD_TERM(p) ((int)(((int)(p)) * GD_OVERSAMPLE))
 
 /* Y-flip in pixel space: converts inflated Y to pixel Y */
-#define GD_Y(y) ((int)(((double)png_state.height - (double)(y)) / GD_OVERSAMPLE + 0.5))
+#define GD_Y(y) (int)floor((double)((int)term->ymax - (int)(y)) / GD_OVERSAMPLE)
 
 /* Y-flip to pixel float */
-#define GD_YF(y) (((double)png_state.height - (double)(y)) / GD_OVERSAMPLE)
+#define GD_YF(y) (double)((int)term->ymax - (int)(y)) / GD_OVERSAMPLE
 
-static int PNG_XMAX = GREG_XMAX;
-static int PNG_YMAX = GREG_YMAX;
+static int GD_XSIZE = GREG_XMAX;
+static int GD_YSIZE = GREG_YMAX;
 static const int PNG_POINT_SCALE = 3;
 static int PNG_ps = 3;
 
@@ -439,6 +443,23 @@ static struct {
     int color;
 } PNG_pending_endcap;
 
+/* Saved clip region that was active before PNG_clip_state(bbox, 0)
+ * enabled per-curve plot-area clipping.  PNG_clip_state(NULL, 0)
+ * restores it after curve drawing, while PNG_layer() temporarily
+ * suspends/restores the active plot clip around key samples.
+ */
+static int  PNG_saved_clip_x1, PNG_saved_clip_y1;
+static int  PNG_saved_clip_x2, PNG_saved_clip_y2;
+static TBOOLEAN PNG_plot_clip_active = FALSE;
+
+/* Plot-area clip rectangle in pixel coordinates, computed by
+ * PNG_clip_state() from its bbox argument.  Stored separately so
+ * PNG_layer() can suspend/restore the same plot clip around key
+ * samples without consulting core clip_area state.
+ */
+static int  PNG_plot_clip_x1, PNG_plot_clip_y1;
+static int  PNG_plot_clip_x2, PNG_plot_clip_y2;
+
 /* shige takeno:
  * libgd can be built to prefer UTF-8 or SJIS encoding for Japanese.
  * If it wants SJIS and we are currently in UTF8, convert.
@@ -451,17 +472,6 @@ static struct {
 #include <iconv.h>
 #endif
 static void gd_iconv(char **string);
-
-/* EAM - gdImage structure to hold brushes for linewidth */
-/* We will allocate and initialize these on demand */
-typedef struct {
-    gdImagePtr im;
-    unsigned int last_rgb;
-    int bgnd;
-    int fgnd;
-}   PNG_BRUSH;
-
-static PNG_BRUSH *PNG_brush[MAXLINEWIDTH+1];
 
 typedef struct {
     gdImagePtr im;
@@ -930,8 +940,11 @@ PNG_draw_aa_thick_line(double ax, double ay, double bx, double by,
     int xmin, xmax, ymin, ymax;
     int x, y;
 
-    /* Thin lines: use libgd native AA (caps irrelevant at 1 px) */
-    if (thick <= 1) {
+    /* Thin solid lines: use libgd native line drawing for performance.
+     * Dashed thin lines always use the SDF rasterizer below, which handles
+     * sub-pixel dash/gap boundaries correctly.
+     */
+    if (thick <= 1 && png_state.dashtype == DASHTYPE_SOLID) {
 	gdImageSetAntiAliased(png_state.image, color);
 	gdImageSetThickness(png_state.image, 1);
 	gdImageLine(png_state.image,
@@ -949,8 +962,8 @@ PNG_draw_aa_thick_line(double ax, double ay, double bx, double by,
 	    int cxi = (int)(ax + 0.5), cyi = (int)(ay + 0.5);
 	    for (yi = cyi - r; yi <= cyi + r; yi++)
 		for (xi = cxi - r; xi <= cxi + r; xi++) {
-		    double ddx = xi + 0.5 - ax;
-		    double ddy = yi + 0.5 - ay;
+		    double ddx = (double)xi - ax;
+		    double ddy = (double)yi - ay;
 		    double dist = sqrt(ddx*ddx + ddy*ddy) - halfw;
 		    double cov = 0.5 - dist;
 		    if (cov <= 0.0) continue;
@@ -990,10 +1003,26 @@ PNG_draw_aa_thick_line(double ax, double ay, double bx, double by,
 	ymax = (int)ceil (fmax(fmax(ey0, ey1), fmax(ay, by)) + halfw + 1.0);
     }
 
+    /* Clamp iteration bounds to the current libgd clip rectangle.
+     * PNG_SetAAPixelColor already rejects out-of-clip pixels via
+     * gdImageBoundsSafe; this avoids the wasted SDF evaluation for
+     * those pixels and provides an early-out for fully clipped segments.
+     */
+    {
+	int cx1, cy1, cx2, cy2;
+	gdImageGetClip(png_state.image, &cx1, &cy1, &cx2, &cy2);
+	if (xmin < cx1) xmin = cx1;
+	if (xmax > cx2) xmax = cx2;
+	if (ymin < cy1) ymin = cy1;
+	if (ymax > cy2) ymax = cy2;
+	if (xmin > xmax || ymin > ymax)
+	    return;
+    }
+
     for (y = ymin; y <= ymax; y++) {
 	for (x = xmin; x <= xmax; x++) {
-	    double px = x + 0.5;
-	    double py = y + 0.5;
+	    double px = (double)x;
+	    double py = (double)y;
 	    double rx = px - ax;
 	    double ry = py - ay;
 	    double a = rx * ux + ry * uy;	/* along line */
@@ -1133,8 +1162,8 @@ PNG_draw_join_disc(double cx, double cy, double radius,
 
     for (iy = iy_min; iy <= iy_max; iy++) {
         for (ix = ix_min; ix <= ix_max; ix++) {
-            double dx = (double)ix + 0.5 - cx;
-            double dy = (double)iy + 0.5 - cy;
+            double dx = (double)ix - cx;
+            double dy = (double)iy - cy;
 
             /* SDF: distance from disc boundary (positive = inside) */
             double dist_disc = radius - sqrt(dx*dx + dy*dy);
@@ -1264,6 +1293,13 @@ PNG_draw_aa_vector(double x1, double y1, double x2, double y2,
 	int i;
 	double s;	/* distance walked along this segment */
 
+	/* DASH_EPSILON is the Minimum meaningful step size in dash walker,
+	 * used to guard against infinite-loops at gap-dash boundaries when
+	 * the step size is tiny.
+	 */
+	const double DASH_EPSILON = 0.001;
+	const double DASH_BOUNDARY_TOL = 0.01; /* Must be larger than DASH_EPSILON */
+
 	/* Build scaled pattern and total cycle length */
 	for (i = 0; pattern[i] > 0.0 && i < DASHPATTERN_LENGTH; i++) {
 	    scaled_pat[i] = pattern[i] * scale;
@@ -1280,11 +1316,11 @@ PNG_draw_aa_vector(double x1, double y1, double x2, double y2,
 
 	/* Walk the dash pattern along this polyline segment */
 	s = 0.0;
-	while (s < seg_len - 0.001) {
+	while (s < seg_len - DASH_EPSILON) {
 	    double pos, accum;
 	    int idx;
 	    double pos_in_elem, remaining, step;
-	    TBOOLEAN at_dash_start, at_dash_end;
+	    TBOOLEAN at_element_start, at_element_end;
 
 	    /* Current position within one pattern cycle */
 	    pos = fmod(PNG_dash_pos, dash_total);
@@ -1305,8 +1341,19 @@ PNG_draw_aa_vector(double x1, double y1, double x2, double y2,
 	    if (step > seg_len - s)
 		step = seg_len - s;
 
-	    at_dash_start = (pos_in_elem < 0.01);
-	    at_dash_end   = (remaining - step < 0.01);
+	    /* Guard against floating-point stall at dash-gap boundaries. A stall will otherwise
+	     * happen if step is too small to advance PNG_dash_pos to the next possible value.
+	     */
+	    if (step < DASH_EPSILON) {
+		double next_boundary = accum + scaled_pat[idx];
+		/* Advance PNG_dash_pos to be safely within the next element */
+		PNG_dash_pos = PNG_dash_pos - pos + next_boundary + DASH_EPSILON;
+		continue;
+	    }
+
+	    /* Detect if we are at the start/end of the current pattern element */
+	    at_element_start = (pos_in_elem < DASH_BOUNDARY_TOL);
+	    at_element_end   = (remaining - step < DASH_BOUNDARY_TOL);
 
 	    if ((idx % 2) == 0) {
 		/* === DASH (on) segment === */
@@ -1323,7 +1370,7 @@ PNG_draw_aa_vector(double x1, double y1, double x2, double y2,
 		 * we will now draw this sub-segment with HARD start cap
 		 * that overlaps seamlessly.
 		 */
-		if (at_dash_start) {
+		if (at_element_start) {
 		    PNG_flush_pending_endcap();
 		    cs = user_cap;
 		} else {
@@ -1332,7 +1379,7 @@ PNG_draw_aa_vector(double x1, double y1, double x2, double y2,
 		    cs = PNG_CAP_HARD;
 		}
 
-		if (at_dash_end) {
+		if (at_element_end) {
 		    ce = user_cap;
 		    PNG_pending_endcap.active = 0;
 		} else {
@@ -1367,7 +1414,7 @@ PNG_draw_aa_vector(double x1, double y1, double x2, double y2,
 		 * If there's a pending endcap from mid-dash, flush it now
 		 * because we're transitioning into a gap.
 		 */
-		if (at_dash_start && PNG_pending_endcap.active)
+		if (at_element_start && PNG_pending_endcap.active)
 		    PNG_flush_pending_endcap();
 	    }
 
@@ -1397,18 +1444,18 @@ static void
 PNG_PointX(unsigned int x, unsigned int y)
 {
     gdImageLine(png_state.image, x - PNG_ps, y - PNG_ps,
-	    x + PNG_ps, y + PNG_ps, png_state.color);
+		x + PNG_ps, y + PNG_ps, png_state.color);
     gdImageLine(png_state.image, x + PNG_ps, y - PNG_ps,
-	    x - PNG_ps, y + PNG_ps, png_state.color);
+		x - PNG_ps, y + PNG_ps, png_state.color);
 }
 
 static void
 PNG_PointPlus(unsigned int x, unsigned int y)
 {
     gdImageLine(png_state.image, x - PNG_ps, y,
-	    x + PNG_ps, y, png_state.color);
+		x + PNG_ps, y, png_state.color);
     gdImageLine(png_state.image, x, y - PNG_ps,
-	    x, y + PNG_ps, png_state.color);
+		x, y + PNG_ps, png_state.color);
 }
 
 static void
@@ -1537,10 +1584,10 @@ PNG_options()
 	int xpixels, ypixels;
 	term_get_termsize( &xpixels, &ypixels );
 	if (xpixels > 0 && ypixels > 0) {
-	    PNG_XMAX = xpixels;
-	    PNG_YMAX = ypixels * 0.75;
-	    term->xmax = PNG_XMAX * GD_OVERSAMPLE;
-	    term->ymax = PNG_YMAX * GD_OVERSAMPLE;
+	    GD_XSIZE = xpixels;
+	    GD_YSIZE = ypixels * 0.75;
+	    term->xmax = (GD_XSIZE-1) * GD_OVERSAMPLE;
+	    term->ymax = (GD_YSIZE-1) * GD_OVERSAMPLE;
 	    term->h_tic = term->v_tic = 10 * GD_OVERSAMPLE;
 	}
     }
@@ -1698,23 +1745,23 @@ PNG_options()
 	case PNG_SIZE:
 	    c_token++;
 	    if (END_OF_COMMAND) {
-		PNG_XMAX = GREG_XMAX;
-		PNG_YMAX = GREG_YMAX;
+		GD_XSIZE = GREG_XMAX;
+		GD_YSIZE = GREG_YMAX;
 	    } else {
-		PNG_XMAX = real_expression();
+		GD_XSIZE = real_expression();
 		if (equals(c_token, ",")) {
 		    c_token++;
-		    PNG_YMAX = real_expression();
+		    GD_YSIZE = real_expression();
 		}
-		if (PNG_XMAX <= 0)
-		    PNG_XMAX = GREG_XMAX;
-		if (PNG_YMAX <= 0)
-		    PNG_YMAX = GREG_YMAX;
+		if (GD_XSIZE <= 0)
+		    GD_XSIZE = GREG_XMAX;
+		if (GD_YSIZE <= 0)
+		    GD_YSIZE = GREG_YMAX;
 	    }
-	    term->ymax = PNG_YMAX * GD_OVERSAMPLE;
-	    term->xmax = PNG_XMAX * GD_OVERSAMPLE;
+	    term->ymax = (GD_YSIZE-1) * GD_OVERSAMPLE;
+	    term->xmax = (GD_XSIZE-1) * GD_OVERSAMPLE;
 	    /* EAM Apr 2003 - same tic size on both x and y axes */
-	    term->v_tic = GD_OVERSAMPLE * ((PNG_XMAX < PNG_YMAX) ? PNG_XMAX/100 : PNG_YMAX/100);
+	    term->v_tic = GD_OVERSAMPLE * ((GD_XSIZE < GD_YSIZE) ? GD_XSIZE/100 : GD_YSIZE/100);
 	    if (term->v_tic < GD_OVERSAMPLE)
 		term->v_tic = GD_OVERSAMPLE;
 	    term->h_tic = term->v_tic;
@@ -1976,7 +2023,7 @@ PNG_options()
     }
 
     sprintf(term_options + strlen(term_options),
-	    "size %d,%d ", PNG_XMAX, PNG_YMAX);
+	    "size %d,%d ", GD_XSIZE, GD_YSIZE);
 
     if (png_state.n_colors == 1)
 	sprintf(term_options + strlen(term_options),
@@ -2018,70 +2065,8 @@ PNG_options()
 TERM_PUBLIC void
 PNG_init()
 {
-int i;
-
     png_state.linetype = 0;
     png_state.linewidth = 1;
-
-    /* Clear brush array, then initialize a few small ones */
-    for (i=2; i<=MAXLINEWIDTH; i++)
-	PNG_brush[i] = NULL;
-}
-
-/*
- * Internal helper routine to initialize brushes used for stroking linewidth > 1
- */
-static void
-PNG_init_brush(int width)
-{
-    PNG_BRUSH *brush = PNG_brush[width];
-
-    if (!brush) {
-	brush = gp_alloc(sizeof(PNG_BRUSH),"gd brush");
-	PNG_brush[width] = brush;
-	brush->last_rgb = -99;  /* Something invalid */
-	if (!((brush->im = gdImageCreateTrueColor(width,width))))
-	    int_error(NO_CARET,"libgd: failed to create brush structure");
-	/* Whatever is chosen here is unavailable as a brush color */
-	brush->bgnd = gdImageColorAllocate( brush->im, 254, 253, 252 );
-	gdImageSaveAlpha(brush->im, 1);
-	gdImageFill(brush->im, 0, 0, brush->bgnd);
-	gdImageColorTransparent(brush->im, brush->bgnd);
-    }
-
-    if (png_state.color != brush->last_rgb) {
-	if (png_state.TrueColor) {
-	    int alpha = (png_state.rgb >> 25) & 0x7f;
-	    /* NB: gdEffectAlphaBlend does not work! */
-	    gdImageAlphaBlending(brush->im, gdEffectReplace);
-	    brush->fgnd = gdImageColorExactAlpha(png_state.image,
-		(png_state.rgb >> 16) & 0xff,
-		(png_state.rgb >> 8) & 0xff,
-		 png_state.rgb & 0xff,
-		 alpha & 0x7f);
-	} else {
-	    brush->fgnd = gdImageColorResolve(brush->im,
-		gdImageRed(png_state.image,png_state.color),
-		gdImageGreen(png_state.image,png_state.color),
-		gdImageBlue(png_state.image,png_state.color) );
-	}
-	brush->last_rgb = png_state.color;
-
-	/* The simplest choice is to fill the entire brush (square nib).
-	 * Logically it would be better to approximate a circular nib by
-	 * selectively coloring the individual pixels of the brush image,
-	 * but the difference is only apparent for dots, not lines.
-	 * Version 6: Approximate by removing the corners.
-	 */
-	gdImageFilledRectangle(brush->im, 0, 0, width-1, width-1, brush->fgnd);
-	if (width > 2) {
-	    gdImageSetPixel(brush->im, 0, 0, brush->bgnd);
-	    gdImageSetPixel(brush->im, 0, width-1, brush->bgnd);
-	    gdImageSetPixel(brush->im, width-1, 0, brush->bgnd);
-	    gdImageSetPixel(brush->im, width-1, width-1, brush->bgnd);
-	}
-
-    }
 }
 
 /*
@@ -2092,15 +2077,7 @@ PNG_init_brush(int width)
 TERM_PUBLIC void
 PNG_reset()
 {
-    int i;
-    /* EAM - Clean up the brushes used for linewidth */
-    for (i=2; i<=MAXLINEWIDTH; i++) {
-	if (PNG_brush[i]) {
-	    if (PNG_brush[i]->im)
-		gdImageDestroy(PNG_brush[i]->im);
-	    PNG_brush[i] = NULL;
-	}
-    }
+    PNG_clip_state(NULL, 0);
     if (PNG_fill_tile.im) {
 	gdImageDestroy(PNG_fill_tile.im);
 	PNG_fill_tile.im = (gdImagePtr)0;
@@ -2162,7 +2139,7 @@ TERM_PUBLIC
 void PNG_set_color (t_colorspec *colorspec)
 {
     double gray = colorspec->value;
-    int save;
+    int lt_save, dt_save;
 
     /* A color change ends the current transparent polyline path */
     PNG_flush_pending_endcap();
@@ -2172,9 +2149,11 @@ void PNG_set_color (t_colorspec *colorspec)
     switch (colorspec->type) {
 
     case TC_LT:
-	save = png_state.linetype;
+	lt_save = png_state.linetype;
+	dt_save = png_state.dashtype;
 	PNG_linetype(colorspec->lt);
-	png_state.linetype = save;
+	png_state.linetype = lt_save;
+	png_state.dashtype = dt_save;
 	break;
 
     case TC_RGB:
@@ -2355,7 +2334,7 @@ PNG_graphics()
     /* see only background through the topmost transparent layer.		*/
     if (png_state.TrueColor) {
         unsigned int brgb = png_state.rgb_table[0];
-	png_state.image = gdImageCreateTrueColor(PNG_XMAX, PNG_YMAX);
+	png_state.image = gdImageCreateTrueColor(GD_XSIZE, GD_YSIZE);
 	if (!png_state.image)
 	    int_error(NO_CARET,"libgd: failed to create output image structure");
 	if (png_state.flags & PNG_USE_TRANSPARENT) {
@@ -2371,11 +2350,10 @@ PNG_graphics()
 	gdImageAlphaBlending(png_state.image, gdEffectNormal);
 
     } else
-	png_state.image = gdImageCreate(PNG_XMAX, PNG_YMAX);
+	png_state.image = gdImageCreate(GD_XSIZE, GD_YSIZE);
     if (!png_state.image)
 	int_error(NO_CARET,"libgd: failed to create output image structure");
 
-    png_state.height = PNG_YMAX * GD_OVERSAMPLE - 1;
     png_state.charw = term->h_char;	/* already inflated */
     png_state.charh = term->v_char;	/* already inflated */
     if (png_state.baseline_offset <= 0.0)
@@ -2416,6 +2394,7 @@ PNG_graphics()
 TERM_PUBLIC void
 PNG_text()
 {
+    PNG_clip_state(NULL, 0);
     PNG_flush_pending_endcap();
     if (png_state.alpha_layer_active)
 	PNG_alpha_layer_composite();
@@ -2461,11 +2440,11 @@ PNG_vector(unsigned int x, unsigned int y)
 	/* Treat this as PNG_move */
 	;
 
-    /* LT_AXIS is rendered as a dotted line, used for zeroaxis and grid lines. */
-    /* Nov 2014 - rewritten using the algorithm from the canvas terminal. */
-    } else if (png_state.linetype == LT_AXIS
-	       && png_state.dashtype == DASHTYPE_SOLID) {
-	/* LT_AXIS with no dashtype override: use legacy dotted pattern */
+    /* LT_AXIS is rendered as a dotted line, used for zeroaxis and grid lines.
+     * Nov 2014 - rewritten using the algorithm from the canvas terminal.
+     * FIXME: can this instead use the new dashed line code?
+     */
+    } else if (png_state.linetype == LT_AXIS) {
 	static int last_lw = -1;
 	static int last_color = -1;
 	static double dashpattern[4] = {0.1, 0.5, 0.6, 1.0};
@@ -2481,8 +2460,6 @@ PNG_vector(unsigned int x, unsigned int y)
 
 	/* Adjust the style when linewidth or color has changed. */
 	if (png_state.dashfraction < 0 || lw != last_lw || last_color != png_state.color) {
-	    PNG_init_brush(lw);
-	    gdImageSetBrush(png_state.image, PNG_brush[lw]->im);
 	    last_lw = lw;
 	    last_color = png_state.color;
 	    png_state.dashfraction = 0.0;
@@ -2505,8 +2482,8 @@ PNG_vector(unsigned int x, unsigned int y)
 		stride = 0;
 	    }
 	    if (i%2 == 0) {
-		/* dashes are fine for thin lines, but true dots look better */
-		/* when the line is thick.			             */
+		/* dashes are fine for thin lines, but dots look better */
+		/* when the line is thick.		                */
 		if (lw > 2) {
 		    if (png_state.dashfraction >= dashpattern[0])
 		    gdImageFilledArc(png_state.image,
@@ -2517,7 +2494,7 @@ PNG_vector(unsigned int x, unsigned int y)
 		    gdImageLine(png_state.image,
 				(int)(last_x + 0.5), (int)(last_y + 0.5),
 				(int)(new_x + 0.5), (int)(new_y + 0.5),
-				gdBrushed );
+				png_state.color);
 		}
 	    }
 	    last_x = new_x;
@@ -2551,13 +2528,12 @@ PNG_vector(unsigned int x, unsigned int y)
 	if (png_state.dashtype == DASHTYPE_CUSTOM) {
 	    pattern = png_state.custom_dashpattern.pattern;
 	    /* Custom string patterns (".-_") have DSCALE=10 baked in;
-	     * apply empirical_scale=0.25 to match pngcairo visual output. */
-	    scale = 0.25 * PNG_dashlength_factor;
-	    if (png_state.linewidth > 1)
-		scale *= png_state.linewidth;
+	     * apply empirical_scale=0.50 to better match other terminals.
+	     */
+	    scale = 0.50 * png_state.linewidth_f * PNG_dashlength_factor;
 	} else if (png_state.dashtype > 0) {
 	    pattern = PNG_dashpatterns[png_state.dashtype];
-	    scale = png_state.linewidth * PNG_dashlength_factor;
+	    scale = png_state.linewidth_f * PNG_dashlength_factor;
 	}
 	if (pattern && scale < 0.1) scale = 0.1;
 
@@ -2568,19 +2544,11 @@ PNG_vector(unsigned int x, unsigned int y)
 
     /* All other (not dashed, not thick TrueColor) vectors */
     } else {
-	if (png_state.linecap != ROUNDED) {
-	    /* Assume working antialiasing (gd version >? 2.0.12) */
-	    gdImageSetThickness(png_state.image,png_state.linewidth);
-	    gdImageSetAntiAliased(png_state.image, png_state.color);
-	    gdImageLine(png_state.image, GD_PX(png_state.x), GD_Y(png_state.y),
-			GD_PX(x), GD_Y(y), gdAntiAliased);
-	} else {
-	    /* EAM - Implement linewidth by using a brush */
-	    PNG_init_brush(lw);
-	    gdImageSetBrush(png_state.image, PNG_brush[lw]->im);
-	    gdImageLine(png_state.image, GD_PX(png_state.x), GD_Y(png_state.y),
-			GD_PX(x), GD_Y(y), gdBrushed );
-	}
+	/* Assume working antialiasing (gd version >? 2.0.12) */
+	gdImageSetThickness(png_state.image,png_state.linewidth);
+	gdImageSetAntiAliased(png_state.image, png_state.color);
+	gdImageLine(png_state.image, GD_PX(png_state.x), GD_Y(png_state.y),
+		    GD_PX(x), GD_Y(y), gdAntiAliased);
     }
 
     /* Update previous-direction state (for join disc logic) */
@@ -2639,14 +2607,16 @@ PNG_linetype(int type)
 	png_state.dashfraction = -1.0;
 }
 
-/* Use the "brush" tools in the gd library to control line width.
- * Pre-define brushes for linewidths 2, 3, 4, 5, 6 (1 doesn't need a brush!).
- * Here we just remember the state.
+/*
+ * Here we just remember the state
  */
 TERM_PUBLIC void
 PNG_linewidth(double linewidth)
 {
-    png_state.linewidth = (int)(PNG_linewidth_factor * linewidth+0.49);
+    png_state.linewidth_f = PNG_linewidth_factor * linewidth;
+    if (png_state.linewidth_f > MAXLINEWIDTH) png_state.linewidth_f = MAXLINEWIDTH;
+    if (png_state.linewidth_f < 1.0) png_state.linewidth_f = 1.0;
+    png_state.linewidth = (int)(png_state.linewidth_f + 0.49);
     if (png_state.linewidth > MAXLINEWIDTH) png_state.linewidth = MAXLINEWIDTH;
     if (png_state.linewidth < 1) png_state.linewidth = 1;
 }
@@ -2730,7 +2700,7 @@ PNG_put_text(unsigned int x, unsigned int y, const char *string)
 		double ax = (double)x + sin(png_state.angle * M_PI_2/90.) * bl_offset;
 		double ay = (double)y - cos(png_state.angle * M_PI_2/90.) * bl_offset;
 		px = (int)(ax / (double)GD_OVERSAMPLE + 0.5);
-		py = (int)(((double)png_state.height - ay) / (double)GD_OVERSAMPLE + 0.5);
+		py = (int)(((double)(term->ymax) - ay) / (double)GD_OVERSAMPLE + 0.5);
 	    }
 	    switch (png_state.justify) {
 		case RIGHT:
@@ -2782,7 +2752,7 @@ PNG_put_text(unsigned int x, unsigned int y, const char *string)
     } else {
 	int charw_px = GD_PX(png_state.charw);
 	/* Apply charh/2 offset in inflated space before pixel conversion */
-	py = (int)(((double)png_state.height - ((double)y + (double)png_state.charh / 2.0)) / (double)GD_OVERSAMPLE + 0.5);
+	py = (int)(((double)(term->ymax) - ((double)y + (double)png_state.charh / 2.0)) / (double)GD_OVERSAMPLE + 0.5);
 	switch (png_state.justify) {
 	    case RIGHT:	px -= charw_px * strlen(string);
 			break;
@@ -2808,7 +2778,7 @@ PNG_put_text(unsigned int x, unsigned int y, const char *string)
 
     if (png_state.angle == 0) {
 	/* Apply charh/2 offset in inflated space before pixel conversion */
-	py = (int)(((double)png_state.height - ((double)y + (double)png_state.charh / 2.0)) / (double)GD_OVERSAMPLE + 0.5);
+	py = (int)(((double)(term->ymax) - ((double)y + (double)png_state.charh / 2.0)) / (double)GD_OVERSAMPLE + 0.5);
 	gdImageString(png_state.image, png_state.font,
 		      px, py,
 		      (unsigned char *)string, png_state.color);
@@ -2848,27 +2818,19 @@ PNG_justify_text(enum JUSTIFY mode)
 TERM_PUBLIC void
 PNG_point(unsigned int x, unsigned int y, int number)
 {
-    int save_color = png_state.color;
-    unsigned int px, py;
-
-    /* Use current linewidth to draw the point symbol */
-    if (png_state.linewidth > 1) {
-	/* EAM - Implement linewidth by using a brush */
-	int lw   = png_state.linewidth;
-	PNG_init_brush(lw);
-	gdImageSetBrush(png_state.image, PNG_brush[lw]->im);
-	png_state.color = gdBrushed;
-    }
-
     /* Convert inflated coords to pixel coords */
-    px = GD_PX(x);
-    py = GD_Y(y);
+    int px = GD_PX(x);
+    int py = GD_Y(y);
 
     if (number < 0) { /* Dot */
-	gdImageSetPixel(png_state.image, px, py, png_state.color);
-	png_state.color = save_color;
+	int size = png_state.linewidth / 2;
+	for (int i = -size; i <= size; i++)
+	    for (int j = -size; j <= size; j++)
+		gdImageSetPixel(png_state.image, px+i, py-j, png_state.color);
 	return;
     }
+
+    gdImageSetThickness(png_state.image,png_state.linewidth);
 
     switch (number % 13) {
     case 0: /* plus */
@@ -2917,8 +2879,6 @@ PNG_point(unsigned int x, unsigned int y, int number)
 	PNG_Diamond(px, py, gp_gdImageFilledPolygon);
 	break;
     }
-
-    png_state.color = save_color;
 }
 
 TERM_PUBLIC int
@@ -3270,13 +3230,12 @@ ENHGD_boxed_text(unsigned int x, unsigned int y, int option)
 	    int by1 = bounding_box[3] + bounding_ymargin;
 	    /* Convert pixel coords to inflated terminal coords.
 	     * For X: inflated = pixel * GD_OVERSAMPLE
-	     * For Y: inflated = png_state.height - pixel * GD_OVERSAMPLE
-	     *   (since GD_Y(inflated) = (height - inflated) / GD_OVERSAMPLE)
+	     * For Y: inflated = (ymax - pixel) * GD_OVERSAMPLE
 	     */
 	    unsigned int ix0 = GD_TERM(bx0);
 	    unsigned int ix1 = GD_TERM(bx1);
-	    unsigned int iy0 = png_state.height - GD_TERM(by0);
-	    unsigned int iy1 = png_state.height - GD_TERM(by1);
+	    unsigned int iy0 = term->ymax - GD_TERM(by0);
+	    unsigned int iy1 = term->ymax - GD_TERM(by1);
 	    PNG_move  (ix0, iy0);
 	    PNG_vector(ix0, iy1);
 	    PNG_vector(ix1, iy1);
@@ -3495,6 +3454,97 @@ gd_iconv(char **string)
 }
 
 /*
+ * PNG_layer - Handle per-curve key sample clipping.
+ * Plot-area clipping enable/disable is now handled by PNG_clip_state().
+ * BEGIN_KEYSAMPLE / END_KEYSAMPLE suspend/restore the driver's internal
+ * clip state using values already stored by PNG_clip_state().
+ */
+TERM_PUBLIC void
+PNG_layer(t_termlayer layer)
+{
+    switch (layer) {
+    case TERM_LAYER_BEGIN_KEYSAMPLE:
+	/* Key samples may be drawn outside the plot area (e.g. key lmargin,
+	 * key outside, key under).  Temporarily restore the saved full-image
+	 * clip so that the sample line and filled rectangle are not clipped
+	 * away by the per-curve plot-area clip enabled by PNG_clip_state().
+	 * Flush any deferred endcap and composite any pending alpha layer
+	 * first, using the current per-curve plot-area clip and transparency
+	 * context, before switching to the full-image clip.
+	 */
+	if (PNG_plot_clip_active) {
+	    PNG_flush_pending_endcap();
+	    if (png_state.alpha_layer_active)
+		PNG_alpha_layer_composite();
+	    gdImageSetClip(png_state.image,
+			    PNG_saved_clip_x1, PNG_saved_clip_y1,
+			    PNG_saved_clip_x2, PNG_saved_clip_y2);
+	}
+	break;
+    case TERM_LAYER_END_KEYSAMPLE:
+	/* Restore the per-curve plot-area clip captured from the bbox
+	 * argument to PNG_clip_state().  PNG_layer() only swaps between
+	 * gd-local clip rectangles while key samples are drawn.
+	 * Flush any deferred endcap and composite any key-sample alpha
+	 * layer content first, under the full-image clip and current
+	 * transparency context, before switching back to the plot-area clip.
+	 */
+	if (PNG_plot_clip_active) {
+	    PNG_flush_pending_endcap();
+	    if (png_state.alpha_layer_active)
+		PNG_alpha_layer_composite();
+	    gdImageSetClip(png_state.image,
+			    PNG_plot_clip_x1, PNG_plot_clip_y1,
+			    PNG_plot_clip_x2, PNG_plot_clip_y2);
+	}
+	break;
+    default:
+	break;
+    }
+}
+
+/*
+ * PNG_clip_state - Enable/disable terminal-level plot-area clipping.
+ * Non-NULL bbox calls bracket curve drawing; NULL bbox calls may also
+ * be issued as idempotent cleanup from reset or plot shutdown paths.
+ * bbox != NULL: enable clipping to this bounding box.
+ * bbox == NULL: disable clipping (restore full-canvas drawing).
+ */
+TERM_PUBLIC void
+PNG_clip_state(struct BoundingBox *bbox, int state)
+{
+    (void) state;  /* reserved for future use */
+
+    if (bbox && !PNG_plot_clip_active) {
+	PNG_flush_pending_endcap();
+	if (png_state.alpha_layer_active)
+	    PNG_alpha_layer_composite();
+
+	/* Save current full-image clip and apply plot-area clip */
+	gdImageGetClip(png_state.image,
+	    &PNG_saved_clip_x1, &PNG_saved_clip_y1,
+	    &PNG_saved_clip_x2, &PNG_saved_clip_y2);
+	PNG_plot_clip_x1 = GD_PX(bbox->xleft);
+	PNG_plot_clip_y1 = GD_Y(bbox->ytop);
+	PNG_plot_clip_x2 = GD_PX(bbox->xright);
+	PNG_plot_clip_y2 = GD_Y(bbox->ybot);
+	gdImageSetClip(png_state.image,
+	    PNG_plot_clip_x1, PNG_plot_clip_y1,
+	    PNG_plot_clip_x2, PNG_plot_clip_y2);
+	PNG_plot_clip_active = TRUE;
+    } else if (!bbox && PNG_plot_clip_active) {
+	/* Disable: flush pending drawing ops, then restore full-image clip */
+	PNG_flush_pending_endcap();
+	if (png_state.alpha_layer_active)
+	    PNG_alpha_layer_composite();
+	gdImageSetClip(png_state.image,
+	    PNG_saved_clip_x1, PNG_saved_clip_y1,
+	    PNG_saved_clip_x2, PNG_saved_clip_y2);
+	PNG_plot_clip_active = FALSE;
+    }
+}
+
+/*
  * PNG_path - Handle newpath/closepath for proper closed-path corners.
  * On closepath, flush the deferred endcap and draw a join disc at the
  * closing corner so that the junction between the last and first
@@ -3552,7 +3602,7 @@ PNG_path(int p)
 
 TERM_TABLE_START(png_driver)
     "png", "PNG images using libgd and TrueType fonts",
-    GREG_XMAX * GD_OVERSAMPLE, GREG_YMAX * GD_OVERSAMPLE, PNG_VCHAR, PNG_HCHAR,
+    (GREG_XMAX-1) * GD_OVERSAMPLE, (GREG_YMAX-1) * GD_OVERSAMPLE, PNG_VCHAR, PNG_HCHAR,
     PNG_TICSIZE, PNG_TICSIZE, PNG_options, PNG_init, PNG_reset,
     PNG_text, null_scale, PNG_graphics, PNG_move, PNG_vector,
     PNG_linetype, PNG_put_text, PNG_text_angle,
@@ -3571,13 +3621,14 @@ TERM_TABLE_START(png_driver)
     PNG_filled_polygon
     , PNG_image
     , ENHGD_OPEN, ENHGD_FLUSH, do_enh_writec
-    , NULL		/* layering */
+    , PNG_layer		/* layering */
     , PNG_path		/* path */
     , (double)GD_OVERSAMPLE	/* tscale */
     , NULL		/* hypertext */
     , ENHGD_boxed_text
     , NULL		/* modify_plots */
     , PNG_dashtype
+    , PNG_clip_state
 TERM_TABLE_END(png_driver)
 
 #undef LAST_TERM
@@ -3714,7 +3765,7 @@ int quality = 90;
 
 TERM_TABLE_START(jpeg_driver)
     "jpeg", "JPEG images using libgd and TrueType fonts",
-    GREG_XMAX * GD_OVERSAMPLE, GREG_YMAX * GD_OVERSAMPLE, PNG_VCHAR, PNG_HCHAR,
+    (GREG_XMAX-1) * GD_OVERSAMPLE, (GREG_YMAX-1) * GD_OVERSAMPLE, PNG_VCHAR, PNG_HCHAR,
     PNG_TICSIZE, PNG_TICSIZE, PNG_options, PNG_init, PNG_reset,
     JPEG_text, null_scale, PNG_graphics, PNG_move, PNG_vector,
     PNG_linetype, PNG_put_text, PNG_text_angle,
@@ -3733,13 +3784,14 @@ TERM_TABLE_START(jpeg_driver)
     PNG_filled_polygon
     , PNG_image
     , ENHGD_OPEN, ENHGD_FLUSH, do_enh_writec
-    , NULL		/* layering */
+    , PNG_layer		/* layering */
     , PNG_path		/* path */
     , (double)GD_OVERSAMPLE	/* tscale */
     , NULL		/* hypertext */
     , ENHGD_boxed_text
     , NULL		/* modify_plots */
     , PNG_dashtype
+    , PNG_clip_state
 TERM_TABLE_END(jpeg_driver)
 
 #undef LAST_TERM
@@ -3869,7 +3921,7 @@ GIF_text()
 
 TERM_TABLE_START(gif_driver)
     "gif", "GIF images using libgd and TrueType fonts",
-    GREG_XMAX * GD_OVERSAMPLE, GREG_YMAX * GD_OVERSAMPLE, PNG_VCHAR, PNG_HCHAR,
+    (GREG_XMAX-1) * GD_OVERSAMPLE, (GREG_YMAX-1) * GD_OVERSAMPLE, PNG_VCHAR, PNG_HCHAR,
     PNG_TICSIZE, PNG_TICSIZE, PNG_options, PNG_init, PNG_reset,
     GIF_text, null_scale, PNG_graphics, PNG_move, PNG_vector,
     PNG_linetype, PNG_put_text, PNG_text_angle,
@@ -3888,13 +3940,14 @@ TERM_TABLE_START(gif_driver)
     PNG_filled_polygon
     , PNG_image
     , ENHGD_OPEN, ENHGD_FLUSH, do_enh_writec
-    , NULL		/* layering */
+    , PNG_layer		/* layering */
     , PNG_path		/* path */
     , (double)GD_OVERSAMPLE	/* tscale */
     , NULL		/* hypertext */
     , ENHGD_boxed_text
     , NULL		/* modify_plots */
     , PNG_dashtype
+    , PNG_clip_state
 TERM_TABLE_END(gif_driver)
 
 #undef LAST_TERM
@@ -4053,7 +4106,7 @@ SIXELGD_text()
 
 TERM_TABLE_START(sixelgd_driver)
     "sixelgd", "sixel using libgd and TrueType fonts",
-    GREG_XMAX * GD_OVERSAMPLE, GREG_YMAX * GD_OVERSAMPLE, PNG_VCHAR, PNG_HCHAR,
+    (GREG_XMAX-1) * GD_OVERSAMPLE, (GREG_YMAX-1) * GD_OVERSAMPLE, PNG_VCHAR, PNG_HCHAR,
     PNG_TICSIZE, PNG_TICSIZE, PNG_options, PNG_init, PNG_reset,
     SIXELGD_text, null_scale, PNG_graphics, PNG_move, PNG_vector,
     PNG_linetype, PNG_put_text, PNG_text_angle,
@@ -4072,13 +4125,14 @@ TERM_TABLE_START(sixelgd_driver)
     PNG_filled_polygon,
     PNG_image,
     ENHGD_OPEN, ENHGD_FLUSH, do_enh_writec,
-    NULL,		/* layering */
+    PNG_layer,		/* layering */
     PNG_path,		/* path */
     (double)GD_OVERSAMPLE,	/* tscale */
     NULL		/* hypertext */
     , ENHGD_boxed_text
     , NULL		/* modify_plots */
     , PNG_dashtype
+    , PNG_clip_state
 TERM_TABLE_END(sixelgd_driver)
 
 #undef LAST_TERM
@@ -4116,9 +4170,6 @@ START_HELP(sixelgd)
 " linux console when no windowing system or graphics display manager is active.",
 " See `linux console`.",
 "",
-" The `linewidth` and `dashlength` options are scaling factors that affect all",
-" lines drawn.  They are multiplied by values requested in drawing commands.",
-"",
 " By default the sixel output uses 16 indexed colors. The `truecolor` option",
 " instead creates a 24-bit RGB png image that is mapped down onto 256 colors",
 " in the output sixel image. Transparent fill styles require the `truecolor`",
@@ -4127,7 +4178,11 @@ START_HELP(sixelgd)
 " `butt` instructs the driver to use a line drawing method that does",
 " not overshoot the desired end point of a line.  This setting is only",
 " relevant for line widths greater than 1.  The alternative is `rounded`,",
-" which produces somewhat more uniform curved lines but can be much slower.",
+" which produces somewhat more uniform curved lines but can be slower.",
+"",
+" The `linewidth` and `dashlength` options are scaling factors that affect all",
+" lines drawn.  They are multiplied by values requested in drawing commands.",
+" Dashed lines are supported only in truecolor mode.",
 "",
 " The details of font selection in the gdlib terminals are complicated.",
 " For more information please see `fonts`.",
@@ -4232,7 +4287,7 @@ KITTYGD_text()
 
 TERM_TABLE_START(kittygd_driver)
     "kittygd", "kitty in-terminal graphics using libgd",
-    GREG_XMAX * GD_OVERSAMPLE, GREG_YMAX * GD_OVERSAMPLE, PNG_VCHAR, PNG_HCHAR,
+    (GREG_XMAX-1) * GD_OVERSAMPLE, ((GREG_YMAX-1)-1) * GD_OVERSAMPLE, PNG_VCHAR, PNG_HCHAR,
     PNG_TICSIZE, PNG_TICSIZE, PNG_options, PNG_init, PNG_reset,
     KITTYGD_text, null_scale, PNG_graphics, PNG_move, PNG_vector,
     PNG_linetype, PNG_put_text, PNG_text_angle,
@@ -4251,13 +4306,14 @@ TERM_TABLE_START(kittygd_driver)
     PNG_filled_polygon,
     PNG_image,
     ENHGD_OPEN, ENHGD_FLUSH, do_enh_writec,
-    NULL,		/* layering */
+    PNG_layer,		/* layering */
     PNG_path,		/* path */
     (double)GD_OVERSAMPLE,	/* tscale */
     NULL		/* hypertext */
     , ENHGD_boxed_text
     , NULL		/* modify_plots */
     , PNG_dashtype
+    , PNG_clip_state
 TERM_TABLE_END(kittygd_driver)
 
 #undef LAST_TERM
@@ -4290,14 +4346,13 @@ START_HELP(kittygd)
 " is mapped down onto 256 colors (`truecolor`) for output.",
 " `notruecolor` restricts the output to fewer colors but there is no obvious",
 " advantage to this.",
-" Transparent fill styles require the `truecolor` option. See `fillstyle`.",
-" If your copy of gnuplot was built with support for cairo graphics,",
-" the `kittycairo` terminal may be preferable.",
+"",
+" Dashed lines and transparent fill styles require the `truecolor` option.",
 "",
 " This terminal processes labels and other text using enhanced formatting",
 " by default. See `enhanced`.",
 "",
-" The width of al lines in the pot can be modified by the factor <lw> specified",
+" The width of all lines in the plot can be modified by the factor <lw>",
 " in `linewidth`. The font size can similarly be uniformly modified by the",
 " scale factor provided in `fontscale`.  For discussion of font and text",
 " encoding options, see the `png` terminal.",

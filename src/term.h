@@ -261,6 +261,8 @@
 #endif
 
 #ifndef NO_BITMAP_SUPPORT
+#ifdef OLD_PRINTERS
+
 /* HP DeskJet 500 C */
 #include "hp500c.trm"
 
@@ -270,6 +272,7 @@
 /* HP PrintJet */
 #include "hppj.trm"
 
+#endif
 #endif /* NO_BITMAP_SUPPORT */
 
 /* Imagen laser printers */
@@ -308,6 +311,8 @@
 /* portable bit map */
 #include "pbm.trm"
 
+#ifdef OLD_PRINTERS
+
 /* wire printers */
 /* Epson LX-800, Star NL-10, NX-1000 and lots of others */
 #define EPSONP
@@ -331,6 +336,7 @@
 /* the common driver file for all of these */
 #include "epson.trm"
 
+#endif /* OLD_PRINTERS */
 #endif /* NO_BITMAP_SUPPORT */
 
 /* TeX related terminals start here */

@@ -9519,9 +9519,6 @@ Ffigure_convex_hull
 ?filters concavehull
 ?concavehull
 
- EXPERIMENTAL (implementation details may change in a future release).
- Present only if your copy of gnuplot was configured --enable-chi-shapes.
-
  Concavehull is not a plot style. It is a filter that finds a bounding
  polygon, a "hull",  of the input data points and replaces the original points
  with an ordered subset of points that lie along the perimeter of this polygon.
@@ -9584,9 +9581,6 @@ Ffigure_concave_hull_2
 ^ <a href="http://www.gnuplot.info/demo_6.1/delaunay.html">
  delaunay.dem
 ^ </a>
-
- EXPERIMENTAL (implementation details may change in a future release).
- Present only if your copy of gnuplot was configured --enable-chi-shapes.
 
  2D example
       plot POINTS using 1:2 delaunay with polygons fillstyle empty

@@ -195,11 +195,12 @@ multiplot_next()
 		}
 	    }
 	}
-	/* FIXME: If (multiplot_playback && (mp_layout.current_panel == 0))
-	 *	    reset is not necessary and might even be detrimental
-	 */
-	multiplot_reset();
     }
+
+    /* This is needed during playback so that stored axis ranges and panel
+     * properties that may have been changed by mousing are read back in.
+     */
+    multiplot_reset();
 }
 
 static void

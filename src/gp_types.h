@@ -240,7 +240,7 @@ typedef enum coord_type {
  * that we might as well use to hold an extra coordinate property.
  * The Delaunay triangulation code needs this extra storage.
  */
-#if defined(WITH_CHI_SHAPES) && !(defined(WITH_EXTRA_COORDINATE))
+#if !(defined(WITH_EXTRA_COORDINATE))
   #define WITH_EXTRA_COORDINATE
 #endif
 #ifdef WITH_EXTRA_COORDINATE

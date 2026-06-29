@@ -46,7 +46,6 @@
 
 extern struct curve_points *first_plot;
 
-#ifdef USE_POLAR_GRID
 typedef struct pgrid {
     t_dgrid3d_mode mode;
     int theta_segments;
@@ -59,7 +58,6 @@ typedef struct pgrid {
 } pgrid;
 extern pgrid polar_grid;
 extern pgrid default_polar_grid;
-#endif
 
 /* prototypes from plot2d.c */
 

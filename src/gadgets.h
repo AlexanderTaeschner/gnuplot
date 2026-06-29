@@ -381,7 +381,7 @@ typedef enum en_dgrid3d_mode {
 /***********************************************************/
 
 /* bounding box position, in terminal coordinates */
-typedef struct {
+typedef struct BoundingBox {
     int xleft;
     int xright;
     int ybot;
