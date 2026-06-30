@@ -1,15 +1,16 @@
-version: 6.1.0-20250827-{build}
+version: 6.1.0-2026-{build}
 branches:
   only:
   - main
   - dev
-image: Visual Studio 2022
+image: Visual Studio 2026
 install:
   - cd C:\Tools\vcpkg
 #  - git clean -f -d -x
 #  - del /S /Q C:\tools\vcpkg\installed
+#  - del /S /Q C:\Users\appveyor\AppData\Local\vcpkg\archives
   - git fetch --tags
-  - git checkout 2025.09.17
+  - git checkout 2026.06.24
   - .\bootstrap-vcpkg.bat
   - .\vcpkg.exe install --recurse fontconfig:%PLATFORM%-windows
   - .\vcpkg.exe install --recurse harfbuzz[core,freetype]:%PLATFORM%-windows
@@ -18,7 +19,7 @@ install:
   - .\vcpkg.exe install --recurse cairo[core,fontconfig,freetype,gobject]:%PLATFORM%-windows
   - .\vcpkg.exe install --recurse pango:%PLATFORM%-windows
   - .\vcpkg.exe install --recurse libgd:%PLATFORM%-windows
-  - .\vcpkg.exe install --recurse wxwidgets:%PLATFORM%-windows
+#  - .\vcpkg.exe install --recurse wxwidgets:%PLATFORM%-windows
   - .\vcpkg.exe upgrade --no-dry-run
   - .\vcpkg.exe integrate install
 cache:
@@ -29,7 +30,7 @@ environment:
   APPVEYOR_SAVE_CACHE_ON_ERROR: true
   APPVEYOR_CACHE_ENTRY_ZIP_ARGS: -t7z -mx
 build:
-  project: config\msvc\gnuplot\gnuplot.sln
+  project: config\msvc\gnuplot\gnuplot.slnx
   verbosity: normal
 platform:
   - x86
