@@ -1,0 +1,13 @@
+<Solution>
+  <Configurations>
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Folder Name="/BuildTools/">
+    <Project Path="doc2html/doc2html.vcxproj">
+      <BuildDependency Project="gnuplot/gnuplot.vcxproj" />
+    </Project>
+  </Folder>
+  <Project Path="gnuplot/gnuplot.vcxproj" />
+  <Project Path="wgnuplot/wgnuplot.vcxproj" />
+</Solution>

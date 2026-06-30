@@ -1,9 +1,9 @@
 # gnuplot
 
-Source code cloned from the original CVS source with additional files and changes to make building with MSVC2022 easier. 
+Source code cloned from the original CVS source with additional files and changes to make building with MSVC easier. 
 
 ## Quick Start
-Prerequisite: Visual Studio 2022
+Prerequisite: Visual Studio 2026
 
 Clone this repository and the vcpkg repository (https://github.com/Microsoft/vcpkg.git), then run
 ```
@@ -20,7 +20,7 @@ C:\src\vcpkg> .\vcpkg install libgd:x86-windows libgd:x64-windows
 C:\src\vcpkg> .\vcpkg install wxwidgets:x86-windows wxwidgets:x64-windows
 ```
 
-Finally, open the VC2022 solution `config\msvc\gnuplot\gnuplot.sln` and build the solution.
+Finally, open the MSVC solution `config\msvc\gnuplot\gnuplot.slnx` and build the solution.
 
 | Branch | Build status |
 | ------ | ------------ |
