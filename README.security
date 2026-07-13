@@ -1,0 +1,162 @@
+Notes on security-related configuration options
+===============================================
+
+When gnuplot is running interactively from a terminal session, it allows
+the user to read and write files and to pipe input or output data through
+arbitrary system commands for further processing.  These operations are
+central to the program's core function.  In addition, Gnuplot provides
+several mechanisms to pass arbitrary commands through to a system shell.
+These mechanisms are not strictly essential, but add to the flexibility
+and convenience of the program's primary function.
+
+In an interactive gnuplot session, any security concerns raised by these
+features are the same as those for equivalent commands issued directly
+from the command line by the same user.
+
+However gnuplot is not always used as an interactive tool invoked from a
+terminal session. Consider three example scenarios where restricting use of
+gnuplot commands that invoke a system shell may reduce the opportunity for
+inadvertant or intentional security violation while imposing little or no
+reduction in gnuplot's core functionality.
+
+(1) Gnuplot may be invoked by a user to run non-interactively using input
+    commands from a previously prepared script file.  That script file may
+    invoke system commands that are not appropriate in current session.
+
+(2) Gnuplot may be invoked as a back end to produce plots based on
+    user-supplied input provided interactively through a kiosk interface.
+    This interface may be available to users who would not otherwise have
+    permission to issue commands to the system gnuplot is running on.
+
+(3) Gnuplot may be run by a web server through a CGI (Common Gateway Interface)
+    application layer to handle user requests.  The CGI layer constructs
+    gnuplot commands that may contain user-provided elements.
+    Gnuplot should guard against cases where the CGI layer fails to recognize
+    that the command contains a potentially damaging element, usually a string,
+    passed through to gnuplot.
+
+Several configuration options have been added to gnuplot in version 6.1
+that restrict the mechanisms by which gnuplot can invoke an arbitrary
+system shell command.
+
+Enable/Disable the "shell" command
+==================================
+
+The gnuplot "shell" command creates a subprocess and runs a system shell.
+This was a convenience feature in the long-ago days when gnuplot was run
+interactively from a physical terminal (vt100/tektronix/atari/...) since
+it allowed to step out of a gnuplot session to issue system commands and
+then return to the session without losing the current context.
+It probably never made sense for this command to be permitted in a
+non-interactive session, and in this era of multiple windows and terminal
+tabs it is of questionable benefit even in an interactive session.
+The command is now marked DEPRECATED in the user manual.
+
+ --enable-shell
+		Accept the "shell" command, but only in interactive sessions
+ --disable-shell
+		Never accept the "shell" command to spawn an interactive shell.
+		(default, recommended)
+
+Enable/Disable/Restrict backtick substitution
+=============================================
+
+As gnuplot input lines are parsed, text between backticks is replaced
+with the output string returned by executing the text as a shell command.
+This is documented in the user manual under "substitution backquotes".
+The following input lines have the same effect:
+    set title "Plot time: `date`"
+    set title "Plot time: " . system("date")
+
+Backtick substitution was useful in very old gnuplot versions that did
+not support string variables or general string manipulation.
+Since gnuplot version 5 it provides at most a minor convenience over
+using the system() function to generate the desired string.
+
+The example above is particularly problematic for scenario (3),
+where gnuplot may want to generate a title using a string provided
+by the user.  It is clearly a bad idea to execute an arbitrary
+shell command that was passed in as a title or label or string data.
+The default configuration now disables backtick substitution.
+Note: this may break old scripts, which might have to
+be modified to use A = system("date") rather than A = "`date`".
+
+Disabling backtick substitution removes no gnuplot functionality so long as
+the system() function is still available to use instead.
+
+ --enable-backticks
+		Execute shell command in backticks, even inside quotes
+		(pre-version 6.1 behavior; not recommended)
+ --disable-backticks
+		Never expand backtick shell escapes
+		(new default)
+
+Enable/Disable the "system" command
+===================================
+
+The gnuplot command system(<string>) invokes the operating system's default
+shell in a subprocess to execute the commands in a single text string.
+If called as a function, system(<string>) returns the character stream
+from the subprocess's stdout as a string.
+If a gnuplot input line has first character !, the system command is invoked
+using the rest of the input line as a string.  Examples:
+
+    system("ls *.dat")            	# output to stdout
+    !ls *.dat                     	# same command as above
+
+    FILES = system("ls *.dat")    	# generate and save a list of files
+      plot for [data in FILES] data 	#   plot all files in the list
+
+Disabling this command will break commonly used plotting proceduress and
+is likely to break existing gnuplot scripts, for example a script that uses
+the commands above to plot data from all data files in the current directory.
+
+ --enable-system-command
+		Accept system command, system() function call, and
+		accept a leading ! on the command line as shorthand
+		(pre-version 6.1 behavior)
+		(default)
+ --disable-system-command
+		Do not accept the system command or function call.
+		Also disables leading "!" as shorthand for system().
+
+Enable/Disable substition of a pipe for a file based on filename
+================================================================
+
+By default, any gnuplot command expecting the name of an input file will
+interpret a name starting with "<" as indicating that input should instead
+be accepted from a pipe opened with popen().  This is a convenient
+way to generate or filter input data through system utilities such as
+awk, grep, sed, head, or tail.  For example, to plot only log entries
+generated on a Tuesday one might say
+    plot "< grep Tuesday log.dat" using 1:2
+
+Similarly, piped output can be used to send a plot to another program
+rather than to a file.  For example
+	set term png
+        set output '| display png:-'
+
+However, in cases where gnuplot might be accepting file names from an
+untrusted source (scenario 3) this constitutes a mechanism by which an
+arbitrary shell command could be executed by the popen() call.
+        plot "| bad-shell-command"
+On the other hand, it is plausible that a CGI gnuplot script does not
+accept user-provided file names but does want to filter data through
+system utilities.  So disabling pipes may not be desirable even in
+scenario 3.
+
+ --enable-pipes (default)
+	        popen() is used to open a pipe
+	        When an input filename is given as "< shell-command"
+	        When an output filename is given as "| shell-command"
+ --disable-pipes
+	        Reject filenames beginning with "<" or "|"
+
+
+Default configuration
+=====================
+
+  ./configure --disable-shell --disable-backticks \
+              --enable-system-command --enable-pipes
+
+
