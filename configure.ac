@@ -379,10 +379,6 @@ AC_LINK_IFELSE([AC_LANG_PROGRAM([[#include <setjmp.h>]], [[jmp_buf env; sigsetjm
    AC_DEFINE(HAVE_SIGSETJMP,1,
              [ Define if we have sigsetjmp(). ])],[AC_MSG_RESULT(no)])
 
-if test "$ac_cv_func_pclose" = yes -a "$ac_cv_func_popen" = yes ; then
-  AC_DEFINE(PIPES,1,[ Define if you do have the popen and pclose functions. ])
-fi
-
 AC_MSG_CHECKING(if malloc(0) returns 0)
 AC_RUN_IFELSE([AC_LANG_PROGRAM([[#ifdef HAVE_STDLIB_H
 #include <stdlib.h>
@@ -1101,15 +1097,20 @@ dnl		Execute shell command in backticks (pre-version 6.1 behavior)
 dnl --disable-backticks
 dnl		Do not expand backtick shell escapes (new default)
 dnl
-dnl IMPORTANT: None of these options prevent execution of a shell command via
-dnl		popen() used to open a file whose name is given as
-dnl		"< shell-command" or "| shell-command" or "> shell-command"
+dnl --enable-pipes
+dnl             Use popen() to pipe input or output through a shell command (default)
+dnl               input  filename given as "< shell-command"
+dnl               output filename given as "| shell-command"
+dnl --disable-pipes
+dnl             Reject filenames starting with "<" or "|". (some functionality is lost)
 dnl
 AC_ARG_ENABLE(shell,dnl
   [
 Security-related settings:
-                                 ("old" means gnuplot versions through 6.0)
-  --enable-shell                 "shell" command spawns an interactive shell (old behavior)
+                             "old behavior" means gnuplot versions prior to 6.1
+                             Please see README.security for more detail.
+
+  --enable-shell                 "shell" command spawns an interactive shell (old default)
   --disable-shell                do not accept the "shell" command (new default)
   ],
   [ if test "$enable_shell" = yes; then
@@ -1137,6 +1138,21 @@ AC_ARG_ENABLE(backticks,dnl
             [ Define to disable execution of shell commands in backticks. ])
     fi
   ],)
+
+
+AC_ARG_ENABLE(pipes,dnl
+  [--enable-pipes                 allow piped input and output (default)
+  --disable-pipes                do not allow piped input or output
+
+  ], ,
+  [ enable_pipes=yes
+  ])
+
+if test "$ac_cv_func_pclose" = yes -a "$ac_cv_func_popen" = yes ; then
+  if test "$enable_pipes" != no; then
+    AC_DEFINE(PIPES,1,[ Define if you want support for piping input/output using popen(). ])
+  fi
+fi
 
 dnl     ============================================================
 dnl      End security measures limiting execution of shell commands
@@ -1535,6 +1551,13 @@ if test "$enable_backticks" = yes; then
   AC_MSG_RESULT([  shell escapes in backticks:    allowed except in single quoted strings (old behavior)])
 else
   AC_MSG_RESULT([  shell escapes in backticks:    disabled (default)])
+fi
+
+if test "$enable_pipes" = no; then
+  AC_MSG_RESULT([  disabled piped input/output:   reject filenames starting with "<" or "|"])
+else
+  AC_MSG_RESULT([  piped input/output:            piped input from filename "< shell-command"])
+  AC_MSG_RESULT([                                 piped output to filename  "| shell-command"])
 fi
 
 AC_MSG_RESULT([])
