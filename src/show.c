@@ -1160,6 +1160,36 @@ show_version(FILE *fp)
 	if (sizeof(struct coordinate) > sizeof(struct gen_coord))
 	    fprintf(stderr, "\tThis is a waste of space.\n");
 
+	/* configuraton options related to security */
+	fprintf(stderr, "Security-related configuration options:\n");
+	fprintf(stderr, "    %s %s %s %s\n",
+#ifdef ENABLE_SHELL_COMMAND
+	"--enable-shell"
+#else
+	"--disable-shell"
+#endif
+	,
+#ifdef DISABLE_SYSTEM_COMMAND
+	"--disable-system-command"
+#else
+	"--enable-system-command"
+#endif
+	,
+#if defined(DISABLE_BACKTICKS_ALWAYS)
+	"--disable-backticks"
+#elif defined(DISABLE_BACKTICKS_QUOTED)
+	"--enable-backticks=unquoted"
+#else
+	"--enable-backticks"
+#endif
+	,
+#ifdef PIPES
+	"--enable-pipes"
+#else
+	"--disable-pipes"
+#endif
+	);
+
 	{
 	    char *driverdir = getenv("GNUPLOT_DRIVER_DIR");
 #ifdef GNUPLOT_DRIVER_DIR
