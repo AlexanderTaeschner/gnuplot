@@ -50,9 +50,7 @@ const struct gen_ftable command_ftbl[] =
 {
     { "ra$ise", raise_command },
     { "low$er", lower_command },
-#ifdef USE_MOUSE
     { "bi$nd", bind_command },
-#endif
     { "array", array_command },
     { "break", break_command },
     { "ca$ll", call_command },

@@ -299,6 +299,7 @@ enum PNG_id {
     PNG_ENHANCED, PNG_NOENHANCED,
     PNG_TRUECOLOR, PNG_NOTRUECOLOR,
     PNG_LINEWIDTH, PNG_BUTT, PNG_ROUNDED, PNG_SQUARE, PNG_DASHLENGTH,
+    PNG_SCALE,
     GIF_ANIMATE, GIF_DELAY, GIF_LOOP, GIF_NOOPT, GIF_OPT,
     PNG_ANCHOR, PNG_SCROLL,
     PNG_OTHER
@@ -379,6 +380,7 @@ static struct gen_table PNG_opts[] =
     { "sq$uare", PNG_SQUARE},
     { "dashl$ength", PNG_DASHLENGTH},
     { "dl", PNG_DASHLENGTH},
+    { "scale", PNG_SCALE},
     { "backg$round", PNG_BACKGROUND},
     { NULL, PNG_OTHER }
 };
@@ -387,6 +389,7 @@ static struct gen_table PNG_opts[] =
 #define MAXLINEWIDTH 100
 static double PNG_linewidth_factor = 1.0;
 static double PNG_dashlength_factor = 1.0;
+static double GD_scale = 1.0;	/* global element-size multiplier (default 1.0) */
 
 /* Built-in dash patterns matching the cairo terminal.
  * Alternating dash/gap lengths, 0-terminated.
@@ -1528,6 +1531,7 @@ PNG_options()
 	png_state.justify = CENTRE;
 	PNG_linewidth_factor = 1.0;
 	PNG_dashlength_factor = 1.0;
+	GD_scale = 1.0;
 	png_state.linecap = BUTT; /* Change Jan 2023 */
 	if (!strcmp(term->name, "gif") || !strcmp(term->name, "sixelgd"))
 	    png_state.TrueColor = FALSE;
@@ -1573,6 +1577,7 @@ PNG_options()
 	png_state.default_ttfsize = 0;
 	PNG_linewidth_factor = 1.0;
 	PNG_dashlength_factor = 1.0;
+	GD_scale = 1.0;
 	/* Default to enhanced text */
 	term->flags |= TERM_ENHANCED_TEXT;
 	term->put_text = ENHGD_put_text;
@@ -1800,6 +1805,12 @@ PNG_options()
 	    if (PNG_dashlength_factor <= 0.2)
 		PNG_dashlength_factor = 1.0;
 	    break;
+	case PNG_SCALE:
+	    c_token++;
+	    GD_scale = real_expression();
+	    if (GD_scale <= 0.0)
+		GD_scale = 1.0;
+	    break;
 
 	/* anchor/scroll choice for sixel and kitty in-terminal output */
 	case PNG_ANCHOR:
@@ -1946,7 +1957,25 @@ PNG_options()
     /* If no explicit TTF font size found, generate default */
     if (!(png_state.default_ttfsize > 0))
 	png_state.default_ttfsize = 2 * (term->h_char / GD_OVERSAMPLE) - 2;
-    png_state.ttfsize = png_state.default_ttfsize;
+    png_state.ttfsize = png_state.default_ttfsize * GD_scale;
+
+    /* Apply the global element scale to the tic length.  Unlike fonts and
+     * line widths, gd tic lengths are derived from the canvas size and so do
+     * not scale on their own.  Recompute the unscaled base tic from the
+     * current canvas size (the same formula used by the 'size' option) and
+     * then apply the scale here.  Recomputing the base first keeps this
+     * idempotent so that repeated calls (e.g. via 'set termoption scale')
+     * do not compound the scaling. */
+    if (GD_scale != 1.0) {
+	unsigned int base_tic =
+	    GD_OVERSAMPLE * ((GD_XSIZE < GD_YSIZE) ? GD_XSIZE/100 : GD_YSIZE/100);
+	if (base_tic < GD_OVERSAMPLE)
+	    base_tic = GD_OVERSAMPLE;
+	term->v_tic = (unsigned int)(base_tic * GD_scale + 0.5);
+	if (term->v_tic < 1)
+	    term->v_tic = 1;
+	term->h_tic = term->v_tic;
+    }
 
     /* Find approximate character width of selected TTF font   */
     /* This is needed in order to set appropriate border width */
@@ -1954,7 +1983,7 @@ PNG_options()
 	int brect[8];
 	char *err;
 	err = gdImageStringFT(NULL, &brect[0], 0,
-		png_state.default_ttffont, png_state.default_ttfsize*png_state.fontscale,
+		png_state.default_ttffont, png_state.default_ttfsize*GD_scale*png_state.fontscale,
 		0.0, 0, 0, "f00000000g");
 	if (!err) {
 	    term->h_char = (.11 * (double)(brect[2] - brect[0]) + 0.5) * GD_OVERSAMPLE;
@@ -1967,6 +1996,13 @@ PNG_options()
 	}
     }
 #endif
+
+    /* The built-in bitmap fonts have fixed pixel sizes and cannot be scaled,
+     * so 'scale' can only enlarge/shrink line widths, points and tics but not
+     * the glyphs when no TrueType font is selected. */
+    if (GD_scale != 1.0 && !png_state.default_ttffont)
+	int_warn(NO_CARET,
+	    "scale requires a TrueType font; built-in fonts cannot be scaled");
 
     /* This code is shared by png, gif, and jpeg terminal types */
     if (!strcmp(term->name,"jpeg"))
@@ -2025,6 +2061,10 @@ PNG_options()
     sprintf(term_options + strlen(term_options),
 	    "size %d,%d ", GD_XSIZE, GD_YSIZE);
 
+    if (GD_scale != 1.0)
+	sprintf(term_options + strlen(term_options),
+	    "scale %g ", GD_scale);
+
     if (png_state.n_colors == 1)
 	sprintf(term_options + strlen(term_options),
 	    "background \"#%06x\" ", png_state.rgb_table[0]);
@@ -2035,7 +2075,7 @@ PNG_options()
 		"fontscale %.1f ", png_state.fontscale);
 	if (strlen(term_options) + strlen(png_state.ttffont) < sizeof(term_options) - 32)
 	    sprintf(term_options + strlen(term_options),
-		"font \"%s,%.1f\" ", png_state.ttffont, png_state.ttfsize);
+		"font \"%s,%.1f\" ", png_state.ttffont, png_state.ttfsize / GD_scale);
     } else switch (term->h_char) {
     case 5:
 	strcat(term_options,"tiny ");
@@ -2613,7 +2653,7 @@ PNG_linetype(int type)
 TERM_PUBLIC void
 PNG_linewidth(double linewidth)
 {
-    png_state.linewidth_f = PNG_linewidth_factor * linewidth;
+    png_state.linewidth_f = PNG_linewidth_factor * GD_scale * linewidth;
     if (png_state.linewidth_f > MAXLINEWIDTH) png_state.linewidth_f = MAXLINEWIDTH;
     if (png_state.linewidth_f < 1.0) png_state.linewidth_f = 1.0;
     png_state.linewidth = (int)(png_state.linewidth_f + 0.49);
@@ -2909,12 +2949,12 @@ PNG_set_font(const char *fontname)
 	/* New ttf font */
 	free(png_state.ttffont);
 	png_state.ttffont = gp_strdup(name);
-	png_state.ttfsize = size;
+	png_state.ttfsize = size * GD_scale;
     } else {
 	/* Restore initial default font */
 	free(png_state.ttffont);
 	png_state.ttffont = gp_strdup(png_state.default_ttffont);
-	png_state.ttfsize = size;
+	png_state.ttfsize = size * GD_scale;
     }
     free(name);
 
@@ -2930,17 +2970,18 @@ PNG_set_font(const char *fontname)
     if (png_state.ttffont) {
 	int brect[8];
 	char *err;
+	double scaled_size = size * GD_scale;
         /* First try the old GDFONTPATH mechanism for locating fonts */
 	(void)gdUseFontConfig(0);
 	err = gdImageStringFT(NULL, &brect[0], 0,
-		png_state.ttffont, size*png_state.fontscale,
+		png_state.ttffont, scaled_size*png_state.fontscale,
 		0.0, 0, 0, "f00000000g");
 	/* If that didn't work, try again using fontconfig mechanism */
 	if (err && gdUseFontConfig(1)) {
 	    FPRINTF((stderr,"gd.trm:%d gdUseFontConfig(1) (%s)\n",
 		    __LINE__, png_state.ttffont));
 	    err = gdImageStringFT(NULL, &brect[0], 0,
-		png_state.ttffont, size*png_state.fontscale,
+		png_state.ttffont, scaled_size*png_state.fontscale,
 		0.0, 0, 0, "f00000000g");
 	}
 	if (!err) {
@@ -2959,7 +3000,7 @@ PNG_pointsize(double ptsize)
 {
     if (ptsize < 0)
 	ptsize = 1;
-    PNG_ps = (int)(((double)PNG_POINT_SCALE * ptsize) + 0.5);
+    PNG_ps = (int)(((double)PNG_POINT_SCALE * GD_scale * ptsize) + 0.5);
 }
 
 /*
@@ -3147,7 +3188,7 @@ ENHGD_put_text(unsigned int x, unsigned int y, const char *str)
     PNG_move(x,y);
 
     /* set up the global variables needed by enhanced_recursion() */
-    enhanced_fontscale = png_state.fontscale;
+    enhanced_fontscale = png_state.fontscale * GD_scale;
     safe_strncpy(enhanced_escape_format,"&#x%2.2x;",sizeof(enhanced_escape_format));
 
     ENHgd_opened_string = FALSE;
@@ -3608,7 +3649,7 @@ TERM_TABLE_START(png_driver)
     PNG_linetype, PNG_put_text, PNG_text_angle,
     PNG_justify_text, PNG_point, do_arrow, PNG_set_font,
     PNG_pointsize,
-    TERM_CAN_MULTIPLOT|TERM_BINARY|TERM_CAN_DASH|TERM_LINEWIDTH|TERM_FONTSCALE,
+    TERM_CAN_MULTIPLOT|TERM_BINARY|TERM_CAN_DASH|TERM_LINEWIDTH|TERM_FONTSCALE|TERM_GLOBALSCALE,
     0 /*suspend*/, 0 /*resume*/,
     PNG_boxfill /*EAM - fillbox*/,
     PNG_linewidth /*EAM - linewidth*/
@@ -3656,6 +3697,7 @@ START_HELP(png)
 "              {tiny | small | medium | large | giant}",
 "              {font \"<face> {,<pointsize>}\"} {fontscale <scale>}",
 "              {size <x>,<y>} {{no}crop}",
+"              {scale <factor>}",
 "              {background <rgb_color>}",
 "",
 " PNG, JPEG and GIF images are created using the external library libgd.",
@@ -3700,6 +3742,10 @@ START_HELP(png)
 " Please see additional information under `canvas` and `set size`.",
 " Blank space at the edges of the finished plot may be trimmed using the `crop`",
 " option, resulting in a smaller final image size. Default is `nocrop`.",
+"",
+" The `scale` option applies an additional global multiplier to line widths,",
+" point sizes, and font sizes without changing output canvas size in pixels.",
+" See `scale`.",
 "",
 "2 examples",
 "?set term png examples",
@@ -3771,7 +3817,7 @@ TERM_TABLE_START(jpeg_driver)
     PNG_linetype, PNG_put_text, PNG_text_angle,
     PNG_justify_text, PNG_point, do_arrow, PNG_set_font,
     PNG_pointsize,
-    TERM_CAN_MULTIPLOT|TERM_BINARY|TERM_ALPHA_CHANNEL|TERM_CAN_DASH|TERM_LINEWIDTH|TERM_FONTSCALE,
+    TERM_CAN_MULTIPLOT|TERM_BINARY|TERM_ALPHA_CHANNEL|TERM_CAN_DASH|TERM_LINEWIDTH|TERM_FONTSCALE|TERM_GLOBALSCALE,
     0 /*suspend*/, 0 /*resume*/,
     PNG_boxfill /*EAM - fillbox*/,
     PNG_linewidth /*EAM - linewidth*/
@@ -3817,6 +3863,7 @@ START_HELP(jpeg)
 "              {tiny | small | medium | large | giant}",
 "              {font \"<face> {,<pointsize>}\"} {fontscale <scale>}",
 "              {size <x>,<y>} {{no}crop}",
+"              {scale <factor>}",
 "              {background <rgb_color>}",
 "",
 " PNG, JPEG and GIF images are created using the external library libgd.",
@@ -3832,6 +3879,10 @@ START_HELP(jpeg)
 " The `linewidth` and `dashlength` options are scaling factors that affect all",
 " lines drawn, i.e. they are multiplied by values requested in various drawing",
 " commands.",
+"",
+" The `scale` option applies an additional global multiplier to line widths,",
+" point sizes, and font sizes without changing output canvas size in pixels.",
+" See `scale`.",
 "",
 " `butt` instructs the driver to use a line drawing method that does",
 " not overshoot the desired end point of a line.  This setting is only",
@@ -3927,7 +3978,7 @@ TERM_TABLE_START(gif_driver)
     PNG_linetype, PNG_put_text, PNG_text_angle,
     PNG_justify_text, PNG_point, do_arrow, PNG_set_font,
     PNG_pointsize,
-    TERM_CAN_MULTIPLOT|TERM_BINARY|TERM_LINEWIDTH|TERM_FONTSCALE,
+    TERM_CAN_MULTIPLOT|TERM_BINARY|TERM_LINEWIDTH|TERM_FONTSCALE|TERM_GLOBALSCALE,
     0 /*suspend*/, 0 /*resume*/,
     PNG_boxfill /*EAM - fillbox*/,
     PNG_linewidth /*EAM - linewidth*/
@@ -3974,6 +4025,7 @@ START_HELP(gif)
 "              {tiny | small | medium | large | giant}",
 "              {font \"<face> {,<pointsize>}\"} {fontscale <scale>}",
 "              {size <x>,<y>} {{no}crop}",
+"              {scale <factor>}",
 "              {background <rgb_color>}",
 "              {animate {delay <d>} {loop <n>}}",
 "",
@@ -3992,6 +4044,10 @@ START_HELP(gif)
 " The `linewidth` and `dashlength` options are scaling factors that affect all",
 " lines drawn, i.e. they are multiplied by values requested in various drawing",
 " commands.",
+"",
+" The `scale` option applies an additional global multiplier to line widths,",
+" point sizes, and font sizes without changing output canvas size in pixels.",
+" See `scale`.",
 "",
 " `butt` instructs the driver to use a line drawing method that does",
 " not overshoot the desired end point of a line.  This setting is only",
@@ -4112,7 +4168,7 @@ TERM_TABLE_START(sixelgd_driver)
     PNG_linetype, PNG_put_text, PNG_text_angle,
     PNG_justify_text, PNG_point, do_arrow, PNG_set_font,
     PNG_pointsize,
-    TERM_CAN_MULTIPLOT|TERM_BINARY|TERM_ALPHA_CHANNEL|TERM_LINEWIDTH|TERM_FONTSCALE,
+    TERM_CAN_MULTIPLOT|TERM_BINARY|TERM_ALPHA_CHANNEL|TERM_LINEWIDTH|TERM_FONTSCALE|TERM_GLOBALSCALE,
     0 /*suspend*/, 0 /*resume*/,
     PNG_boxfill,
     PNG_linewidth,
@@ -4158,6 +4214,7 @@ START_HELP(sixelgd)
 "              {tiny | small | medium | large | giant}",
 "              {font \"<face> {,<pointsize>}\"} {fontscale <scale>}",
 "              {size <x>,<y>} {anchor|scroll} {{no}transparent}",
+"              {scale <factor>}",
 "              {background <rgb_color>}",
 "",
 " The `sixel` output format was originally used by DEC terminals and printers.",
@@ -4165,6 +4222,7 @@ START_HELP(sixelgd)
 " PNG image created internally using the gd library. The sixel output stream",
 " can be viewed in the terminal as it is created or it can be written to a file",
 " so that it can be replayed later by echoing the file to the terminal.",
+" The output plot size <x,y> is given in pixels.",
 "",
 " The sixel terminal is also useful for displaying gnuplot graphics on the",
 " linux console when no windowing system or graphics display manager is active.",
@@ -4187,8 +4245,9 @@ START_HELP(sixelgd)
 " The details of font selection in the gdlib terminals are complicated.",
 " For more information please see `fonts`.",
 "",
-" The output plot size <x,y> is given in pixels.  It defaults to 640x480,",
-" which is probably smaller than the size of your terminal window.",
+" The `scale` option applies an additional global multiplier to line widths,",
+" point sizes, and font sizes without changing output canvas size in pixels.",
+" See `scale`.",
 "",
 " `transparent` instructs the driver to make the background color transparent,",
 " but most terminal emulators do not support this. Default is `notransparent`.",
@@ -4293,7 +4352,7 @@ TERM_TABLE_START(kittygd_driver)
     PNG_linetype, PNG_put_text, PNG_text_angle,
     PNG_justify_text, PNG_point, do_arrow, PNG_set_font,
     PNG_pointsize,
-    TERM_CAN_MULTIPLOT|TERM_BINARY|TERM_ALPHA_CHANNEL|TERM_CAN_DASH|TERM_LINEWIDTH|TERM_FONTSCALE,
+    TERM_CAN_MULTIPLOT|TERM_BINARY|TERM_ALPHA_CHANNEL|TERM_CAN_DASH|TERM_LINEWIDTH|TERM_FONTSCALE|TERM_GLOBALSCALE,
     0 /*suspend*/, 0 /*resume*/,
     PNG_boxfill,
     PNG_linewidth,
@@ -4338,6 +4397,7 @@ START_HELP(kittygd)
 "                    {linewidth <lw>} {dashlength <dl>}",
 "                    {font \"<face> {,<pointsize>}\"} {fontscale <scale>}",
 "                    {size <x>,<y>} {anchor|scroll}",
+"                    {scale <factor>}",
 "                    {background <rgb_color>}",
 "",
 " The `kittygd` terminal generates in-window output on terminal emulators",
@@ -4367,6 +4427,10 @@ START_HELP(kittygd)
 " window.  This is useful for animation or pseudo-mousing using the keyboard",
 " (see `pseudo-mousing`).  The `scroll` option instead plots at the current",
 " cursor position so that successive plots scroll with the terminal text.", 
+"",
+" The `scale` option applies an additional global multiplier to line widths,",
+" point sizes, and font sizes without changing output canvas size in pixels.",
+" See `scale`.",
 ""
 END_HELP(kittygd)
 #endif /* TERM_HELP */

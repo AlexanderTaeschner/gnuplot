@@ -672,10 +672,12 @@ dnl lua versions.  We test for that in order of pereference.
 if test "${with_lua}" = yes ; then
   LUA=lua
   PKG_CHECK_MODULES([LUA], [lua], LUAFOUND=yes,
-    [PKG_CHECK_MODULES([LUA], [lua5.3], LUA=lua5.3, 
-      [PKG_CHECK_MODULES([LUA], [lua5.2], LUA=lua5.2, 
-        [PKG_CHECK_MODULES([LUA], [lua5.1], LUA=lua5.1, 
-          [LUAFOUND=no])])])])
+    [PKG_CHECK_MODULES([LUA], [lua5.5], LUA=lua5.5,
+      [PKG_CHECK_MODULES([LUA], [lua5.4], LUA=lua5.4,
+        [PKG_CHECK_MODULES([LUA], [lua5.3], LUA=lua5.3,
+          [PKG_CHECK_MODULES([LUA], [lua5.2], LUA=lua5.2,
+            [PKG_CHECK_MODULES([LUA], [lua5.1], LUA=lua5.1,
+              [LUAFOUND=no])])])])])])
   if test $pkg_failed != no; then
     AC_MSG_WARN([Could not find support for lua using pkg-config.])
     with_lua=no
@@ -686,7 +688,7 @@ if test "${with_lua}" = yes ; then
     CPPFLAGS="$CPPFLAGS $LUA_CFLAGS"
   else
     dnl if pkg-config didn't work, we migh still find it manually
-    AC_SEARCH_LIBS(luaL_openlibs, lua lua5.3 lua5.2 lua5.1,
+    AC_SEARCH_LIBS(lua_close, lua lua5.5 lua5.4 lua5.3 lua5.2 lua5.1,
        with_lua=yes, with_lua=no)
   fi
   if test "$with_lua" = yes; then
@@ -1079,10 +1081,10 @@ AC_ARG_ENABLE(function-blocks,dnl
    )
 
 dnl Enable parsing of deprecated syntax
-dnl AC_ARG_ENABLE(backwards-compatibility,dnl
-dnl [  --enable-backwards-compatibility       enable deprecated syntax ],
+dnl AC_ARG_ENABLE(backward-compatibility,dnl
+dnl [  --enable-backward-compatibility       enable deprecated syntax ],
 dnl   [if test "$enableval" = yes; then
-dnl     AC_DEFINE(BACKWARDS_COMPATIBLE,1,
+dnl     AC_DEFINE(BACKWARD_COMPATIBLE,1,
 dnl                [ Define to allow use of certain deprecated syntax. ])
 dnl   fi])
 

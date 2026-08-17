@@ -622,15 +622,6 @@ lf_push(FILE *fp, char *name, char *cmdline)
     lf_head = lf;
 }
 
-/* used for reread  vsnyder@math.jpl.nasa.gov */
-FILE *
-lf_top()
-{
-    if (lf_head == (LFS *) NULL)
-	return ((FILE *) NULL);
-    return (lf_head->fp);
-}
-
 /* Guard against deleting or overwriting a script we are running from */
 TBOOLEAN
 called_from(const char *name)
@@ -689,13 +680,15 @@ loadpath_fopen(const char *filename, const char *mode)
     free(loadpath_fontname);
     loadpath_fontname = NULL;
 
-#if defined(PIPES)
     if (*filename == '<') {
+#if defined(PIPES)
 	restrict_popen();
 	if ((fp = popen(filename + 1, "r")) == (FILE *) NULL)
 	    return (FILE *) 0;
-    } else
+#else
+	int_error(NO_CARET, "This copy of gnuplot does not support piped input");
 #endif /* PIPES */
+    } else
     if ((fp = fopen(filename, mode)) == (FILE *) NULL) {
 	/* try 'loadpath' variable */
 	char *fullname = NULL, *path;

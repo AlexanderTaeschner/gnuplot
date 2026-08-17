@@ -335,14 +335,15 @@ write_history_list(const int num, const char *const filename, const char *mode)
 
     if (filename && filename[0]) {
 	/* good filename given and not quiet */
-#ifdef PIPES
 	if (filename[0] == '|') {
+#if defined(PIPES)
 	    restrict_popen();
 	    out = popen(filename + 1, "w");
 	    is_pipe = 1;
-	} else
+#else
+	    int_error(NO_CARET, "This copy of gnuplot does not support piped output");
 #endif
-	{
+	} else {
 	    if (!(out = fopen(filename, mode))) {
 		int_warn(NO_CARET, "Cannot open file to save history, using standard output.\n");
 		out = stdout;
@@ -370,7 +371,7 @@ write_history_list(const int num, const char *const filename, const char *mode)
 	    fprintf(out, "%s\n", list_entry->line);
     }
 
-#ifdef PIPES
+#if defined(PIPES)
     if (is_pipe) pclose(out);
 #endif
     if (is_file) fclose(out);

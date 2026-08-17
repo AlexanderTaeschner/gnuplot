@@ -676,13 +676,11 @@ unset_command()
 	break;
     case S_INVALID:
     default:
-#ifdef WITH_CHI_SHAPES
 	if (almost_equals(c_token, "chi$_shapes")) {
 	    c_token++;
 	    reset_hulls(TRUE);
 	    break;
 	}
-#endif
 	int_error(c_token, "Unrecognized option.  See 'help unset'.");
 	break;
     }
@@ -1842,11 +1840,18 @@ unset_surface()
 static void
 unset_table()
 {
-    if (table_outfile)
-	fclose(table_outfile);
+    if (table_outfile) {
+#ifdef PIPES
+	if (table_pipe)
+	    pclose(table_outfile);
+	else
+#endif
+	    fclose(table_outfile);
+    }
     table_outfile = NULL;
     table_var = NULL;
     table_mode = FALSE;
+    table_pipe = FALSE;
 }
 
 
@@ -2063,6 +2068,7 @@ reset_command()
 	if (in_multiplot)
 	    multiplot_end();
 	init_constants();
+	initialisation_state = 0;
 	init_session();
 	reset_mouse();
 	return;

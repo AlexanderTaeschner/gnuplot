@@ -156,6 +156,7 @@ static int expand_1level_macros(void);
 static void timed_pause(double sleep_time);
 
 static void check_for_multiplot_save(TBOOLEAN *interlock);
+static int get_command_length(int start_token);
 
 struct lexical_unit *token;
 int token_table_size;
@@ -841,13 +842,15 @@ undefine_command()
     }
 }
 
-
+/*
+ * Support for multiplot replay
+ */
 static void
 command()
 {
-    /* Support for multiplot replay */
     /* The basic goal is to save the commands used to create a multiplot.
-     * - Simple commands can be saved one command at a time after execution.
+     * - Commands not in a multiplot are executed without saving.
+     * - Simple commands are saved one command at a time after execution.
      * - Complex commands (if/else/while/do for) are read in until the final }
      *   is encounted and then saved as a single line by step_through_line().
      *   In this case the flag suppress_multiplot_save has been set so that the
@@ -855,18 +858,16 @@ command()
      * - load/call commands are treated analogously to if/while/do, except that
      *   save is suppressed by the test (lf_head->depth < in_multiplot).
      */
-    char *one_command = NULL;
-    if (!suppress_multiplot_save)
-    if (!multiplot_playback && !evaluate_inside_functionblock) {
-	    char *command_start = &gp_input_line[token[c_token].start_index];
-	    size_t len = strlen(command_start);
-	    for (int semicolon = c_token; semicolon <= num_tokens; semicolon++) {
-		if (equals(semicolon, ";")) {
-		    len = &gp_input_line[token[semicolon].start_index] - command_start;
-		    break;
-		}
-	    }
-	    one_command = strndup(command_start, len);
+    TBOOLEAN save_command = FALSE;
+    int command_token = c_token;
+    int command_length = 0;
+
+    if (in_multiplot || (equals(c_token, "set") && almost_equals(c_token+1, "multi$plot"))) {
+	if (!multiplot_playback && !suppress_multiplot_save
+	&&  !evaluate_inside_functionblock) {
+	    save_command = TRUE;
+	    command_length = get_command_length(c_token);
+	}
     }
 
     for (int i = 0; i < MAX_NUM_VAR; i++)
@@ -884,11 +885,15 @@ command()
     /* Support for multiplot replay */
     if (in_multiplot && !multiplot_playback && !suppress_multiplot_save
     &&  !evaluate_inside_functionblock) {
-	/* NB: should we also allow (lf_head->name == NULL)? */
-	if (!lf_head || lf_head->depth < in_multiplot)
-	    append_multiplot_line(one_command); 
+	if (!lf_head || lf_head->depth < in_multiplot) {
+	    if (save_command) {
+		char *command_start = &gp_input_line[token[command_token].start_index];
+		char *one_command = strndup(command_start, command_length);
+		append_multiplot_line(one_command);
+		free(one_command);
+	    }
+	}
     }
-    free(one_command);
 
     return;
 }
@@ -1102,9 +1107,13 @@ is_array_assignment()
     if (!looks_OK)
 	return FALSE;
 
+    if (type_udv(c_token) != ARRAY) {
+	int_error(c_token,
+	    (type_udv(c_token) == STRING)
+		? "Substring replacement not supported"
+		: "Not a known array");
+    }
     udv = add_udv(c_token);
-    if (udv->udv_value.type != ARRAY)
-	int_error(c_token, "Not a known array");
 
     /* array reference count > 0 disallows an assignment operation that would clobber it */
     udv->udv_refcount++;
@@ -1204,7 +1213,7 @@ bind_command()
 	char *first = gp_input_line + token[c_token].start_index;
 	int size = strcspn(first, " \";");
 	lhs = gp_alloc(size + 1, "bind_command->lhs");
-	safe_strncpy(lhs, first, size);
+	safe_strncpy(lhs, first, size+1);
 	FPRINTF((stderr,"Got bind unquoted lhs = \"%s\"\n",lhs));
 	while (gp_input_line + token[c_token].start_index < first+size)
 	    c_token++;
@@ -1230,6 +1239,14 @@ bind_command()
     bind_process(lhs, rhs, allwindows);
 
 }
+#else  /* USE_MOUSE */
+void
+bind_command()
+{
+    /* ignore bind command if there is no mouse support */
+    while (!END_OF_COMMAND) c_token++;
+}
+
 #endif /* USE_MOUSE */
 
 /*
@@ -1986,22 +2003,29 @@ local_command()
     struct udvt_entry *udv = NULL;
 
     c_token++;
+
+    /* The "local" attribute does nothing if encountered at the top level */
+    if (!lf_head || lf_head->depth == 0) {
+	if (equals(c_token,"array"))
+	    array_command();
+	else
+	    define();
+	return;
+    }
+
     if (equals(c_token,"array"))
 	array_token = c_token++;
 
-    /* Has no effect if encountered at the top level */
-    if (lf_head && lf_head->depth > 0) {
-	/* Define a new variable with this name
-	 * and locality equal to the current depth
-	 */
-	udv = add_udv_local(c_token, NULL, lf_head->depth);
+    /* Define a new variable with this name
+     * and locality equal to the current depth
+     */
+    udv = add_udv_local(c_token, NULL, lf_head->depth);
 
-	/* flag that at least some local variables will go out of scope on lf_pop */
-	lf_head->local_variables = TRUE;
-    }
+    /* flag that at least some local variables will go out of scope on lf_pop */
+    lf_head->local_variables = TRUE;
 
-    /* Create new local variable with this name */
     if (array_token) {
+	/* Create a new local array with this name */
 	c_token = array_token;
 	local_array_command(lf_head->depth);
 	if (udv && udv->udv_value.type == ARRAY) {
@@ -2009,6 +2033,7 @@ local_command()
 	    udv->udv_value.v.value_array[0].v.array_header.parent = udv;
 	}
     } else {
+	/* Create new local variable with this name */
 	define();
     }
 }
@@ -2286,7 +2311,7 @@ void
 print_set_output(char *name, TBOOLEAN datablock, TBOOLEAN append_p)
 {
     if (print_out && print_out != stderr && print_out != stdout) {
-#ifdef PIPES
+#if defined(PIPES)
 	if (print_out_name[0] == '|') {
 	    if (0 > pclose(print_out))
 		perror(print_out_name);
@@ -2312,7 +2337,7 @@ print_set_output(char *name, TBOOLEAN datablock, TBOOLEAN append_p)
     }
 
     if (name[0] == '|') {
-#ifdef PIPES
+#if defined(PIPES)
 	restrict_popen();
 	print_out = popen(name + 1, "w");
 	if (!print_out)
@@ -2688,16 +2713,7 @@ replot_command()
 void
 reread_command()
 {
-#ifdef BACKWARD_COMPATIBILITY
-    FILE *fp = lf_top();
-    if (evaluate_inside_functionblock)
-	int_error(NO_CARET, "reread command not possible in a function block");
-    if (fp != (FILE *) NULL)
-	rewind(fp);
-    c_token++;
-#else
     int_error(c_token, "deprecated command");
-#endif
 }
 
 #ifdef USE_FUNCTIONBLOCKS
@@ -2761,12 +2777,12 @@ save_command()
 	c_token++;
     }
     if (save_file[0]=='|') {
-#ifdef PIPES
+#if defined(PIPES)
 	restrict_popen();
 	fp = popen(save_file+1,"w");
 	ispipe = TRUE;
 #else
-	int_error(c_token-1, "this copy of gnuplot does not support piped output");
+	int_error(c_token-1, "This copy of gnuplot does not support piped output");
 #endif
     } else {
     gp_expand_tilde(&save_file);
@@ -2812,7 +2828,7 @@ save_command()
     }
 
     if (stdout != fp) {
-#ifdef PIPES
+#if defined(PIPES)
 	if (save_file[0] == '|')
 	    (void) pclose(fp);
 	else
@@ -3217,65 +3233,43 @@ changedir(char *path)
 #endif /* MSDOS etc. */
 }
 
-/* used by replot_command() */
+/* helper routine for replotrequest */
+static int
+get_command_length(int start_token)
+{
+    char *command_start = &gp_input_line[token[start_token].start_index];
+    size_t len = strlen(command_start);
+    for (int semicolon = start_token; semicolon <= num_tokens; semicolon++) {
+       if (equals(semicolon, ";")) {
+           len = &gp_input_line[token[semicolon].start_index] - command_start;
+           break;
+       }
+    }
+    return (int)len;
+}
+
 void
 replotrequest()
 {
-    /* do not store directly into the replot_line string until the
-     * new plot line has been successfully plotted. This way,
-     * if user makes a typo in a replot line, they do not have
-     * to start from scratch. The replot_line will be committed
-     * after do_plot has returned, whence we know all is well
-     */
-    if (END_OF_COMMAND) {
-	char *rest_args = &gp_input_line[token[c_token].start_index];
-	size_t replot_len = strlen(replot_line);
-	size_t rest_len = strlen(rest_args);
+    /* On entry c_token is just past the "replot" */
+    size_t replot_len = strlen(replot_line);
+    size_t rest_len = (END_OF_COMMAND) ? 0 : get_command_length(c_token);
+    char *expanded_command = malloc( replot_len + rest_len + 3);
 
-	/* preserve commands following 'replot ;' */
-	/* move rest of input line to the start
-	 * necessary because of realloc() in extend_input_line() */
-	memmove(gp_input_line,rest_args,rest_len+1);
-	/* reallocs if necessary */
-	while (gp_input_line_len < replot_len+rest_len+1)
-	    extend_input_line();
-	/* move old rest args off begin of input line to
-	 * make space for replot_line */
-	memmove(gp_input_line+replot_len,gp_input_line,rest_len+1);
-	/* copy previous plot command to start of input line */
-	memcpy(gp_input_line, replot_line, replot_len);
-    } else {
-	char *replot_args = NULL;	/* else m_capture will free it */
-	int last_token = num_tokens - 1;
-
-	/* length = length of old part + length of new part + ", " + \0 */
-	size_t newlen = strlen(replot_line) + token[last_token].start_index
-		      + token[last_token].length - token[c_token].start_index + 3;
-
-	m_capture(&replot_args, c_token, last_token);	/* might be empty */
-	while (gp_input_line_len < newlen)
-	    extend_input_line();
-	strcpy(gp_input_line, replot_line);
-	strcat(gp_input_line, ", ");
-	strcat(gp_input_line, replot_args);
-	free(replot_args);
+    strcpy(expanded_command, replot_line);
+    if (rest_len > 0) {
+	strcat(expanded_command, ", ");
+	strncat(expanded_command, &gp_input_line[token[c_token].start_index], rest_len);
     }
-    plot_token = 0;		/* whole line to be saved as replot line */
-    SET_REFRESH_OK(E_REFRESH_NOT_OK, 0);		/* start of replot will destroy existing data */
 
+    /* start of replot will destroy existing data */
+    SET_REFRESH_OK(E_REFRESH_NOT_OK, 0);
     screen_ok = FALSE;
-    num_tokens = scanner(&gp_input_line, &gp_input_line_len);
-    c_token = 1;	/* Skip the "plot" token */
 
-    if (almost_equals(0,"test")) {
-	c_token = 0;
-	test_command();
-    } else if (almost_equals(0,"s$plot"))
-	plot3drequest();
-    else
-	plotrequest();
+    do_string_and_free(expanded_command);
+    while (!END_OF_COMMAND)
+	c_token++;
 }
-
 
 /* Support for input, shell, and help for various systems */
 

@@ -82,6 +82,7 @@
 #define M_HIDEGRID     NUMMENU+23
 #define M_HIDEPLOT     NUMMENU+24
 /* Warning: need MAXPLOTSHIDE free slots after M_HIDEPLOT */
+#define M_SCALE_ON_RESIZE NUMMENU+75
 /* wtext.c */
 #define M_SYSCOLORS    NUMMENU+50
 #define M_WRAP         NUMMENU+51

@@ -804,7 +804,7 @@ CGM_set_font(const char *font)
 {
     register struct termentry *t = term;
     int size, font_index;
-    char *comma = strchr(font, ',');
+    const char *comma = strchr(font, ',');
     int len;
     double width;
 

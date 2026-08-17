@@ -14,6 +14,7 @@ TBOOLEAN tabulate_one_line(struct curve_points *plot, double v[], struct value s
 extern FILE *table_outfile;
 extern udvt_entry *table_var;
 extern TBOOLEAN table_mode;
+extern TBOOLEAN table_pipe;
 extern char *table_sep;
 
 #endif /* GNUPLOT_TABULATE_H */

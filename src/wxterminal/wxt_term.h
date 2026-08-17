@@ -123,6 +123,7 @@ extern int wxt_redraw;
 extern char *wxt_set_fontname;
 extern double wxt_set_fontsize;
 extern double wxt_set_fontscale;
+extern double wxt_scale;
 extern t_linecap wxt_linecap;
 extern char wxt_title[MAX_ID_LEN + 1];
 extern int wxt_width;

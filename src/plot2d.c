@@ -795,13 +795,19 @@ get_data(struct curve_points *current_plot)
 	    ||  current_plot->plot_style == RGBA_IMAGE)
 		continue;
 
+	    /* Preserve blank lines in tabular output (ncols = 0) */
+	    if (current_plot->plot_style == TABLESTYLE)
+		tabulate_one_line(current_plot, v, df_strings, 0);
+
 	    /* make type of next point undefined, but recognizable */
 	    current_plot->points[i] = blank_data_line;
 	    i++;
 	    continue;
 
 	case DF_SECOND_BLANK:
-	    /* second blank line. We dont do anything
+	    if (current_plot->plot_style == TABLESTYLE)
+		tabulate_one_line(current_plot, v, df_strings, 0);
+	    /* second blank line. We don't do anything
 	     * (we did everything when we got FIRST one)
 	     */
 	    continue;

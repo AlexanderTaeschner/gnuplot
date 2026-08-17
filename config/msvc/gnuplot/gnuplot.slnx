@@ -4,10 +4,10 @@
     <Platform Name="x86" />
   </Configurations>
   <Folder Name="/BuildTools/">
-    <Project Path="doc2html/doc2html.vcxproj">
+    <Project Path="doc2html/doc2html.vcxproj" Id="dda41d1d-9ba3-4488-bdc8-543517ccb1c7">
       <BuildDependency Project="gnuplot/gnuplot.vcxproj" />
     </Project>
   </Folder>
-  <Project Path="gnuplot/gnuplot.vcxproj" />
-  <Project Path="wgnuplot/wgnuplot.vcxproj" />
+  <Project Path="gnuplot/gnuplot.vcxproj" Id="0736b3e8-9b2a-438f-be58-af1fa49a8087" />
+  <Project Path="wgnuplot/wgnuplot.vcxproj" Id="d824ed67-d000-4dbb-960c-43b8c70faf47" />
 </Solution>

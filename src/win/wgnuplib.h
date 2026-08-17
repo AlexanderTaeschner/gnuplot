@@ -358,6 +358,7 @@ typedef struct tagGW {
 	BOOL	antialiasing;	/* anti-aliasing? */
 	BOOL	polyaa;		/* anti-aliasing for polygons ? */
 	BOOL	fastrotation;	/* rotate without anti-aliasing? */
+	BOOL	scale_on_resize;	/* adjust global scale factor when the window is resized? */
 	COLORREF background;	/* background color */
 
 	/* plot properties */
@@ -394,6 +395,7 @@ typedef struct tagGW {
 
 	/* fonts */
 	double	fontscale;	/* scale factor for font sizes */
+	double	scale;		/* global element scale (fonts, lines, points, tics) */
 	TCHAR	deffontname[MAXFONTNAME]; /* default font name */
 	int	deffontsize;	/* default font size */
 	TCHAR	fontname[MAXFONTNAME];	/* current font name */
@@ -493,6 +495,7 @@ void GraphRedraw(LPGW lpgw);
 void GraphModifyPlots(LPGW lpgw, unsigned int operations, int plotno);
 void win_close_terminal_window(LPGW lpgw);
 TBOOLEAN GraphHasWindow(LPGW lpgw);
+void GraphGetCanvasSize(LPGW lpgw, unsigned * width, unsigned * height);
 LPTSTR GraphDefaultFont(void);
 
 #ifdef USE_MOUSE

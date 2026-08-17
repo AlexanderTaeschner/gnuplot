@@ -429,6 +429,7 @@ class wxtConfigDialog : public wxDialog
 	bool ctrl_setting;
 	bool toggle_setting;
 	bool redraw_setting;
+	bool scaleonresize_setting;
 	/* rendering_setting :
 	 * 0 = no antialiasing, no oversampling
 	 * 1 = antialiasing, no oversampling

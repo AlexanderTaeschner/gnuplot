@@ -52,6 +52,7 @@ extern "C" {
 
 #include <QtGui>
 #include <QSvgGenerator>
+#include <QTimer>
 
 int QtGnuplotWidget::m_widgetUid = 1;
 
@@ -80,8 +81,15 @@ void QtGnuplotWidget::init()
 	m_backgroundColor = Qt::white;
 	m_antialias = true;
 	m_replotOnResize = true;
+	m_scaleOnResize = false;
 	m_statusLabelActive = false;
 	m_skipResize = false;
+
+	// Defer the expensive replot until interactive resizing pauses
+	m_resizeTimer = new QTimer(this);
+	m_resizeTimer->setSingleShot(true);
+	m_resizeTimer->setInterval(100);
+	connect(m_resizeTimer, SIGNAL(timeout()), this, SLOT(deferredReplot()));
 
 	// Register as the main event receiver if not already created
 	if (m_eventHandler == 0)
@@ -242,15 +250,34 @@ void QtGnuplotWidget::resizeEvent(QResizeEvent* event)
 	if ((viewport->size() != m_lastSizeRequest) && (m_lastSizeRequest != QSize(-1, -1)) && !m_skipResize)
 	{
 //		qDebug() << " -> Sending event";
+		// par1 > 0 asks gnuplot to make the global scale factor track the
+		// change in window size (toolbox "scale on resize" toggle).
 		m_eventHandler->postTermEvent(GE_fontprops,viewport->size().width(),
-		                               viewport->size().height(), 0, 0, this);
-		if (m_replotOnResize && isActive())
-			m_eventHandler->postTermEvent(GE_replot, 0, 0, 0, 0, this);
-		else
-			m_view->fitInView(m_scene->sceneRect(), Qt::KeepAspectRatio);
+		                               viewport->size().height(),
+		                               m_scaleOnResize ? 1 : 0, 0, this);
+		// Show immediate smooth feedback by stretching the current rendering
+		// to fit the new window.
+		m_view->fitInView(m_scene->sceneRect(), Qt::KeepAspectRatio);
+		// If replot-on-resize or scale-on-resize is enabled, defer the follow-up
+		// action until resizing pauses so that interactive resizing stays smooth.
+		if ((m_replotOnResize || m_scaleOnResize) && isActive())
+			m_resizeTimer->start();
 	}
 
 	QWidget::resizeEvent(event);
+}
+
+void QtGnuplotWidget::deferredReplot()
+{
+	// Called once interactive resizing has paused (see resizeEvent).
+	// If scale-on-resize is active, refresh the core's cached term_options so
+	// that 'show terminal' and 'save' reflect the new global scale factor.
+	if (m_scaleOnResize && isActive())
+		m_eventHandler->postTermEvent(GE_scale, 0, 0, 0, 0, this);
+	// If replot-on-resize is active, now issue the actual replot so the plot
+	// is re-rendered at the new size.
+	if (m_replotOnResize && isActive())
+		m_eventHandler->postTermEvent(GE_replot, 0, 0, 0, 0, this);
 }
 
 QPainter::RenderHints QtGnuplotWidget::renderHints() const
@@ -342,6 +369,7 @@ void QtGnuplotWidget::loadSettings(const QSettings& settings)
 	setCtrlQ(settings.value("ctrlQ", true).toBool());
 	setBackgroundColor(settings.value("backgroundColor", QColor(Qt::white)).value<QColor>());
 	setReplotOnResize(settings.value("replotOnResize", true).toBool());
+	setScaleOnResize(settings.value("scaleOnResize", false).toBool());
 	setStatusLabelActive(settings.value("statusLabelActive", false).toBool());
 }
 
@@ -352,6 +380,7 @@ void QtGnuplotWidget::saveSettings(QSettings& settings) const
 	settings.setValue("ctrlQ", m_ctrlQ);
 	settings.setValue("backgroundColor", m_backgroundColor);
 	settings.setValue("replotOnResize", m_replotOnResize);
+	settings.setValue("scaleOnResize", m_scaleOnResize);
 	settings.setValue("statusLabelActive", m_statusLabelActive);
 }
 

@@ -58,6 +58,7 @@
 #include <commctrl.h>
 #include <stdio.h>
 #include <string.h>
+#include <math.h>
 #include <direct.h>           /* for _chdir */
 #include <tchar.h>
 #include <wchar.h>
@@ -383,6 +384,8 @@ GraphInitStruct(LPGW lpgw)
 		lpgw->fontscale = 1.;
 		lpgw->linewidth = 1.;
 		lpgw->pointscale = 1.;
+		lpgw->scale = 1.;
+		lpgw->scale_on_resize = FALSE;
 		lpgw->color = TRUE;
 		lpgw->dashed = FALSE;
 		lpgw->IniSection = TEXT("WGNUPLOT");
@@ -585,6 +588,8 @@ GraphInit(LPGW lpgw)
 		M_GRAPH_TO_TOP, TEXT("Bring to &Top"));
 	AppendMenu(lpgw->hPopMenu, MF_STRING | (lpgw->color ? MF_CHECKED : MF_UNCHECKED),
 		M_COLOR, TEXT("C&olor"));
+	AppendMenu(lpgw->hPopMenu, MF_STRING | (lpgw->scale_on_resize ? MF_CHECKED : MF_UNCHECKED),
+		M_SCALE_ON_RESIZE, TEXT("Change scale on &resize"));
 	AppendMenu(lpgw->hPopMenu, MF_SEPARATOR, 0, NULL);
 #ifdef USE_WINGDI
 	AppendMenu(lpgw->hPopMenu, MF_STRING | (lpgw->gdiplus ? MF_CHECKED : MF_UNCHECKED),
@@ -861,6 +866,23 @@ GraphHasWindow(LPGW lpgw)
 }
 
 
+/* Current size of the plot area. Falls back to the requested canvas size
+ * as long as there is no window on screen. */
+void
+GraphGetCanvasSize(LPGW lpgw, unsigned * width, unsigned * height)
+{
+	RECT rect;
+
+	if (GraphHasWindow(lpgw) && GetPlotRect(lpgw, &rect)) {
+		*width = rect.right - rect.left;
+		*height = rect.bottom - rect.top;
+	} else {
+		*width = lpgw->Canvas.x;
+		*height = lpgw->Canvas.y;
+	}
+}
+
+
 /* ================================== */
 
 /* Helper functions for bookkeeping of pens, brushes and fonts */
@@ -908,14 +930,14 @@ MakePens(LPGW lpgw, HDC hdc)
 
 	if ((GetDeviceCaps(hdc, NUMCOLORS) == 2) || !lpgw->color) {
 		pen = lpgw->monopen[1];
-		pen.lopnWidth.x *= lpgw->linewidth;
+		pen.lopnWidth.x *= lpgw->linewidth * lpgw->scale;
 		lpgw->hapen = CreatePenIndirect(&pen); 	/* axis */
 		lpgw->hbrush = CreateSolidBrush(lpgw->background);
 		for (i = 0; i < WGNUMPENS + 2; i++)
 			lpgw->colorbrush[i] = CreateSolidBrush(lpgw->monopen[i].lopnColor);
 	} else {
 		pen = lpgw->colorpen[1];
-		pen.lopnWidth.x *= lpgw->linewidth;
+		pen.lopnWidth.x *= lpgw->linewidth * lpgw->scale;
 		lpgw->hapen = CreatePenIndirect(&pen); 	/* axis */
 		lpgw->hbrush = CreateSolidBrush(lpgw->background);
 		for (i = 0; i < WGNUMPENS + 2; i++)
@@ -1099,7 +1121,7 @@ MakeFonts(LPGW lpgw, LPRECT lprect, HDC hdc)
 	lpgw->rotate = FALSE;
 	memset(&(lpgw->lf), 0, sizeof(LOGFONT));
 	_tcsncpy(lpgw->lf.lfFaceName, lpgw->fontname, LF_FACESIZE);
-	lpgw->lf.lfHeight = -MulDiv(lpgw->fontsize * lpgw->fontscale, GetDeviceCaps(hdc, LOGPIXELSY), 72);
+	lpgw->lf.lfHeight = -MulDiv(lpgw->fontsize * lpgw->fontscale * lpgw->scale, GetDeviceCaps(hdc, LOGPIXELSY), 72);
 	lpgw->lf.lfCharSet = DEFAULT_CHARSET;
 	if (((p = _tcsstr(lpgw->fontname, TEXT(" Italic"))) != NULL) ||
 	    ((p = _tcsstr(lpgw->fontname, TEXT(":Italic"))) != NULL)) {
@@ -1506,6 +1528,7 @@ GraphEnhancedOpen(char *fontname, double fontsize, double base,
 		   results. */
 		enhstate.base = win_scale * base *
 		                enhstate.lpgw->fontscale *
+		                enhstate.lpgw->scale *
 		                enhstate.res_scale;
 	}
 }
@@ -1979,7 +2002,7 @@ drawgraph(LPGW lpgw, HDC hdc, LPRECT rect)
 	double alpha_c = 1.;		/* alpha for transparency */
 
 	/* lines */
-	double line_width = lpgw->linewidth;	/* current line width */
+	double line_width = lpgw->linewidth * lpgw->scale;	/* current line width */
 	double lw_scale = 1.;
 	LOGPEN cur_penstruct;		/* current pen settings */
 
@@ -2713,7 +2736,7 @@ drawgraph(LPGW lpgw, HDC hdc, LPRECT rect)
 			 * that linewidth is exactly 1 iff it's in default
 			 * state */
 			line_width = curptr->x == 100 ? 1 : (curptr->x / 100.0);
-			line_width *= lpgw->linewidth * lw_scale;
+			line_width *= lpgw->linewidth * lw_scale * lpgw->scale;
 			/* invalidate point symbol cache */
 			last_symbol = W_invalid_pointtype;
 			break;
@@ -3560,6 +3583,8 @@ WriteGraphIni(LPGW lpgw)
 	WritePrivateProfileString(section, TEXT("GraphColor"), profile, file);
 	wsprintf(profile, TEXT("%d"), lpgw->graphtotop);
 	WritePrivateProfileString(section, TEXT("GraphToTop"), profile, file);
+	wsprintf(profile, TEXT("%d"), lpgw->scale_on_resize);
+	WritePrivateProfileString(section, TEXT("GraphScaleOnResize"), profile, file);
 	wsprintf(profile, TEXT("%d"), lpgw->oversample);
 	WritePrivateProfileString(section, TEXT("GraphGDI+Oversampling"), profile, file);
 	wsprintf(profile, TEXT("%d"), lpgw->gdiplus);
@@ -3689,6 +3714,11 @@ ReadGraphIni(LPGW lpgw)
 		GetPrivateProfileString(section, TEXT("GraphToTop"), TEXT(""), profile, 80, file);
 	if ((p = GetInt(profile, (LPINT)&lpgw->graphtotop)) == NULL)
 		lpgw->graphtotop = TRUE;
+
+	if (bOKINI)
+		GetPrivateProfileString(section, TEXT("GraphScaleOnResize"), TEXT(""), profile, 80, file);
+	if ((p = GetInt(profile, (LPINT)&lpgw->scale_on_resize)) == NULL)
+		lpgw->scale_on_resize = FALSE;
 
 	if (bOKINI)
 		GetPrivateProfileString(section, TEXT("GraphGDI+Oversampling"), TEXT(""), profile, 80, file);
@@ -4251,6 +4281,8 @@ GraphUpdateMenu(LPGW lpgw)
 #endif
 	CheckMenuItem(lpgw->hPopMenu, M_GRAPH_TO_TOP, MF_BYCOMMAND |
 				(lpgw->graphtotop ? MF_CHECKED : MF_UNCHECKED));
+	CheckMenuItem(lpgw->hPopMenu, M_SCALE_ON_RESIZE, MF_BYCOMMAND |
+				(lpgw->scale_on_resize ? MF_CHECKED : MF_UNCHECKED));
 }
 
 
@@ -4290,6 +4322,21 @@ WndGraphParentProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 				height = rect.bottom - rect.top;
 				/* Ignore minimize / de-minimize */
 				if ((lpgw->Size.x != width) || (lpgw->Size.y != height)) {
+					/* When "change scale on resize" is enabled, multiply the
+					 * global element scale factor by the change in window size
+					 * (geometric mean of the width and height ratios) so that
+					 * fonts, lines, points and tics grow or shrink with the
+					 * window and the adjustment survives a later 'replot'. */
+					if (lpgw->scale_on_resize
+					&&  (lpgw->Size.x != CW_USEDEFAULT)
+					&&  (lpgw->Size.x > 0) && (lpgw->Size.y > 0)
+					&&  (width > 0) && (height > 0)) {
+						double ratio = sqrt(
+						    ((double) width  / (double) lpgw->Size.x)
+						  * ((double) height / (double) lpgw->Size.y));
+						if (ratio > 0.)
+							lpgw->scale *= ratio;
+					}
 					lpgw->Size.x = width;
 					lpgw->Size.y = height;
 					rebuild = TRUE;
@@ -4314,6 +4361,12 @@ WndGraphParentProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 
 				InvalidateRect(lpgw->hGraph, &rect, 1);
 				UpdateWindow(lpgw->hGraph);
+
+				/* Keep the cached term_options in sync so that 'show terminal'
+				 * and 'save' report the current window size and scale. */
+				if ((lpgw == graphwin) && (term != NULL)
+				&&  (strcmp(term->name, "windows") == 0))
+					WIN_update_options();
 			}
 			// update internal variables
 			if (lpgw->Size.x == CW_USEDEFAULT) {
@@ -4332,6 +4385,7 @@ WndGraphParentProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 			switch (LOWORD(wParam)) {
 				case M_GRAPH_TO_TOP:
 				case M_COLOR:
+				case M_SCALE_ON_RESIZE:
 				case M_OVERSAMPLE:
 				case M_GDI:
 				case M_GDIPLUS:
@@ -4764,6 +4818,10 @@ WndGraphProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 				case M_GRAPH_TO_TOP:
 					lpgw->graphtotop = !lpgw->graphtotop;
 					SendMessage(hwnd, WM_COMMAND, M_REBUILDTOOLS, 0L);
+					return 0;
+				case M_SCALE_ON_RESIZE:
+					lpgw->scale_on_resize = !lpgw->scale_on_resize;
+					GraphUpdateMenu(lpgw);
 					return 0;
 				case M_COLOR:
 					lpgw->color = !lpgw->color;

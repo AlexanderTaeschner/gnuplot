@@ -240,6 +240,8 @@ SetFont_gdiplus(Graphics &graphics, LPRECT rect, LPGW lpgw, LPTSTR fontname, int
 
 	// apply fontscale
 	size *= lpgw->fontscale;
+	// apply global element scale
+	size *= lpgw->scale;
 
 	/* set up font style */
 	INT fontStyle = FontStyleRegular;
@@ -476,7 +478,7 @@ do_draw_gdiplus(LPGW lpgw, Graphics &graphics, LPRECT rect, enum draw_target tar
 	Font * font;
 
 	/* lines */
-	double line_width = lpgw->linewidth;	/* current line width */
+	double line_width = lpgw->linewidth * lpgw->scale;	/* current line width */
 	double lw_scale = 1.;
 	LOGPEN cur_penstruct;		/* current pen settings */
 
@@ -1250,7 +1252,7 @@ do_draw_gdiplus(LPGW lpgw, Graphics &graphics, LPRECT rect, enum draw_target tar
 			 * that linewidth is exactly 1 iff it's in default
 			 * state */
 			line_width = curptr->x == 100 ? 1 : (curptr->x / 100.0);
-			line_width *= lpgw->linewidth * lw_scale;
+			line_width *= lpgw->linewidth * lw_scale * lpgw->scale;
 			if (poly_graphics != NULL)
 				line_width *= poly_scale;
 			solid_pen.SetWidth(line_width);

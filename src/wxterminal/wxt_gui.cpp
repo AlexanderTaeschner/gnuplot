@@ -101,6 +101,7 @@ extern "C" {
 /* #define DEBUG */
 
 #include "wxt_gui.h"
+#include <cmath>
 
 /* frame icon composed of three icons of different resolutions */
 #include "bitmaps/xpm/icon16x16.xpm"
@@ -171,6 +172,13 @@ int wxt_max_anchors = 0;
 TBOOLEAN pending_href = FALSE;
 const char *wxt_display_hypertext = NULL;
 wxtAnchorPoint wxt_display_anchor = {0,0,0};
+
+/* When true (the default), resizing the plot window rescales the whole plot to
+ * fit the new window, and multiplies the global scale factor (wxt_scale) by the
+ * change in window size so that the adjustment persists across 'replot'. When
+ * false, resizing does not rescale the plot elements; the plot is instead
+ * replotted at native element size to fill the new window. */
+bool wxt_scale_on_resize = true;
 char * wxt_hypertext_fontname = NULL;
 double wxt_hypertext_fontsize = 10;
 int    wxt_hypertext_fontstyle = 10;
@@ -873,7 +881,11 @@ void wxtFrame::OnSize( wxSizeEvent& event )
 	/* Note: On some platforms OnSize() might get called before
 	 * settings have been initialized in wxt_init().
 	 */
-	if (wxt_redraw == yes && term_initialised)
+	/* Replot when replotonresize is set, or when "scale on resize" is off so
+	 * that the plot is re-rendered at native element size to fill the new
+	 * window (matching the qt terminal). When "scale on resize" is on, the
+	 * panel stretches the current rendering for smooth live feedback instead. */
+	if ((wxt_redraw == yes || !wxt_scale_on_resize) && term_initialised)
 		wxt_exec_event(GE_replot, 0, 0, 0 , 0, this->GetId());
 }
 
@@ -1154,8 +1166,41 @@ void wxtPanel::OnSize( wxSizeEvent& event )
 	if (plot.xmax == 0 || plot.ymax == 0)
 		return;
 
+	/* Capture the previous device size before it is overwritten below. */
+	int old_device_xmax = plot.device_xmax;
+	int old_device_ymax = plot.device_ymax;
+
 	/* update window size, and scaling variables */
 	GetSize(&(plot.device_xmax),&(plot.device_ymax));
+
+	if (!wxt_scale_on_resize) {
+		/* "Scale on resize" is off: do not rescale the plot elements.
+		 * Render at native size; wxtFrame::OnSize triggers a replot so the
+		 * plot fills the new window (like the qt terminal). */
+		plot.xscale = 1.0;
+		plot.yscale = 1.0;
+		wxt_cairo_create_context();
+		wxt_cairo_refresh();
+		return;
+	}
+
+	/* "Scale on resize" is on (default): multiply the persistent global scale
+	 * factor by the change in window size (geometric mean of the width and
+	 * height ratios) so that the adjustment survives a later 'replot'. */
+	if (old_device_xmax > 0 && old_device_ymax > 0
+	&&  plot.device_xmax > 0 && plot.device_ymax > 0) {
+		double ratio = sqrt(
+		    ((double) plot.device_xmax / (double) old_device_xmax)
+		  * ((double) plot.device_ymax / (double) old_device_ymax));
+		if (ratio > 0.)
+			wxt_scale *= ratio;
+	}
+
+	/* Update the terminal window size in wxt.trm to match actual size
+	 * of the window on the screen if/when the user changes it.
+	 */
+	wxt_width = plot.device_xmax;
+	wxt_height = plot.device_ymax;
 
 	double new_xscale, new_yscale;
 
@@ -1177,6 +1222,14 @@ void wxtPanel::OnSize( wxSizeEvent& event )
 	wxt_cairo_create_context();
 	/* redraw the plot with the new scaling */
 	wxt_cairo_refresh();
+
+#ifdef USE_MOUSE
+	/* Push the updated global scale factor through the core so that the cached
+	 * term_options string (used by 'show terminal' and 'save') stays in sync
+	 * with the live value. */
+	if (term_initialised)
+		wxt_exec_event(GE_scale, 0, 0, 0, 0, this->GetId());
+#endif
 }
 
 #ifdef USE_MOUSE
@@ -1642,6 +1695,7 @@ void wxtConfigDialog::OnButton( wxCommandEvent& event )
 		wxt_ctrl = ctrl_setting?yes:no;
 		wxt_toggle = toggle_setting?yes:no;
 		wxt_redraw = redraw_setting?yes:no;
+		wxt_scale_on_resize = scaleonresize_setting;
 
 		switch (rendering_setting) {
 		case 0 :
@@ -1674,6 +1728,8 @@ void wxtConfigDialog::OnButton( wxCommandEvent& event )
 			wxLogError(wxT("Cannot write toggle"));
 		if (!pConfig->Write(wxT("redraw"), redraw_setting))
 			wxLogError(wxT("Cannot write redraw_setting"));
+		if (!pConfig->Write(wxT("scaleonresize"), scaleonresize_setting))
+			wxLogError(wxT("Cannot write scaleonresize_setting"));
 		if (!pConfig->Write(wxT("rendering"), rendering_setting))
 			wxLogError(wxT("Cannot write rendering_setting"));
 		if (!pConfig->Write(wxT("hinting"), hinting_setting))
@@ -1706,6 +1762,7 @@ wxtConfigDialog::wxtConfigDialog(wxWindow* parent)
 	pConfig->Read(wxT("ctrl"),&ctrl_setting);
 	pConfig->Read(wxT("toggle"),&toggle_setting);
 	pConfig->Read(wxT("redraw"),&redraw_setting);
+	pConfig->Read(wxT("scaleonresize"),&scaleonresize_setting);
 	pConfig->Read(wxT("rendering"),&rendering_setting);
 	pConfig->Read(wxT("hinting"),&hinting_setting);
 
@@ -1726,6 +1783,10 @@ wxtConfigDialog::wxtConfigDialog(wxWindow* parent)
 	wxCheckBox *check5 = new wxCheckBox (this, wxID_ANY,
 		wxT("Redraw continuously as plot is resized"),
 		wxDefaultPosition, wxDefaultSize, 0, wxGenericValidator(&redraw_setting));
+
+	wxCheckBox *check6 = new wxCheckBox (this, wxID_ANY,
+		wxT("Change terminal scale on resize"),
+		wxDefaultPosition, wxDefaultSize, 0, wxGenericValidator(&scaleonresize_setting));
 
 	wxString choices[3];
 	choices[0] = wxT("No antialiasing");
@@ -1773,6 +1834,7 @@ wxtConfigDialog::wxtConfigDialog(wxWindow* parent)
 	vsizer->Add(check3,wxSizerFlags().Align(0).Expand().Border(wxALL));
 	vsizer->Add(check4,wxSizerFlags().Align(0).Expand().Border(wxALL));
 	vsizer->Add(check5,wxSizerFlags().Align(0).Expand().Border(wxALL));
+	vsizer->Add(check6,wxSizerFlags().Align(0).Expand().Border(wxALL));
 	vsizer->Add(box_sizer2,wxSizerFlags().Align(0).Expand().Border(wxALL));
 	/*vsizer->Add(CreateButtonSizer(wxOK|wxCANCEL),wxSizerFlags().Align(0).Expand().Border(wxALL));*/
 	vsizer->Add(hsizer,wxSizerFlags().Align(0).Expand().Border(wxALL));
@@ -1892,6 +1954,7 @@ void wxt_init()
 	bool ctrl_setting;
 	bool toggle_setting;
 	bool redraw_setting;
+	bool scaleonresize_setting;
 	int rendering_setting;
 	int hinting_setting;
 
@@ -1929,6 +1992,12 @@ void wxt_init()
 	}
 	if (wxt_redraw==UNSET)
 		wxt_redraw = redraw_setting?yes:no;
+
+	if (!pConfig->Read(wxT("scaleonresize"), &scaleonresize_setting)) {
+		pConfig->Write(wxT("scaleonresize"), wxt_scale_on_resize);
+		scaleonresize_setting = wxt_scale_on_resize;
+	}
+	wxt_scale_on_resize = scaleonresize_setting;
 
 	if (!pConfig->Read(wxT("rendering"), &rendering_setting)) {
 		pConfig->Write(wxT("rendering"), 2);
@@ -2314,13 +2383,13 @@ int wxt_set_font (const char *font)
 	/* Reset the term variables (hchar, vchar, h_tic, v_tic)
 	 * so that the core code can use them in subsequent plot commands.
 	 */
-	gp_cairo_set_font(wxt_current_plot, fontname, fontsize * wxt_set_fontscale);
+	gp_cairo_set_font(wxt_current_plot, fontname, fontsize * wxt_set_fontscale * wxt_scale);
 	gp_cairo_set_termvar(wxt_current_plot, &(term->v_char), &(term->h_char));
 
 	/* Push the equivalent command onto the wxt display list */
 	temp_command.string = new char[strlen(fontname)+1];
 	strcpy(temp_command.string, fontname);
-	temp_command.double_value = fontsize * wxt_set_fontscale;
+	temp_command.double_value = fontsize * wxt_set_fontscale * wxt_scale;
 	wxt_command_push(temp_command);
 
 	/* Enhanced text processing needs to know the new font also */
@@ -2381,7 +2450,7 @@ void wxt_pointsize(double ptsize)
 
 	gp_command temp_command;
 	temp_command.command = command_pointsize;
-	temp_command.double_value = ptsize;
+	temp_command.double_value = ptsize * wxt_scale;
 
 	wxt_command_push(temp_command);
 }
@@ -2394,7 +2463,7 @@ void wxt_linewidth(double lw)
 	gp_command temp_command;
 
 	temp_command.command = command_linewidth;
-	temp_command.double_value = lw * wxt_lw;
+	temp_command.double_value = lw * wxt_lw * wxt_scale;
 
 	wxt_command_push(temp_command);
 }
@@ -3585,6 +3654,17 @@ JMP_BUF *wxt_env = NULL;
 
 #ifdef USE_MOUSE
 
+/* A resize with "scale on resize" active has changed the global scale factor.
+ * Push the new value through the core (set termoption scale) so that the cached
+ * term_options string (used by 'show terminal' and 'save') stays in sync with
+ * the live value used for drawing. */
+static void wxt_refresh_scale_option()
+{
+	char cmd[64];
+	snprintf(cmd, sizeof(cmd), "set termoption scale %g", wxt_scale);
+	do_string(cmd);
+}
+
 /* process one event, returns true if it ends the pause */
 bool wxt_process_one_event(struct gp_event_t *event)
 {
@@ -3608,13 +3688,19 @@ bool wxt_process_one_event(struct gp_event_t *event)
 	}
 	wxt_event_processing = TRUE;
 
-	do_event( event );
+	if (event->type == GE_scale)
+		wxt_refresh_scale_option();
+	else
+		do_event( event );
 
 	/* Cancel exception handling */
 	wxt_event_processing = FALSE;
 	wxt_env = NULL;
 #else
-	do_event( event );
+	if (event->type == GE_scale)
+		wxt_refresh_scale_option();
+	else
+		do_event( event );
 #endif
 
 	if (event->type == GE_buttonrelease && (paused_for_mouse & PAUSE_CLICK)) {

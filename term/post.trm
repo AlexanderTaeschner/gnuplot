@@ -1380,16 +1380,15 @@ PS_load_fontfile(struct ps_fontfile_def *current_ps_fontfile, TBOOLEAN doload)
 	FILE *ffont = NULL;
 	char line[256];
 	char ext[4];
-	char cmd[256];
 	char *fontname = NULL;
 	int i;
 #if defined(PIPES)
+	char cmd[256];
 	char *envcmd = NULL;
 	TBOOLEAN ispipe = FALSE;
-#endif
-
 	ext[0] = '\0';
 	cmd[0] = '\0';
+#endif
 
 	if (doload)
 	    fprintf(gppsfile,"%%%%BeginProcSet: %s\n",

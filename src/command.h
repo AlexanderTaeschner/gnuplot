@@ -139,11 +139,9 @@ extern void wxt_lower_terminal_group(void);
 extern void string_expand_macros(void);
 
 #ifdef USE_MOUSE
-void bind_command(void);
 void restore_prompt(void);
-#else
-#define bind_command()
 #endif
+void bind_command(void);
 void array_command(void);
 void local_array_command(int locality);
 void break_command(void);

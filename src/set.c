@@ -1619,29 +1619,11 @@ set_dgrid3d()
 
     c_token++;
 
-#ifdef BACKWARD_COMPATIBILITY
-    /* Accommodate ancient deprecated syntax "set dgrid3d ,,<normval>" */
-    if (equals(c_token,",") && equals(c_token+1,",")) {
-	c_token += 2;
-	dgrid3d_mode = DGRID3D_QNORM;
-	dgrid3d_norm_value = int_expression();
-	dgrid3d = TRUE;
-	return;
-    }
-#endif
-
     if (might_be_numeric(c_token)) {
 	gridx = gridy = int_expression();
 	if (equals(c_token, ",")) {
 	    c_token++;
 	    gridy = int_expression();
-#ifdef BACKWARD_COMPATIBILITY
-	    /* Deprecated syntax using 3 numeric parameters and no keywords */
-	    if (equals(c_token, ",")) {
-		c_token++;
-		normval = int_expression();
-	    }
-#endif
 	}
     }
 
@@ -4900,12 +4882,18 @@ set_surface()
 static void
 set_table()
 {
-    char *tablefile;
+    char *tablefile = NULL;
     int filename_token = ++c_token;
     TBOOLEAN append = FALSE;
 
     if (table_outfile) {
-	fclose(table_outfile);
+#if defined(PIPES)
+	if (table_pipe) {
+	    pclose(table_outfile);
+	    table_pipe = FALSE;
+	} else
+#endif
+	    fclose(table_outfile);
 	table_outfile = NULL;
     }
     table_var = NULL;
@@ -4928,14 +4916,27 @@ set_table()
     } else if ((tablefile = try_to_get_string())) {  /* file name */
 	/* 'set table "foo"' creates a new output file */
 	/* 'set table "foo" append' writes to the end of an existing output file */
-	gp_expand_tilde(&tablefile);
 	if (equals(c_token, "append")) {
 	    c_token++;
 	    append = TRUE;
 	}
-	if (!(table_outfile = fopen(tablefile, (append ? "a" : "w"))))
-	   os_error(filename_token, "cannot open table output file");
+	if (*tablefile == '|') {
+#if defined(PIPES)
+	    restrict_popen();
+	    table_outfile = popen(tablefile+1, (append ? "a" : "w"));
+	    table_pipe = TRUE;
+#else
+	    free(tablefile);
+	    int_error(c_token-1, "This copy of gnuplot does not support piped output");
+#endif
+	} else {
+	    gp_expand_tilde(&tablefile);
+	    table_outfile = fopen(tablefile, (append ? "a" : "w"));
+	    table_pipe = FALSE;
+	}
 	free(tablefile);
+	if (!table_outfile)
+	   os_error(filename_token, "cannot open table output file");
     }
 
     if (almost_equals(c_token, "sep$arator")) {
@@ -5046,6 +5047,14 @@ set_termoptions()
     } else if (equals(c_token,"lw") || almost_equals(c_token,"linew$idth")) {
 	num_tokens = GPMIN(num_tokens,c_token+2);
 	if (term->flags & TERM_LINEWIDTH)
+	    ok_to_call_terminal = TRUE;
+	else {
+	    c_token++;
+	    real_expression();   /* Silently ignore the request */
+	}
+    } else if (equals(c_token,"scale")) {
+	num_tokens = GPMIN(num_tokens,c_token+2);
+	if (term->flags & TERM_GLOBALSCALE)
 	    ok_to_call_terminal = TRUE;
 	else {
 	    c_token++;

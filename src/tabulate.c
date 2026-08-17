@@ -58,6 +58,7 @@
 FILE *table_outfile = NULL;
 udvt_entry *table_var = NULL;
 TBOOLEAN table_mode = FALSE;
+TBOOLEAN table_pipe = FALSE;
 char *table_sep = NULL;
 
 static char *expand_newline(const char *in);

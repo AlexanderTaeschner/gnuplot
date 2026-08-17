@@ -1686,7 +1686,7 @@ SVG_set_font (const char *font)
 	SVG_fontStyleCur = SVG_fontStyleDef;
 	SVG_fontWeightCur = SVG_fontWeightDef;
     } else {
-	char *bold, *italic;
+	const char *bold, *italic;
 	int sep;
 
 	if (!((bold = strstr(font," bold"))))

@@ -476,7 +476,7 @@ D viridis 1
 
 #start
 #b Certain saved commands that would be problematic during replay
-## are not reexecuted.  This include `reset`, `pause`, and the definition
+## are not reexecuted.  These include `reset`, `pause`, and the definition
 ## of new data blocks.
 #b The saved per-panel data is not sufficient to interpret non-linear
 ## axis mappings. The plot should display correctly but mouse tracking
@@ -485,6 +485,8 @@ D viridis 1
 ## If the multiplot contains more than 16 panels the additional panels will
 ## display correctly but are not mouseable.
 ## This limit may be removed in the future.
+#b Toggle plot on/off from the command line does not work for plots
+## in a multiplot.
 #end
 
 3 New terminals and terminal options
@@ -723,24 +725,32 @@ D epi_data 1
 #b New gprintf format specifiers %C and %Ci to output complex values.
 ## See `gprintf complex` and `imaginary_i`. (in 6.0.4)
 #b The program offers predefined variables I, Inf, and NaN (in 6.0.4)
-#b "linestyle variable"
-#b pm3d coloring for 3D polygons (e.g. Delaunay tessellation of surfaces).
-## See `delaunay`.
-#b Alternatives to gdlib for handling image files as data
-#b Deprecation of the "sample" keyword
 #b New numerical operation "prod" (cumulative product). See `product`. (in 6.0.5)
 #TeX \newline
 ## Example:     N! can be expressed as prod [i=1:N] i 
-#b New category of graphical objects called "marks" that allow definition
-## of complex symbols used in plots.  See `marks`.
 #b See `escape sequences`.
 ## Unicode escape sequences are accepted in both "enhanced" and "noenhanced" text.
 ## Unicode escape sequences are expanded during substring evaluation.
 ## Octal escape sequences are required to contain exactly three digits. (in 6.0.5)
-#b Named palette "magma" from the viridis family of palettes
 #b Multiplot mousing.  Mouse coordinate readout is provided for all panels of
 ## a multiplot.  Pan/zoom/rotate mouse operations can be applied to any panel.
-## See `new multiplots`.
+## See `new multiplots`. (in 6.0.5)
+#b pm3d coloring for 3D polygons (e.g. Delaunay tessellation of surfaces).
+## See `delaunay`.
+#b Alternatives to gdlib for handling image files as data
+#b "linestyle variable"
+#b Named palette "magma" from the viridis family of palettes
+#b Deprecation of the "sample" keyword
+#b New category of graphical objects called "marks" that allow definition
+## of complex symbols used in plots.  See `marks`.
+#b Generic terminal option "scale" that proportionally increases or decreases
+## linewidth, pointsize, fontsize, and derivative properties of plot elements
+## such as mark definitions, margin size, and plaement of titles and labels.
+## This allows, for example, to reproduce the visual appearance of the qt or
+## wxt display window after changing its size.  It also permits rendering a
+## PNG image at higher resolution (number of pixels) while retaining the
+## visual appearance when printed at a fixed physical size.
+## See `termoption scale`.
 #end
 
 2 Demos and Online Examples
@@ -11086,13 +11096,6 @@ Ffigure_smooth_path
 ?reread
  [DEPRECATED in version 5.4]
 
- This command is deprecated in favor of explicit iteration.
- See `iterate`.
- The `reread` command causes execution from the current `gnuplot` input file,
- as specified by a `load` command, to immediately restart from the beginning
- of the file.  This essentially implements an endless loop of commands from the
- beginning of the file to the `reread` command.
- `reread` has no effect when reading commands from stdin.
 2 reset
 ?commands reset
 ?reset
@@ -17560,13 +17563,64 @@ Ffigure_polar_grid
  The `set termoption` command allows you to change the behaviour of the
  current terminal without requiring a new `set terminal` command. Only one
  option can be changed per command, and only a small number of options can
- be changed this way. Currently the only options accepted are
+ be changed this way. In each case the effect is the same as if that option
+ had been specified in the initial `set terminal` command.
+ Currently the only options accepted are
 
       set termoption {no}enhanced
       set termoption font "<fontname>{,<fontsize>}"
       set termoption fontscale <scale>
       set termoption {linewidth <lw>}{lw <lw>} {dashlength <dl>}{dl <dl>}
       set termoption {pointscale <scale>} {ps <scale>}
+      set termoption scale <scale>
+4 scale
+?commands set termoption scale
+?set termoption scale
+?termoption scale
+?scale
+ Many terminals support a `scale` option that can either be specified as
+ part of the `set terminal` command or afterwards via the `set termoption`
+ command.
+      set terminal png scale <value>
+      set termoption scale <value>
+
+ The scale value uniformly increases (value > 1.0) or decreases (value < 1.0)
+ all line widths, point sizes, and font sizes that appear in plots.
+ It also affects other plot elements whose size is derived from point or
+ font size, including mark definitions, margin space, and the positioning
+ of text labels and titles.
+
+ The new scale replaces any previously specified scale.
+
+ This scale value is separate from and applied multiplicatively on top of
+ other specified scaling for specific plot elements.  For example the
+ sequence of commands
+      set terminal pdf font "Times,10" linewidth 1.2 fontscale 1.0
+      plot sin(x) lw 1, cos(x) lw 2, sin(2*x) lw 3
+      set termoption scale 1.5
+      replot
+ will result in a plot labeled in 20 pt font "Times" with individual
+ plots drawn with line widths 1.8 (=1.5*1.2*1), 3.6 (=1.5*1.2*2) and
+ 5.4 (=1.5*1.2*3).
+
+ One use of this comprehensive scale factor is to regenerate a PNG output plot
+ at higher resolution, i.e. with a proportionally larger size in pixels drawn
+ with lines, points, and text that each require a correspondingly greater width
+ in pixels to produce the same visual appearance when printed.
+ For example, the kitty and png terminals both use the same underlying graphics
+ library (either cairo or gd).  You might want to compose a figure displayed
+ directly on your screen using the kitty terminal (screen resolution ≈100 dpi)
+ and then save it to a PNG file for later printing at 300 dpi.
+      set terminal kitty font "Times,12" size 1000,700
+      ... compose plot ...
+      set terminal png font "Time,12" size 3000,2100
+      set termoption scale 3.0
+      set output 'figure.png'
+      replot
+ If you were to increase the size without changing the scale, printing the
+ resulting PNG file at 300 dpi would reproduce the original plot but with very
+ thin lines and an apparent font size three times smaller than the original.
+
 
 3 theta
 ?commands set theta
@@ -19187,6 +19241,7 @@ Ffigure_walls
        current_time = system("date")
 
 2 show
+?
  Most `set` commands have a corresponding show command with no special options.
  For example
       show linetype 3

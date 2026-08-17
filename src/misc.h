@@ -55,7 +55,6 @@ extern int call_argc;
 
 const char *expand_call_arg(int c);
 void load_file(FILE *fp, char *name, int calltype);
-FILE *lf_top(void);
 TBOOLEAN lf_pop(void);
 void lf_push(FILE *fp, char *name, char *cmdline);
 void lf_reset_after_error(void);

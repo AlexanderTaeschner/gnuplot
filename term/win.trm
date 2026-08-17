@@ -128,6 +128,7 @@ enum WIN_id { WIN_DEFAULT, WIN_MONOCHROME, WIN_COLOR, WIN_GTITLE,
 	      WIN_ENHANCED, WIN_NOENHANCED, WIN_FONT, WIN_SIZE, WIN_WSIZE,
 	      WIN_POSITION, WIN_CLOSE, WIN_BACKGROUND,
 	      WIN_FONTSCALE, WIN_LINEWIDTH, WIN_POINTSCALE,
+	      WIN_SCALE,
 	      WIN_SOLID, WIN_DASHED, WIN_ROUND, WIN_BUTT,
 	      WIN_DOCKED, WIN_STANDALONE, WIN_LAYOUT,
 	      WIN_OTHER };
@@ -151,6 +152,7 @@ static struct gen_table WIN_opts[] =
     { "lw", WIN_LINEWIDTH },
     { "pointscale", WIN_POINTSCALE},
     { "ps", WIN_POINTSCALE},
+    { "scale", WIN_SCALE},
     { "ti$tle", WIN_GTITLE },
     { "siz$e", WIN_SIZE },
     { "ws$ize", WIN_WSIZE },
@@ -228,10 +230,12 @@ WIN_options()
 	TBOOLEAN set_layout = FALSE;
 #endif
 	TBOOLEAN set_pointscale = FALSE;
+	TBOOLEAN set_scale = FALSE;
 	TBOOLEAN color, dashed, rounded;
 	COLORREF background;
 	double fontscale, linewidth;
 	double pointscale;
+	double scale;
 	int win_x = 0;
 	int win_y = 0;
 	int win_width = 0;
@@ -255,9 +259,11 @@ WIN_options()
 #endif
 			fontsize = WIN_inifontsize;
 			fontscale = linewidth = pointscale = 1;
+			scale = 1;
 			set_color = set_dashed = TRUE;
 			set_font = set_fontsize = TRUE;
 			set_fontscale = set_linewidth = set_pointscale = TRUE;
+			set_scale = TRUE;
 			set_rounded = TRUE;
 			c_token++;
 			break;
@@ -310,6 +316,12 @@ WIN_options()
 			pointscale = real_expression();
 			if (pointscale <= 0.0) pointscale = 1.;
 			set_pointscale = TRUE;
+			break;
+		case WIN_SCALE:
+			c_token++;
+			scale = real_expression();
+			if (scale <= 0.0) scale = 1.;
+			set_scale = TRUE;
 			break;
 		case WIN_SOLID:
 			c_token++;
@@ -511,6 +523,8 @@ WIN_options()
 		graphwin->linewidth = linewidth;
 	if (set_pointscale)
 		graphwin->pointscale = pointscale;
+	if (set_scale)
+		graphwin->scale = scale;
 	if (set_size || set_wsize) {
 		graphwin->Size.x = win_width;
 		graphwin->Size.y = win_height;
@@ -645,14 +659,23 @@ WIN_update_options()
 		sprintf(&(term_options[strlen(term_options)]),
 			" pointscale %.1f", graphwin->pointscale);
 
+	/* Always report the current size and scale.
+	 * These may have been changed interactively by resizing the window.
+	 * Place them last so that they are easy to overwrite later if they change.
+	 */
 	if (!graphwin->bDocked) {
-		if (graphwin->Canvas.x != 0)
+		unsigned width, height;
+
+		GraphGetCanvasSize(graphwin, &width, &height);
+		if (width != 0)
 			sprintf(&(term_options[strlen(term_options)]),
-				" size %li,%li", graphwin->Canvas.x, graphwin->Canvas.y);
+				" size %u,%u", width, height);
 		else if (graphwin->Size.x != CW_USEDEFAULT)
 			sprintf(&(term_options[strlen(term_options)]),
 				" wsize %li,%li", graphwin->Size.x, graphwin->Size.y);
 	}
+	sprintf(&(term_options[strlen(term_options)]),
+		" scale %g", graphwin->scale);
 }
 
 
@@ -1158,7 +1181,7 @@ TERM_TABLE_START(win_driver)
     WIN_justify_text, WIN_point, do_arrow, WIN_set_font,
     WIN_set_pointsize,
     TERM_CAN_MULTIPLOT|TERM_NO_OUTPUTFILE|TERM_ALPHA_CHANNEL|TERM_CAN_DASH
-        |TERM_LINEWIDTH|TERM_FONTSCALE|TERM_POINTSCALE|TERM_ENHANCED_TEXT,
+        |TERM_LINEWIDTH|TERM_FONTSCALE|TERM_POINTSCALE|TERM_ENHANCED_TEXT|TERM_GLOBALSCALE,
     WIN_text /* suspend */ , WIN_resume,
     WIN_boxfill, WIN_linewidth,
 #ifdef USE_MOUSE
@@ -1210,6 +1233,7 @@ START_HELP(windows)
 "                            {fontscale <scale>}",
 "                            {linewidth <scale>}",
 "                            {pointscale <scale>}",
+"                            {scale <factor>}",
 "                            {background <rgb color>}",
 "                            {title \"Plot Window Title\"}",
 "                            {{size | wsize} <width>,<height>}",
@@ -1235,6 +1259,10 @@ START_HELP(windows)
 " no longer supported.",
 " `linewidth`, `fontscale`, `pointscale` can be used to scale the width of",
 " lines, the size of text, or the size of the point symbols.",
+" `scale` globally scales all graph elements (fonts, lines, points, tic marks",
+" and derived margins) by the given factor.  It can also be used to shrink",
+" elements (factor < 1).  The scale value given here is the starting value",
+" used by the 'Change scale on resize' option in the windows graph menu.",
 " `title` changes the title of the graph window.",
 " `size` defines the width and height of the window's drawing area in pixels,",
 " `wsize` defines the actual size of the window itself and `position` defines",
@@ -1298,6 +1326,12 @@ START_HELP(windows)
 " `Color` when checked enables color output.  When unchecked it forces",
 " all grayscale output.  This is e.g. useful to test appearance of monochrome",
 " printouts.",
+"",
+" `Change scale on resize` when checked adjusts the global `scale` factor to",
+" match the window size whenever the window is resized, so that fonts, lines,",
+" points and tic marks grow or shrink together with the window.  Unlike the",
+" automatic resize behaviour, this adjustment persists when you `replot`.  It is",
+" unchecked by default.",
 "",
 #ifdef USE_WINGDI
 " `GDI backend` draws to the screen using Windows GDI. This is the classical",

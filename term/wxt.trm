@@ -72,6 +72,8 @@ char *wxt_set_fontname = NULL;
 /* default text size*/
 double wxt_set_fontsize = 0;
 double wxt_set_fontscale = 1.0;
+/* global element scale (fonts, lines, points, tics) without resizing window */
+double wxt_scale = 1.0;
 /* window title */
 char wxt_title[MAX_ID_LEN + 1] = "";
 /* size of the plot area, in pixels
@@ -89,6 +91,7 @@ wxt_axis_state_t wxt_axis_state[4];
 enum WXT_id {
     WXT_FONT,
     WXT_FONTSCALE,
+    WXT_SCALE,
     WXT_ENHANCED,
     WXT_NOENHANCED,
     WXT_SIZE,
@@ -115,6 +118,7 @@ enum WXT_id {
 
 static struct gen_table wxt_opts[] = {
     {"fontscale",   WXT_FONTSCALE},
+    {"scale",   WXT_SCALE},
     {"font",   WXT_FONT},
     {"enh$anced", WXT_ENHANCED},
     {"noenh$anced", WXT_NOENHANCED},
@@ -189,6 +193,11 @@ TERM_PUBLIC void wxt_options()
 			wxt_set_fontscale = END_OF_COMMAND ? -1 : real_expression();
 			if (wxt_set_fontscale <= 0)
 			    wxt_set_fontscale = 1.;
+			break;
+		case WXT_SCALE:
+			wxt_scale = END_OF_COMMAND ? -1 : real_expression();
+			if (wxt_scale <= 0)
+			    wxt_scale = 1.;
 			break;
 		case WXT_ENHANCED:
 			wxt_enhanced_enabled = TRUE;
@@ -370,10 +379,6 @@ TERM_PUBLIC void wxt_options()
 	}
 
 	if (set_size) {
-		char tmp_term_options[MAX_LINE_LEN+1] = "";
-		snprintf(tmp_term_options, sizeof(tmp_term_options),
-			  " size %d, %d", wxt_width, wxt_height);
-		strncat(term_options, tmp_term_options, sizeof(term_options)-strlen(term_options)-1);
 		wxt_update_size(wxt_window_number);
 	}
 
@@ -426,6 +431,19 @@ TERM_PUBLIC void wxt_options()
 		strncat(term_options,
 			(wxt_ctrl==yes) ? " ctrl" : " noctrl",
 			sizeof(term_options)-strlen(term_options)-1);
+
+	/* Always report size and scale.
+	 * These value may be changed interactively by mouse actions in the display window.
+	 */
+	if (1) {
+		char tmp_term_options[MAX_LINE_LEN+1] = "";
+		snprintf(tmp_term_options, sizeof(tmp_term_options),
+			  " size %d, %d", wxt_width, wxt_height);
+		strncat(term_options, tmp_term_options, sizeof(term_options)-strlen(term_options)-1);
+		snprintf(tmp_term_options,sizeof(tmp_term_options), " scale %g", wxt_scale);
+		strncat(term_options, tmp_term_options, sizeof(term_options)-strlen(term_options)-1);
+	}
+
 
 	if (set_close)
 		wxt_close_terminal_window(wxt_window_number);
@@ -483,7 +501,7 @@ TERM_TABLE_START (wxt_driver)
     wxt_text_angle, wxt_justify_text,
     wxt_point, do_arrow, wxt_set_font,
     wxt_pointsize,
-    TERM_CAN_MULTIPLOT|TERM_NO_OUTPUTFILE|TERM_ALPHA_CHANNEL|TERM_CAN_DASH|TERM_FONTSCALE|TERM_ENHANCED_TEXT|TERM_LINEWIDTH,
+    TERM_CAN_MULTIPLOT|TERM_NO_OUTPUTFILE|TERM_ALPHA_CHANNEL|TERM_CAN_DASH|TERM_FONTSCALE|TERM_ENHANCED_TEXT|TERM_LINEWIDTH|TERM_GLOBALSCALE,
     wxt_text /* suspend */, 0 /* resume */, wxt_fillbox, wxt_linewidth
 #ifdef USE_MOUSE
     , wxt_waitforinput, wxt_put_tmptext, wxt_set_ruler, wxt_set_cursor, wxt_set_clipboard
@@ -525,6 +543,7 @@ START_HELP(wxt)
 "                      {background <rgb_color> | nobackground}",
 "                      {{no}enhanced}",
 "                      {font <font>} {fontscale <scale>}",
+"                      {scale <factor>}",
 "                      {title \"title\"}",
 "                      {linewidth <lw>} {butt|rounded|square}",
 "                      {dashlength <dl>}",
@@ -555,6 +574,11 @@ START_HELP(wxt)
 " type a new `plot` command, the new plot will completely fit in the window",
 " and the font size and the linewidths will be reset to their defaults.",
 "",
+" The terminal configuration dialog contains a `Change terminal scale on resize`",
+" checkbox. When it is enabled, dragging the window to a new size multiplies the",
+" current `scale` factor by the corresponding change in window size (e.g.",
+" doubling the window size doubles the scale).",
+"",
 " The position option can be used to set the position of the plot window.",
 " The position option only applies to the first plot after the `set term`",
 " command.",
@@ -563,6 +587,10 @@ START_HELP(wxt)
 " interactive. Its behaviour is shared with other terminal types. See `mouse`",
 " for details. It also has some extra icons, which are supposed to be",
 " self-explanatory.",
+"",
+" The `scale` option applies an additional global multiplier to line widths,",
+" point sizes, and font sizes without changing output canvas size in pixels.",
+" See `scale`.",
 "",
 " This terminal supports an enhanced text mode, which allows font and other",
 " formatting commands (subscripts, superscripts, etc.) to be embedded in labels",

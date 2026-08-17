@@ -51,7 +51,7 @@ TERM_TABLE_START (qt_driver)
     qt_text_angle, qt_justify_text,
     qt_point, do_arrow, qt_set_font,
     qt_pointsize,
-    TERM_CAN_MULTIPLOT|TERM_NO_OUTPUTFILE|TERM_ALPHA_CHANNEL|TERM_CAN_DASH|TERM_ENHANCED_TEXT|TERM_POLYGON_PIXELS|TERM_LINEWIDTH|TERM_COLORBOX_IMAGE,
+    TERM_CAN_MULTIPLOT|TERM_NO_OUTPUTFILE|TERM_ALPHA_CHANNEL|TERM_CAN_DASH|TERM_ENHANCED_TEXT|TERM_POLYGON_PIXELS|TERM_LINEWIDTH|TERM_COLORBOX_IMAGE|TERM_GLOBALSCALE,
     0 /* suspend */, 0 /* resume */, qt_fillbox, qt_linewidth
 #ifdef USE_MOUSE
     , qt_waitforinput, qt_put_tmptext, qt_set_ruler, qt_set_cursor, qt_set_clipboard
@@ -94,6 +94,7 @@ START_HELP(qt)
 "                     {{no}replotonresize}",
 "                     {{no}antialias}",
 "                     {linewidth <lw>} {dashlength <dl>}",
+"                     {scale <factor>}",
 "                     {{no}persist} {{no}raise} {{no}ctrl}",
 "                     {close}",
 "                     {widget <id>}",
@@ -146,6 +147,17 @@ START_HELP(qt)
 "       set term qt font \"\" # to reset the font name and size",
 "",
 " The dashlength affects only custom dash patterns, not Qt's built-in set.",
+"",
+" The `scale` option multiplies the size of all plot elements (fonts, line",
+" widths, point sizes, tic marks and margins) by <factor> without changing",
+" the size of the output window. This is useful for producing larger or",
+" smaller annotation relative to a fixed canvas. The default is 1.0; values",
+" must be greater than zero. It may also be changed with `set termoption scale`.",
+"",
+" The terminal configuration dialog contains a `Change terminal scale on resize`",
+" checkbox. When it is enabled, dragging the window to a new size multiplies the",
+" current `scale` factor by the corresponding change in window size (e.g.",
+" doubling the window size doubles the scale).",
 "",
 #if (QTVER == 4)
 " The Qt rendering speed is affected strongly by the rendering mode used.",

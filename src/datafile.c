@@ -1439,15 +1439,18 @@ df_open(const char *cmd_filename, int max_using, struct curve_points *plot)
 
     } else
 #endif /* HAVE_FDOPEN */
-#if defined(PIPES)
+
     if (*df_filename == '<') {
+#if defined(PIPES)
 	restrict_popen();
 	if ((data_fp = popen(df_filename + 1, "r")) == (FILE *) NULL)
 	    os_error(name_token, "cannot create pipe for data");
 	else
 	    df_pipe_open = TRUE;
-    } else
+#else
+	int_error(NO_CARET, "This copy of gnuplot does not support piped input");
 #endif /* PIPES */
+    } else
 
     /* Special filenames '-' '+' '++' '$DATABLOCK' */
     if (*df_filename == '-' && strlen(df_filename) == 1) {
@@ -1455,9 +1458,7 @@ df_open(const char *cmd_filename, int max_using, struct curve_points *plot)
 	    int_error(1, "cannot use pseudofile '-' inside a function block");
 	plotted_data_from_stdin = TRUE;
 	volatile_data = TRUE;
-	data_fp = lf_top();
-	if (!data_fp)
-	    data_fp = stdin;
+	data_fp = (lf_head != NULL) ? lf_head->fp : stdin;
 	mixed_data_fp = TRUE;   /* don't close command file */
     } else if (!strcmp(df_filename,"+")) {
 	    df_pseudodata = 1;
@@ -1466,6 +1467,8 @@ df_open(const char *cmd_filename, int max_using, struct curve_points *plot)
     } else if (df_filename[0] == '$') {
 	df_datablock = TRUE;
 	df_datablock_line = get_datablock(df_filename)->data;
+	if (df_datablock_line == NULL)
+	    int_error(NO_CARET,"no data in %s",df_filename);
 	/* Better safe than sorry. Check for inblock != outblock */
 	if (plot && table_var && table_var->udv_value.v.blockdata->data == df_datablock_line)
 	    int_error(NO_CARET,"input and output datablock are the same");

@@ -51,6 +51,7 @@
 #include <QtCore>
 #include <QtGui>
 #include <QtNetwork>
+#include <cmath>
 
 extern "C" {
 	#include "plot.h"      // for interactive
@@ -182,6 +183,7 @@ static int  qt_optionHeight   = 480;
 static double qt_optionFontSize = 10.0;
 static double qt_optionDashLength = 1.0;
 static double qt_optionLineWidth = 1.0;
+static double qt_optionScale     = 1.0;	// global element-size multiplier (fonts, lines, points, tics)
 
 static int qt_optionctrlq = -1;	         // tristate -1 = not set 0 = false 1 = true
 static int qt_optionrounded = -1;	 // tristate -1 = not set 0 = false 1 = true
@@ -411,6 +413,17 @@ bool qt_processTermEvent(gp_event_t* event)
 	// remember initial state (the original gets cleared by do_event())
 	TBOOLEAN was_paused_for_mouse = paused_for_mouse;
 
+	// A resize with "scale on resize" active has settled: push the new global
+	// scale factor through the core (set termoption scale) so that the cached
+	// term_options string (used by 'show terminal' and 'save') stays in sync
+	// with the live value used for drawing.
+	if (event->type == GE_scale)
+	{
+		QString cmd = "set termoption scale " + QString::number(qt_optionScale);
+		do_string(cmd.toUtf8().constData());
+		return false;
+	}
+
 	// Intercepts resize event
 	if (event->type == GE_fontprops)
 	{
@@ -426,7 +439,17 @@ bool qt_processTermEvent(gp_event_t* event)
 			}
 			return false;
 		}
-		// This is a resize event
+		// This is a resize event.
+		// If the toolbox "scale on resize" toggle is active, the GUI sets
+		// par1 > 0 to ask that the global scale factor track the change in
+		// window size, using the geometric mean of the width/height ratios.
+		// (e.g. dragging the window to twice the size multiplies scale by ~2.)
+		if ((event->par1 > 0) && (qt_setWidth > 0) && (qt_setHeight > 0)) {
+			double ratio = std::sqrt((double(event->mx) / double(qt_setWidth))
+			                       * (double(event->my) / double(qt_setHeight)));
+			if (ratio > 0.)
+				qt_optionScale *= ratio;
+		}
 		qt_setSize   = true;
 		qt_setWidth  = event->mx;
 		qt_setHeight = event->my;
@@ -509,9 +532,9 @@ void qt_init()
 // Send a "Set font" event to the GUI, and wait for the font metrics answer
 void qt_sendFont()
 {
-	qt->out << GESetFont << qt->currentFontName << qt->currentFontSize;
+	qt->out << GESetFont << qt->currentFontName << qt->currentFontSize * qt_optionScale;
 
-	QPair<QString, double> currentFont(qt->currentFontName, qt->currentFontSize);
+	QPair<QString, double> currentFont(qt->currentFontName, qt->currentFontSize * qt_optionScale);
 	quint32 requestId;
 
 	// The font has not changed
@@ -835,7 +858,7 @@ void qt_put_text(unsigned int x, unsigned int y, const char* string)
 	// closing brace in the string. We increment past it (else we get stuck
 	// in an infinite loop) and try again.
 	while (*(string = enhanced_recursion((char*)string, TRUE, qt->currentFontName.toUtf8().data(),
-			qt->currentFontSize, 0.0, TRUE, TRUE, 0)))
+			qt->currentFontSize * qt_optionScale, 0.0, TRUE, TRUE, 0)))
 	{
 		qt_enhanced_flush();
 		enh_err_check(string); // we can only get here if *str == '}'
@@ -963,12 +986,12 @@ void qt_point(unsigned int x, unsigned int y, int pointstyle)
 void qt_pointsize(double ptsize)
 {
 	if (ptsize < 0.) ptsize = 1.; // same behaviour as x11 terminal
-	qt->out << GEPointSize << ptsize;
+	qt->out << GEPointSize << ptsize * qt_optionScale;
 }
 
 void qt_linewidth(double lw)
 {
-	qt->out << GELineWidth << lw * qt_optionLineWidth;
+	qt->out << GELineWidth << lw * qt_optionLineWidth * qt_optionScale;
 }
 
 int qt_text_angle(float angle)
@@ -1410,6 +1433,7 @@ enum QT_id {
 	QT_DASHLENGTH,
 	QT_SOLID,
 	QT_LINEWIDTH,
+	QT_SCALE,
 	QT_OTHER,
 	QT_ROUNDED,
 	QT_NOROUNDED,
@@ -1446,6 +1470,7 @@ static struct gen_table qt_opts[] = {
 	{"solid",       QT_SOLID},
 	{"line$width",  QT_LINEWIDTH},
 	{"lw",          QT_LINEWIDTH},
+	{"scale",       QT_SCALE},
 	{NULL,          QT_OTHER}
 };
 
@@ -1469,6 +1494,7 @@ void qt_options()
 	bool set_dash = false;
 	bool set_dashlength = false;
 	bool set_linewidth = false;
+	bool set_scale = false;
 	bool set_rounded = false;
 	bool set_antialias = false;
 	bool set_replotonresize = false;
@@ -1618,6 +1644,12 @@ void qt_options()
 			SETCHECKDUP(set_linewidth);
 			qt_optionLineWidth = real_expression();
 			break;
+		case QT_SCALE:
+			SETCHECKDUP(set_scale);
+			qt_optionScale = real_expression();
+			if (qt_optionScale <= 0)
+				qt_optionScale = 1.0;
+			break;
 		case QT_OTHER:
 		default:
 			qt_optionWindowId = int_expression();
@@ -1648,15 +1680,6 @@ void qt_options()
 	if (set_title)
 	{
 		termOptions += " title \"" + qt_option->Title + '"';
-	}
-
-	if (set_size)
-	{
-		termOptions += " size " + QString::number(qt_optionWidth) + ", "
-		                        + QString::number(qt_optionHeight);
-		qt_setSize   = true;
-		qt_setWidth  = qt_optionWidth;
-		qt_setHeight = qt_optionHeight;
 	}
 
 	if (set_position)
@@ -1695,6 +1718,18 @@ void qt_options()
 	if (set_replotonresize)
 	  qt_optionreplotonresize = qt_optionReplotOnResize;
 
+	// Always report size and scale.
+	// Place them last so that they are easy to overwrite later if they change.
+	// Note that these values track interactive changes to the display window.
+	if (set_size)
+	{
+		qt_setSize   = true;
+		qt_setWidth  = qt_optionWidth;
+		qt_setHeight = qt_optionHeight;
+	}
+	termOptions += " size " + QString::number(qt_setWidth) + ", "
+				+ QString::number(qt_setHeight);
+	termOptions += " scale " + QString::number(qt_optionScale);
 
 	/// @bug change Utf8 to local encoding
 	strncpy(term_options, termOptions.toUtf8().data(), MAX_LINE_LEN);

@@ -132,6 +132,7 @@ enum CAIROTRM_id {
     CAIROLATEX_PNG,
     CAIROLATEX_PNG_RESOLUTION,
     CAIROTRM_HINTING,
+    CAIROTRM_SCALE,
     CAIROTRM_OTHER
 };
 
@@ -166,12 +167,13 @@ typedef struct cairo_params_t {
     int resolution;             /* in dpi; CAIROLATEX_PNG only */
     TBOOLEAN anchor;		/* TRUE = anchor kitty output to top left */
     float hinting;              /* hinting 0..100 */
+    float scale;                /* global element-size multiplier (default 1.0) */
 } cairo_params_t;
 
 #define CAIROEPS_PARAMS_DEFAULT { \
     CAIROTERM_EPS, INCHES, FALSE, FALSE, 1.0, {1.,1.,1.}, 0xffffff, \
     FALSE, BUTT, TRUE, FALSE, NULL, \
-    12, 0.5, 5*72., 3*72., 0.25, 1.0, 1.0, FALSE, 300, FALSE, 0.0 \
+    12, 0.5, 5*72., 3*72., 0.25, 1.0, 1.0, FALSE, 300, FALSE, 0.0, 1.0 \
 }
 static cairo_params_t cairoeps_params = CAIROEPS_PARAMS_DEFAULT;
 static const cairo_params_t cairoeps_params_default = CAIROEPS_PARAMS_DEFAULT;
@@ -180,13 +182,13 @@ static const cairo_params_t cairoeps_params_default = CAIROEPS_PARAMS_DEFAULT;
 #define CAIROLATEX_PARAMS_DEFAULT { \
     CAIROTERM_LATEX, INCHES, FALSE, FALSE, 1.0, {1.,1.,1.}, 0xffffff, \
     FALSE, BUTT, TRUE, FALSE, NULL, \
-    11, 0.6, 5*72., 3*72., 0.25, 1.0, 1.0, FALSE, 300, FALSE, 0.0 \
+    11, 0.6, 5*72., 3*72., 0.25, 1.0, 1.0, FALSE, 300, FALSE, 0.0, 1.0 \
 }
 #else
 #define CAIROLATEX_PARAMS_DEFAULT { \
     CAIROTERM_LATEX, INCHES, FALSE, FALSE, 1.0, {1.,1.,1.}, 0xffffff, \
     FALSE, BUTT, TRUE, FALSE, NULL, \
-    11, 0.6, 5*72., 3*72., 0.25, 1.0, 1.0, TRUE, 300, FALSE, 0.0 \
+    11, 0.6, 5*72., 3*72., 0.25, 1.0, 1.0, TRUE, 300, FALSE, 0.0, 1.0 \
 }
 #endif
 static cairo_params_t cairolatex_params = CAIROLATEX_PARAMS_DEFAULT;
@@ -195,7 +197,7 @@ static const cairo_params_t cairolatex_params_default = CAIROLATEX_PARAMS_DEFAUL
 #define CAIROPDF_PARAMS_DEFAULT { \
     CAIROTERM_PDF, INCHES, FALSE, FALSE, 1.0, {1.,1.,1.}, 0xffffff, \
     FALSE, BUTT, TRUE, FALSE, NULL, \
-    12, 0.5, 5*72., 3*72., 0.25, 1.0, 1.0, FALSE, 300, FALSE, 0.0 \
+    12, 0.5, 5*72., 3*72., 0.25, 1.0, 1.0, FALSE, 300, FALSE, 0.0, 1.0 \
 }
 static cairo_params_t cairopdf_params = CAIROPDF_PARAMS_DEFAULT;
 static const cairo_params_t cairopdf_params_default = CAIROPDF_PARAMS_DEFAULT;
@@ -203,7 +205,7 @@ static const cairo_params_t cairopdf_params_default = CAIROPDF_PARAMS_DEFAULT;
 #define CAIROPNG_PARAMS_DEFAULT { \
     CAIROTERM_PNG, PIXELS, FALSE, FALSE, 1.0, {1.,1.,1.}, 0xffffff, \
     FALSE, BUTT, FALSE, FALSE, NULL, \
-    12, 1.0, 640., 480., 1.0, 1.0, 1.0, FALSE, 0, TRUE, 100.0 \
+    12, 1.0, 640., 480., 1.0, 1.0, 1.0, FALSE, 0, TRUE, 100.0, 1.0 \
 }
 static cairo_params_t cairopng_params = CAIROPNG_PARAMS_DEFAULT;
 static const cairo_params_t cairopng_params_default = CAIROPNG_PARAMS_DEFAULT;
@@ -235,6 +237,7 @@ static struct gen_table cairotrm_opts[] = {
     {"linew$idth", CAIROTRM_LINEWIDTH},
     {"pointscale", CAIROTRM_POINTSCALE},
     {"ps", CAIROTRM_POINTSCALE},
+    {"scale", CAIROTRM_SCALE},
     {"dash$ed", CAIROTRM_DASHED},
     {"solid", CAIROTRM_SOLID},
     {"mono$chrome", CAIROTRM_MONO},
@@ -398,6 +401,12 @@ TERM_PUBLIC void cairotrm_options()
 			cairo_params->ps = real_expression();
 			if (cairo_params->ps < 0.0)
 			    cairo_params->ps = 1.0;
+			break;
+		case CAIROTRM_SCALE:
+			c_token++;
+			cairo_params->scale = real_expression();
+			if (cairo_params->scale <= 0.0)
+			    cairo_params->scale = 1.0;
 			break;
 		case CAIROTRM_DASHED:
 		case CAIROTRM_SOLID:
@@ -675,6 +684,11 @@ TERM_PUBLIC void cairotrm_options()
 	/* if (set_fontscale) */
 	{
 		snprintf(tmp_term_options, sizeof(tmp_term_options), " fontscale %.1f", cairo_params->fontscale);
+		strncat(term_options, tmp_term_options, sizeof(term_options)-strlen(term_options)-1);
+	}
+
+	if (cairo_params->scale != 1.0) {
+		snprintf(tmp_term_options, sizeof(tmp_term_options), " scale %g", cairo_params->scale);
 		strncat(term_options, tmp_term_options, sizeof(term_options)-strlen(term_options)-1);
 	}
 
@@ -1219,7 +1233,7 @@ void cairotrm_put_text(unsigned int x, unsigned int y, const char * string)
 	gp_cairo_enhanced_init(&plot, strlen(string));
 
 	/* set up the global variables needed by enhanced_recursion() */
-	enhanced_fontscale = cairo_params->fontscale;
+	enhanced_fontscale = cairo_params->fontscale * cairo_params->scale;
 	strcpy(enhanced_escape_format, "%c");
 
 	/* Set the recursion going. We say to keep going until a closing brace,
@@ -1318,7 +1332,7 @@ int cairotrm_set_font (const char *font)
 
 	/* Reset the term variables (hchar, vchar, h_tic, v_tic).
 	 * They may be taken into account in next plot commands */
-	gp_cairo_set_font(&plot, fontname, fontsize * cairo_params->fontscale);
+	gp_cairo_set_font(&plot, fontname, fontsize * cairo_params->fontscale * cairo_params->scale);
 	gp_cairo_set_termvar(&plot, &(term->v_char), &(term->h_char));
 
 	/* Enhanced text processing needs to know the new font also */
@@ -1348,12 +1362,12 @@ void cairotrm_point(unsigned int x, unsigned int y, int pointstyle)
 void cairotrm_pointsize(double ptsize)
 {
 	ptsize = (ptsize < 0) ? cairo_params->ps : cairo_params->ps * ptsize;
-	gp_cairo_set_pointsize(&plot, ptsize);
+	gp_cairo_set_pointsize(&plot, ptsize * cairo_params->scale);
 }
 
 void cairotrm_linewidth(double lw)
 {
-	lw *= cairo_params->lw * cairo_params->base_linewidth;
+	lw *= cairo_params->lw * cairo_params->base_linewidth * cairo_params->scale;
 	gp_cairo_set_linewidth(&plot, lw);
 }
 
@@ -1525,7 +1539,7 @@ TERM_TABLE_START (epscairo_driver)
     cairotrm_text_angle, cairotrm_justify_text,
     cairotrm_point, do_arrow, cairotrm_set_font,
     cairotrm_pointsize,
-    TERM_CAN_MULTIPLOT|TERM_BINARY|TERM_CAN_DASH|TERM_ALPHA_CHANNEL|TERM_LINEWIDTH|TERM_FONTSCALE|TERM_POINTSCALE|TERM_COLORBOX_IMAGE,
+    TERM_CAN_MULTIPLOT|TERM_BINARY|TERM_CAN_DASH|TERM_ALPHA_CHANNEL|TERM_LINEWIDTH|TERM_FONTSCALE|TERM_POINTSCALE|TERM_COLORBOX_IMAGE|TERM_GLOBALSCALE,
     0 /* suspend */, 0 /* resume */, cairotrm_fillbox, cairotrm_linewidth
 #ifdef USE_MOUSE
     , 0, 0, 0, 0, 0
@@ -1556,7 +1570,7 @@ TERM_TABLE_START(cairolatex_driver)
     PS_text_angle, PS_justify_text,
     cairotrm_point, do_arrow, cairotrm_set_font,
     cairotrm_pointsize,
-    TERM_CAN_MULTIPLOT|TERM_BINARY|TERM_CAN_DASH|TERM_ALPHA_CHANNEL|TERM_LINEWIDTH|TERM_FONTSCALE|TERM_POINTSCALE|TERM_IS_LATEX|TERM_REUSES_BOXTEXT|TERM_COLORBOX_IMAGE|TERM_COLORBOX_IMAGE,
+    TERM_CAN_MULTIPLOT|TERM_BINARY|TERM_CAN_DASH|TERM_ALPHA_CHANNEL|TERM_LINEWIDTH|TERM_FONTSCALE|TERM_POINTSCALE|TERM_IS_LATEX|TERM_REUSES_BOXTEXT|TERM_COLORBOX_IMAGE|TERM_COLORBOX_IMAGE|TERM_GLOBALSCALE,
     0 /* suspend */, 0 /* resume */, cairotrm_fillbox, cairotrm_linewidth,
 #ifdef USE_MOUSE
     0, 0, 0, 0, 0, /* no mouse support for postscript */
@@ -1587,7 +1601,7 @@ TERM_TABLE_START (pdfcairo_driver)
     cairotrm_text_angle, cairotrm_justify_text,
     cairotrm_point, do_arrow, cairotrm_set_font,
     cairotrm_pointsize,
-    TERM_CAN_MULTIPLOT|TERM_BINARY|TERM_CAN_DASH|TERM_ALPHA_CHANNEL|TERM_LINEWIDTH|TERM_FONTSCALE|TERM_POINTSCALE|TERM_COLORBOX_IMAGE,
+    TERM_CAN_MULTIPLOT|TERM_BINARY|TERM_CAN_DASH|TERM_ALPHA_CHANNEL|TERM_LINEWIDTH|TERM_FONTSCALE|TERM_POINTSCALE|TERM_COLORBOX_IMAGE|TERM_GLOBALSCALE,
     0 /* suspend */, 0 /* resume */, cairotrm_fillbox, cairotrm_linewidth
 #ifdef USE_MOUSE
     , 0, 0, 0, 0, 0
@@ -1617,7 +1631,7 @@ TERM_TABLE_START (pngcairo_driver)
     cairotrm_text_angle, cairotrm_justify_text,
     cairotrm_point, do_arrow, cairotrm_set_font,
     cairotrm_pointsize,
-    TERM_BINARY|TERM_CAN_DASH|TERM_ALPHA_CHANNEL|TERM_LINEWIDTH|TERM_FONTSCALE|TERM_POINTSCALE,
+    TERM_BINARY|TERM_CAN_DASH|TERM_ALPHA_CHANNEL|TERM_LINEWIDTH|TERM_FONTSCALE|TERM_POINTSCALE|TERM_GLOBALSCALE,
     0 /* suspend */, 0 /* resume */, cairotrm_fillbox, cairotrm_linewidth
 #ifdef USE_MOUSE
     , 0, 0, 0, 0, 0
@@ -1646,7 +1660,7 @@ TERM_TABLE_START (kittycairo_driver)
     cairotrm_text_angle, cairotrm_justify_text,
     cairotrm_point, do_arrow, cairotrm_set_font,
     cairotrm_pointsize,
-    TERM_CAN_MULTIPLOT|TERM_BINARY|TERM_CAN_DASH|TERM_ALPHA_CHANNEL|TERM_LINEWIDTH|TERM_FONTSCALE|TERM_POINTSCALE,
+    TERM_CAN_MULTIPLOT|TERM_BINARY|TERM_CAN_DASH|TERM_ALPHA_CHANNEL|TERM_LINEWIDTH|TERM_FONTSCALE|TERM_POINTSCALE|TERM_GLOBALSCALE,
     0 /* suspend */, 0 /* resume */, cairotrm_fillbox, cairotrm_linewidth,
 #ifdef USE_MOUSE
     term_waitforinput, 0, 0, 0, 0,
@@ -1708,6 +1722,7 @@ START_HELP(cairolatex)
 "                      {font <font>} {fontscale <scale>}",
 "                      {linewidth <lw>} {rounded|butt|square} {dashlength <dl>}",
 "                      {size <XX>{unit},<YY>{unit}}",
+"                      {scale <factor>}",
 "                      {resolution <dpi>}",
 "",
 " The cairolatex terminal prints a plot like `terminal epscairo` or",
@@ -1871,6 +1886,7 @@ START_HELP(pdfcairo)
 "                      {linewidth <lw>} {rounded|butt|square} {dashlength <dl>}",
 "                      {background <rgbcolor>}",
 "                      {size <XX>{unit},<YY>{unit}}",
+"                      {scale <factor>}",
 "",
 " This terminal processes labels and other text using enhanced formatting",
 " by default.  See `enhanced`.",
@@ -1881,6 +1897,10 @@ START_HELP(pdfcairo)
 "",
 " `rounded` sets line caps and line joins to be rounded;",
 " `butt` is the default, butt caps and mitered joins.",
+"",
+" The `scale` option applies an additional global multiplier to line widths,",
+" point sizes, and font sizes without changing the output canvas size.",
+" See `scale`.",
 "",
 " The default size for output is 5 inches x 3 inches. The `size` option",
 " changes this to whatever the user requests. By default the X and Y sizes are",
@@ -1953,6 +1973,7 @@ START_HELP(pngcairo)
 "                      {linewidth <lw>} {rounded|butt|square} {dashlength <dl>}",
 "                      {pointscale <ps>}",
 "                      {size <XX>{unit},<YY>{unit}}",
+"                      {scale <factor>}",
 "",
 " This terminal supports an enhanced text mode, which allows font and other",
 " formatting commands (subscripts, superscripts, etc.) to be embedded in labels",
@@ -1963,6 +1984,10 @@ START_HELP(pngcairo)
 "",
 " `rounded` sets line caps and line joins to be rounded;",
 " `butt` is the default, butt caps and mitered joins.",
+"",
+" The `scale` option applies an additional global multiplier to line widths,",
+" point sizes, and font sizes without changing the canvas size in pixels.",
+" See `scale`.",
 "",
 " The default size for the output is 640 x 480 pixels. The `size` option",
 " changes this to whatever the user requests. By default the X and Y sizes are",
@@ -2032,6 +2057,7 @@ START_HELP(kittycairo)
 "                      {linewidth <lw>} {rounded|butt|square} {dashlength <dl>}",
 "                      {transparent | background <rgbcolor>}",
 "                      {size <XX>,<YY>} {anchor|scroll}",
+"                      {scale <factor>}",
 "",
 " This terminal processes labels and other text using enhanced formatting",
 " by default.  See `enhanced`.",
@@ -2043,6 +2069,10 @@ START_HELP(kittycairo)
 "",
 " The option `rounded` sets line caps and line joins to be rounded;",
 " `butt` is the default, producing butt caps and mitered joins.",
+"",
+" The `scale` option applies an additional global multiplier to line widths,",
+" point sizes, and font sizes without changing the canvas size in pixels.",
+" See `scale`.",
 "",
 " The size of the plot is given in screen pixels.  By default (`anchor`) each",
 " plot is drawn at the top left of the terminal window.  This is useful for",

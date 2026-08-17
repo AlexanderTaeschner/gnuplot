@@ -747,6 +747,8 @@ d2dSetFont(ID2D1RenderTarget * pRenderTarget, LPRECT rect, LPGW lpgw, LPTSTR fon
 
 	// apply fontscale
 	size *= lpgw->fontscale;
+	// apply global element scale
+	size *= lpgw->scale;
 
 	/* set up font style */
 	LPTSTR italic, bold;
@@ -1191,7 +1193,7 @@ d2d_do_draw(LPGW lpgw, ID2D1RenderTarget * pRenderTarget, LPRECT rect, bool inte
 	float align_ofs = 0.f;
 
 	/* lines */
-	double line_width = lpgw->linewidth;	/* current line width */
+	double line_width = lpgw->linewidth * lpgw->scale;	/* current line width */
 	double lw_scale = 1.;
 	LOGPEN cur_penstruct;		/* current pen settings */
 	ID2D1StrokeStyle * pSolidStrokeStyle = NULL;
@@ -1959,7 +1961,7 @@ d2d_do_draw(LPGW lpgw, ID2D1RenderTarget * pRenderTarget, LPRECT rect, bool inte
 			 * that linewidth is exactly 1 iff it's in default
 			 * state */
 			line_width = curptr->x == 100 ? 1 : (curptr->x / 100.0);
-			line_width *= lpgw->linewidth * lw_scale;
+			line_width *= lpgw->linewidth * lw_scale * lpgw->scale;
 			// Minimum line width is 1 pixel.
 			line_width = GPMAX(1, line_width);
 			/* invalidate point symbol cache */

@@ -13,22 +13,20 @@ DOCUMENTATION:
 	split figure generation across multiple scripts so that
 	docs/plotstyles.gnu does not become impossibly large
  -- pipe output of "help" through pager
+ -- Documentation and tutorial for use of plugins
 
 PLATFORMS:
 ==========
 
- -- We've seen a proof-of-principle build of gnuplot into javascript
-    running in a browser.  If the tool chain is simple enough, we could
-    make this a build target for autoconf/make.
- -- Is the VMS code still usable?
-    Last successful build *reported to us* Dec 2013
-    https://vmssoftware.com distributes a 2017 build of 5.0.2
+ -- Is Android sufficiently distinct to be worth special configuration?
 
 GNUPLOT TOOLS LIBRARY:
 ======================
 
-Make a library (e.g. usr/local/gnuplot/scripts/, .../gnuplot/bin) of 
-(a) gnuplot scripts, and (b) shell scripts relevant for gnuplot:
+Make a library e.g. usr/local/gnuplot/scripts/, .../gnuplot/bin)
+  (a) gnuplot scripts
+  (b) shell scripts relevant for gnuplot
+  (c) plugins
 
 INSTALLATION --- LINUX:
 =======================
@@ -75,8 +73,8 @@ Ethan's list of ideas for development series 6
 
 Code cleanup
 ------------
-- Matrix data should be stored as (double) not (float)
-- Audit all FIXMEs, some must be out of date
+- Matrix data should be stored as (double) not (float).
+- Audit all FIXMEs; some must be out of date.
 - Remove non-IEEE math constants?
   We no longer claim to support the architectures these conform to.
 
@@ -84,14 +82,15 @@ Build system options
 --------------------
 - OSX autoconf
 - all-qt or all-cairo build targets
-- emscriptem or WebAssembly build target
+- integration of webassembly code with Android + Qt + ???
+- configuration options to increase security
+	(e.g. limit shell access when running as a CGI back end)
 
 Terminals
 ---------
 - canvas terminal overhaul (use browser's font support)
 - possible updates for
 	dxy aquaterm
-- outboard driver for wxt
 - qt: UTF8 conversion should be done on the core side of the core <-> terminal API.
 	As it is now the program cannot handle unicode escape sequences if the
 	core code is running in a non-UTF8 locale.
@@ -119,11 +118,6 @@ Features
   e.g. extract/modify individual channels from ARGB
        accept 16-bit PNG
 - "record" function to save commands to a file separate from the history.
-  motivation:  recurring requests to allow replot of multiplots
-	set record "filename" {append}
-	...
-	unset record
-	load "filename"
 - FIR filters
    Add a new class of smoothing operations that would allow user-provided
    Savitzky–Golay filters. Smoothed value at point x[i] would be calculated
@@ -139,5 +133,4 @@ Features
 - Better integration of hidden3d and pm3d processing
 	Could pm3d quadangles and hidden3d line segments be merged, sorted,
 	and rendered together rather than separately?
-- Mousing in all subplotes of a multiplot
 

@@ -66,6 +66,13 @@
       </widget>
      </item>
      <item>
+      <widget class="QCheckBox" name="scaleOnResizeCheckBox">
+       <property name="text">
+        <string>Change terminal scale on resize</string>
+       </property>
+      </widget>
+     </item>
+     <item>
       <widget class="QCheckBox" name="roundedCheckBox">
        <property name="text">
         <string>Rounded line ends</string>

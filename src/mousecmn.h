@@ -67,6 +67,7 @@ struct gp_event_t {
     _(GE_fontprops)         /* par1 = hchar par2 = vchar */ \
     _(GE_pending)           /* signal gp_exec_event() to send pending events */ \
     _(GE_raise)             /* raise console window */ \
+    _(GE_scale)             /* refresh cached term_options from the terminal's live scale factor */ \
 
 #define GE_EVT_DEFINE_ENUM(name) name,
 enum {

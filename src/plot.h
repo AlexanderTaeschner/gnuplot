@@ -47,6 +47,7 @@ extern TBOOLEAN noinputfiles;
 extern TBOOLEAN persist_cl;
 extern TBOOLEAN slow_font_startup;
 extern TBOOLEAN reading_from_dash;
+extern int initialisation_state;
 
 extern const char *user_shell;
 

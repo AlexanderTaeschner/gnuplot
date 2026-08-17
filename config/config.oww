@@ -5,7 +5,7 @@
  */
 
 /* Define to allow use of certain deprecated syntax. */
-/* #undef BACKWARDS_COMPATIBLE */
+/* #undef BACKWARD_COMPATIBLE */
 
 /* Provide contact info for gnuplot development */
 /* #undef DEVELOPMENT_VERSION */

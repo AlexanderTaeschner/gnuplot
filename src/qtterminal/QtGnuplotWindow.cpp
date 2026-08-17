@@ -128,6 +128,7 @@ QtGnuplotWindow::QtGnuplotWindow(int id, QtGnuplotEventHandler* eventHandler, QW
 	createAction(tr("Previous zoom"), 'p', ":/images/zoomPrevious");
 	createAction(tr("Next zoom")    , 'n', ":/images/zoomNext");
 	createAction(tr("Autoscale")    , 'a', ":/images/autoscale");
+
 	m_toolBar->addAction(settingsAction);
 
 	loadSettings();
@@ -238,6 +239,7 @@ void QtGnuplotWindow::showSettingsDialog()
 	m_ui->roundedCheckBox->setCheckState(m_widget->rounded() ? Qt::Checked : Qt::Unchecked);
 	m_ui->ctrlQCheckBox->setCheckState(m_widget->ctrlQ() ? Qt::Checked : Qt::Unchecked);
 	m_ui->replotOnResizeCheckBox->setCheckState(m_widget->replotOnResize() ? Qt::Checked : Qt::Unchecked);
+	m_ui->scaleOnResizeCheckBox->setCheckState(m_widget->scaleOnResize() ? Qt::Checked : Qt::Unchecked);
 	if (m_statusBar->isVisible())
 		m_ui->mouseLabelComboBox->setCurrentIndex(0);
 	else if (m_mouseToolBar->toggleViewAction()->isChecked())
@@ -260,6 +262,7 @@ void QtGnuplotWindow::showSettingsDialog()
 		m_widget->setRounded(m_ui->roundedCheckBox->checkState() == Qt::Checked);
 		m_widget->setCtrlQ(m_ui->ctrlQCheckBox->checkState() == Qt::Checked);
 		m_widget->setReplotOnResize(m_ui->replotOnResizeCheckBox->checkState() == Qt::Checked);
+		m_widget->setScaleOnResize(m_ui->scaleOnResizeCheckBox->checkState() == Qt::Checked);
 		int statusIndex = m_ui->mouseLabelComboBox->currentIndex();
 		m_statusBarActive = (statusIndex == 0);
 		m_statusBar->setVisible(m_statusBarActive);

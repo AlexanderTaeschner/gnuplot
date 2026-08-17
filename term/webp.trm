@@ -237,10 +237,31 @@ void WEBP_text()
 	uint32_t* src = (uint32_t*) data;
 	uint32_t* dst = argb_output;
 
-	for (ix=0; ix < width; ix++, src++, dst++) {
-	    *dst = (format != CAIRO_FORMAT_ARGB32)
-		 ? (*src | 0xFF000000)
-		 : *src;
+	if (format == CAIRO_FORMAT_ARGB32) {
+	    for (ix=0; ix < width; ix++, src++, dst++) {
+		*dst = *src;
+		if (cairo_params->transparent)  {
+		    /* Cairo creates ARGB images with RGB premultiplied by Alpha
+		     * but webp wants pure Alpha + pure RGB.
+		     */
+		    if ((*src & 0xff000000) != 0 && (*src & 0xff000000) != 0xff000000) {
+			double aa = 255. / (double)((*src >> 24) & 0xff);
+			unsigned int red   = (*src >> 16) & 0xff;
+			unsigned int green = (*src >>  8) & 0xff;
+			unsigned int blue  = (*src      ) & 0xff;
+			unsigned int ured    = (double)red   * aa;
+			unsigned int ugreen  = (double)green * aa;
+			unsigned int ublue   = (double)blue  * aa;
+			*dst = (*src & 0xff000000)
+			     | (ured > 255 ? 255 : ured) << 16
+			     | (ugreen > 255 ? 255 : ugreen) << 8
+			     | (ublue > 255 ? 255 : ublue);
+		    }
+		}
+	    }
+	} else { /* format != CAIRO_FORMAT_ARGB32 */
+	    for (ix=0; ix < width; ix++, src++, dst++)
+		*dst = *src | 0xFF000000;
 	}
 
 	data += stride;
@@ -287,14 +308,15 @@ void WEBP_text()
 }
 
 /*
- * The forced re-initialization is so that plots on a transparent
- * background replace each other rather than superimposing.
+ * The forced re-initialization is so that successive plots within an
+ * animation with a transparent background replace each other rather
+ * than superimposing.
  */
 TERM_PUBLIC void
 WEBP_layer(t_termlayer layer)
 {
     if (layer == TERM_LAYER_END_TEXT) {
-	if (!in_multiplot)
+	if (webp_params.animate && !in_multiplot)
 	    term_force_init = TRUE;
     }
 }
@@ -350,7 +372,7 @@ TERM_TABLE_START (webp_driver)
     cairotrm_text_angle, cairotrm_justify_text,
     cairotrm_point, do_arrow, cairotrm_set_font,
     cairotrm_pointsize,
-    TERM_BINARY|TERM_CAN_DASH|TERM_ALPHA_CHANNEL|TERM_LINEWIDTH|TERM_FONTSCALE|TERM_POINTSCALE,
+    TERM_BINARY|TERM_CAN_DASH|TERM_ALPHA_CHANNEL|TERM_LINEWIDTH|TERM_FONTSCALE|TERM_POINTSCALE|TERM_GLOBALSCALE,
     0 /* suspend */, 0 /* resume */, cairotrm_fillbox, cairotrm_linewidth
 #ifdef USE_MOUSE
     , 0, 0, 0, 0, 0
@@ -386,10 +408,11 @@ START_HELP(webp)
 " Syntax:",
 "         set term webp",
 "                      {size <x_pixels>,<y_pixels>}",
-"                      {font <font>} {fontscale <scale>} {{no}enhanced}",
+"                      {{no}enhanced}",
+"                      {font <font>} {fontscale <scale>}",
 "                      {{no}transparent} {background <rgbcolor>",
 "                      {linewidth <lw>} {rounded|butt|square} {dashlength <dl>}",
-"                      {pointscale <ps>}",
+"                      {pointscale <ps>} {scale <value>}",
 "",
 "                      {{no}animate {quality <q>} {delay <msec>} {loop <n>}}",
 "",

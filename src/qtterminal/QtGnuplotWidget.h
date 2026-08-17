@@ -60,6 +60,7 @@ class QtGnuplotScene;
 class QGraphicsView;
 class QSettings;
 class QLabel;
+class QTimer;
 
 class QtGnuplotWidget : public QWidget, public QtGnuplotEventReceiver
 {
@@ -93,6 +94,7 @@ public:
 	bool rounded() const { return m_rounded; }
 	bool ctrlQ() const { return m_ctrlQ; }
 	bool replotOnResize() const { return m_replotOnResize; }
+	bool scaleOnResize() const { return m_scaleOnResize; }
 	const QColor& backgroundColor() const { return m_backgroundColor; }
 	bool statusLabelActive() const { return m_statusLabelActive; }
 
@@ -100,6 +102,7 @@ public:
 	void setRounded(bool value);
 	void setCtrlQ(bool value);
 	void setReplotOnResize(bool value);
+	void setScaleOnResize(bool value) { m_scaleOnResize = value; }
 	void setBackgroundColor(const QColor& color);
 	void setStatusLabelActive(bool active);
 
@@ -113,6 +116,9 @@ public slots:
 	void exportToEps();
 	void exportToImage(const QString& fileName);
 	void exportToSvg(const QString& fileName);
+
+private slots:
+	void deferredReplot();
 
 // Qt functions
 protected:
@@ -139,10 +145,13 @@ private:
 	// Settings
 	bool m_antialias;
 	bool m_replotOnResize;
+	bool m_scaleOnResize;
 	bool m_statusLabelActive;
 
 	static int m_widgetUid;
 	bool m_skipResize;
+	// Single-shot timer used to defer replot until resizing pauses
+	QTimer* m_resizeTimer;
 };
 
 #endif // QTGNUPLOTWIDGET_H
