@@ -40,7 +40,7 @@ int curly_brace_count;
 
 static int get_num(char str[]);
 
-#if !defined(DISABLE_BACKTICKS)
+#if defined(ENABLE_BACKTICKS)
 static void substitute(char **strp, size_t *str_lenp, int current);
 #endif
 
@@ -134,7 +134,7 @@ scanner(char **expressionp, size_t *expressionlenp)
 
 	/* Expand a backtick shell escape that is not in a quote */
 	if (expression[current] == '`') {
-#if !defined(DISABLE_BACKTICKS)
+#if defined(ENABLE_BACKTICKS)
 	    substitute(expressionp, expressionlenp, current);
 	    expression = *expressionp;	/* expression might have moved */
 	    current--;
@@ -202,7 +202,7 @@ scanner(char **expressionp, size_t *expressionlenp)
 			&& expression[current + 1]) {
 		    current++;
 		    token[t_num].length += 2;
-#if !defined(DISABLE_BACKTICKS)
+#if defined(ENABLE_BACKTICKS)
 		} else if (quote == '\"' && expression[current] == '`') {
 		    substitute(expressionp, expressionlenp, current);
 		    expression = *expressionp;	/* it might have moved */
@@ -342,7 +342,7 @@ get_num(char str[])
     return (count);
 }
 
-#if !defined(DISABLE_BACKTICKS)
+#if defined(ENABLE_BACKTICKS)
 /* substitute output from `<shell command>`
  * *strp points to the input string.  (*strp)[current] is expected to
  * be the initial back tic.  Characters through the following back tic
@@ -406,4 +406,4 @@ substitute(char **strp, size_t *str_lenp, int current)
     screen_ok = FALSE;
 
 }
-#endif /* DISABLE_BACKTICKS */
+#endif /* ENABLE_BACKTICKS */

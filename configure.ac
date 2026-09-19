@@ -1131,14 +1131,11 @@ fi
 AC_ARG_ENABLE(backticks,dnl
   [--enable-backticks             execute backtick text as a shell command (old behavior)
   --disable-backticks            never execute backtick text as a shell command (default)
-
-  ],
-  [ if test $enable_backticks != yes; then
-      AC_DEFINE(DISABLE_BACKTICKS,1,
-            [ Define to disable execution of shell commands in backticks. ])
-    fi
-  ],)
-
+  ],,)
+if test $enable_backticks = yes; then
+      AC_DEFINE(ENABLE_BACKTICKS,1,
+            [ Define to execute text in backticks as a shell command. ])
+fi
 
 AC_ARG_ENABLE(pipes,dnl
   [--enable-pipes                 allow piped input and output (default)
@@ -1543,9 +1540,9 @@ fi
 if test "$enable_system_command"  = no; then
   AC_MSG_RESULT([  system command:                disabled])
 else
-  AC_MSG_RESULT([  system command:                enabled (default, pre-version 6 behavior)])
+  AC_MSG_RESULT([  system command:                enabled (default, pre-version 6.1 behavior)])
 fi
-  AC_MSG_RESULT([                                 includes system() function and leading !])
+  AC_MSG_RESULT([                                 includes system() function and leading '!'])
 
 if test "$enable_backticks" = yes; then
   AC_MSG_RESULT([  shell escapes in backticks:    allowed except in single quoted strings (old behavior)])

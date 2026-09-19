@@ -1175,12 +1175,10 @@ show_version(FILE *fp)
 	"--enable-system-command"
 #endif
 	,
-#if defined(DISABLE_BACKTICKS_ALWAYS)
-	"--disable-backticks"
-#elif defined(DISABLE_BACKTICKS_QUOTED)
-	"--enable-backticks=unquoted"
-#else
+#if defined(ENABLE_BACKTICKS)
 	"--enable-backticks"
+#else
+	"--disable-backticks"
 #endif
 	,
 #ifdef PIPES
