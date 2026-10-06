@@ -4,7 +4,7 @@ Notes on security-related configuration options
 When gnuplot is running interactively from a terminal session, it allows
 the user to read and write files and to pipe input or output data through
 arbitrary system commands for further processing.  These operations are
-central to the program's core function.  In addition, Gnuplot provides
+central to the program's core function.  Beyond this, Gnuplot provides
 several mechanisms to pass arbitrary commands through to a system shell.
 These mechanisms are not strictly essential, but add to the flexibility
 and convenience of the program's primary function.
@@ -21,7 +21,7 @@ reduction in gnuplot's core functionality.
 
 (1) Gnuplot may be invoked by a user to run non-interactively using input
     commands from a previously prepared script file.  That script file may
-    invoke system commands that are not appropriate in current session.
+    invoke system commands that are not appropriate in the current session.
 
 (2) Gnuplot may be invoked as a back end to produce plots based on
     user-supplied input provided interactively through a kiosk interface.
@@ -152,11 +152,35 @@ scenario 3.
  --disable-pipes
 	        Reject filenames beginning with "<" or "|"
 
+Enable/Disable file export widgets in wxt and qt terminals
+==========================================================
+
+The wxt and qt terminals provide a file export widget on the toolbar of
+the plot window that converts the content of the plot window to a selected 
+image format and saves it to a user-specified file.  File export by
+itself does not add any security concerns, since gnuplot writes out image
+files as part of its normal function.  However in the export widgets the
+output file is selected via a file browser that potentially allows the user
+to view all directories in the system.  This may be undesireable if gnuplot
+is being run in a kiosk-like enviroment.  Since file export to arbitrary
+files is unlikely to be required in such an environment, the export widgets
+do not provide any benefit.  Therefore they may be disabled without loss
+of functionality.
+
+This configuration option does not remove the file-export widgets from the
+Windows terminal toolbar.
+
+  --enable-filebrowsers (default)
+		The wxt and qt terminals provide an export widget that
+		saves the current plot display to a file
+  --disable-filebrowsers
+		The wxt and qt terminals do not provide an export widget
 
 Default configuration
 =====================
 
   ./configure --disable-shell --disable-backticks \
-              --enable-system-command --enable-pipes
+              --enable-system-command --enable-pipes --enable-filebrowsers
 
 
+last updated: November 2026
