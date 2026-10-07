@@ -64,25 +64,6 @@
  * ANSI C functions
  */
 
-/* memcpy() */
-
-#ifndef HAVE_MEMCPY
-# ifndef HAVE_BCOPY
-/*
- * cheap and slow version of memcpy() in case you don't have one
- */
-
-char *
-memcpy(char *dest, char *src, size_t len)
-{
-    while (len--)
-	*dest++ = *src++;
-
-    return dest;
-}
-# endif				/* !HAVE_BCOPY */
-#endif /* HAVE_MEMCPY */
-
 /* strchr()
  * Simple and portable version, conforming to Plauger.
  * Would this be more efficient as a macro?
@@ -102,26 +83,6 @@ strchr(const char *s, int c)
 }
 # endif				/* !HAVE_INDEX */
 #endif /* HAVE_STRCHR */
-
-
-/* memset ()
- *
- * Since we want to use memset, we have to map a possibly nonzero fill byte
- * to the bzero function. The following defined might seem a bit odd, but I
- * think this is the only possible way.
- */
-
-#ifndef HAVE_MEMSET
-# ifdef HAVE_BZERO
-#  define memset(s, b, l) \
-do {                      \
-  assert((b)==0);         \
-  bzero((s), (l));        \
-} while(0)
-#  else
-#  define memset NO_MEMSET_OR_BZERO
-# endif /* HAVE_BZERO */
-#endif /* HAVE_MEMSET */
 
 
 /* strerror() */

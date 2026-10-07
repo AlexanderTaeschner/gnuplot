@@ -51,19 +51,6 @@
 # include <strings.h>
 #endif
 
-#ifdef HAVE_BCOPY
-# ifndef HAVE_MEMCPY
-#  define memcpy(d,s,n) bcopy((s),(d),(n))
-# endif
-# ifndef HAVE_MEMMOVE
-#  define memmove(d,s,n) bcopy((s),(d),(n))
-# endif
-#else
-# ifndef HAVE_MEMCPY
-char * memcpy(char *, char *, size_t);
-# endif
-#endif /* HAVE_BCOPY */
-
 #ifndef HAVE_STRCHR
 # ifdef strchr
 #  undef strchr

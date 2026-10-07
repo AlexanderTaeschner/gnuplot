@@ -346,8 +346,7 @@ dnl sunos 4 has on_exit() in place of atexit()
 dnl gamma is called lgamma linux
 dnl we prefer lgamma over gamma, see specfun.c
 dnl math lib is already available, see operating systems part
-AC_CHECK_FUNCS(atexit memcpy memmove memset \
-  on_exit bcopy bzero \
+AC_CHECK_FUNCS(atexit on_exit \
   setvbuf strerror strchr strrchr strstr \
   index rindex \
   erf erfc gamma lgamma tgamma \
