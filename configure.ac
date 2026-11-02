@@ -763,14 +763,6 @@ dnl end caca
 
 dnl Process rest of with and enable options
 
-dnl without-extra-coordinate may leave a hole in "struct coordinate"
-AC_ARG_ENABLE(extra-coordinate,dnl
-[  --disable-extra-coordinate    leave possible hole in struct coordinate],,)
-if test "$enable_extra_coordinate" != no; then
-     AC_DEFINE(WITH_EXTRA_COORDINATE,1,
-               [ Define to make use of otherwise empty space in struct coordinate ])
-fi
-
 dnl enable multi-byte font support in x11 terminal
 AC_ARG_ENABLE(x11-mbfonts,dnl
 [  --disable-x11-mbfonts   disable multi-byte font support for x11 ],,

@@ -1155,17 +1155,10 @@ show_version(FILE *fp)
 	c_token++;
 	fprintf(stderr, "\nCompile options:\n%s", compile_options);
 	fprintf(stderr, "    %d-bit integer arithmetic\n",(int)sizeof(intgr_t)*8);
-
-#ifdef WITH_EXTRA_COORDINATE
 	fprintf(stderr, "    sizeof(struct coordinate) = %d with extra coordinate\n",
 		(int)(sizeof(struct coordinate)));
 	if (sizeof(struct coordinate) > sizeof(struct gen_coord))
-	    fprintf(stderr, "\tThis is a waste of space. "\
-	    "You should reconfigure using --without-extra-coordinate\n");
-#else
-	fprintf(stderr, "    sizeof(struct coordinate) = %d without extra coordinate\n",
-		(int)(sizeof(struct coordinate)));
-#endif
+	    fprintf(stderr, "\tThis is a waste of space.\n");
 
 	{
 	    char *driverdir = getenv("GNUPLOT_DRIVER_DIR");

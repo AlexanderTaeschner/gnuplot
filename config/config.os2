@@ -695,9 +695,6 @@
 /* Define to support Delaunay triangulation and chi-shapes */
 #define WITH_CHI_SHAPES 1
 
-/* Define to make use of otherwise empty space in struct coordinate */
-/* #undef WITH_EXTRA_COORDINATE */
-
 /* Define if qsort on your O/S is unstable and that bothers you. */
 #define WITH_STABLE_SORT 1
 
