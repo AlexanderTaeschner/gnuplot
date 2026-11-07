@@ -1022,7 +1022,7 @@ void wxtPanel::Draw()
 	wxBufferedDC buffered_dc(&dc, wxSize(plot.device_xmax, plot.device_ymax));
 	wxRegion region(0, 0, plot.device_xmax, plot.device_ymax);
 	DrawToDC(buffered_dc, region);
-#ifdef GDK_WINDOWING_WAYLAND
+#if defined(GDK_WINDOWING_WAYLAND) && defined(wxDisplayWayland)
 	/* Refresh() is necessary with the gdk wayland backend (as opposed to x11).
 	 * Unfortunately this call is not sufficient to force drawing of temporary
 	 * elements such as the zoom box.
@@ -1126,7 +1126,7 @@ void wxtPanel::DrawToDC(wxDC &dc, wxRegion &region)
 		 * so it will be issued later and we can disable it now.
 		 * This does not work under wayland, which requires a refresh every time.
 		 */
-#ifdef GDK_WINDOWING_WAYLAND
+#if defined(GDK_WINDOWING_WAYLAND) && defined(wxDisplayWayland)
 		if (wxGetDisplayInfo().type == wxDisplayWayland) {
 			return;
 		} else
