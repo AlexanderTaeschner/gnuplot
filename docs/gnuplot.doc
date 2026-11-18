@@ -9537,7 +9537,6 @@ Ffigure_zerror
       plot FOO using x:y convexhull smooth path
       plot FOO using x:y convexhull expand <increment> {smooth path}
 
-Ffigure_convex_hull
  The points in FOO are replaced by a subset of the original points that
  constitute the unique bounding convex polygon, the convex hull.
  The vertices of this polygon are output in clockwise order to form a closed
@@ -9547,6 +9546,7 @@ Ffigure_convex_hull
  of an image or a pm3d surface that contains all the original data points.
  See `masking`.
 
+Ffigure_convex_hull
  If the keyword `smooth` is present, the vertices are then used as guide
  points to generate a smooth closed curve (see `smooth path`). By default
  this smoothed curve runs through the bounding points.
@@ -9569,6 +9569,9 @@ Ffigure_convex_hull
  Concavehull is not a plot style. It is a filter that finds a bounding
  polygon, a "hull",  of the input data points and replaces the original points
  with an ordered subset of points that lie along the perimeter of this polygon.
+
+      plot FOO using x:y concavehull {expand <increment>} {smooth path}
+
  Unlike the convex hull, which is uniquely defined for any set of points, more
  than one concave hull is possible.  Various schemes for selecting a concave
  hull exist; gnuplot generates hulls that are χ-shapes as defined by
@@ -9598,7 +9601,6 @@ Ffigure_concave_hull_2
  which is 0.6 of the length of the longest edge in the convex hull.
  You can change the fraction of the longest edge used as a default with the
  command `set chi_shape fraction <value>`
-
  The value of `chi_length` used in the current plot, whether provided by the
  user or chosen by the program, is saved to variable GPVAL_CHI_LENGTH.
 
