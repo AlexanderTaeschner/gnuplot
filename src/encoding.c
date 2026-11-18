@@ -153,7 +153,7 @@ encoding_from_locale(void)
 	    encoding = S_ENC_CP950;
 	/* FIXME: "set encoding locale" has only limited support on non-Windows systems */
 	free(locale_encoding);
-	locale_encoding = strdup(l);
+	locale_encoding = gp_strdup(l);
     }
 #endif
     return encoding;

@@ -387,11 +387,11 @@ try_to_get_string()
 
 
 /* Our own version of strdup()
- * Make copy of string into gp_alloc'd memory
- * As with all conforming str*() functions,
- * it is the caller's responsibility to pass
- * valid parameters!
- */
+ * Make a copy of string into gp_alloc'd memory
+ * Unlike POSIX/libc strdup(),
+ *   gp_strdup(NULL) returns NULL
+ * rather than faulting.
+*/
 char *
 gp_strdup(const char *s)
 {
@@ -1452,6 +1452,8 @@ getusername()
 size_t
 gp_strlen(const char *s)
 {
+    if (s == NULL)
+	return 0;
     if (encoding == S_ENC_UTF8)
 	return strlen_utf8(s);
     else if (encoding == S_ENC_SJIS)
