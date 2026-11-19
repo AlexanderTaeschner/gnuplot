@@ -1662,7 +1662,7 @@ HPGL2_set_font(const char *font)
     safe_strncpy(name, font, sizeof(name));
 
     /* determine font size, use default from options if invalid */
-    sep = strchr(font, ',');
+    sep = strchr(name, ',');
     if (sep) {
 	double req_size = strtod(sep+1, NULL);
 	if (req_size > 0)
@@ -1675,6 +1675,7 @@ HPGL2_set_font(const char *font)
 static int
 HPGL2_set_font_size(const char *font, double size)
 {
+    char name[MAX_ID_LEN + 1];
     struct termentry *t = term;
     int i;
     TBOOLEAN italic = FALSE;
@@ -1685,15 +1686,19 @@ HPGL2_set_font_size(const char *font, double size)
     HPGL2_end_poly();
 
 /* determine font, use default from options if invalid */
-    if ((p1 = strstr(font, ":Italic")) != NULL)
+    if (font == NULL)
+	font = "";
+    safe_strncpy(name, font, sizeof(name));
+
+    if ((p1 = strstr(name, ":Italic")) != NULL)
 	italic = TRUE;
-    if ((p2 = strstr(font, ":Bold")) != NULL)
+    if ((p2 = strstr(name, ":Bold")) != NULL)
 	bold = TRUE;
     if (p1 != NULL)
 	*p1 = NUL;
     if (p2 != NULL)
 	*p2 = NUL;
-    for (i = 0; i < HPGL2_FONTS && !almost_equal_string(font, HPGL2_font_table[i].compare) && !almost_equal_string(font, HPGL2_font_table[i].alt); i++);
+    for (i = 0; i < HPGL2_FONTS && !almost_equal_string(name, HPGL2_font_table[i].compare) && !almost_equal_string(name, HPGL2_font_table[i].alt); i++);
     if (i >= HPGL2_FONTS)
 	i = HPGL2_font_num;
 /* apply font changes only if necessary */
