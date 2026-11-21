@@ -327,7 +327,12 @@ load_file(FILE *fp, char *name, int calltype)
 		    left = gp_input_line_len - len;
 		    if (left <= MAX_LINE_LEN) {
 			extend_input_line();
-			left = gp_input_line_len - len;
+			/* Test if read ended early due to full buffer */
+			if (left <= 1) {
+			    start = len;
+			    left = gp_input_line_len - start;
+			    continue;
+			}
 		    }
 		} else if (datablock_input_line) {
 		    int chunk_len = strlen(*datablock_input_line);
