@@ -328,7 +328,7 @@ load_file(FILE *fp, char *name, int calltype)
 		    if (left <= MAX_LINE_LEN) {
 			extend_input_line();
 			/* Test if read ended early due to full buffer */
-			if (left <= 1) {
+			if (left <= 1 && (gp_input_line[len-1] != '\n')) {
 			    start = len;
 			    left = gp_input_line_len - start;
 			    continue;
