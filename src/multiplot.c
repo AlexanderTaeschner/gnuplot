@@ -871,6 +871,8 @@ save_axis_mapping(AXIS *axis, axis_mapping *map)
 	map->active = FALSE;
     else
 	map->active = TRUE;
+   /* the caller will set this */
+   map->link_primary = FALSE;
 }
 
 void
@@ -885,6 +887,11 @@ save_all_axis_mappings()
     r_mapping[p].active = polar;
     theta_mapping[p].min = theta_origin;
     theta_mapping[p].max = theta_direction;
+
+    if (axis_array[FIRST_X_AXIS].linked_to_secondary == &axis_array[SECOND_X_AXIS])
+	x_mapping[p].link_primary = TRUE;
+    if (axis_array[FIRST_Y_AXIS].linked_to_secondary == &axis_array[SECOND_Y_AXIS])
+	x_mapping[p].link_primary = TRUE;
 
     /* y axis coordinate direction in "set view map" mode is inverted */
     if (panel_flags[p] & PANEL_SPLOT) {
@@ -919,17 +926,19 @@ set_panel_flag(unsigned int flag)
 static void
 restore_axis_mapping(AXIS *axis, axis_mapping *map)
 {
-    /* This axis is currently nonlinear. Clear it first. */
+    /* This axis is currently linked or nonlinear. Clear it first. */
     if (axis->link_udf && axis->link_udf->at && !axis->log) {
 	static char command[64];
+	sprintf(command, "unset link %s", axis_name(axis->index));
+	do_string(command);
 	sprintf(command, "unset nonlinear %s", axis_name(axis->index));
 	do_string(command);
     }
 
     /* Panel contains a non-linear axis; we cannot handle that */
     if (map->nonlinear) {
-	FPRINTF((stderr, "warning: Cannot restore nonlinear mapping of %s axis in panel %d\n",
-		axis_name(axis->index), panel));
+	FPRINTF((stderr, "warning: Cannot restore nonlinear mapping of %s axis\n",
+		axis_name(axis->index)));
     }
 
     /* Load set_min/set_max so that zoomed min/max value persist across

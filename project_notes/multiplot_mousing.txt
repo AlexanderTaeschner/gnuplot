@@ -116,11 +116,14 @@ handled as follows
 Limitations
 -----------
 
-  - No mouse readout or pan/zoom operations are attempted for nonlinear
-    axes because there is no guarantee that the "via" and "inverse" mapping
-    functions are still present.  If the nonlinear mapping is set up as
-    part of the command sequence for that panel then the panel will display
-    correctly after "replot" even though there is no mouse readout.
+  - Linked or nonlinear axes: No mouse readout or pan/zoom operations are
+    attempted for "link"ed or nonlinear axes because there is no guarantee
+    that the "via" and "inverse" mapping functions are still present.
+    However, if the nonlinear mapping is set up as part of the command
+    sequence for that panel then the panel will display correctly after
+    "replot" or "remultiplot" even though there is no mouse readout.
+
+  - Log scaling is handled separately, so it avoids the above restriction.
 
   - The per-panel data structures have fixed dimension MAX_PANELS.
     This is the maximum number of multiplot panels that are responsive
@@ -140,5 +143,4 @@ Limitations
     change terminals and replot to, e.g., a pdf file for output.
     However the data structures holding the modified axis ranges and
     view angles are not available for saving or printing, so there is
-    no way to write out a script that reproduces what you see on the
-    screen.
+    no way to write out a script that reproduces what you see on the screen.

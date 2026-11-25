@@ -4581,12 +4581,17 @@ WndGraphProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 				return 0L;
 			case WM_MOUSEWHEEL:	/* shige, BM : mouse wheel support */
 			case WM_MOUSEHWHEEL: {
+				/* Accumulate increments up to WHEEL_DELTA before
+				   sending an event to the gnuplot core */
+				static int wheel_accum[2] = { 0, 0 };
 				WORD fwKeys;
 				short int zDelta;
 				int modifier_mask;
+				int axis = (message == WM_MOUSEWHEEL) ? 0 : 1;
+				int button;
 
-				fwKeys = LOWORD(wParam);
-				zDelta = HIWORD(wParam);
+				fwKeys = GET_KEYSTATE_WPARAM(wParam);
+				zDelta = GET_WHEEL_DELTA_WPARAM(wParam);
 				modifier_mask = ((fwKeys & MK_SHIFT)? Mod_Shift : 0) |
 				                ((fwKeys & MK_CONTROL)? Mod_Ctrl : 0) |
 				                ((fwKeys & MK_ALT)? Mod_Alt : 0);
@@ -4594,12 +4599,18 @@ WndGraphProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 					Wnd_exec_event(lpgw, lParam, GE_modifier, modifier_mask);
 					last_modifier_mask = modifier_mask;
 				}
-				if (message == WM_MOUSEWHEEL) {
-					Wnd_exec_event(lpgw, lParam, GE_buttonpress, zDelta > 0 ? 4 : 5);
-					Wnd_exec_event(lpgw, lParam, GE_buttonrelease, zDelta > 0 ? 4 : 5);
-				} else {
-					Wnd_exec_event(lpgw, lParam, GE_buttonpress, zDelta > 0 ? 6 : 7);
-					Wnd_exec_event(lpgw, lParam, GE_buttonrelease, zDelta > 0 ? 6 : 7);
+				/* discard the remainder when the direction is reversed */
+				if ((wheel_accum[axis] > 0 && zDelta < 0) || (wheel_accum[axis] < 0 && zDelta > 0))
+					wheel_accum[axis] = 0;
+				wheel_accum[axis] += zDelta;
+				while (abs(wheel_accum[axis]) >= WHEEL_DELTA) {
+					if (axis == 0)
+						button = wheel_accum[axis] > 0 ? 4 : 5;
+					else
+						button = wheel_accum[axis] > 0 ? 6 : 7;
+					Wnd_exec_event(lpgw, lParam, GE_buttonpress, button);
+					Wnd_exec_event(lpgw, lParam, GE_buttonrelease, button);
+					wheel_accum[axis] -= (wheel_accum[axis] > 0) ? WHEEL_DELTA : -WHEEL_DELTA;
 				}
 				return 0L;
 			}

@@ -46,6 +46,7 @@
 #include "encoding.h"	/* for advance_one_utf8_char */
 #include "parse.h"	/* for string_result_only */
 #include "datafile.h"	/* for evaluate_inside_using */
+#include "overflow.h"	/* for gp_ckd_{add,sub,mul}_intgr() */
 
 #include <math.h>
 
@@ -374,14 +375,15 @@ f_sum(union argument *arg)
 	if (!integer_terms)
 	    continue;
 
-	/* So long as the individual terms are integral */
-	/* keep an integer sum as well.			*/
+	/* So long as the individual terms are integral,
+	 * keep an integer sum as well.
+	 * Check for integer overflow
+	 */
+	if (overflow_handling == INT64_OVERFLOW_IGNORE) {
 	llsum += f_i.v.int_val;
-
-	/* Check for integer overflow */
-	if (overflow_handling == INT64_OVERFLOW_IGNORE)
 	    continue;
-	if (sgn(result.v.cmplx_val.real) != sgn(llsum))  {
+	}
+	if (gp_ckd_add_intgr(&llsum, llsum, f_i.v.int_val)) {
 	    integer_terms = FALSE;
 	    if (overflow_handling == INT64_OVERFLOW_TO_FLOAT)
 		continue;
@@ -451,14 +453,15 @@ f_prod(union argument *arg)
 	if (!integer_terms)
 	    continue;
 
-	/* So long as the individual terms are integral */
-	/* keep an integer product as well.		*/
+	/* So long as the individual terms are integral,
+	 * keep an integer product as well.
+	 * Check for integer overflow
+	 */
+	if (overflow_handling == INT64_OVERFLOW_IGNORE) {
 	llprod *= f_i.v.int_val;
-
-	/* Check for integer overflow */
-	if (overflow_handling == INT64_OVERFLOW_IGNORE)
 	    continue;
-	if (sgn(result.v.cmplx_val.real) != sgn(llprod))  {
+	}
+	if (gp_ckd_mul_intgr(&llprod, llprod, f_i.v.int_val)) {
 	    integer_terms = FALSE;
 	    if (overflow_handling == INT64_OVERFLOW_TO_FLOAT)
 		continue;
@@ -927,7 +930,7 @@ void
 f_plus(union argument *arg)
 {
     struct value a, b, result;
-    double temp;
+    intgr_t int_sum;
 
     (void) arg;			/* avoid -Wunused warning */
     (void) pop(&b);
@@ -936,17 +939,19 @@ f_plus(union argument *arg)
     case INTGR:
 	switch (b.type) {
 	case INTGR:
-	    (void) Ginteger(&result, a.v.int_val +
-			    b.v.int_val);
 	    /* Check for overflow */
-	    if (overflow_handling == INT64_OVERFLOW_IGNORE)
+	    if (overflow_handling == INT64_OVERFLOW_IGNORE) {
+		int_sum = a.v.int_val + b.v.int_val;
+		(void) Ginteger(&result, int_sum);
 		break;
-	    temp = (double)(a.v.int_val) + (double)(b.v.int_val);
-	    if (sgn(temp) != sgn(result.v.int_val))
+	    }
+	    if (gp_ckd_add_intgr(&int_sum, a.v.int_val, b.v.int_val)) {
 		switch (overflow_handling) {
-		    case INT64_OVERFLOW_TO_FLOAT:
-			    Gcomplex(&result, temp, 0.0);
+		    case INT64_OVERFLOW_TO_FLOAT: {
+			double float_sum = (double)(a.v.int_val) + (double)(b.v.int_val);
+			Gcomplex(&result, float_sum, 0.0);
 			break;
+		    }
 		    case INT64_OVERFLOW_UNDEFINED:
 			undefined = TRUE;
 		    case INT64_OVERFLOW_NAN:
@@ -955,6 +960,10 @@ f_plus(union argument *arg)
 		    default:
 			break;
 		}
+	    } else {
+		/* The simple case (no overflow) */
+		(void) Ginteger(&result, int_sum);
+	    }
 	    break;
 	case CMPLX:
 	    (void) Gcomplex(&result, a.v.int_val +
@@ -993,7 +1002,7 @@ void
 f_minus(union argument *arg)
 {
     struct value a, b, result;
-    double temp;
+    intgr_t int_diff;
 
     (void) arg;			/* avoid -Wunused warning */
     (void) pop(&b);
@@ -1002,17 +1011,19 @@ f_minus(union argument *arg)
     case INTGR:
 	switch (b.type) {
 	case INTGR:
-	    (void) Ginteger(&result, a.v.int_val -
-			    b.v.int_val);
 	    /* Check for overflow */
-	    if (overflow_handling == INT64_OVERFLOW_IGNORE)
+	    if (overflow_handling == INT64_OVERFLOW_IGNORE) {
+		int_diff = a.v.int_val - b.v.int_val;
+		(void) Ginteger(&result, int_diff);
 		break;
-	    temp = (double)(a.v.int_val) - (double)(b.v.int_val);
-	    if (sgn(temp) != sgn(result.v.int_val))
+	    }
+	    if (gp_ckd_sub_intgr(&int_diff, a.v.int_val, b.v.int_val)) {
 		switch (overflow_handling) {
-		    case INT64_OVERFLOW_TO_FLOAT:
-			    Gcomplex(&result, temp, 0.0);
+		    case INT64_OVERFLOW_TO_FLOAT: {
+			double float_diff = (double)(a.v.int_val) - (double)(b.v.int_val);
+			Gcomplex(&result, float_diff, 0.0);
 			break;
+		    }
 		    case INT64_OVERFLOW_UNDEFINED:
 			undefined = TRUE;
 		    case INT64_OVERFLOW_NAN:
@@ -1021,6 +1032,10 @@ f_minus(union argument *arg)
 		    default:
 			break;
 		}
+	    } else {
+		/* The simple case (no overflow) */
+		(void) Ginteger(&result, int_diff);
+	    }
 	    break;
 	case CMPLX:
 	    (void) Gcomplex(&result, a.v.int_val -
@@ -1059,7 +1074,6 @@ void
 f_mult(union argument *arg)
 {
     struct value a, b, result;
-    double float_product;
     intgr_t int_product;
 
     (void) arg;			/* avoid -Wunused warning */
@@ -1070,24 +1084,18 @@ f_mult(union argument *arg)
     case INTGR:
 	switch (b.type) {
 	case INTGR:
-	    /* The test for overflow is complicated because (double)
-	     * does not have enough precision to simply compare against
-	     * 64-bit INTGR_MAX.
-	     */
-	    int_product = a.v.int_val * b.v.int_val;
-	    float_product = (double)a.v.int_val * (double)b.v.int_val;
-	    if ((fabs(float_product) > 2*LARGEST_GUARANTEED_NONOVERFLOW)
-		|| ((fabs(float_product) > LARGEST_GUARANTEED_NONOVERFLOW)
-		    && (sgn(float_product) != sgn(int_product)))) {
+	    /* Check for integer overflow */
+	    if (gp_ckd_mul_intgr(&int_product, a.v.int_val, b.v.int_val)) {
+		double float_product = (double)a.v.int_val * (double)b.v.int_val;
 		if (overflow_handling == INT64_OVERFLOW_UNDEFINED)
 		    undefined = TRUE;
 		if (overflow_handling == INT64_OVERFLOW_NAN)
 		    float_product = not_a_number();
 		(void) Gcomplex(&result, float_product, 0.0);
-		break;
-	    }
+	    } else {
 	    /* The simple case (no overflow) */
 	    (void) Ginteger(&result, int_product);
+	    }
 	    break;
 	case CMPLX:
 	    (void) Gcomplex(&result, a.v.int_val *
@@ -1266,13 +1274,10 @@ f_power(union argument *arg)
 	    Ginteger(&result, 1);
 	} else if (b.v.int_val > 0) {
 	    /* deal with overflow by empirical check */
-	    intgr_t tprev, t;
+	    intgr_t t = 1;
 	    intgr_t tmag = llabs(a.v.int_val);
-	    tprev = t = 1;
 	    for (i = 0; i < b.v.int_val; i++) {
-		tprev = t;
-		t *= tmag;
-		if (t < tprev)
+		if (gp_ckd_mul_intgr(&t, t, tmag))
 		    goto integer_power_overflow;
 	    }
 	    if (a.v.int_val < 0) {
@@ -1510,11 +1515,11 @@ f_strstrt(union argument *arg)
 
     /* Convert escape sequences in both needle and haystack */
     expanded_string = expand_unicode_escapes(needle.v.string_val, FALSE);
-    free(needle.v.string_val);
-    needle.v.string_val = expanded_string;
+    gpfree_string(&needle);
+    Gstring(&needle, expanded_string);
     expanded_string = expand_unicode_escapes(haystack.v.string_val, FALSE);
-    free(haystack.v.string_val);
-    haystack.v.string_val = expanded_string;
+    gpfree_string(&haystack);
+    Gstring(&haystack, expanded_string);
 
     start = strstr(haystack.v.string_val, needle.v.string_val);
     if (start == 0) {
@@ -2213,6 +2218,10 @@ f_system(union argument *arg)
     /* Retrieve parameters from top of stack */
     (void) arg;
     pop(&val);
+
+#if defined(DISABLE_SYSTEM_COMMAND)
+    int_error(NO_CARET, "This copy of gnuplot does not support system commands");
+#endif
 
     /* Make sure parameters are of the correct type */
     if (val.type != STRING)

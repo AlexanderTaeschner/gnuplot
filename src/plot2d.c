@@ -1852,6 +1852,8 @@ box_range_fiddling(struct curve_points *plot)
     double xlow, xhigh;
     int i = plot->p_count - 1;
 
+    if (plot->noautoscale)
+	return;
     if (i <= 0)
 	return;
     if (axis_array[plot->x_axis].autoscale & AUTOSCALE_MIN) {

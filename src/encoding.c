@@ -87,6 +87,11 @@ encoding_from_locale(void)
 #ifdef HAVE_LOCALE_H
     char * cp_str;
 
+    // override setlocale() via environment
+    l = getenv("LANG");
+    if (l && (strstr(l, "utf") || strstr(l, "UTF")))
+	return S_ENC_UTF8;
+
     l = setlocale(LC_CTYPE, "");
     /* preserve locale string, skip language information */
     if ((l != NULL) && (cp_str = strchr(l, '.')) != NULL) {
@@ -148,7 +153,7 @@ encoding_from_locale(void)
 	    encoding = S_ENC_CP950;
 	/* FIXME: "set encoding locale" has only limited support on non-Windows systems */
 	free(locale_encoding);
-	locale_encoding = strdup(l);
+	locale_encoding = gp_strdup(l);
     }
 #endif
     return encoding;

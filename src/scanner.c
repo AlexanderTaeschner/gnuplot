@@ -39,7 +39,10 @@
 int curly_brace_count;
 
 static int get_num(char str[]);
+
+#if defined(ENABLE_BACKTICKS)
 static void substitute(char **strp, size_t *str_lenp, int current);
+#endif
 
 #define isident(c) (isalnum((unsigned char)(c)) || (c) == '_' || ALLOWED_8BITVAR(c))
 
@@ -129,12 +132,16 @@ scanner(char **expressionp, size_t *expressionlenp)
 	token[t_num].length = 1;
 	token[t_num].is_token = TRUE;	/* to start with... */
 
+	/* Expand a backtick shell escape that is not in a quote */
 	if (expression[current] == '`') {
+#if defined(ENABLE_BACKTICKS)
 	    substitute(expressionp, expressionlenp, current);
 	    expression = *expressionp;	/* expression might have moved */
 	    current--;
+#endif
 	    continue;
 	}
+
 	/* allow _ to be the first character of an identifier */
 	/* allow 8bit characters in identifiers */
 	if (isalpha((unsigned char)expression[current])
@@ -195,10 +202,12 @@ scanner(char **expressionp, size_t *expressionlenp)
 			&& expression[current + 1]) {
 		    current++;
 		    token[t_num].length += 2;
+#if defined(ENABLE_BACKTICKS)
 		} else if (quote == '\"' && expression[current] == '`') {
 		    substitute(expressionp, expressionlenp, current);
 		    expression = *expressionp;	/* it might have moved */
 		    current--;
+#endif
 		} else if (quote == '\'' 
 			&& expression[current+1] == '\''
 			&& expression[current+2] == '\'') {
@@ -333,15 +342,17 @@ get_num(char str[])
     return (count);
 }
 
-/* substitute output from ` `
+#if defined(ENABLE_BACKTICKS)
+/* substitute output from `<shell command>`
  * *strp points to the input string.  (*strp)[current] is expected to
  * be the initial back tic.  Characters through the following back tic
- * are replaced by the output of the command.  extend_input_line()
+ * are replaced by the output of the shell command.  extend_input_line()
  * is called to extend *strp array if needed.
  */
 static void
 substitute(char **strp, size_t *str_lenp, int current)
 {
+
     char *last;
     char c;
     char *str, *pgm, *rest = NULL;
@@ -395,5 +406,4 @@ substitute(char **strp, size_t *str_lenp, int current)
     screen_ok = FALSE;
 
 }
-
-
+#endif /* ENABLE_BACKTICKS */

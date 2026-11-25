@@ -1038,7 +1038,7 @@ do_pointsize(double size)
 /*
  * general point routine
  */
-#if  defined(WITH_METAPOST) || defined(WITH_METAFONT) || defined(WITH_TEKTRONIX) || defined(OLD_PRINTERS)
+#if  defined(HAVE_METAPOST) || defined(HAVE_METAFONT) || defined(WITH_TEKTRONIX) || defined(OLD_PRINTERS)
 static void
 line_and_point(unsigned int x, unsigned int y, int number)
 {
@@ -1855,10 +1855,6 @@ init_terminal()
 
 #ifdef DJGPP
 	term_name = "svga";
-#endif
-
-#ifdef GRASS
-	term_name = "grass";
 #endif
 
 #ifdef OS2

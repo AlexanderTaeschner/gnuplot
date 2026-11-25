@@ -67,7 +67,7 @@ static void clear_stats_variables( char *prefix );
 
 static void create_and_set_var( double val, char *prefix, char *base, char *suffix );
 static void create_and_set_int_var( int ival, char *prefix, char *base, char *suffix );
-static void create_and_store_var( t_value *data, char *prefix, char *base, char *suffix );
+static udvt_entry *create_and_store_var( t_value *data, char *prefix, char *base, char *suffix );
 
 static void sgl_column_variables( struct sgl_column_stats res, char *prefix, char *postfix );
 
@@ -679,7 +679,7 @@ create_and_set_int_var( int ival, char *prefix, char *base, char *suffix )
     create_and_store_var( &data, prefix, base, suffix );
 }
 
-static void
+static udvt_entry*
 create_and_store_var( t_value *data, char *prefix, char *base, char *suffix )
 {
     int len;
@@ -702,6 +702,7 @@ create_and_store_var( t_value *data, char *prefix, char *base, char *suffix )
     udv_ptr->udv_value = *data;
 
     free( varname );
+    return udv_ptr;
 }
 
 static void
@@ -718,16 +719,15 @@ file_variables( struct file_stats s, char *prefix )
 
     /* copy column headers to an array */
     if (df_columnheaders) {
-	int i;
-	t_value headers;
-	t_value *A = gp_alloc((s.columns+1) * sizeof(t_value), "column_headers");
+	udvt_entry *STATS_column_header;
+	t_value dummy = {.type = NOTDEFINED};
+	t_value *A;
 
-	Ginteger(&A[0], s.columns);
-	for (i = 1; i <= s.columns; i++)
+	STATS_column_header = create_and_store_var( &dummy, prefix, "column_header", "" );
+	init_array(STATS_column_header, s.columns+1);
+	A = STATS_column_header->udv_value.v.value_array;
+	for (int i = 1; i <= s.columns; i++)
 	    Gstring(&A[i], gp_strdup(df_retrieve_columnhead(i)));
-	headers.type = ARRAY;
-	headers.v.value_array = A;
-	create_and_store_var( &headers, prefix, "column_header", "" );
     }
 }
 

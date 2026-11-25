@@ -1087,10 +1087,8 @@ do_3dplot(
     if (!key_pass)
     if (hidden3d && draw_surface && (replot_mode != AXIS_ONLY_ROTATE)
     &&  (hidden3d_layer == LAYER_BACK || hidden3d_layer == LAYER_DEPTHORDER)) {
-#ifdef HIDDEN3D_CACHE
 	if (pm3d.direction == PM3D_DEPTH)
 	    hidden3d_layer = LAYER_DEPTHORDER;
-#endif
 	(term->layer)(TERM_LAYER_BEFORE_PLOT);
 	if (splot_map && draw_border && clip_area)
 	    (term->clip_state)(clip_area, 0);
@@ -1655,10 +1653,8 @@ do_3dplot(
 	/* draw pending depth-sorted pm3d plots */
 	if (pm3d_order_depth || track_pm3d_quadrangles)
 	    pm3d_depth_queue_flush();
-#ifdef HIDDEN3D_CACHE
 	if (hidden3d)
 	    flush_hidden3d_cache();
-#endif
     }
 
     if (!key_pass && (replot_mode != AXIS_ONLY_ROTATE)) {
@@ -1707,15 +1703,11 @@ do_3dplot(
 	;
 
     else if (hidden3d || grid_layer == LAYER_FRONT) {
-#ifdef HIDDEN3D_CACHE
 	int save_hidden3d_layer = hidden3d_layer;
 	if (hidden3d_layer == LAYER_DEPTHORDER)
 	    hidden3d_layer = LAYER_BACK;
 	draw_3d_graphbox(plots, pcount, ALLGRID, LAYER_FRONT);
 	hidden3d_layer = save_hidden3d_layer;
-#else
-	draw_3d_graphbox(plots, pcount, ALLGRID, LAYER_FRONT);
-#endif
     }
 
     else if (grid_layer == LAYER_BEHIND)
@@ -2891,6 +2883,8 @@ draw_3d_graphbox(struct surface_points *plot, int plot_num, WHICHGRID whichgrid,
 		    v1.y -= 3. * t->h_tic * tic_unity;
 		} else if (zx_projection) {
 		    v1.y -= 5. * t->h_tic * tic_unity;
+		} else if (X_AXIS.label.offset.z != 0) {
+		    /* do not adjust x or y */
 		} else if (X_AXIS.ticmode & TICS_ON_AXIS) {
 		    v1.x += 2. * t->h_tic * ((X_AXIS.tic_in) ? 1.0 : -1.0) * tic_unitx;
 		    v1.y += 2. * t->h_tic * ((X_AXIS.tic_in) ? 1.0 : -1.0) * tic_unity;
@@ -2899,7 +2893,7 @@ draw_3d_graphbox(struct surface_points *plot, int plot_num, WHICHGRID whichgrid,
 		    v1.y -= 10. * t->h_tic * tic_unity;
 		}
 
-		if (!X_AXIS.tic_in) {
+		if (!X_AXIS.tic_in && (X_AXIS.label.offset.z != 0)) {
 		    v1.x -= tic_unitx * X_AXIS.ticscale * t->h_tic;
 		    v1.y -= tic_unity * X_AXIS.ticscale * t->h_tic;
 		}
@@ -3015,6 +3009,8 @@ draw_3d_graphbox(struct surface_points *plot, int plot_num, WHICHGRID whichgrid,
 		    if (yz_projection) {
 			v1.x -= 3. * t->h_tic * tic_unitx;
 			v1.y -= 3. * t->h_tic * tic_unity;
+		    } else if (Y_AXIS.label.offset.z != 0) {
+			/* do not adjust x or y */
 		    } else if (Y_AXIS.ticmode & TICS_ON_AXIS) {
 			v1.x += 2. * t->h_tic * ((Y_AXIS.tic_in) ? 1.0 : -1.0) * tic_unitx;
 			v1.y += 2. * t->h_tic * ((Y_AXIS.tic_in) ? 1.0 : -1.0) * tic_unity;
@@ -3023,7 +3019,7 @@ draw_3d_graphbox(struct surface_points *plot, int plot_num, WHICHGRID whichgrid,
 			v1.y -= 10. * t->h_tic * tic_unity;
 		    }
 
-		    if (!Y_AXIS.tic_in) {
+		    if (!Y_AXIS.tic_in && (Y_AXIS.label.offset.z != 0)) {
 			v1.x -= tic_unitx * Y_AXIS.ticscale * t->v_tic;
 			v1.y -= tic_unity * Y_AXIS.ticscale * t->v_tic;
 		    }
@@ -3074,6 +3070,7 @@ draw_3d_graphbox(struct surface_points *plot, int plot_num, WHICHGRID whichgrid,
 	gen_tics(&axis_array[FIRST_Z_AXIS], ztick_callback);
     }
     if ((Y_AXIS.zeroaxis)
+	&& (whichgrid != FRONTGRID)
 	&& !X_AXIS.log
 	&& inrange(0, X_AXIS.min, X_AXIS.max)
 	) {
@@ -3085,6 +3082,7 @@ draw_3d_graphbox(struct surface_points *plot, int plot_num, WHICHGRID whichgrid,
 	draw3d_line(&v1, &v2, Y_AXIS.zeroaxis);
     }
     if ((Z_AXIS.zeroaxis)
+	&& (whichgrid != FRONTGRID)
 	&& !X_AXIS.log
 	&& inrange(0, X_AXIS.min, X_AXIS.max)
 	) {
@@ -3096,6 +3094,7 @@ draw_3d_graphbox(struct surface_points *plot, int plot_num, WHICHGRID whichgrid,
 	draw3d_line(&v1, &v2, Z_AXIS.zeroaxis);
     }
     if ((X_AXIS.zeroaxis)
+	&& (whichgrid != FRONTGRID)
 	&& !Y_AXIS.log
 	&& inrange(0, Y_AXIS.min, Y_AXIS.max)
 	) {
@@ -3180,12 +3179,12 @@ xtick_callback(
     }
     /* Vertical grid lines (in yz plane) */
     if (grid_vertical_lines && grid.l_type > LT_NODRAW) {
-	vertex v4, v5;
+	vertex v5, v6;
 	double which_face = (surface_rot_x > 90 && surface_rot_x < 270) ? xaxis_y : other_end;
 	(t->layer)(TERM_LAYER_BEGIN_GRID);
-	map3d_xyz(place, which_face, Z_AXIS.min, &v4);
-	map3d_xyz(place, which_face, ceiling_z, &v5);
-	draw3d_line(&v4, &v5, &grid);
+	map3d_xyz(place, which_face, Z_AXIS.min, &v5);
+	map3d_xyz(place, which_face, ceiling_z, &v6);
+	draw3d_line(&v5, &v6, &grid);
 	(t->layer)(TERM_LAYER_END_GRID);
     }
     if ((X_AXIS.ticmode & TICS_ON_AXIS)
@@ -3249,9 +3248,6 @@ xtick_callback(
 	}
 #	undef MINIMUM_SEPARATION
 
-	/* get offset */
-	map3d_position_r(&(this_axis->ticdef.offset), &offsetx, &offsety, "xtics");
-
 	/* allow manual justification of tick labels, but only for projections */
 	if ((splot_map || xz_projection) && this_axis->manual_justify)
 	    just = this_axis->tic_pos;
@@ -3262,23 +3258,38 @@ xtick_callback(
 	else
 	    just = RIGHT;
 
+	/* The default position for tic labels is a one character offset in the
+	 * xyplane.  Any additional x/y offset starts from here.
+	 * However if an explicit z offset is given, do not assume an x/y offset also.
+	 */
 	if (this_axis->index == SECOND_X_AXIS) {
-	    v4.x = v3.x + tic_unitx * t->h_char * 1;
-	    v4.y = v3.y + tic_unity * t->v_char * 1;
-	    if (!this_axis->tic_in) {
-		v4.x += tic_unitx * t->v_tic * this_axis->ticscale;
-		v4.y += tic_unity * t->v_tic * this_axis->ticscale;
+	    if (this_axis->ticdef.offset.z != 0) {
+		TERMCOORD(&v3, x2, y2);
+	    } else {
+		v4.x = v3.x + tic_unitx * t->h_char * 1;
+		v4.y = v3.y + tic_unity * t->v_char * 1;
+		if (!this_axis->tic_in) {
+		    v4.x += tic_unitx * t->v_tic * this_axis->ticscale;
+		    v4.y += tic_unity * t->v_tic * this_axis->ticscale;
+		}
+		TERMCOORD(&v4, x2, y2);
 	    }
-	    TERMCOORD(&v4, x2, y2);
 	} else {
-	    v2.x = v1.x - tic_unitx * t->h_char * 1;
-	    v2.y = v1.y - tic_unity * t->v_char * 1;
-	    if (!this_axis->tic_in) {
-		v2.x -= tic_unitx * t->v_tic * this_axis->ticscale;
-		v2.y -= tic_unity * t->v_tic * this_axis->ticscale;
+	    if (this_axis->ticdef.offset.z != 0) {
+		TERMCOORD(&v1, x2, y2);
+	    } else {
+		v2.x = v1.x - tic_unitx * t->h_char * 1;
+		v2.y = v1.y - tic_unity * t->v_char * 1;
+		if (!this_axis->tic_in) {
+		    v2.x -= tic_unitx * t->v_tic * this_axis->ticscale;
+		    v2.y -= tic_unity * t->v_tic * this_axis->ticscale;
+		}
+		TERMCOORD(&v2, x2, y2);
 	    }
-	    TERMCOORD(&v2, x2, y2);
 	}
+
+	/* Get any additional label offset specified by "set tics offset". */
+	map3d_position_r(&(this_axis->ticdef.offset), &offsetx, &offsety, "xtics");
 
 	/* User-specified different color for the tics text */
 	if (this_axis->ticdef.textcolor.type != TC_DEFAULT)
@@ -3319,12 +3330,12 @@ ytick_callback(
     }
     /* Vertical grid lines (in xz plane) */
     if (grid_vertical_lines && grid.l_type > LT_NODRAW) {
-	vertex v4, v5;
+	vertex v5, v6;
 	double which_face = (surface_rot_x > 90 && surface_rot_x < 270) ? yaxis_x : other_end;
 	(t->layer)(TERM_LAYER_BEGIN_GRID);
-	map3d_xyz(which_face, place, Z_AXIS.min, &v4);
-	map3d_xyz(which_face, place, ceiling_z, &v5);
-	draw3d_line(&v4, &v5, &grid);
+	map3d_xyz(which_face, place, Z_AXIS.min, &v5);
+	map3d_xyz(which_face, place, ceiling_z, &v6);
+	draw3d_line(&v5, &v6, &grid);
 	(t->layer)(TERM_LAYER_END_GRID);
     }
     if (Y_AXIS.ticmode & TICS_ON_AXIS
@@ -3388,9 +3399,6 @@ ytick_callback(
 	}
 #	undef MINIMUM_SEPARATION
 
-	/* get offset */
-	map3d_position_r(&(this_axis->ticdef.offset), &offsetx, &offsety, "ytics");
-
 	/* allow manual justification of tick labels, but only for projections */
 	if ((splot_map || yz_projection) && this_axis->manual_justify)
 	    just = this_axis->tic_pos;
@@ -3401,23 +3409,38 @@ ytick_callback(
 	else
 	    just = (this_axis->index == FIRST_Y_AXIS) ? RIGHT : LEFT;
 
+	/* The default position for tic labels is a one character offset in the
+	 * xyplane.  Any additional x/y offset starts from here.
+	 * However if an explicit z offset is given, do not assume an x/y offset also.
+	 */
 	if (this_axis->index == SECOND_Y_AXIS) {
-	    v4.x = v3.x + tic_unitx * t->h_char * 1;
-	    v4.y = v3.y + tic_unity * t->v_char * 1;
-	    if (!this_axis->tic_in) {
-		v4.x += tic_unitx * t->h_tic * this_axis->ticscale;
-		v4.y += tic_unity * t->v_tic * this_axis->ticscale;
+	    if (this_axis->ticdef.offset.z != 0) {
+		TERMCOORD(&v3, x2, y2);
+	    } else {
+		v4.x = v3.x + tic_unitx * t->h_char * 1;
+		v4.y = v3.y + tic_unity * t->v_char * 1;
+		if (!this_axis->tic_in) {
+		    v4.x += tic_unitx * t->h_tic * this_axis->ticscale;
+		    v4.y += tic_unity * t->v_tic * this_axis->ticscale;
+		}
+		TERMCOORD(&v4, x2, y2);
 	    }
-	    TERMCOORD(&v4, x2, y2);
 	} else {
-	    v2.x = v1.x - tic_unitx * t->h_char * 1;
-	    v2.y = v1.y - tic_unity * t->v_char * 1;
-	    if (!this_axis->tic_in) {
-		v2.x -= tic_unitx * t->h_tic * this_axis->ticscale;
-		v2.y -= tic_unity * t->v_tic * this_axis->ticscale;
+	    if (this_axis->ticdef.offset.z != 0) {
+		TERMCOORD(&v1, x2, y2);
+	    } else {
+		v2.x = v1.x - tic_unitx * t->h_char * 1;
+		v2.y = v1.y - tic_unity * t->v_char * 1;
+		if (!this_axis->tic_in) {
+		    v2.x -= tic_unitx * t->h_tic * this_axis->ticscale;
+		    v2.y -= tic_unity * t->v_tic * this_axis->ticscale;
+		}
+		TERMCOORD(&v2, x2, y2);
 	    }
-	    TERMCOORD(&v2, x2, y2);
 	}
+
+	/* Get any additional label offset specified by "set tics offset". */
+	map3d_position_r(&(this_axis->ticdef.offset), &offsetx, &offsety, "ytics");
 
 	/* User-specified different color for the tics text */
 	if (this_axis->ticdef.textcolor.type != TC_DEFAULT)
@@ -3543,7 +3566,11 @@ ztick_callback(
     }
 }
 
-
+/*
+ * returns 0 if the x, y, and z components are in graph coordinates
+ * returns 1 if the x, y, and z components are in non-zero screen or character units
+ * int_error() if there is a mixture of graph and non-zero screen or character units
+ */
 static int
 map3d_getposition(
     struct position *pos,
@@ -3577,8 +3604,11 @@ map3d_getposition(
 	screen_coords = TRUE;
 	break;
     case character:
-	*xpos = *xpos * term->h_char + 0.5;
-	char_coords = TRUE;
+	/* Only used for relative positions */
+	if (*xpos != 0) {
+	    *xpos = *xpos * term->h_char + 0.5;
+	    char_coords = TRUE;
+	}
 	break;
     case polar_axes:
 	(void) polar_to_xy(*xpos, *ypos, &xx, &yy, FALSE);
@@ -3609,8 +3639,11 @@ map3d_getposition(
 	screen_coords = TRUE;
 	break;
     case character:
-	*ypos = *ypos * term->v_char + 0.5;
-	char_coords = TRUE;
+	/* Only used for relative positions */
+	if (*ypos != 0) {
+	    *ypos = *ypos * term->v_char + 0.5;
+	    char_coords = TRUE;
+	}
 	break;
     case polar_axes:
 	break;
@@ -3638,8 +3671,11 @@ map3d_getposition(
 	    screen_coords = TRUE;
 	break;
     case character:
-	if (!splot_map)
+	/* Only used for relative positions; has no effect in projection */
+	if ((*zpos != 0) && (!splot_map)) {
+	    *ypos += *zpos * term->v_char;
 	    char_coords = TRUE;
+	}
 	break;
     }
 

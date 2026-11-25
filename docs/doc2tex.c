@@ -67,6 +67,7 @@ void finish(FILE *);
 
 static TBOOLEAN intable = FALSE;
 static TBOOLEAN verb = FALSE;
+static TBOOLEAN in_par_quote = FALSE;
 static TBOOLEAN see = FALSE;
 static TBOOLEAN ja_see = FALSE;
 static TBOOLEAN inhref = FALSE;
@@ -413,6 +414,12 @@ section(char *line, FILE *b)
 	(void) fputs("\\postverbatim\n", b);
 	verb = FALSE;
     }
+
+    if (in_par_quote) {
+	(void) fputs("\\end{quote}\n", b);
+	in_par_quote = FALSE;
+    }
+
     (void) sscanf(line, "%d %[^\n]s", &sh_i, string);
     switch (sh_i) {
     case 1:
@@ -441,6 +448,7 @@ section(char *line, FILE *b)
 	string[0] = toupper((unsigned char)string[0]);
     puttex(string, b);
     (void) fprintf(b, "}\n");
+    (void) fprintf(b, "\\phantomsection\n");
 
     switch (sh_i) {
     case 2:
@@ -462,6 +470,8 @@ section(char *line, FILE *b)
 	(void) fprintf(b, "\\addcontentsline{toc}{paragraph}{");
 	puttex(string, b);
 	(void) fprintf(b, "}\n");
+	(void) fprintf(b, "\\begin{quote}\n");
+	in_par_quote = TRUE;
 	break;
     default:
         break;

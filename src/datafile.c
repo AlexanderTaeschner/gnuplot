@@ -749,8 +749,12 @@ df_tokenise(char *s)
 	    int dfncp1 = df_no_cols + 1;
 
 	    /* optimizations by Corey Satten, corey@cac.washington.edu */
-	    /* only scanf the field if it is mentioned in one of the using specs */
+	    /* Only scanf/strtod the field if it is mentioned in one of the using specs.
+	     * Exception: an "if" filter might access this column even if it is not
+	     *            mentioned in the using specs.
+	     */
 	    if ((fast_columns == 0)
+		|| (df_current_plot && df_current_plot->if_filter_at != NULL)
 		|| (df_no_use_specs == 0)
 		|| ((df_no_use_specs > 0)
 		    && (use_spec[0].column == dfncp1
@@ -1774,9 +1778,13 @@ plot_option_using(int max_using)
 		    if (spec->at->actions[i].index == DOLLARS)
 			spec->depends_on_column = (int)spec->at->actions[i].arg.v_arg.v.int_val;
 		    if ((spec->at->actions[i].index == COLUMN)
-		    &&  (spec->at->actions[i-1].index == PUSHC)
-		    &&  (spec->at->actions[i-1].arg.v_arg.type == INTGR))
-			spec->depends_on_column = (int)spec->at->actions[i-1].arg.v_arg.v.int_val;
+		    ||  (spec->at->actions[i].index == STRINGCOLUMN)
+		    ||  (spec->at->actions[i].index == STRCOL)) {
+			if ((spec->at->actions[i-1].index == PUSHC)
+			&&  (spec->at->actions[i-1].arg.v_arg.type == INTGR))
+			    spec->depends_on_column
+				= (int)spec->at->actions[i-1].arg.v_arg.v.int_val;
+		    }
 		}
 
 		/* Catch at least the simplest case of 'autotitle columnhead' using an expression */
@@ -2268,6 +2276,7 @@ df_readascii(double v[], int max)
 		    if (df_missing_data_in_expression) {
 			FPRINTF((stderr,
 			    "df_readascii: hit missing data value during evaluation\n"));
+			gpfree_string(&a);
 			v[output] = not_a_number();
 			return_value = DF_MISSING;
 			continue;
@@ -2776,7 +2785,9 @@ f_column(union argument *arg)
 	push(Gcomplex(&a, not_a_number(), (double)DF_MISSING));
 	df_missing_data_in_expression = TRUE;
     } else if (df_column[column-1].good != DF_GOOD) {
-	undefined = TRUE;
+	/* Setting undefined = TRUE here would cause a memory leak.
+	 * During data input, returning NaN will cause undefined to be set
+	 * later anyhow */
 	push(Gcomplex(&a, not_a_number(), 0.0));
     } else
 	push(Gcomplex(&a, df_column[column - 1].datum, 0.0));
@@ -2846,8 +2857,8 @@ f_stringcolumn(union argument *arg)
 	sprintf(temp_string, "%d", df_datum);
 	push(Gstring(&a, temp_string ));
     } else if (column < 1 || column > df_no_cols) {
-	undefined = TRUE;
-	push(&a);               /* any objection to this ? */
+	push(Gstring(&a, ""));
+	df_missing_data_in_expression = TRUE;
     } else {
 	char *temp_string = df_parse_string_field(df_column[column-1].position);
 	push(Gstring(&a, temp_string ));

@@ -127,10 +127,10 @@ static const struct gen_table edf_rasteraxes_table[] =
 /* Find value_ptr as pointer to the parameter of the given key in the header.
  * Returns NULL on success.
  */
-static char*
+static const char*
 edf_findInHeader ( const char* header, const char* key )
 {
-    char *value_ptr = strstr( header, key );
+    const char *value_ptr = strstr( header, key );
 
     if (!value_ptr) 
 	return NULL;
@@ -147,7 +147,7 @@ edf_filetype_function(void)
     FILE *fp;
     char *header = NULL;
     int header_size = 0;
-    char *p;
+    const char *p;
     int k;
     /* open (header) file */
     fp = loadpath_fopen(df_filename, "rb");

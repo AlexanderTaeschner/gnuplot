@@ -318,6 +318,7 @@ typedef struct axis_mapping {
     TBOOLEAN active;		/* TRUE if TICS_ON() (report coords) */
     TBOOLEAN in_use;		/* TRUE if this mapping has been updated */
     TBOOLEAN inverted;		/* special case y coords in splot_map */
+    TBOOLEAN link_primary;	/* primary axis in a linked pair */
 } axis_mapping;
 
 

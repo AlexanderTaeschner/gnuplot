@@ -1468,6 +1468,8 @@ set_contourfill(void)
 	    contourfill.nslices = 0;
 	    while (!END_OF_COMMAND && (N < MAX_ZSLICES)) {
 		zslice *slice = &contourfill.slices[N];
+		if (equals(c_token, ","))
+		    c_token++;
 		if (!equals(c_token++,"["))
 		    int_error(NO_CARET, errmsg);
 		slice->zlow = parse_one_range_limit(
@@ -1476,8 +1478,6 @@ set_contourfill(void)
 		slice->color.type = TC_RGB;
 		slice->color.rgbcolor = parse_color_name();
 		N++;
-		if (!equals(c_token++,","))
-		    break;
 	    }
 	    contourfill.nslices = N;
 	} else
@@ -3820,6 +3820,7 @@ set_pm3d()
 	    case S_PM3D_TRANSPARENT: /* "tr$ansparent" */
 		if (interactive)
 		    int_warn(c_token, "Deprecated syntax --- ignored");
+		continue;
 	    case S_PM3D_IMPLICIT: /* "i$mplicit" */
 	    case S_PM3D_NOEXPLICIT: /* "noe$xplicit" */
 		pm3d.implicit = PM3D_IMPLICIT;

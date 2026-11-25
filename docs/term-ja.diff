@@ -1,6 +1,6 @@
 diff -ru term/ai.trm.ORG term/ai.trm
---- term/ai.trm	2026-04-09.ORG 12:37:48.000000000 +0900
-+++ term/ai.trm	2026-04-09 13:47:08.688748000 +0900
+--- term/ai.trm	2026-08-26.ORG 13:48:46.000000000 +0900
++++ term/ai.trm	2026-08-26 20:03:57.737903000 +0900
 @@ -526,6 +526,7 @@
  
  #ifdef TERM_HELP
@@ -33,8 +33,8 @@ diff -ru term/ai.trm.ORG term/ai.trm
  END_HELP(ai)
  #endif /* TERM_HELP */
 diff -ru term/aquaterm.trm.ORG term/aquaterm.trm
---- term/aquaterm.trm	2026-04-09.ORG 12:37:48.000000000 +0900
-+++ term/aquaterm.trm	2026-04-09 13:47:08.688839000 +0900
+--- term/aquaterm.trm	2026-08-26.ORG 13:48:46.000000000 +0900
++++ term/aquaterm.trm	2026-08-26 20:03:57.737994000 +0900
 @@ -1047,6 +1047,7 @@
  
  #ifdef TERM_HELP
@@ -84,8 +84,8 @@ diff -ru term/aquaterm.trm.ORG term/aquaterm.trm
  #endif /* TERM_HELP */
  
 diff -ru term/be.trm.ORG term/be.trm
---- term/be.trm	2026-04-09.ORG 12:37:48.000000000 +0900
-+++ term/be.trm	2026-04-09 13:47:08.688935000 +0900
+--- term/be.trm	2026-08-26.ORG 13:48:46.000000000 +0900
++++ term/be.trm	2026-08-26 20:03:57.738090000 +0900
 @@ -387,6 +387,7 @@
  
  #ifdef TERM_HELP
@@ -397,8 +397,8 @@ diff -ru term/be.trm.ORG term/be.trm
  END_HELP(be)
  #endif /* TERM_HELP */
 diff -ru term/block.trm.ORG term/block.trm
---- term/block.trm	2026-04-09.ORG 12:37:48.000000000 +0900
-+++ term/block.trm	2026-04-09 13:47:08.689045000 +0900
+--- term/block.trm	2026-08-26.ORG 13:48:46.000000000 +0900
++++ term/block.trm	2026-08-26 20:03:57.738202000 +0900
 @@ -1371,6 +1371,7 @@
  
  #ifdef TERM_HELP
@@ -495,8 +495,8 @@ diff -ru term/block.trm.ORG term/block.trm
  END_HELP(block)
  #endif
 diff -ru term/caca.trm.ORG term/caca.trm
---- term/caca.trm	2026-04-09.ORG 12:37:48.000000000 +0900
-+++ term/caca.trm	2026-04-09 13:47:08.689197000 +0900
+--- term/caca.trm	2026-08-26.ORG 13:48:46.000000000 +0900
++++ term/caca.trm	2026-08-26 20:03:57.738354000 +0900
 @@ -1263,7 +1263,7 @@
  	if (CACA_charset == CACA_ASCII)
  		symbol = (point <= -1) ? L'.' : point % 26 + 'A';
@@ -673,9 +673,9 @@ diff -ru term/caca.trm.ORG term/caca.trm
  #endif /* TERM_HELP */
  
 diff -ru term/cairo.trm.ORG term/cairo.trm
---- term/cairo.trm	2026-04-09.ORG 12:37:48.000000000 +0900
-+++ term/cairo.trm	2026-04-09 13:47:08.689333000 +0900
-@@ -1656,6 +1656,7 @@
+--- term/cairo.trm	2026-08-26.ORG 13:48:46.000000000 +0900
++++ term/cairo.trm	2026-08-26 20:03:57.738494000 +0900
+@@ -1685,6 +1685,7 @@
  
  #ifdef TERM_HELP
  START_HELP(epscairo)
@@ -683,7 +683,7 @@ diff -ru term/cairo.trm.ORG term/cairo.trm
  "1 epscairo",
  "?set terminal epscairo",
  "?terminal epscairo",
-@@ -1667,11 +1668,26 @@
+@@ -1696,11 +1697,26 @@
  "",
  " Please read the help for the `pdfcairo` terminal."
  ""
@@ -710,7 +710,7 @@ diff -ru term/cairo.trm.ORG term/cairo.trm
  "1 cairolatex",
  "?set terminal cairolatex",
  "?terminal cairolatex",
-@@ -1834,11 +1850,178 @@
+@@ -1864,11 +1880,179 @@
  " by the `header` command.  Thus, you can use `header` to overwrite some of",
  " settings performed using \"gnuplot.cfg\"",
  ""
@@ -736,6 +736,7 @@ diff -ru term/cairo.trm.ORG term/cairo.trm
 +"                      {font <font>} {fontscale <scale>}",
 +"                      {linewidth <lw>} {rounded|butt|square} {dashlength <dl>}",
 +"                      {size <XX>{unit},<YY>{unit}}",
++"                      {scale <factor>}",
 +"                      {resolution <dpi>}",
 +"",
 +" cairolatex 出力形式は、epscairo 出力形式 (`termnal epscairo`) や",
@@ -889,7 +890,7 @@ diff -ru term/cairo.trm.ORG term/cairo.trm
  "1 pdfcairo",
  "?set terminal pdfcairo",
  "?terminal pdfcairo",
-@@ -1915,11 +2098,94 @@
+@@ -1950,11 +2134,98 @@
  " so that gnuplot can draw a line from non-integer coordinates. This avoids",
  " wobbling effects on diagonal lines ('plot x' for example).",
  ""
@@ -911,6 +912,7 @@ diff -ru term/cairo.trm.ORG term/cairo.trm
 +"                      {linewidth <lw>} {rounded|butt|square} {dashlength <dl>}",
 +"                      {background <rgbcolor>",
 +"                      {size <XX>{unit},<YY>{unit}}",
++"                      {scale <factor>}",
 +"",
 +" この出力形式は、ラベルやその他の文字列を、デフォルトで拡張文字列処理モ",
 +" ード (enhanced text mode) で処理します。以下参照: `enhanced`。",
@@ -921,6 +923,9 @@ diff -ru term/cairo.trm.ORG term/cairo.trm
 +"",
 +" `rounded` は、線の端や接合部を丸くします。",
 +" デフォルトの `butt` は尖った端と角張った接合部を使用します。",
++"",
++" `scale` は、出力キャンバスサイズは変更せずに、線幅、点のサイズ、フォン",
++" トサイズに対する大域的な追加の倍率を設定します。以下参照: `scale`。", 
 +"",
 +" PDF 出力のデフォルトのサイズは、5inch x 3inch です。オプション `size` ",
 +" は、これをユーザの指定するものへ変更します。デフォルトの X, Y サイズの",
@@ -984,7 +989,7 @@ diff -ru term/cairo.trm.ORG term/cairo.trm
  "1 pngcairo",
  "?set terminal pngcairo",
  "?terminal pngcairo",
-@@ -1993,10 +2259,91 @@
+@@ -2033,10 +2304,95 @@
  " supported by the cairo and pango libraries. The hinting parameter (0-100)",
  " is passed to Pango but may be ignored."
  ""
@@ -1007,6 +1012,7 @@ diff -ru term/cairo.trm.ORG term/cairo.trm
 +"                {linewidth <lw>} {rounded|butt|square} {dashlength <dl>}",
 +"                {pointscale <ps>}",
 +"                {size <XX>{unit},<YY>{unit}}",
++"                {scale <factor>}",
 +"",
 +" この出力形式は、拡張文字列処理モード (enhanced text mode) をサポートし",
 +" ていて、フォントや書式コマンド (上付、下付など) をラベルや他の文字列に",
@@ -1017,6 +1023,9 @@ diff -ru term/cairo.trm.ORG term/cairo.trm
 +"",
 +" `rounded` は、線の端や接合部を丸くします。",
 +" デフォルトの `butt` は尖った端と角張った接合部を使用します。",
++"",
++" `scale` は、出力キャンバスサイズは変更せずに、線幅、点のサイズ、フォン",
++" トサイズに対する大域的な追加の倍率を設定します。以下参照: `scale`。", 
 +"",
 +" PNG 出力のデフォルトのサイズは、640 x 480 ピクセルです。オプション",
 +" `size` は、これをユーザの指定するものへ変更します。デフォルトの X, Y",
@@ -1076,7 +1085,7 @@ diff -ru term/cairo.trm.ORG term/cairo.trm
  "1 kittycairo",
  "?set terminal kittycairo",
  "?terminal kittycairo",
-@@ -2035,6 +2382,48 @@
+@@ -2080,6 +2436,52 @@
  " `scroll` instead starts each plot at the current cursor position so that it",
  " scrolls with the terminal text.",
  ""
@@ -1102,6 +1111,7 @@ diff -ru term/cairo.trm.ORG term/cairo.trm
 +"                      {linewidth <lw>} {rounded|butt|square} {dashlength <dl>}",
 +"                      {transparent | background <rgbcolor>}",
 +"                      {size <XX>,<YY>} {anchor|scroll}",
++"                      {scale <factor>}",
 +"",
 +" この出力形式は、ラベルや他の文字列処理にデフォルトで拡張文字列処理を使",
 +" 用します。以下参照: `enhanced`。",
@@ -1113,6 +1123,9 @@ diff -ru term/cairo.trm.ORG term/cairo.trm
 +"",
 +" オプション `rounded` は、線の端や接合部を丸くし、デフォルトの `butt`",
 +" は尖った端と角張った接合部を生成します。",
++"",
++" `scale` は、出力キャンバスサイズは変更せずに、線幅、点のサイズ、フォン",
++" トサイズに対する大域的な追加の倍率を設定します。以下参照: `scale`。", 
 +"",
 +" グラフのサイズは、スクリーンピクセル単位で与えます。デフォルトでは",
 +" (`anchor`)、それぞれのグラフは、端末ウィンドウの左上に描きます。これは",
@@ -1126,8 +1139,8 @@ diff -ru term/cairo.trm.ORG term/cairo.trm
  #endif /* HAVE_KITTY_TERM */
  
 diff -ru term/canvas.trm.ORG term/canvas.trm
---- term/canvas.trm	2026-04-09.ORG 12:37:48.000000000 +0900
-+++ term/canvas.trm	2026-04-09 13:47:08.689440000 +0900
+--- term/canvas.trm	2026-08-26.ORG 13:48:46.000000000 +0900
++++ term/canvas.trm	2026-08-26 20:03:57.738602000 +0900
 @@ -1671,6 +1671,7 @@
  
  #ifdef TERM_HELP
@@ -1223,8 +1236,8 @@ diff -ru term/canvas.trm.ORG term/canvas.trm
  END_HELP(canvas)
  #endif /* TERM_HELP */
 diff -ru term/cgm.trm.ORG term/cgm.trm
---- term/cgm.trm	2026-04-09.ORG 12:37:48.000000000 +0900
-+++ term/cgm.trm	2026-04-09 13:47:08.689579000 +0900
+--- term/cgm.trm	2026-08-26.ORG 13:48:46.000000000 +0900
++++ term/cgm.trm	2026-08-26 20:03:57.738741000 +0900
 @@ -1743,6 +1743,7 @@
  
  #ifdef TERM_HELP
@@ -1547,8 +1560,8 @@ diff -ru term/cgm.trm.ORG term/cgm.trm
  END_HELP(cgm)
  #endif /* TERM_HELP */
 diff -ru term/context.trm.ORG term/context.trm
---- term/context.trm	2026-04-09.ORG 12:37:48.000000000 +0900
-+++ term/context.trm	2026-04-09 13:47:08.689705000 +0900
+--- term/context.trm	2026-08-26.ORG 13:48:46.000000000 +0900
++++ term/context.trm	2026-08-26 20:03:57.738867000 +0900
 @@ -1971,6 +1971,7 @@
  
  #ifdef TERM_HELP
@@ -1717,8 +1730,8 @@ diff -ru term/context.trm.ORG term/context.trm
  #endif /* TERM_HELP */
  
 diff -ru term/corel.trm.ORG term/corel.trm
---- term/corel.trm	2026-04-09.ORG 12:37:48.000000000 +0900
-+++ term/corel.trm	2026-04-09 13:47:08.689764000 +0900
+--- term/corel.trm	2026-08-26.ORG 13:48:46.000000000 +0900
++++ term/corel.trm	2026-08-26 20:03:57.738926000 +0900
 @@ -431,6 +431,7 @@
  
  #ifdef TERM_HELP
@@ -1752,8 +1765,8 @@ diff -ru term/corel.trm.ORG term/corel.trm
  END_HELP(corel)
  #endif /* TERM_HELP */
 diff -ru term/debug.trm.ORG term/debug.trm
---- term/debug.trm	2026-04-09.ORG 12:37:48.000000000 +0900
-+++ term/debug.trm	2026-04-09 13:47:08.689824000 +0900
+--- term/debug.trm	2026-08-26.ORG 13:48:46.000000000 +0900
++++ term/debug.trm	2026-08-26 20:03:57.738984000 +0900
 @@ -386,6 +386,7 @@
  
  #ifdef TERM_HELP
@@ -1780,8 +1793,8 @@ diff -ru term/debug.trm.ORG term/debug.trm
  END_HELP(debug)
  #endif
 diff -ru term/djsvga.trm.ORG term/djsvga.trm
---- term/djsvga.trm	2026-04-09.ORG 12:37:48.000000000 +0900
-+++ term/djsvga.trm	2026-04-09 13:47:08.689936000 +0900
+--- term/djsvga.trm	2026-08-26.ORG 13:48:46.000000000 +0900
++++ term/djsvga.trm	2026-08-26 20:03:57.739097000 +0900
 @@ -2237,6 +2237,7 @@
  
  #ifdef TERM_HELP
@@ -1830,8 +1843,8 @@ diff -ru term/djsvga.trm.ORG term/djsvga.trm
  END_HELP(svga)
  #endif /* TERM_HELP */
 diff -ru term/dumb.trm.ORG term/dumb.trm
---- term/dumb.trm	2026-04-09.ORG 12:37:48.000000000 +0900
-+++ term/dumb.trm	2026-04-09 13:47:08.690039000 +0900
+--- term/dumb.trm	2026-08-26.ORG 13:48:46.000000000 +0900
++++ term/dumb.trm	2026-08-26 20:03:57.739200000 +0900
 @@ -1206,6 +1206,7 @@
  
  #ifdef TERM_HELP
@@ -1938,8 +1951,8 @@ diff -ru term/dumb.trm.ORG term/dumb.trm
  END_HELP(dumb)
  #endif /* TERM_HELP */
 diff -ru term/dxf.trm.ORG term/dxf.trm
---- term/dxf.trm	2026-04-09.ORG 12:37:48.000000000 +0900
-+++ term/dxf.trm	2026-04-09 13:47:08.690100000 +0900
+--- term/dxf.trm	2026-08-26.ORG 13:48:46.000000000 +0900
++++ term/dxf.trm	2026-08-26 20:03:57.739261000 +0900
 @@ -400,6 +400,7 @@
  
  #ifdef TERM_HELP
@@ -1971,8 +1984,8 @@ diff -ru term/dxf.trm.ORG term/dxf.trm
  END_HELP(dxf)
  #endif /* TERM_HELP */
 diff -ru term/dxy.trm.ORG term/dxy.trm
---- term/dxy.trm	2026-04-09.ORG 12:37:48.000000000 +0900
-+++ term/dxy.trm	2026-04-09 13:47:08.690153000 +0900
+--- term/dxy.trm	2026-08-26.ORG 13:48:46.000000000 +0900
++++ term/dxy.trm	2026-08-26 20:03:57.739315000 +0900
 @@ -188,6 +188,7 @@
  
  #ifdef TERM_HELP
@@ -2000,8 +2013,8 @@ diff -ru term/dxy.trm.ORG term/dxy.trm
  END_HELP(dxy800a)
  #endif
 diff -ru term/eepic.trm.ORG term/eepic.trm
---- term/eepic.trm	2026-04-09.ORG 12:37:48.000000000 +0900
-+++ term/eepic.trm	2026-04-09 13:47:08.690224000 +0900
+--- term/eepic.trm	2026-08-26.ORG 13:48:46.000000000 +0900
++++ term/eepic.trm	2026-08-26 20:03:57.739386000 +0900
 @@ -578,6 +578,7 @@
  
  #ifdef TERM_HELP
@@ -2118,8 +2131,8 @@ diff -ru term/eepic.trm.ORG term/eepic.trm
  END_HELP(eepic)
  #endif /* TERM_HELP */
 diff -ru term/emf.trm.ORG term/emf.trm
---- term/emf.trm	2026-04-09.ORG 12:37:48.000000000 +0900
-+++ term/emf.trm	2026-04-09 13:47:08.690330000 +0900
+--- term/emf.trm	2026-08-26.ORG 13:48:46.000000000 +0900
++++ term/emf.trm	2026-08-26 20:03:57.739495000 +0900
 @@ -1980,6 +1980,7 @@
  
  #ifdef TERM_HELP
@@ -2176,8 +2189,8 @@ diff -ru term/emf.trm.ORG term/emf.trm
  END_HELP(emf)
  #endif /* TERM_HELP */
 diff -ru term/epson.trm.ORG term/epson.trm
---- term/epson.trm	2026-04-09.ORG 12:37:48.000000000 +0900
-+++ term/epson.trm	2026-04-09 13:47:08.690407000 +0900
+--- term/epson.trm	2026-08-26.ORG 13:48:46.000000000 +0900
++++ term/epson.trm	2026-08-26 20:03:57.739574000 +0900
 @@ -1079,6 +1079,7 @@
  
  #ifdef TERM_HELP
@@ -2287,8 +2300,8 @@ diff -ru term/epson.trm.ORG term/epson.trm
  END_HELP(epson_180dpi)
  #endif /* TERM_HELP */
 diff -ru term/excl.trm.ORG term/excl.trm
---- term/excl.trm	2026-04-09.ORG 12:37:48.000000000 +0900
-+++ term/excl.trm	2026-04-09 13:47:08.690520000 +0900
+--- term/excl.trm	2026-08-26.ORG 13:48:46.000000000 +0900
++++ term/excl.trm	2026-08-26 20:03:57.739687000 +0900
 @@ -270,6 +270,7 @@
  
  #ifdef TERM_HELP
@@ -2316,8 +2329,8 @@ diff -ru term/excl.trm.ORG term/excl.trm
  END_HELP(excl)
  #endif
 diff -ru term/fig.trm.ORG term/fig.trm
---- term/fig.trm	2026-04-09.ORG 12:37:48.000000000 +0900
-+++ term/fig.trm	2026-04-09 13:47:08.690627000 +0900
+--- term/fig.trm	2026-08-26.ORG 13:48:46.000000000 +0900
++++ term/fig.trm	2026-08-26 20:03:57.739796000 +0900
 @@ -1314,6 +1314,7 @@
  
  #ifdef TERM_HELP
@@ -2400,9 +2413,9 @@ diff -ru term/fig.trm.ORG term/fig.trm
  #endif /* TERM_HELP */
  
 diff -ru term/gd.trm.ORG term/gd.trm
---- term/gd.trm	2026-04-09.ORG 12:37:48.000000000 +0900
-+++ term/gd.trm	2026-04-09 13:47:08.690824000 +0900
-@@ -773,7 +773,7 @@
+--- term/gd.trm	2026-08-26.ORG 13:48:46.000000000 +0900
++++ term/gd.trm	2026-08-26 20:03:57.740066000 +0900
+@@ -800,7 +800,7 @@
  	    if (buf_alpha >= gdAlphaTransparent)
  		continue; /* was fully transparent, skip */
  
@@ -2411,7 +2424,7 @@ diff -ru term/gd.trm.ORG term/gd.trm
  	    cov_opacity = 1.0 - (double)buf_alpha / 127.0;
  	    eff_opacity = cov_opacity * line_opacity;
  	    if (eff_opacity <= 0.0)
-@@ -1175,8 +1175,8 @@
+@@ -1209,8 +1209,8 @@
   * When pattern is non-NULL, walks the dash pattern along the segment,
   * drawing each visible (dash-on) portion as an AA thick-line sub-segment.
   *
@@ -2422,16 +2435,7 @@ diff -ru term/gd.trm.ORG term/gd.trm
   * continues to the next vector call, segments are joined with HARD caps
   * and a small overlap so that no seam (zebra stripe) is visible.
   *
-@@ -1212,7 +1212,7 @@
- 	    double pnx = PNG_prev_dash_dx / prev_len;
- 	    double pny = PNG_prev_dash_dy / prev_len;
- 	    double dot = pnx * seg_nx + pny * seg_ny;
--	    if (dot < 0.97) {  /* angle change > ~14属 */
-+	    if (dot < 0.97) {  /* angle change > ~14° */
- 		TBOOLEAN in_drawn = pattern
- 		    ? (PNG_dash_pos > 0.0
- 		       && PNG_in_drawn_phase(PNG_dash_pos, pattern, scale))
-@@ -3539,6 +3539,7 @@
+@@ -3681,6 +3681,7 @@
  #ifndef JPEG_HELP_ONLY
  #ifdef TERM_HELP
  START_HELP(png)
@@ -2439,7 +2443,7 @@ diff -ru term/gd.trm.ORG term/gd.trm
  "1 png",
  "?commands set terminal png",
  "?set terminal png",
-@@ -3614,6 +3615,84 @@
+@@ -3761,6 +3762,89 @@
  " Use 24 bits of color information per pixel, with a transparent background.",
  " Use the `enhanced text` mode to control the layout of strings to be printed.",
  ""
@@ -2460,6 +2464,7 @@ diff -ru term/gd.trm.ORG term/gd.trm
 +"              {tiny | small | medium | large | giant}",
 +"              {font \"<face> {,<pointsize>}\"} {fontscale <scale>}",
 +"              {size <x>,<y>} {{no}crop}",
++"              {scale <factor>}",
 +"              {background <rgb_color>}",
 +"",
 +" PNG, JPEG, GIF 画像は、外部ライブラリ libgd を使って生成されます。PNG",
@@ -2506,6 +2511,10 @@ diff -ru term/gd.trm.ORG term/gd.trm
 +" 描画終了後の端の余白は、オプション `crop` で取り除くことができ、その結",
 +" 果としてその画像サイズは小さくなります。デフォルトは `nocrop` です。",
 +"",
++" `scale` は、ピクセル単位の出力キャンバスサイズは変更せずに、線幅、点の",
++" サイズ、フォントサイズに対する大域的な追加の倍率を設定します。",
++" 以下参照: `scale`。", 
++"",
 +"2 例",
 +"?set term png examples",
 +"",
@@ -2524,7 +2533,7 @@ diff -ru term/gd.trm.ORG term/gd.trm
  END_HELP(png)
  #endif /* TERM_HELP */
  #endif /* JPEG_HELP_ONLY */
-@@ -3700,6 +3779,7 @@
+@@ -3848,6 +3932,7 @@
  
  #ifdef TERM_HELP
  START_HELP(jpeg)
@@ -2532,7 +2541,7 @@ diff -ru term/gd.trm.ORG term/gd.trm
  "1 jpeg",
  "?commands set terminal jpeg",
  "?set terminal jpeg",
-@@ -3746,6 +3826,54 @@
+@@ -3899,6 +3984,59 @@
  " Blank space at the edges of the finished plot may be trimmed using the `crop`",
  " option, resulting in a smaller final image size. Default is `nocrop`.",
  ""
@@ -2552,6 +2561,7 @@ diff -ru term/gd.trm.ORG term/gd.trm
 +"              {tiny | small | medium | large | giant}",
 +"              {font \"<face> {,<pointsize>}\"} {fontscale <scale>}",
 +"              {size <x>,<y>} {{no}crop}",
++"              {scale <factor>}",
 +"              {background <rgb_color>}",
 +"",
 +" PNG, JPEG, GIF 画像は、外部ライブラリ libgd を使って生成されます。大抵",
@@ -2566,6 +2576,10 @@ diff -ru term/gd.trm.ORG term/gd.trm
 +" オプション `linewidth` と `dashlength` は拡大率で、描画されるすべての",
 +" 線に影響を与えます。すなわち、これらは様々な描画コマンドで要求される値",
 +" にかけ算されます。",
++"",
++" `scale` は、ピクセル単位の出力キャンバスサイズは変更せずに、線幅、点の",
++" サイズ、フォントサイズに対する大域的な追加の倍率を設定します。",
++" 以下参照: `scale`。", 
 +"",
 +" `butt` は線分の描画で、その端の点でのはみだしを起こさない描画メソッド",
 +" を使うようドライバに指示します。この設定は、線幅が 1 より大きい場合に",
@@ -2587,7 +2601,7 @@ diff -ru term/gd.trm.ORG term/gd.trm
  END_HELP(jpeg)
  #endif /* TERM_HELP */
  #endif /* HAVE_GD_JPEG */
-@@ -3856,6 +3984,7 @@
+@@ -4010,6 +4148,7 @@
  
  #ifdef TERM_HELP
  START_HELP(gif)
@@ -2595,7 +2609,7 @@ diff -ru term/gd.trm.ORG term/gd.trm
  "1 gif",
  "?commands set terminal gif",
  "?set terminal gif",
-@@ -3944,6 +4073,98 @@
+@@ -4103,6 +4242,103 @@
  "",
  " Searches for a font with face name 'arial' and sets the font size to 14pt.",
  ""
@@ -2615,6 +2629,7 @@ diff -ru term/gd.trm.ORG term/gd.trm
 +"              {tiny | small | medium | large | giant}",
 +"              {font \"<face> {,<pointsize>}\"} {fontscale <scale>}",
 +"              {size <x>,<y>} {{no}crop}",
++"              {scale <factor>}",
 +"              {background <rgb_color>}",
 +"              {animate {delay <d>} {loop <n>}}",
 +"",
@@ -2633,6 +2648,10 @@ diff -ru term/gd.trm.ORG term/gd.trm
 +" オプション `linewidth` と `dashlength` は拡大率で、描画されるすべての",
 +" 線に影響を与えます。すなわち、これらは様々な描画コマンドで要求される値",
 +" にかけ算されます。",
++"",
++" `scale` は、ピクセル単位の出力キャンバスサイズは変更せずに、線幅、点の",
++" サイズ、フォントサイズに対する大域的な追加の倍率を設定します。",
++" 以下参照: `scale`。", 
 +"",
 +" `butt` は線分の描画で、その端の点でのはみだしを起こさない描画メソッド",
 +" を使うようドライバに指示します。この設定は、線幅が 1 より大きい場合に",
@@ -2694,7 +2713,7 @@ diff -ru term/gd.trm.ORG term/gd.trm
  END_HELP(gif)
  #endif /* TERM_HELP */
  #endif /* HAVE_GD_GIF */
-@@ -4040,6 +4261,7 @@
+@@ -4200,6 +4436,7 @@
  
  #ifdef TERM_HELP
  START_HELP(sixelgd)
@@ -2702,7 +2721,7 @@ diff -ru term/gd.trm.ORG term/gd.trm
  "1 sixelgd",
  "?commands set terminal sixelgd",
  "?set terminal sixelgd",
-@@ -4100,6 +4322,72 @@
+@@ -4264,6 +4501,75 @@
  " The `scroll` option instead starts each plot at the current cursor position",
  " so that successive plots scroll with any intervening text.",
  ""
@@ -2721,6 +2740,7 @@ diff -ru term/gd.trm.ORG term/gd.trm
 +"              {tiny | small | medium | large | giant}",
 +"              {font \"<face> {,<pointsize>}\"} {fontscale <scale>}",
 +"              {size <x>,<y>} {anchor|scroll} {{no}transparent}",
++"              {scale <factor>}",
 +"              {background <rgb_color>}",
 +"",
 +" `sixel` 出力フォーマットは、元々 DEC のターミナルやプリンタで使われて",
@@ -2729,14 +2749,11 @@ diff -ru term/gd.trm.ORG term/gd.trm
 +" 列は、それを作成したときにターミナル上に表示させることができますが、ま",
 +" たはその出力列をファイルに書きだしておいて、後からそのファイルをターミ",
 +" ナルに吐き出すことで表示に置き換えることもできます。",
++" 出力描画サイズ <x,y> はピクセル単位で与えます。",
 +"",
 +" sixel 出力形式は、ウィンドウシステムか、またはグラフィックディスプレイ",
 +" マネージャが有効でない場合に、gnuplot のグラフを linux コンソールで表",
 +" 示させたい場合にも便利です。以下参照: `linux console`。",
-+"",
-+" オプション `linewidth` と `dashlength` は拡大率で、描画されるすべての",
-+" 線に影響を与えます。これらは、描画コマンドで要求される値にかけ算されま",
-+" す。",
 +"",
 +" デフォルトでは、sixel 出力は、番号付きの 16 色を使用します。オプション",
 +" `truecolor` では、24bit RGB PNG 画像を作成し、それを 256 色の sixel 画",
@@ -2746,13 +2763,18 @@ diff -ru term/gd.trm.ORG term/gd.trm
 +" `butt` は線分の描画で、その端の点でのはみだしを起こさない描画メソッド",
 +" を使うようドライバに指示します。この設定は、線幅が 1 より大きい場合に",
 +" のみ意味があります。これの逆が `rounded` で、多少より均一な曲線を生成",
-+" しますが、より遅くなります。",
++" しますが、遅いかもしれません。",
++"",
++" オプション `linewidth` と `dashlength` は拡大率で、描画されるすべての",
++" 線に影響を与えます。これらは、描画コマンドで要求される値にかけ算されま",
++" す。点線/破線は、truecolor モードでしか使えません。",
 +"",
 +" gdlib を使用する出力形式におけるフォントの選択の詳細は、やや複雑です。",
 +" 詳細は、以下参照: `fonts`。",
 +"",
-+" 出力描画サイズ <x,y> はピクセル単位で与えます。デフォルトは 640x480 で",
-+" すが、あなたのターミナルウィンドウのサイズより多分小さいでしょう。",
++" `scale` は、ピクセル単位の出力キャンバスサイズは変更せずに、線幅、点の",
++" サイズ、フォントサイズに対する大域的な追加の倍率を設定します。",
++" 以下参照: `scale`。", 
 +"",
 +" `transparent` は、ドライバに背景色の透明化 (transparent) を行うよう指示",
 +" しますが、ほとんどの端末エミュレータはこれをサポートしていません。デフ",
@@ -2775,7 +2797,7 @@ diff -ru term/gd.trm.ORG term/gd.trm
  END_HELP(sixelgd)
  #endif /* TERM_HELP */
  #endif /* WITH_GD_SIXEL */
-@@ -4219,6 +4507,7 @@
+@@ -4384,6 +4690,7 @@
  
  #ifdef TERM_HELP
  START_HELP(kittygd)
@@ -2783,9 +2805,9 @@ diff -ru term/gd.trm.ORG term/gd.trm
  "1 kittygd",
  "?commands set terminal kittygd",
  "?set terminal kittygd",
-@@ -4263,6 +4552,53 @@
- " (see `pseudo-mousing`).  The `scroll` option instead plots at the current",
- " cursor position so that successive plots scroll with the terminal text.", 
+@@ -4432,6 +4739,56 @@
+ " point sizes, and font sizes without changing output canvas size in pixels.",
+ " See `scale`.",
  ""
 +#else /* JAPANESE_DOC */
 +"1 kittygd",
@@ -2801,6 +2823,7 @@ diff -ru term/gd.trm.ORG term/gd.trm
 +"                    {linewidth <lw>} {dashlength <dl>}",
 +"                    {font \"<face> {,<pointsize>}\"} {fontscale <scale>}",
 +"                    {size <x>,<y>} {anchor|scroll}",
++"                    {scale <factor>}",
 +"                    {background <rgb_color>}",
 +"",
 +" 出力形式 `kittygd` は、kitty グラフィックプロトコルをサポートする端末",
@@ -2808,10 +2831,8 @@ diff -ru term/gd.trm.ORG term/gd.trm
 +" ラリは 24 ビット RGB PNG 画像を生成し、出力時に 256 色 (`truecolor`)",
 +" 減色変換されます。`notruecolor` は、出力の色をさらに少なく制限しますが",
 +" これによる明確な優位性はありません。",
-+" 透過型の fill style にはオプション `truecolor` が必要です。以下参照:",
-+" `fillstyle`。",
-+" あなたの gnuplot が、cairo グラフィックスをサポートするようにビルドさ",
-+" れたものなら、むしろ `kittycairo` の方がいいでしょう。",
++"",
++" 点線/破線と透過型の fill style にはオプション `truecolor` が必要です。",
 +"",
 +" この出力形式は、ラベルや他の文字列処理にデフォルトで拡張文字列処理を使",
 +" 用します。以下参照: `enhanced`。",
@@ -2832,14 +2853,18 @@ diff -ru term/gd.trm.ORG term/gd.trm
 +" (以下参照: `pseudo-mousing`) では便利です。一方、`scroll` では、各グラ",
 +" フを現在のカーソル位置から開始しますが、それにより端末文字列でそれをス",
 +" クロールできます。",
++"",
++" `scale` は、ピクセル単位の出力キャンバスサイズは変更せずに、線幅、点の",
++" サイズ、フォントサイズに対する大域的な追加の倍率を設定します。",
++" 以下参照: `scale`。", 
 +""
 +#endif /* JAPANESE_DOC */
  END_HELP(kittygd)
  #endif /* TERM_HELP */
  #endif /* WITH_GD_KITTY */
 diff -ru term/ggi.trm.ORG term/ggi.trm
---- term/ggi.trm	2026-04-09.ORG 12:37:48.000000000 +0900
-+++ term/ggi.trm	2026-04-09 13:47:08.690911000 +0900
+--- term/ggi.trm	2026-08-26.ORG 13:48:46.000000000 +0900
++++ term/ggi.trm	2026-08-26 20:03:57.740154000 +0900
 @@ -1508,6 +1508,7 @@
  
  #ifdef TERM_HELP
@@ -2892,8 +2917,8 @@ diff -ru term/ggi.trm.ORG term/ggi.trm
  END_HELP(ggi)
  #endif
 diff -ru term/gpic.trm.ORG term/gpic.trm
---- term/gpic.trm	2026-04-09.ORG 12:37:48.000000000 +0900
-+++ term/gpic.trm	2026-04-09 13:47:08.690971000 +0900
+--- term/gpic.trm	2026-08-26.ORG 13:48:46.000000000 +0900
++++ term/gpic.trm	2026-08-26 20:03:57.740212000 +0900
 @@ -291,6 +291,7 @@
  
  #ifdef TERM_HELP
@@ -2969,40 +2994,9 @@ diff -ru term/gpic.trm.ORG term/gpic.trm
 +#endif /* JAPANESE_DOC */
  END_HELP(gpic)
  #endif /* TERM_HELP */
-diff -ru term/grass.trm.ORG term/grass.trm
---- term/grass.trm	2026-04-09.ORG 12:37:48.000000000 +0900
-+++ term/grass.trm	2026-04-09 13:47:08.691034000 +0900
-@@ -601,6 +601,7 @@
- 
- #ifdef TERM_HELP
- START_HELP(grass)
-+#ifndef JAPANESE_DOC
- "1 grass",
- "?commands set terminal grass",
- "?set terminal grass",
-@@ -613,5 +614,19 @@
- " GRASS geographic information system.  Contact grassp-list@moon.cecer.army.mil",
- " for more information.  Pages are written to the current frame of the GRASS",
- " Graphics Window.  There are no options."
-+#else /* JAPANESE_DOC */
-+"1 grass",
-+"?commands set terminal grass",
-+"?set terminal grass",
-+"?set term grass",
-+"?terminal grass",
-+"?term grass",
-+"?grass",
-+" 注意: 古い (legacy) 出力形式です。",
-+" `grass` ドライバは GRASS 地理情報システムのユーザが `gnuplot` を利用す",
-+" ることを可能にします。詳しい情報については grassp-list@moon.cecer.army.mil",
-+" に連絡を取ってください。ページは GRASS グラフウィンドウの現在のフレー",
-+" ムに書かれます。オプションはありません。"
-+#endif /* JAPANESE_DOC */
- END_HELP(grass)
- #endif
 diff -ru term/hp26.trm.ORG term/hp26.trm
---- term/hp26.trm	2026-04-09.ORG 12:37:48.000000000 +0900
-+++ term/hp26.trm	2026-04-09 13:47:08.691099000 +0900
+--- term/hp26.trm	2026-08-26.ORG 13:48:46.000000000 +0900
++++ term/hp26.trm	2026-08-26 20:03:57.740341000 +0900
 @@ -689,6 +689,7 @@
  
  #ifdef TERM_HELP
@@ -3029,8 +3023,8 @@ diff -ru term/hp26.trm.ORG term/hp26.trm
  END_HELP(hp2623a)
  #endif
 diff -ru term/hp2648.trm.ORG term/hp2648.trm
---- term/hp2648.trm	2026-04-09.ORG 12:37:48.000000000 +0900
-+++ term/hp2648.trm	2026-04-09 13:47:08.691152000 +0900
+--- term/hp2648.trm	2026-08-26.ORG 13:48:46.000000000 +0900
++++ term/hp2648.trm	2026-08-26 20:03:57.740397000 +0900
 @@ -185,6 +185,7 @@
  
  #ifdef TERM_HELP
@@ -3057,8 +3051,8 @@ diff -ru term/hp2648.trm.ORG term/hp2648.trm
  END_HELP(hp2648)
  #endif
 diff -ru term/hp500c.trm.ORG term/hp500c.trm
---- term/hp500c.trm	2026-04-09.ORG 12:37:48.000000000 +0900
-+++ term/hp500c.trm	2026-04-09 13:47:08.691214000 +0900
+--- term/hp500c.trm	2026-08-26.ORG 13:48:46.000000000 +0900
++++ term/hp500c.trm	2026-08-26 20:03:57.740458000 +0900
 @@ -515,6 +515,7 @@
  
  #ifdef TERM_HELP
@@ -3095,8 +3089,8 @@ diff -ru term/hp500c.trm.ORG term/hp500c.trm
  END_HELP(hp500c)
  #endif /* TERM_HELP */
 diff -ru term/hpgeneric.h.ORG term/hpgeneric.h
---- term/hpgeneric.h	2026-04-09.ORG 12:37:48.000000000 +0900
-+++ term/hpgeneric.h	2026-04-09 13:47:08.696357000 +0900
+--- term/hpgeneric.h	2026-08-26.ORG 13:48:46.000000000 +0900
++++ term/hpgeneric.h	2026-08-26 20:03:57.745634000 +0900
 @@ -4,6 +4,7 @@
   */
  #ifdef TERM_HELP
@@ -3126,8 +3120,8 @@ diff -ru term/hpgeneric.h.ORG term/hpgeneric.h
  END_HELP(hpgeneric)
  #endif
 diff -ru term/hpgl.trm.ORG term/hpgl.trm
---- term/hpgl.trm	2026-04-09.ORG 12:37:48.000000000 +0900
-+++ term/hpgl.trm	2026-04-09 13:47:08.691369000 +0900
+--- term/hpgl.trm	2026-08-26.ORG 13:48:46.000000000 +0900
++++ term/hpgl.trm	2026-08-26 20:03:57.740676000 +0900
 @@ -3290,6 +3290,7 @@
  
  #ifdef TERM_HELP
@@ -3263,8 +3257,8 @@ diff -ru term/hpgl.trm.ORG term/hpgl.trm
  END_HELP(pcl5)
  #endif /* TERM_HELP */
 diff -ru term/hpljii.trm.ORG term/hpljii.trm
---- term/hpljii.trm	2026-04-09.ORG 12:37:48.000000000 +0900
-+++ term/hpljii.trm	2026-04-09 13:47:08.691428000 +0900
+--- term/hpljii.trm	2026-08-26.ORG 13:48:46.000000000 +0900
++++ term/hpljii.trm	2026-08-26 20:03:57.740735000 +0900
 @@ -387,6 +387,7 @@
  
  #ifdef TERM_HELP
@@ -3309,8 +3303,8 @@ diff -ru term/hpljii.trm.ORG term/hpljii.trm
  END_HELP(hpljii)
  #endif /* TERM_HELP */
 diff -ru term/hppj.trm.ORG term/hppj.trm
---- term/hppj.trm	2026-04-09.ORG 12:37:48.000000000 +0900
-+++ term/hppj.trm	2026-04-09 13:47:08.691484000 +0900
+--- term/hppj.trm	2026-08-26.ORG 13:48:46.000000000 +0900
++++ term/hppj.trm	2026-08-26 20:03:57.740792000 +0900
 @@ -267,6 +267,7 @@
  
  #ifdef TERM_HELP
@@ -3343,8 +3337,8 @@ diff -ru term/hppj.trm.ORG term/hppj.trm
  END_HELP(hppj)
  #endif
 diff -ru term/imagen.trm.ORG term/imagen.trm
---- term/imagen.trm	2026-04-09.ORG 12:37:48.000000000 +0900
-+++ term/imagen.trm	2026-04-09 13:47:08.691552000 +0900
+--- term/imagen.trm	2026-08-26.ORG 13:48:46.000000000 +0900
++++ term/imagen.trm	2026-08-26 20:03:57.740862000 +0900
 @@ -886,6 +886,7 @@
  
  #ifdef TERM_HELP
@@ -3385,8 +3379,8 @@ diff -ru term/imagen.trm.ORG term/imagen.trm
  END_HELP(imagen)
  #endif
 diff -ru term/kyo.trm.ORG term/kyo.trm
---- term/kyo.trm	2026-04-09.ORG 12:37:48.000000000 +0900
-+++ term/kyo.trm	2026-04-09 13:47:08.691607000 +0900
+--- term/kyo.trm	2026-08-26.ORG 13:48:46.000000000 +0900
++++ term/kyo.trm	2026-08-26 20:03:57.740917000 +0900
 @@ -201,6 +201,7 @@
  
  #ifdef TERM_HELP
@@ -3421,8 +3415,8 @@ diff -ru term/kyo.trm.ORG term/kyo.trm
  END_HELP(kyo)
  #endif
 diff -ru term/latex.trm.ORG term/latex.trm
---- term/latex.trm	2026-04-09.ORG 12:37:48.000000000 +0900
-+++ term/latex.trm	2026-04-09 13:47:08.691710000 +0900
+--- term/latex.trm	2026-08-26.ORG 13:48:46.000000000 +0900
++++ term/latex.trm	2026-08-26 20:03:57.741004000 +0900
 @@ -1164,6 +1164,7 @@
  
  #ifdef TERM_HELP
@@ -3513,8 +3507,8 @@ diff -ru term/latex.trm.ORG term/latex.trm
  END_HELP(latex)
  #endif /* TERM_TABLE */
 diff -ru term/latex_old.h.ORG term/latex_old.h
---- term/latex_old.h	2026-04-09.ORG 12:37:48.000000000 +0900
-+++ term/latex_old.h	2026-04-09 13:47:08.696303000 +0900
+--- term/latex_old.h	2026-08-26.ORG 13:48:46.000000000 +0900
++++ term/latex_old.h	2026-08-26 20:03:57.745578000 +0900
 @@ -5,6 +5,7 @@
   */
  #ifdef TERM_HELP
@@ -3574,8 +3568,8 @@ diff -ru term/latex_old.h.ORG term/latex_old.h
  END_HELP(latex)
  #endif
 diff -ru term/linux-vgagl.trm.ORG term/linux-vgagl.trm
---- term/linux-vgagl.trm	2026-04-09.ORG 12:37:48.000000000 +0900
-+++ term/linux-vgagl.trm	2026-04-09 13:47:08.691761000 +0900
+--- term/linux-vgagl.trm	2026-08-26.ORG 13:48:46.000000000 +0900
++++ term/linux-vgagl.trm	2026-08-26 20:03:57.741056000 +0900
 @@ -1,5 +1,6 @@
  #ifdef TERM_HELP
  START_HELP(linux)
@@ -3614,8 +3608,8 @@ diff -ru term/linux-vgagl.trm.ORG term/linux-vgagl.trm
  END_HELP(linux)
  #endif
 diff -ru term/lua.trm.ORG term/lua.trm
---- term/lua.trm	2026-04-09.ORG 12:37:48.000000000 +0900
-+++ term/lua.trm	2026-04-09 13:47:08.691868000 +0900
+--- term/lua.trm	2026-08-26.ORG 13:48:46.000000000 +0900
++++ term/lua.trm	2026-08-26 20:03:57.741162000 +0900
 @@ -1472,6 +1472,7 @@
  
  #ifdef TERM_HELP
@@ -3691,8 +3685,8 @@ diff -ru term/lua.trm.ORG term/lua.trm
  END_HELP(tikz)
  #endif /* TERM_HELP */
 diff -ru term/metafont.trm.ORG term/metafont.trm
---- term/metafont.trm	2026-04-09.ORG 12:37:48.000000000 +0900
-+++ term/metafont.trm	2026-04-09 13:47:08.691940000 +0900
+--- term/metafont.trm	2026-08-26.ORG 13:48:46.000000000 +0900
++++ term/metafont.trm	2026-08-26 20:03:57.741234000 +0900
 @@ -538,6 +538,7 @@
  
  #ifdef TERM_HELP
@@ -3807,8 +3801,8 @@ diff -ru term/metafont.trm.ORG term/metafont.trm
  END_HELP(mf)
  #endif /* TERM_HELP */
 diff -ru term/metapost.trm.ORG term/metapost.trm
---- term/metapost.trm	2026-04-09.ORG 12:37:48.000000000 +0900
-+++ term/metapost.trm	2026-04-09 13:47:08.692051000 +0900
+--- term/metapost.trm	2026-08-26.ORG 13:48:46.000000000 +0900
++++ term/metapost.trm	2026-08-26 20:03:57.741347000 +0900
 @@ -1073,6 +1073,7 @@
  
  #ifdef TERM_HELP
@@ -4025,8 +4019,8 @@ diff -ru term/metapost.trm.ORG term/metapost.trm
  END_HELP(mp)
  #endif				/* TERM_HELP */
 diff -ru term/mif.trm.ORG term/mif.trm
---- term/mif.trm	2026-04-09.ORG 12:37:48.000000000 +0900
-+++ term/mif.trm	2026-04-09 13:47:08.692127000 +0900
+--- term/mif.trm	2026-08-26.ORG 13:48:46.000000000 +0900
++++ term/mif.trm	2026-08-26 20:03:57.741424000 +0900
 @@ -963,6 +963,7 @@
  
  #ifdef TERM_HELP
@@ -4077,8 +4071,8 @@ diff -ru term/mif.trm.ORG term/mif.trm
  END_HELP(mif)
  #endif /* TERM_HELP */
 diff -ru term/pbm.trm.ORG term/pbm.trm
---- term/pbm.trm	2026-04-09.ORG 12:37:48.000000000 +0900
-+++ term/pbm.trm	2026-04-09 13:47:08.692189000 +0900
+--- term/pbm.trm	2026-08-26.ORG 13:48:46.000000000 +0900
++++ term/pbm.trm	2026-08-26 20:03:57.741487000 +0900
 @@ -533,6 +533,7 @@
  
  #ifdef TERM_HELP
@@ -4128,8 +4122,8 @@ diff -ru term/pbm.trm.ORG term/pbm.trm
  END_HELP(pbm)
  #endif /* TERM_HELP */
 diff -ru term/pc.trm.ORG term/pc.trm
---- term/pc.trm	2026-04-09.ORG 12:37:48.000000000 +0900
-+++ term/pc.trm	2026-04-09 13:47:08.692293000 +0900
+--- term/pc.trm	2026-08-26.ORG 13:48:46.000000000 +0900
++++ term/pc.trm	2026-08-26 20:03:57.741577000 +0900
 @@ -1587,6 +1587,7 @@
  
  #ifdef TERM_HELP
@@ -4183,8 +4177,8 @@ diff -ru term/pc.trm.ORG term/pc.trm
  END_HELP(dospc)
  #endif /* TERM_HELP */
 diff -ru term/pict2e.trm.ORG term/pict2e.trm
---- term/pict2e.trm	2026-04-09.ORG 12:37:48.000000000 +0900
-+++ term/pict2e.trm	2026-04-09 13:47:08.692375000 +0900
+--- term/pict2e.trm	2026-08-26.ORG 13:48:46.000000000 +0900
++++ term/pict2e.trm	2026-08-26 20:03:57.741658000 +0900
 @@ -1093,6 +1093,7 @@
  
  #ifdef TERM_HELP
@@ -4271,8 +4265,8 @@ diff -ru term/pict2e.trm.ORG term/pict2e.trm
  END_HELP(pict2e)
  #endif /* TERM_HELP */
 diff -ru term/pm.trm.ORG term/pm.trm
---- term/pm.trm	2026-04-09.ORG 12:37:48.000000000 +0900
-+++ term/pm.trm	2026-04-09 13:47:08.692481000 +0900
+--- term/pm.trm	2026-08-26.ORG 13:48:46.000000000 +0900
++++ term/pm.trm	2026-08-26 20:03:57.741764000 +0900
 @@ -1582,6 +1582,7 @@
  
  #ifdef TERM_HELP
@@ -4337,9 +4331,9 @@ diff -ru term/pm.trm.ORG term/pm.trm
  END_HELP(pm)
  #endif /* TERM_HELP */
 diff -ru term/post.trm.ORG term/post.trm
---- term/post.trm	2026-04-09.ORG 12:37:48.000000000 +0900
-+++ term/post.trm	2026-04-09 13:47:08.698872000 +0900
-@@ -4488,6 +4488,7 @@
+--- term/post.trm	2026-08-26.ORG 13:48:46.000000000 +0900
++++ term/post.trm	2026-08-26 20:03:57.747892000 +0900
+@@ -4487,6 +4487,7 @@
   * of "text" that is necessary to avoid errors.
   */
  START_HELP(00psglobal)
@@ -4347,7 +4341,7 @@ diff -ru term/post.trm.ORG term/post.trm
  #define PS_COMMON_OPTS1 \
  "                               {level1 | leveldefault | level3}",\
  "                               {color | colour | monochrome}",\
-@@ -4555,9 +4556,81 @@
+@@ -4554,9 +4555,81 @@
  " plot edges as specified by the `size` option.",\
  "",
  ""
@@ -4429,7 +4423,7 @@ diff -ru term/post.trm.ORG term/post.trm
  "1 epslatex",
  "?commands set terminal epslatex",
  "?set terminal epslatex",
-@@ -4712,9 +4785,173 @@
+@@ -4711,9 +4784,173 @@
  " by the `header` command.  Thus, you can use `header` to overwrite some of",
  " settings performed using \"gnuplot.cfg\"",
  ""
@@ -4603,7 +4597,7 @@ diff -ru term/post.trm.ORG term/post.trm
  "1 pslatex and pstex",
  "?commands set terminal pslatex",
  "?set terminal pslatex",
-@@ -4786,9 +5023,82 @@
+@@ -4785,9 +5022,82 @@
  "",
  " Linewidths and pointsizes may be changed with `set style line`."
  ""
@@ -4686,7 +4680,7 @@ diff -ru term/post.trm.ORG term/post.trm
  "1 postscript",
  "?commands set terminal postscript",
  "?set terminal postscript",
-@@ -5025,5 +5335,243 @@
+@@ -5024,5 +5334,243 @@
  " other fonts you may have to try both settings.  See also `fontfile`.",
  "",
  ""
@@ -4931,8 +4925,8 @@ diff -ru term/post.trm.ORG term/post.trm
  END_HELP(post)
  #endif /* TERM_HELP */
 diff -ru term/pstricks.trm.ORG term/pstricks.trm
---- term/pstricks.trm	2026-04-09.ORG 12:37:48.000000000 +0900
-+++ term/pstricks.trm	2026-04-09 13:47:08.692906000 +0900
+--- term/pstricks.trm	2026-08-26.ORG 13:48:46.000000000 +0900
++++ term/pstricks.trm	2026-08-26 20:03:57.742195000 +0900
 @@ -1323,6 +1323,7 @@
  
  #ifdef TERM_HELP
@@ -5011,8 +5005,8 @@ diff -ru term/pstricks.trm.ORG term/pstricks.trm
  END_HELP(pstricks)
  #endif /* TERM_HELP */
 diff -ru term/qms.trm.ORG term/qms.trm
---- term/qms.trm	2026-04-09.ORG 12:37:48.000000000 +0900
-+++ term/qms.trm	2026-04-09 13:47:08.692962000 +0900
+--- term/qms.trm	2026-08-26.ORG 13:48:46.000000000 +0900
++++ term/qms.trm	2026-08-26 20:03:57.742249000 +0900
 @@ -223,6 +223,7 @@
  
  #ifdef TERM_HELP
@@ -5039,8 +5033,8 @@ diff -ru term/qms.trm.ORG term/qms.trm
  END_HELP(qms)
  #endif
 diff -ru term/qt.trm.ORG term/qt.trm
---- term/qt.trm	2026-04-09.ORG 12:37:48.000000000 +0900
-+++ term/qt.trm	2026-04-09 13:47:08.693022000 +0900
+--- term/qt.trm	2026-08-26.ORG 13:48:46.000000000 +0900
++++ term/qt.trm	2026-08-26 20:03:57.742313000 +0900
 @@ -76,6 +76,7 @@
  
  #ifdef TERM_HELP
@@ -5049,7 +5043,7 @@ diff -ru term/qt.trm.ORG term/qt.trm
  "1 qt",
  "?set terminal qt",
  "?terminal qt",
-@@ -191,5 +192,126 @@
+@@ -203,5 +204,138 @@
  " The gnuplot outboard driver, gnuplot_qt, is searched in a default place",
  " chosen when the program is compiled.  You can override that by defining",
  " the environment variable GNUPLOT_DRIVER_DIR."
@@ -5072,6 +5066,7 @@ diff -ru term/qt.trm.ORG term/qt.trm
 +"                     {{no}replotonresize}",
 +"                     {{no}antialias}",
 +"                     {linewidth <lw>} {dashlength <dl>}",
++"                     {scale <factor>}",
 +"                     {{no}persist} {{no}raise} {{no}ctrl}",
 +"                     {close}",
 +"                     {widget <id>}",
@@ -5127,6 +5122,17 @@ diff -ru term/qt.trm.ORG term/qt.trm
 +" dashlength は、点線/破線パターンのユーザ定義にのみ影響を与え、Qt が内部",
 +" に持っているパターンには影響を与えません。",
 +"",
++" `scale` は、出力ウィンドウのサイズは変更せずに、描画要素すべてのサイズ",
++" (フォント、線幅、点のサイズ、目盛り刻み、余白) を <factor> 倍します。",
++" これは、固定したキャンバスに対する大きい、または小さい注釈を作成するの", 
++" に便利です。デフォルトは 1.0 で、この値は正である必要があります。この",
++" 値は、`set termoption scale` でも変更できます。",
++"",
++" この出力形式の設定ダイアログに、`Change terminal scale on resize` のチ",
++" ェックボックスがあります。それが有効な場合、ウィンドウをマウスドラッグ",
++" でサイズを変更すると、ウィンドウサイズの変更に対応した現在の `scale` 倍",
++" (例えばウィンドウサイズを倍にすれば、倍の scale) を行います 。",
++"",
 +#if (QTVER == 4)
 +" Qt のレンダリング速度は、使用するレンダリングモードによって大きく変わり",
 +" ます。Qt バージョン 4 では、これは環境変数 QT_GRAPHICSSYSTEM で制御でき",
@@ -5177,8 +5183,8 @@ diff -ru term/qt.trm.ORG term/qt.trm
  END_HELP(qt)
  #endif /* TERM_HELP */
 diff -ru term/regis.trm.ORG term/regis.trm
---- term/regis.trm	2026-04-09.ORG 12:37:48.000000000 +0900
-+++ term/regis.trm	2026-04-09 13:47:08.693076000 +0900
+--- term/regis.trm	2026-08-26.ORG 13:48:46.000000000 +0900
++++ term/regis.trm	2026-08-26 20:03:57.742367000 +0900
 @@ -255,6 +255,7 @@
  
  #ifdef TERM_HELP
@@ -5210,8 +5216,8 @@ diff -ru term/regis.trm.ORG term/regis.trm
  END_HELP(regis)
  #endif
 diff -ru term/svg.trm.ORG term/svg.trm
---- term/svg.trm	2026-04-09.ORG 12:37:48.000000000 +0900
-+++ term/svg.trm	2026-04-09 13:47:08.693226000 +0900
+--- term/svg.trm	2026-08-26.ORG 13:48:46.000000000 +0900
++++ term/svg.trm	2026-08-26 20:03:57.742508000 +0900
 @@ -2424,6 +2424,7 @@
  
  #ifdef TERM_HELP
@@ -5325,8 +5331,8 @@ diff -ru term/svg.trm.ORG term/svg.trm
  END_HELP(domterm)
  #endif /* TERM_HELP */
 diff -ru term/t410x.trm.ORG term/t410x.trm
---- term/t410x.trm	2026-04-09.ORG 12:37:48.000000000 +0900
-+++ term/t410x.trm	2026-04-09 13:47:08.693283000 +0900
+--- term/t410x.trm	2026-08-26.ORG 13:48:46.000000000 +0900
++++ term/t410x.trm	2026-08-26 20:03:57.742565000 +0900
 @@ -312,6 +312,7 @@
  
  #ifdef TERM_HELP
@@ -5353,8 +5359,8 @@ diff -ru term/t410x.trm.ORG term/t410x.trm
  END_HELP(tek410x)
  #endif
 diff -ru term/tek.trm.ORG term/tek.trm
---- term/tek.trm	2026-04-09.ORG 12:37:48.000000000 +0900
-+++ term/tek.trm	2026-04-09 13:47:08.693387000 +0900
+--- term/tek.trm	2026-08-26.ORG 13:48:46.000000000 +0900
++++ term/tek.trm	2026-08-26 20:03:57.742679000 +0900
 @@ -1432,6 +1432,7 @@
  
  #ifdef TERM_HELP
@@ -5467,8 +5473,8 @@ diff -ru term/tek.trm.ORG term/tek.trm
  END_HELP(tek40)
  #endif /* TERM_HELP */
 diff -ru term/texdraw.trm.ORG term/texdraw.trm
---- term/texdraw.trm	2026-04-09.ORG 12:37:48.000000000 +0900
-+++ term/texdraw.trm	2026-04-09 13:47:08.693462000 +0900
+--- term/texdraw.trm	2026-08-26.ORG 13:48:46.000000000 +0900
++++ term/texdraw.trm	2026-08-26 20:03:57.742754000 +0900
 @@ -883,6 +883,7 @@
  
  #ifdef TERM_HELP
@@ -5537,8 +5543,8 @@ diff -ru term/texdraw.trm.ORG term/texdraw.trm
  END_HELP(texdraw)
  #endif /* TERM_HELP */
 diff -ru term/tgif.trm.ORG term/tgif.trm
---- term/tgif.trm	2026-04-09.ORG 12:37:48.000000000 +0900
-+++ term/tgif.trm	2026-04-09 13:47:08.701168000 +0900
+--- term/tgif.trm	2026-08-26.ORG 13:48:46.000000000 +0900
++++ term/tgif.trm	2026-08-26 20:03:57.749953000 +0900
 @@ -1678,6 +1678,7 @@
  
  #ifdef TERM_HELP
@@ -5628,8 +5634,8 @@ diff -ru term/tgif.trm.ORG term/tgif.trm
  #endif
  /*{{{}}}*/
 diff -ru term/tkcanvas.trm.ORG term/tkcanvas.trm
---- term/tkcanvas.trm	2026-04-09.ORG 12:37:48.000000000 +0900
-+++ term/tkcanvas.trm	2026-04-09 13:47:08.693703000 +0900
+--- term/tkcanvas.trm	2026-08-26.ORG 13:48:46.000000000 +0900
++++ term/tkcanvas.trm	2026-08-26 20:03:57.743005000 +0900
 @@ -2116,6 +2116,7 @@
  
  #ifdef TERM_HELP
@@ -5792,8 +5798,8 @@ diff -ru term/tkcanvas.trm.ORG term/tkcanvas.trm
  #endif
  
 diff -ru term/tpic.trm.ORG term/tpic.trm
---- term/tpic.trm	2026-04-09.ORG 12:37:48.000000000 +0900
-+++ term/tpic.trm	2026-04-09 13:47:08.693779000 +0900
+--- term/tpic.trm	2026-08-26.ORG 13:48:46.000000000 +0900
++++ term/tpic.trm	2026-08-26 20:03:57.743088000 +0900
 @@ -926,6 +926,7 @@
  
  #ifdef TERM_HELP
@@ -5854,9 +5860,9 @@ diff -ru term/tpic.trm.ORG term/tpic.trm
  END_HELP(tpic)
  #endif /* TERM_TABLE */
 diff -ru term/webp.trm.ORG term/webp.trm
---- term/webp.trm	2026-04-09.ORG 12:37:48.000000000 +0900
-+++ term/webp.trm	2026-04-09 13:47:08.693850000 +0900
-@@ -373,6 +373,7 @@
+--- term/webp.trm	2026-08-26.ORG 13:48:46.000000000 +0900
++++ term/webp.trm	2026-08-26 20:03:57.743156000 +0900
+@@ -395,6 +395,7 @@
  
  #ifdef TERM_HELP
  START_HELP(webp)
@@ -5864,7 +5870,7 @@ diff -ru term/webp.trm.ORG term/webp.trm
  "1 webp",
  "?set terminal webp",
  "?terminal webp",
-@@ -416,6 +417,52 @@
+@@ -439,6 +440,54 @@
  " The `loop` suboption specifies how many times the animation sequence should",
  " be repeated during playback.  The default (0) gives a continuous loop.", 
  ""
@@ -5882,17 +5888,19 @@ diff -ru term/webp.trm.ORG term/webp.trm
 +" 書式:",
 +"         set term webp",
 +"                      {size <x_pixels>,<y_pixels>}",
-+"                      {font <font>} {fontscale <scale>} {{no}enhanced}",
++"                      {{no}enhanced}",
++"                      {font <font>} {fontscale <scale>}",
 +"                      {{no}transparent} {background <rgbcolor>",
 +"                      {linewidth <lw>} {rounded|butt|square} {dashlength <dl>}",
-+"                      {pointscale <ps>}",
++"                      {pointscale <ps>} {scale <value>}",
 +"",
 +"                      {{no}animate {quality <q>} {delay <msec>} {loop <n>}}",
 +"",
-+" ンネル画像として、pngcairo 出力形式と共有するルーチンを使って作ります。",
++" webp 出力形式は、最初はpngcairo 出力形式と共有するルーチンを使って 32",
++" ビット RGB + アルファチャンネル画像として、個々のフレームを作ります。",
 +" フォントや terminal オプションに関する詳細は、以下参照:",
 +" `set terminal pngcairo`。",
-+" その後、そのフレームを出力時に webp 形式に変換します。",
++" その後、それらのフレームを出力時に webp 形式に変換します。",
 +"",
 +" オプション `animate` は、複数のフレームからなる webp ファイルを生成しま",
 +" す。個々のフレームは、個別の `plot`、または `splot` コマンドで生成した",
@@ -5918,9 +5926,9 @@ diff -ru term/webp.trm.ORG term/webp.trm
  #endif /* TERM_HELP */
  
 diff -ru term/win.trm.ORG term/win.trm
---- term/win.trm	2026-04-09.ORG 12:37:48.000000000 +0900
-+++ term/win.trm	2026-04-09 13:47:08.693980000 +0900
-@@ -1189,6 +1189,7 @@
+--- term/win.trm	2026-08-26.ORG 13:48:46.000000000 +0900
++++ term/win.trm	2026-08-26 20:03:57.743277000 +0900
+@@ -1212,6 +1212,7 @@
  
  #ifdef TERM_HELP
  START_HELP(windows)
@@ -5928,7 +5936,7 @@ diff -ru term/win.trm.ORG term/win.trm
  "1 windows",
  "?commands set terminal windows",
  "?set terminal windows",
-@@ -1514,5 +1515,327 @@
+@@ -1548,5 +1549,339 @@
  #endif
  "",
  " See `graph-menu`."
@@ -5954,6 +5962,7 @@ diff -ru term/win.trm.ORG term/win.trm
 +"                            {fontscale <scale>}",
 +"                            {linewidth <scale>}",
 +"                            {pointscale <scale>}",
++"                            {scale <factor>}",
 +"                            {background <rgb color>}",
 +"                            {title \"Plot Window Title\"}",
 +"                            {{size | wsize} <width>,<height>}",
@@ -5979,6 +5988,10 @@ diff -ru term/win.trm.ORG term/win.trm
 +" いませんので注意してください。",
 +" `linewidth`, `fontscale`, `pointscale` で、線の幅、文字サイズ、点記号の",
 +" 大きさを伸縮できます。",
++" `scale` は、すべてのグラフ要素 (フォント、線、点、軸の刻み、および派生す",
++" る余白) を、大域的に指定された倍率 factor 倍します。これは、要素を縮める",
++" (factor < 1) のにも使えます。ここで与える scale の値は、windows グラフ",
++" メニューの `Change scale on resize` オプションの初期値になります。",
 +" `title` は、グラフウィンドウのタイトルを変更します。",
 +" `size` はウィンドウ内の描画領域のピクセル単位での幅と高さを、`wsize` は",
 +" ウィンドウ自身の実際のサイズを、`position` はウィンドウの原点、すなわち",
@@ -6041,6 +6054,13 @@ diff -ru term/win.trm.ORG term/win.trm
 +"",
 +" `Color` チェックを入れるとカラー出力が有効、チェック無しだとすべて灰色",
 +" 階調表示。これは例えば白黒のプリントアウトの見た目の確認に有用です。",
++"",
++" `Change scale on resize` チェックを入れると、大域的な `scale` 因子を、",
++" ウィンドウがリサイズされたときに常にそのウィンドウサイズに合うように設",
++" 定します。それにより、フォント、線、点、軸の刻みは、ウィンドウとともに",
++" 大きくなったり小さくなったりします。自動的なリサイズの挙動とは違い、こ",
++" の調整は、`replot` を行ったときにも続きます。デフォルトではチェックは入",
++" っていません。",
 +"",
 +#ifdef USE_WINGDI
 +" `GDI backend` Windows GDI を使うスクリーン描画。これは古典的な windows",
@@ -6257,9 +6277,9 @@ diff -ru term/win.trm.ORG term/win.trm
  END_HELP(windows)
  #endif /* TERM_HELP */
 diff -ru term/wxt.trm.ORG term/wxt.trm
---- term/wxt.trm	2026-04-09.ORG 12:37:48.000000000 +0900
-+++ term/wxt.trm	2026-04-09 13:47:08.694056000 +0900
-@@ -508,6 +508,7 @@
+--- term/wxt.trm	2026-08-26.ORG 13:48:46.000000000 +0900
++++ term/wxt.trm	2026-08-26 20:03:57.743358000 +0900
+@@ -526,6 +526,7 @@
  
  #ifdef TERM_HELP
  START_HELP(wxt)
@@ -6267,7 +6287,7 @@ diff -ru term/wxt.trm.ORG term/wxt.trm
  "1 wxt",
  "?set terminal wxt",
  "?terminal wxt",
-@@ -627,5 +628,130 @@
+@@ -655,5 +656,140 @@
  " bindings by <ctrl>+<space> and <ctrl>+'q', respectively.",
  " These three keywords (raise, persist and ctrl) can also be set and remembered",
  " between sessions through the configuration dialog."
@@ -6289,6 +6309,7 @@ diff -ru term/wxt.trm.ORG term/wxt.trm
 +"                      {background <rgb_color> | nobackground}",
 +"                      {{no}enhanced}",
 +"                      {font <font>} {fontscale <scale>}",
++"                      {scale <factor>}",
 +"                      {title \"title\"}",
 +"                      {linewidth <lw>} {butt|rounded|square}",
 +"                      {dashlength <dl>}",
@@ -6320,6 +6341,11 @@ diff -ru term/wxt.trm.ORG term/wxt.trm
 +" ドウに合わせられますが、フォントサイズや線幅はそれぞれのデフォルトにリ",
 +" セットされます。",
 +"",
++" この出力形式の設定ダイアログに、`Change terminal scale on resize` のチ",
++" ェックボックスがあります。それが有効な場合、ウィンドウをマウスドラッグ",
++" でサイズを変更すると、ウィンドウサイズの変更に対応した現在の `scale` 倍",
++" (例えばウィンドウサイズを倍にすれば、倍の scale) を行います 。",
++"",
 +" position オプションは描画ウィンドウの位置を設定するのに使えます。これは",
 +" コマンド `set term` 後の最初の描画にのみ適用されます。",
 +"",
@@ -6327,6 +6353,10 @@ diff -ru term/wxt.trm.ORG term/wxt.trm
 +" その挙動は、他の出力形式と共通です。詳細は、以下参照: `mouse`。それに",
 +" は追加のアイコンもいくつかついていますが、それらはそれ自体が説明的なも",
 +" のになっているはずです。",
++"",
++" `scale` は、ピクセル単位の出力キャンバスサイズは変更せずに、線幅、点の",
++" サイズ、フォントサイズに対する大域的な追加の倍率を設定します。",
++" 以下参照: `scale`。", 
 +"",
 +" この出力形式は、拡張文字列処理モード (enhanced text mode) をサポートし",
 +" ていて、フォントや書式コマンド (上付、下付など) をラベルや他の文字列に",
@@ -6399,8 +6429,8 @@ diff -ru term/wxt.trm.ORG term/wxt.trm
  END_HELP(wxt)
  #endif /* TERM_HELP */
 diff -ru term/x11.trm.ORG term/x11.trm
---- term/x11.trm	2026-04-09.ORG 12:37:48.000000000 +0900
-+++ term/x11.trm	2026-04-09 13:47:08.694259000 +0900
+--- term/x11.trm	2026-08-26.ORG 13:48:46.000000000 +0900
++++ term/x11.trm	2026-08-26 20:03:57.743559000 +0900
 @@ -2193,6 +2193,7 @@
  
  #ifdef TERM_HELP
@@ -6926,8 +6956,8 @@ diff -ru term/x11.trm.ORG term/x11.trm
  END_HELP(x11)
  #endif				/* TERM_HELP */
 diff -ru term/xlib.trm.ORG term/xlib.trm
---- term/xlib.trm	2026-04-09.ORG 12:37:48.000000000 +0900
-+++ term/xlib.trm	2026-04-09 13:47:08.694310000 +0900
+--- term/xlib.trm	2026-08-26.ORG 13:48:46.000000000 +0900
++++ term/xlib.trm	2026-08-26 20:03:57.743610000 +0900
 @@ -96,6 +96,7 @@
  
  #ifdef TERM_HELP

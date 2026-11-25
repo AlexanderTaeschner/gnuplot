@@ -61,7 +61,7 @@
 #include "term_api.h"
 #include "util3d.h"
 #include "hidden3d.h"
-#include "multiplot.h"	/* EXPERIMENTAL */
+#include "multiplot.h"
 #include "plot.h"	/* for interactive */
 #include "internal.h"
 
@@ -420,7 +420,7 @@ mouse_from_saved_mapping(int pos, axis_mapping *map)
 	return NAN;
 
     /* Logscale is possible, but not general nonlinear */
-    if (map->nonlinear)
+    if (map->nonlinear && !map->link_primary)
 	return NAN;
 
     frac = (double)(pos - map->term_lower)

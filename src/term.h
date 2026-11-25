@@ -246,9 +246,6 @@
 #include "fig.trm"
 #endif
 
-/* geographical info system */
-/* #include "grass.trm" */
-
 /* HP2623A "ET head" 1980 era graphics terminal */
 /* #include "hp26.trm" */
 

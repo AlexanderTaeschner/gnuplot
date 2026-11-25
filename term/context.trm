@@ -719,13 +719,10 @@ CONTEXT_options()
 TERM_PUBLIC void
 CONTEXT_init()
 {
-	time_t now;
 	char timebuffer[100];
 #ifdef WRITE_PNG_IMAGE
 	int i;
 #endif
-
-	time(&now);
 
 	CONTEXT_posx = CONTEXT_posy = 0;
 	CONTEXT_path_count = 0;
@@ -776,7 +773,7 @@ CONTEXT_init()
 
 	fprintf(gpoutfile, "%% Written by ConTeXt terminal for GNUPLOT");
 	if (CONTEXT_params.timestamp) {
-		if (strftime(timebuffer, 100, "%Y-%m-%d %H:%M %Z", localtime(&now)) != 0)
+		if (strftime(timebuffer, 100, "%Y-%m-%d %H:%M %Z", gp_now_tm()) != 0)
 			fprintf(gpoutfile, " on: %s", timebuffer);
 	}
 	fprintf(gpoutfile, "\n");

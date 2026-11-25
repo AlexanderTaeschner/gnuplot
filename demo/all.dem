@@ -250,8 +250,9 @@ load "contours.dem"
 load "custom_contours.dem"
 reset
 
-print "******************** file contourfill.dem ********************"
+print "******************** contourfill ********************"
 load "contourfill.dem"
+load "contourfill_defined.dem"
 reset
 
 print "******************** file pixmap.dem ********************"

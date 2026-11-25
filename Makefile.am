@@ -1,10 +1,11 @@
 ## Process this file with automake to produce Makefile.in -*-Makefile-*-
 AUTOMAKE_OPTIONS = foreign
+AM_DISTCHECK_DVI_TARGET =
 
 SUBDIRS = config m4 term src docs man demo share
 
 EXTRA_DIST = BUGS Copyright FAQ.pdf INSTALL INSTALL.gnu \
-PATCHLEVEL PGPKEYS README RELEASE_NOTES \
+PATCHLEVEL PGPKEYS README README.security RELEASE_NOTES \
 win
 
 DISTCLEANFILES = stamp-h

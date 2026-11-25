@@ -2220,7 +2220,7 @@ eval_3dplots()
 		}
 
 #ifdef USE_WATCHPOINTS
-		/* EXPERIMENTAL watchpoints for "splot with lines" */
+		/* watchpoints for "splot with lines" */
 		if (equals(c_token, "watch")) {
 		    if (this_plot->plot_style != LINES || !splot_map)
 			int_error(c_token, "3D watchpoints only possible for splot with lines, and only if 'set view map'");

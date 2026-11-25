@@ -1128,6 +1128,10 @@ void qt_set_clipboard(const char s[])
 }
 #endif // USE_MOUSE
 
+#if defined(USE_MOUSE) && defined(_WIN32)
+// number of times qt_waitforinput() found no new events
+static int qt_idle_polls = 0;
+#endif
 
 int qt_waitforinput(int options)
 {
@@ -1288,9 +1292,12 @@ int qt_waitforinput(int options)
 			waitResult = idx_msg;
 #endif
 
-		// Process pending qt events
+		// Process pending qt events. Check for buffered data first:
+		// waitForReadyRead() only reports new data, but the socket may
+		// also receive data while we are writing to it.
 		if ((idx_socket != -1) && // (qt != NULL)) &&
-			(qt->socket.waitForReadyRead(10)) && (qt->socket.bytesAvailable() >= (int)sizeof(gp_event_t)))
+			((qt->socket.bytesAvailable() >= (int)sizeof(gp_event_t)) ||
+			 (qt->socket.waitForReadyRead(10) && (qt->socket.bytesAvailable() >= (int)sizeof(gp_event_t)))))
 			waitResult = idx_socket; // data already available
 
 		// Wait for a new event
@@ -1338,8 +1345,12 @@ int qt_waitforinput(int options)
 			}
 			// If the native pipe handle signalled new data, but the QtLocalSocket
 			// object has no data available, release the CPU for a little while.
+			// Keep the pause short right after activity, when the GUI is likely
+			// to answer.
 			if (size == 0)
-				Sleep(100);
+				Sleep((qt_idle_polls++ < 50) ? 5 : 100);
+			else
+				qt_idle_polls = 0;
 			// Replay move event
 			if (tempEvent.type == GE_motion)
 				qt_processTermEvent(&tempEvent);

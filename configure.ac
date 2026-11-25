@@ -211,7 +211,6 @@ else
 fi
 AM_CONDITIONAL(HAVE_LATEX, test "$with_latex" != no)
 AC_CHECK_PROGS(DVIPS, dvips, no)
-AC_CHECK_PROGS(TROFF, troff, no)
 
 AC_ARG_WITH(texdir,dnl
   [--with-texdir=DIR       where to install latex style files (default: ask kpsewhich)],
@@ -247,13 +246,6 @@ else
   AC_PATH_XTRA
 fi
 
-dnl Needed for LynxOS until AC_PATH_XTRA is fixed
-if test "$ac_cv_func_gethostbyname" = no; then
-  if test "$ac_cv_lib_nsl_gethostbyname" = no; then
-    AC_CHECK_LIB(bsd, gethostbyname, X_EXTRA_LIBS="$X_EXTRA_LIBS -lbsd")
-  fi
-fi
-
 if test "$no_x" != yes; then
   CPPFLAGS="$CPPFLAGS $X_CFLAGS"
   LIBRARIES_FOR_X="$X_LIBS -lX11 $X_EXTRA_LIBS"
@@ -262,6 +254,36 @@ if test "$no_x" != yes; then
   [--with-x-dcop           gnuplot_x11 can use KDE3/DCOP for space-raises-console],
   AC_DEFINE(USE_KDE3_DCOP,1,[ Define if gnuplot_x11 can use KDE3 DCOP to raise konsole]))
 fi
+
+if test "$no_x" != yes; then
+  dnl enable multi-byte font support in x11 terminal
+  AC_ARG_ENABLE(x11-mbfonts,dnl
+  [--disable-x11-mbfonts   disable multi-byte font support for x11 ],,
+    test -z "$enable_x11_mbfonts" && enable_x11_mbfonts=yes)
+    if test "$enable_x11_mbfonts" = yes; then
+
+      _ldflags="$LDFLAGS"
+      LDFLAGS="$LDFLAGS $LIBRARIES_FOR_X"
+
+      AC_MSG_CHECKING([for multi-byte support in x11])
+      AC_CHECK_LIB(X11, XmbDrawString,
+        AC_DEFINE(USE_X11_MULTIBYTE,1,[ Define to enable multi-byte font support for x11 ]),
+        enable_x11_mbfonts=no )
+
+      LDFLAGS="$_ldflags"
+
+    fi
+
+  dnl x11_external
+  AC_ARG_ENABLE(x11_external,dnl
+  [--disable-x11-external  disable drawing to windows belonging to external apps],,
+    test -z "$enable_x11_external" && enable_x11_external=yes)
+
+  if test "$enable_x11_external" = yes; then
+    AC_DEFINE(EXTERNAL_X11_WINDOW,1,[ Define to allow x11 connection to a pre-existing window. ])
+  fi
+fi
+
 AM_CONDITIONAL(BUILD_GNUPLOT_X11, test "$no_x" != yes)
 
 dnl Operating systems.
@@ -282,7 +304,7 @@ AC_CHECK_HEADERS(dirent.h errno.h float.h langinfo.h limits.h locale.h math.h \
   sys/bsdtypes.h sys/ioctl.h sys/param.h sys/select.h sys/socket.h \
   sys/stat.h sys/systeminfo.h sys/timeb.h sys/utsname.h \
   libc.h malloc.h poll.h sgtty.h termios.h values.h dirent.h \
-  inttypes.h \
+  inttypes.h stdckdint.h \
   dlfcn.h dl.h
 )
 
@@ -346,8 +368,7 @@ dnl sunos 4 has on_exit() in place of atexit()
 dnl gamma is called lgamma linux
 dnl we prefer lgamma over gamma, see specfun.c
 dnl math lib is already available, see operating systems part
-AC_CHECK_FUNCS(atexit memcpy memmove memset \
-  on_exit bcopy bzero \
+AC_CHECK_FUNCS(atexit on_exit \
   setvbuf strerror strchr strrchr strstr \
   index rindex \
   erf erfc gamma lgamma tgamma \
@@ -379,10 +400,6 @@ AC_MSG_CHECKING(for sigsetjmp)
 AC_LINK_IFELSE([AC_LANG_PROGRAM([[#include <setjmp.h>]], [[jmp_buf env; sigsetjmp(env, 1);]])],[AC_MSG_RESULT(yes)
    AC_DEFINE(HAVE_SIGSETJMP,1,
              [ Define if we have sigsetjmp(). ])],[AC_MSG_RESULT(no)])
-
-if test "$ac_cv_func_pclose" = yes -a "$ac_cv_func_popen" = yes ; then
-  AC_DEFINE(PIPES,1,[ Define if you do have the popen and pclose functions. ])
-fi
 
 AC_MSG_CHECKING(if malloc(0) returns 0)
 AC_RUN_IFELSE([AC_LANG_PROGRAM([[#ifdef HAVE_STDLIB_H
@@ -571,17 +588,6 @@ AC_ARG_ENABLE(stable-sort, dnl
   ]
   ,)
 
-dnl check presence of z library
-dnl TODO: path to zlib includes; -lz -lm specified multiple times
-dnl       we don't do anything about missing png/gd includes either
-AC_CHECK_LIB(z,deflate,
-  [TERMLIBS="$TERMLIBS -lz"
-   AC_DEFINE(HAVE_LIBZ,1,[ Define if you have zlib. ])
-   AC_CHECK_HEADER(zlib.h,,
-     [AC_MSG_WARN([found z library but not zlib.h
-please add path to zlib.h to CPPFLAGS in Makefile])])],
-  AC_MSG_WARN([zlib is required - see http://www.gzip.org/zlib/]))
-
 dnl check presence of gd library
 dnl we don't check for libfreetype and libjpeg locations - if gd requires
 dnl them, the gdlib-config script or the gdlibc.pc contains all the required information
@@ -764,41 +770,6 @@ dnl end caca
 
 dnl Process rest of with and enable options
 
-dnl without-extra-coordinate may leave a hole in "struct coordinate"
-AC_ARG_ENABLE(extra-coordinate,dnl
-[  --disable-extra-coordinate    leave possible hole in struct coordinate],,)
-if test "$enable_extra_coordinate" != no; then
-     AC_DEFINE(WITH_EXTRA_COORDINATE,1,
-               [ Define to make use of otherwise empty space in struct coordinate ])
-fi
-
-dnl enable multi-byte font support in x11 terminal
-AC_ARG_ENABLE(x11-mbfonts,dnl
-[  --disable-x11-mbfonts   disable multi-byte font support for x11 ],,
-  test -z "$enable_x11_mbfonts" && enable_x11_mbfonts=yes)
-  if test "$enable_x11_mbfonts" = yes; then
-
-    _ldflags="$LDFLAGS"
-    LDFLAGS="$LDFLAGS $LIBRARIES_FOR_X"
-
-    AC_MSG_CHECKING([for multi-byte support in x11])
-    AC_CHECK_LIB(X11, XmbDrawString,
-      AC_DEFINE(USE_X11_MULTIBYTE,1,[ Define to enable multi-byte font support for x11 ]),
-      enable_x11_mbfonts=no )
-    
-    LDFLAGS="$_ldflags"
-  
-  fi
-
-dnl x11_external
-AC_ARG_ENABLE(x11_external,dnl
-[  --disable-x11-external  disable drawing to windows belonging to external apps],,
-  test -z "$enable_x11_external" && enable_x11_external=yes)
-
-if test "$enable_x11_external" = yes; then
-  AC_DEFINE(EXTERNAL_X11_WINDOW,1,[ Define if you want to supply pre-existing X11 windows. ])
-fi
-
 dnl disable the "space raises console" behaviour
 AC_ARG_ENABLE(raise-console,dnl
 [  --disable-raise-console spacebar in plot window does not raise console],,
@@ -807,7 +778,6 @@ AC_ARG_ENABLE(raise-console,dnl
       AC_DEFINE(DISABLE_SPACE_RAISES_CONSOLE,1,
                 [ Define to treat spacebar like any other keystroke. ])
   fi
-
 
 dnl  wxWidgets terminal
 
@@ -868,9 +838,6 @@ if test "${enable_wxwidgets}" = yes ; then
     if expr 2.6 \> ${WXWIDGETS_VERSION} >/dev/null; then
       AC_MSG_WARN([Your development package for wxWidgets is too old, you need at least version 2.6. The wxWidgets terminal will not be compiled.])
       enable_wxwidgets_ok=no
-    fi
-    if expr ${WXWIDGETS_VERSION} \> 2.8 >/dev/null; then
-      AC_DEFINE(WX_NEEDS_XINITTHREADS, 1, [wxWidgets >= 2.9 wants calling program to invoke XInit()])
     fi
 
     dnl Make sure we're using more than the 'base' wxWidgets. Those 
@@ -937,7 +904,7 @@ AM_CONDITIONAL(BUILD_BITMAP, test "${with_bitmap_terminals}" = yes)
 dnl  Allow to enable old printer terminals (which rely on bitmap support).
 if test "$with_bitmap_terminals" == yes; then
   AC_ARG_WITH(old_printers,dnl
-  [  --with-old-printers      dot-matrix printer terminals])
+  [--with-old-printers      dot-matrix printer terminals])
   AS_IF([test "x${with_old_printers}" = "xyes"],
     AC_DEFINE(OLD_PRINTERS,1,
             [ Define to enable old dot-matrix printer terminals ]))
@@ -1088,6 +1055,106 @@ dnl     AC_DEFINE(BACKWARD_COMPATIBLE,1,
 dnl                [ Define to allow use of certain deprecated syntax. ])
 dnl   fi])
 
+dnl
+dnl     ============================================================
+dnl     Begin security measures limiting execution of shell commands
+dnl     ============================================================
+dnl
+dnl --enable-shell
+dnl		Accept the "shell" command to spawn an interactive sessions
+dnl --disable-shell
+dnl		Never accept the "shell" command (new default)
+dnl
+dnl --enable-system-command
+dnl		Accept system command, system() function call,
+dnl		and leading ! on command line (pre-version 6.1 behavior)
+dnl --disable-system-command
+dnl		Do not accept the system command or function call.
+dnl		Also disables leading "!" as shorthand for system().
+dnl
+dnl --enable-backticks
+dnl		Execute shell command in backticks (pre-version 6.1 behavior)
+dnl --disable-backticks
+dnl		Do not expand backtick shell escapes (new default)
+dnl
+dnl --enable-pipes
+dnl             Use popen() to pipe input or output through a shell command (default)
+dnl               input  filename given as "< shell-command"
+dnl               output filename given as "| shell-command"
+dnl --disable-pipes
+dnl             Reject filenames starting with "<" or "|". (some functionality is lost)
+dnl
+dnl --enable-filebrowsers
+dnl             wxt and qt terminals display an export widget that includes a file browser.
+dnl             (default)
+dnl --disable-filebrowsers
+dnl             wxt and qt terminals will not display an export widget.
+dnl
+AC_ARG_ENABLE(shell,dnl
+  [
+Security-related settings:
+                             "old behavior" means gnuplot versions prior to 6.1
+                             Please see README.security for more detail.
+
+  --enable-shell                 "shell" command spawns an interactive shell (old default)
+  --disable-shell                do not accept the "shell" command (new default)
+  ],
+  [ if test "$enable_shell" = yes; then
+      AC_DEFINE(ENABLE_SHELL_COMMAND,1,
+            [ Define to enable the "shell" command to spawn an interactive shell. ])
+    fi
+  ],)
+
+AC_ARG_ENABLE(system-command,dnl
+  [--enable-system-command        accept "system" command and system() function (default)
+  --disable-system-command       do not accept "system" command.
+  ],,)
+if test "$enable_system_command" = no; then
+   AC_DEFINE(DISABLE_SYSTEM_COMMAND,1,
+            [ Define to disable shell command via "system" command or leading "!".])
+fi
+
+AC_ARG_ENABLE(backticks,dnl
+  [--enable-backticks             execute backtick text as a shell command (old behavior)
+  --disable-backticks            never execute backtick text as a shell command (default)
+  ],,)
+if test $enable_backticks = yes; then
+      AC_DEFINE(ENABLE_BACKTICKS,1,
+            [ Define to execute text in backticks as a shell command. ])
+fi
+
+AC_ARG_ENABLE(pipes,dnl
+  [--enable-pipes                 allow piped input and output (default)
+  --disable-pipes                do not allow piped input or output
+  ], ,
+  [ enable_pipes=yes
+  ])
+
+if test "$ac_cv_func_pclose" = yes -a "$ac_cv_func_popen" = yes ; then
+  if test "$enable_pipes" != no; then
+    AC_DEFINE(PIPES,1,[ Define if you want support for piping input/output using popen(). ])
+  fi
+fi
+
+dnl Disable the file export widget in wxt and qt terminals
+dnl This may be an appropriate security measure if you do not want users
+dnl to be able to browse the file system via the export menus.
+AC_ARG_ENABLE(filebrowsers,dnl
+  [--enable-filebrowsers          wxt and qt export widgets include a file browser (default)
+  --disable-filebrowsers         wxt and qt terminals will not display an export widget
+
+  ],
+  test -z "$enable_filebrowsers" && enable_filebrowsers=no,)
+
+if test "$enable_filebrowsers" = no; then
+  AC_DEFINE(DISABLE_FILEBROWSERS,1, [ Define to omit export widgets from qt and wxt terminals.])
+fi
+
+dnl     ============================================================
+dnl      End security measures limiting execution of shell commands
+dnl     ============================================================
+
+
 dnl Qt terminal
 
 AC_ARG_WITH(qt,dnl
@@ -1181,8 +1248,6 @@ if test "${enable_qt}" = yes ; then
 fi
 
 if test "${enable_qt_ok}" = yes ; then
-  dnl Check for fork()
-  AC_FUNC_FORK
 
   CPPFLAGS="$CPPFLAGS $QT_CFLAGS"
   CXXFLAGS="$CXXFLAGS $QT_CXXFLAGS"
@@ -1456,6 +1521,43 @@ if test "$enable_qt_ok" = yes; then
   fi
 else
   AC_MSG_RESULT([  Qt                   : no (use --with-qt or --with-qt=qt4 or --with-qt=qt5 to enable])
+fi
+
+AC_MSG_RESULT([])
+AC_MSG_RESULT([gnuplot will be compiled with the security-related options listed below.])
+AC_MSG_RESULT([Please see README.security for a description of the available options.])
+AC_MSG_RESULT([])
+
+if test "$enable_shell" = yes; then
+  AC_MSG_RESULT([  shell command:                 enabled (pre-version 6 behavior)])
+else
+  AC_MSG_RESULT([  shell command:                 disabled (default)])
+fi
+
+if test "$enable_system_command"  = no; then
+  AC_MSG_RESULT([  system command:                disabled])
+else
+  AC_MSG_RESULT([  system command:                enabled (default, pre-version 6.1 behavior)])
+fi
+  AC_MSG_RESULT([                                 includes system() function and leading '!'])
+
+if test "$enable_backticks" = yes; then
+  AC_MSG_RESULT([  shell escapes in backticks:    allowed except in single quoted strings (old behavior)])
+else
+  AC_MSG_RESULT([  shell escapes in backticks:    disabled (default)])
+fi
+
+if test "$enable_pipes" = no; then
+  AC_MSG_RESULT([  disabled piped input/output:   reject filenames starting with "<" or "|"])
+else
+  AC_MSG_RESULT([  piped input/output:            piped input from filename "< shell-command"])
+  AC_MSG_RESULT([                                 piped output to filename  "| shell-command"])
+fi
+
+if test "$enable_filebrowsers" = no; then
+  AC_MSG_RESULT([  file browsers:                 wxt and qt terminals do not display an export widget])
+else
+  AC_MSG_RESULT([  file browsers:                 present in wxt and qt export widgets (default)])
 fi
 
 AC_MSG_RESULT([])

@@ -56,7 +56,7 @@ $(T)cairo.trm $(T)canvas.trm $(T)cgm.trm $(T)context.trm \
 $(T)debug.trm $(T)djsvga.trm $(T)dumb.trm $(T)dxf.trm \
 $(T)emf.trm $(T)epson.trm \
 $(T)estimate.trm $(T)fig.trm $(T)gd.trm \
-$(T)gpic.trm $(T)grass.trm $(T)hpgeneric.h $(T)hpgl.trm $(T)imagen.trm \
+$(T)gpic.trm $(T)hpgeneric.h $(T)hpgl.trm $(T)imagen.trm \
 $(T)linux-vgagl.trm $(T)latex_old.h \
 $(T)lua.trm $(MP) $(T)pbm.trm $(T)pict2e.trm \
 $(T)pm.trm $(T)post.trm $(T)pslatex.trm \
@@ -78,7 +78,7 @@ $(TJ)cairo.trm $(TJ)canvas.trm $(TJ)cgm.trm $(TJ)context.trm \
 $(TJ)debug.trm $(TJ)djsvga.trm $(TJ)dumb.trm $(TJ)dxf.trm \
 $(TJ)emf.trm $(TJ)epson.trm \
 $(TJ)estimate.trm $(TJ)fig.trm $(TJ)gd.trm \
-$(TJ)gpic.trm $(TJ)grass.trm $(TJ)hpgeneric.h $(TJ)hpgl.trm $(TJ)imagen.trm \
+$(TJ)gpic.trm $(TJ)hpgeneric.h $(TJ)hpgl.trm $(TJ)imagen.trm \
 $(TJ)linux-vgagl.trm $(TJ)latex_old.h \
 $(TJ)lua.trm $(TJ)pbm.trm $(TJ)pict2e.trm \
 $(TJ)pm.trm $(TJ)post.trm $(TJ)pslatex.trm \

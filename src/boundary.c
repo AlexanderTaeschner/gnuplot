@@ -1444,7 +1444,10 @@ do_key_sample_point(
 	    (*t->set_color)(&background_fill);
 	    (*t->pointsize)(pointsize * pointintervalbox);
 	    (*t->point)(xl + key_point_offset, yl, 6);
-	    term_apply_lp_properties(&this_plot->lp_properties);
+	    if (this_plot->varcolor)
+		apply_variable_color(this_plot, &(this_plot->varcolor[0]));
+	    else
+		term_apply_lp_properties(&this_plot->lp_properties);
 	}
     }
 

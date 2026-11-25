@@ -77,7 +77,7 @@ locale_handler(int action, char *newlocale)
 #endif
 	l = setlocale(LC_CTYPE, "");
 	free(locale_encoding);
-	locale_encoding = strdup(l);
+	locale_encoding = gp_strdup(l);
 	break;
 
     case ACTION_SET:

@@ -792,6 +792,33 @@ static void add_BoundingBox(cairo_surface_t *surface)
 }
 #endif /* HAVE_CAIROEPS */
 
+/* Reproducible builds: cairo stamps the current time into the /CreationDate
+ * entry of the PDF files it writes.  If SOURCE_DATE_EPOCH is set, override it
+ * so that repeated runs produce identical output.
+ * cairo offers no equivalent for the PostScript surface, so the %%CreationDate
+ * comment written by epscairo (and by cairolatex eps) cannot be fixed here.
+ * https://reproducible-builds.org/specs/source-date-epoch/
+ */
+static void
+cairotrm_set_creation_date(cairo_surface_t *surface)
+{
+#if CAIRO_VERSION >= CAIRO_VERSION_ENCODE(1,16,0)
+	time_t now;
+	struct tm *tm;
+	char iso8601[sizeof("YYYY-MM-DDThh:mm:ssZ")];
+
+	if (!gp_source_date_epoch(&now))
+		return;
+	if ((tm = gmtime(&now)) == NULL)
+		return;
+	if (strftime(iso8601, sizeof(iso8601), "%Y-%m-%dT%H:%M:%SZ", tm) == 0)
+		return;
+	cairo_pdf_surface_set_metadata(surface, CAIRO_PDF_METADATA_CREATE_DATE, iso8601);
+#else
+	(void) surface;		/* suppress "unused parameter" warning */
+#endif
+}
+
 /* "Called once, when the device is first selected."
  * Is the 'main' function of the terminal. */
 void cairotrm_init()
@@ -858,6 +885,7 @@ void cairotrm_init()
 		#if (CAIRO_VERSION_MAJOR < 2) && (CAIRO_VERSION_MINOR >= 10)
 		    cairo_pdf_surface_restrict_to_version(surface, CAIRO_PDF_VERSION_1_5);
 		#endif
+		cairotrm_set_creation_date(surface);
 
 	} else if (!strcmp(term->name,"pngcairo") || !strcmp(term->name, "kittycairo")) {
 		surface = cairo_image_surface_create( CAIRO_FORMAT_ARGB32,
@@ -907,6 +935,7 @@ void cairotrm_init()
 			#if (CAIRO_VERSION_MAJOR < 2) && (CAIRO_VERSION_MINOR >= 10)
 			    cairo_pdf_surface_restrict_to_version(surface, CAIRO_PDF_VERSION_1_5);
 			#endif
+			cairotrm_set_creation_date(surface);
 			break;
 		case CAIROLATEX_PNG:
 			EPSLATEX_reopen_output("png");

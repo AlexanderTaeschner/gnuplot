@@ -1619,7 +1619,6 @@ fit_main()
     int i, j;
     double v[MAX_NUM_VAR+2];
     double tmpd;
-    time_t timer;
     int token1, token2, token3;
     int fit_token;
     char *tmp, *file_name;
@@ -1915,12 +1914,11 @@ fit_main()
     FPRINTF((STANDARD, "prescale=%i\n", fit_prescale));
     FPRINTF((STANDARD, "errorscaling=%i\n", fit_errorscaling));
 
-    (void) time(&timer);
     if (!fit_suppress_log) {
 	char *line = NULL;
 
 	fputs("\n\n*******************************************************************************\n", log_f);
-	fprintf(log_f, "%s\n\n", ctime(&timer));
+	fprintf(log_f, "%s\n\n", asctime(gp_now_tm()));
 
 	m_capture(&line, token2, token3 - 1);
 	fprintf(log_f, "FIT:    data read from %s\n", line);

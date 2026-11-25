@@ -1,5 +1,5 @@
-C RCS $Id: gnuplot-ja.doc,v 1.847 2026-05-07 16:35:49+09 shige Exp $
-C corresponding original gnuplot.doc at 2026-05-07
+C RCS $Id: gnuplot-ja.doc,v 1.850 2026-08-26 14:01:59+09 shige Exp $
+C corresponding original gnuplot.doc at 2026-08-26
 C
 C Copyright (C) 1986 - 1993, 1998, 1999, 2000, 2001, 2004   Thomas Williams, Colin Kelley et al.
 C
@@ -547,13 +547,15 @@ D viridis 1
 #b 保存コマンドのうち再実行の際に問題になりそうなある種のコマンド、例え
 ## ば `reset`, `pause`, 新しいデータブロックの定義などは、再実行しませ
 ## ん。
-#b パネル毎に保存するデータは、非線形軸割り当てを解釈するには不十分です
-## ので、そのグラフは正しく表示されますが、マウス操作では座標を正しく表
-## 示できません。
+#b パネル毎に保存するデータは、リンクされた軸、および非線形軸割り当てを
+## 解釈するには不十分ですので、そのグラフは正しく表示されますが、マウス
+## の示す座標については軸のペアのうち第 1 の (線形) 軸に制限されます。
 #b 一つの multiplot に対し最大 16 のパネルでマウス操作できます。
 ## multiplot のパネル数が 16 より多い場合、追加パネルは正しく表示されま
 ## すが、マウス操作は正しく行えません。
 ## この制限は、今後改善されるでしょう。
+#b multiplot のグラフに関しては、コマンドラインからの描画のオン/オフの
+## トグルスイッチは効きません。
 #end
 
 3 新しい出力形式とオプション (New terminals and terminal options)
@@ -796,26 +798,34 @@ D epi_data 1
 #b 複素数値を出力するための新しい gprintf 書式指定子 %C と %Ci。
 ## 以下参照: `gprintf complex`, `imaginary_i`。(6.0.4 に導入)
 #b gnuplot が提供する定義済み変数 I, Inf, Nan (6.0.4 に導入)
-#b "linestyle variable"
-#b 3 次元面体に対する pm3d 色付け (例えば Delaunay モザイク曲面)。以下
-## 参照: `delaunay`。
-#b 画像ファイルのデータ処理での gdlib の代用品
-#b キーワード "sample" の非推奨
 #b 新しい数値演算 "prod" (累積的な積)。以下参照: `product`。(6.0.5)
 #TeX \newline
 ##  例:     N! は prod [i=1:N] i で表現できます。
-#b "marks" と呼ぶ新しいグラフィカルな物体のカテゴリ。これは、複雑な記号
-## を定義し、plot で利用できます。以下参照: `marks`。
 #b 以下参照: `escape sequences`。
 ## 拡張文字列 ("enhanced") と 非拡張文字列 ("noenhenced") の両方の文字
 ## 列内で Unicode エスケープシーケンスが使えます。部分文字列評価の際に
 ## Unicode エスケープシーケンスを展開します。
 ## 8 進エスケープシーケンスは丁度 3 桁の数字でなくてはいけません (6.0.5)
-#b パレット viridis と同族の名前付きパレット "magma"
 #b multiplot でのマウス操作。マウス座標の読み出しを multiplot のすべて
 ## のパネルに提供します。視点移動/拡大/回転のマウス操作も任意のパネルに
 ## 適用できます。
-## 以下参照: `new multiplots`。
+## 以下参照: `new multiplots`。(6.0.5)
+#b 3 次元面体に対する pm3d 色付け (例えば Delaunay モザイク曲面)。以下
+## 参照: `delaunay`。
+#b 画像ファイルのデータ処理での gdlib の代用品
+#b "linestyle variable"
+#b パレット viridis と同族の名前付きパレット "magma"
+#b キーワード "sample" の非推奨
+#b "marks" と呼ぶ新しいグラフィカルな物体のカテゴリ。これは、複雑な記号
+## を定義し、plot で利用できます。以下参照: `marks`。
+#b terminal の普遍的なオプション "scale" は、線幅、点のサイズ、フォント
+## サイズとともに、記号 (mark) 定義、余白 (margin) サイズ、タイトルやラ
+## ベルの一などの派生する描画要素などを指定値に比例して増加/減少させま
+## す。これは、例えば、qt や wxt ディスプレイウィンドウのサイズを変更後
+## にその見た目を再生成するのに使えます。PNG 画像を、
+## 固定した物理サイズで印刷する際に、見た目を保持したまま、より高解像度
+## (ピクセル数) で描画するのにも使えます。
+## 以下参照: `termoption scale`。
 #end
 
 2 デモ、ネット上のサンプル (Demos and Online Examples)
@@ -9679,9 +9689,6 @@ Ffigure_convex_hull
 ?filters concavehull
 ?concavehull
 
- 試験段階 (実装の詳細は将来のリリースで変更するかもしれません)。あなた
- の gnuplot が --enable-chi-shapes 付きでビルドされた場合のみ利用可能。
-
  凹包 (concavehull) は、描画スタイルではありません。これは、入力データ
  点の境界多角形「閉包」(hull) を見つけるフィルタの一つで、これは、元の
  点集合を、この多角形の周上の順序づけられた部分集合で置き換えます。凸包
@@ -9740,9 +9747,6 @@ Ffigure_concave_hull_2
  delaunay.dem
 ^ </a>
  も参照。
-
- これは試験段階です (実装の詳細は将来の版で変更の可能性あり)。あなたの
- gnuplot が --enable-chi-shapes で configure した場合のみ利用できます。
 
  2 次元の例
       plot POINTS using 1:2 delaunay with polygons fillstyle empty
@@ -11281,15 +11285,8 @@ C using の書式 (format)
 2 reread
 ?commands reread
 ?reread
- [バージョン 5.4 では非推奨]
+ [バージョン 5.4 で非推奨に]
 
- 明示的な繰り返し (iteration) を支持し、このコマンドは非推奨とします。
- 以下参照: `iterate`。
- `reread` コマンドは、`load` コマンドで指定した `gnuplot` の入力ファイ
- ルからの実行を、直ちにそのファイルの先頭から再開します。これは、ファイ
- ルの最初から `reread` コマンドまでのコマンドの無限ループを本質的に実装
- していることになります。標準入力からの入力の際は、`reread` コマンドは
- 何の効力も持ちません。
 2 reset
 ?commands reset
 ?reset
@@ -17820,14 +17817,64 @@ Ffigure_polar_grid
  コマンド `set termoption` は、現在使用している出力形式の振舞いを、新た
  な `set terminal` コマンドの発行なしに変更することを可能にします。この
  コマンド一つに対して一つのオプションのみが変更できます。そしてこの方法
- で変更できるオプションはそう多くはありません。現在使用可能なオプション
- は以下のもののみです。
+ で変更できるオプションはそう多くはありません。それぞれの場合で、そのオ
+ プションは最初にコマンド `set terminal` で指定したのと効果は同じです。
+ 現在使用可能なオプションは以下のもののみです。
 
       set termoption {no}enhanced
       set termoption font "<fontname>{,<fontsize>}"
       set termoption fontscale <scale>
       set termoption {linewidth <lw>}{lw <lw>} {dashlength <dl>}{dl <dl>}
       set termoption {pointscale <scale>} {ps <scale>}
+      set termoption scale <scale>
+4 scale
+?commands set termoption scale
+?set termoption scale
+?termoption scale
+?scale
+ 多くの出力形式がオプション `scale` をサポートします。これは、コマンド
+ `set terminal` の一部として指定できますし、または後でコマンド
+ `set termoption` でも指定できます。
+      set terminal png scale <value>
+      set termoption scale <value>
+
+ スケール値 <value> は、1 より大きければ、グラフに現れる線幅、点サイズ、
+ フォントサイズを一様に増加し、1 より小さければ一様に減少させます。これ
+ は、点やフォントサイズから派生するサイズを持つ他の描画要素、例えば記号
+ (mark) 定義、余白 (margin space)、テキストラベルやタイトルの位置などに
+ も影響します。
+
+ 新しくスケール値を指定すると、前に指定したスケール値を置き換えます。
+
+ このスケール値は、特定の描画要素に別に指定したスケール値とは別に、倍数
+ 因子として適用されます。例えば、以下のコマンド列
+      set terminal pdf font "Times,10" linewidth 1.2 fontscale 1.0
+      plot sin(x) lw 1, cos(x) lw 2, sin(2*x) lw 3
+      set termoption scale 1.5
+      replot
+ の最後の結果は、"Times" フォントは 20 ポイントのラベルが付き、グラフの
+ 線幅はそれぞれ 1.8 (=1.5*1.2*1)、3.6 (=1.5*1.2*2)、5.4 (=1.5*1.2*3) に
+ なります。
+
+ この広範囲なスケール因子の使い道の一つは、PNG 出力グラフをより高解像度
+ にして再生成すること、すなわち、より多くのピクセル数の線、点、テキスト
+ を描画し、それに対応するより大きなピクセル数の幅で描画することで出力時
+ には同じ見た目のものを生成します。
+ 例えば、kitty と png 出力形式は、両方とも同じグラフィックライブラリ
+ (cairo か gd) をベースにしているが、図を直接スクリーン上に kitty 出力
+ 形式で出力し (解像度≒100dpi)、そして後の印刷用にそれを PNG ファイルと
+ して 300dpi で保存したい、という場合は、以下のようにすればいいでしょう。
+      set terminal kitty font "Times,12" size 1000,700
+      ... compose plot ...
+      ... グラフを構成 ...
+      set terminal png font "Time,12" size 3000,2100
+      set termoption scale 3.0
+      set output 'figure.png'
+      replot
+ もしスケールを変更せずにサイズのみ増やした場合、PNG ファイルの 300dpi
+ での印刷結果は、元のグラフではあるが、線はかなり細く、また元のフォント
+ サイズよりも 3 倍程度小さい見た目のフォントになるでしょう。
+
 
 3 極座標方位制御 (theta)
 ?commands set theta
@@ -19480,6 +19527,7 @@ C 度の記号は set encoding locale で出るようになると。
        current_time = system("date")
 
 2 show
+?
  ほとんどの `set` コマンドには、それに対応する、特別なオプションを持た
  ない show コマンドがあります。例:
       show linetype 3

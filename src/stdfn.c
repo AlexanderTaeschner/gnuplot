@@ -64,25 +64,6 @@
  * ANSI C functions
  */
 
-/* memcpy() */
-
-#ifndef HAVE_MEMCPY
-# ifndef HAVE_BCOPY
-/*
- * cheap and slow version of memcpy() in case you don't have one
- */
-
-char *
-memcpy(char *dest, char *src, size_t len)
-{
-    while (len--)
-	*dest++ = *src++;
-
-    return dest;
-}
-# endif				/* !HAVE_BCOPY */
-#endif /* HAVE_MEMCPY */
-
 /* strchr()
  * Simple and portable version, conforming to Plauger.
  * Would this be more efficient as a macro?
@@ -102,26 +83,6 @@ strchr(const char *s, int c)
 }
 # endif				/* !HAVE_INDEX */
 #endif /* HAVE_STRCHR */
-
-
-/* memset ()
- *
- * Since we want to use memset, we have to map a possibly nonzero fill byte
- * to the bzero function. The following defined might seem a bit odd, but I
- * think this is the only possible way.
- */
-
-#ifndef HAVE_MEMSET
-# ifdef HAVE_BZERO
-#  define memset(s, b, l) \
-do {                      \
-  assert((b)==0);         \
-  bzero((s), (l));        \
-} while(0)
-#  else
-#  define memset NO_MEMSET_OR_BZERO
-# endif /* HAVE_BZERO */
-#endif /* HAVE_MEMSET */
 
 
 /* strerror() */
@@ -394,6 +355,52 @@ ms_snprintf(char *str, size_t size, const char * format, ...)
     return result;
 }
 #endif
+
+
+/* Support for reproducible output.
+ * If the environment variable SOURCE_DATE_EPOCH is set to a decimal number of
+ * seconds since the epoch, code that stamps a creation date into generated
+ * output uses that instead of the current time.  See
+ *     https://reproducible-builds.org/specs/source-date-epoch/
+ */
+TBOOLEAN
+gp_source_date_epoch(time_t *when)
+{
+    const char *source_date_epoch = getenv("SOURCE_DATE_EPOCH");
+    char *endptr;
+    long long epoch;
+
+    if (source_date_epoch == NULL || *source_date_epoch == '\0')
+	return FALSE;
+    errno = 0;
+    epoch = strtoll(source_date_epoch, &endptr, 10);
+    if (errno != 0 || endptr == source_date_epoch || *endptr != '\0')
+	return FALSE;
+    if ((long long)(time_t) epoch != epoch)	/* not representable as time_t */
+	return FALSE;
+    if (when != NULL)
+	*when = (time_t) epoch;
+    return TRUE;
+}
+
+/* Broken-down time to stamp into generated output.
+ * If SOURCE_DATE_EPOCH is in effect it is reported in UTC, so that the result
+ * does not depend on the timezone of the machine either.
+ */
+struct tm *
+gp_now_tm(void)
+{
+    time_t now;
+    struct tm *tm = NULL;
+
+    if (gp_source_date_epoch(&now))
+	tm = gmtime(&now);
+    if (tm != NULL)
+	return tm;
+
+    time(&now);
+    return localtime(&now);
+}
 
 
 /* Implement portable generation of a NaN value. */

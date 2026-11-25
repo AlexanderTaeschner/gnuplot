@@ -1105,13 +1105,11 @@ do_timelabel(int x, int y)
 {
     struct text_label temp = timelabel;
     char str[MAX_LINE_LEN+1];
-    time_t now;
 
     if (timelabel.rotate == 0 && !timelabel_bottom)
 	y -= term->v_char;
 
-    time(&now);
-    strftime(str, MAX_LINE_LEN, timelabel.text, localtime(&now));
+    strftime(str, MAX_LINE_LEN, timelabel.text, gp_now_tm());
     temp.text = str;
 
     write_label(x, y, &temp);

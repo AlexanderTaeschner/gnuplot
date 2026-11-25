@@ -1049,10 +1049,6 @@ show_version(FILE *fp)
 #endif
 		"";
 
-	    const char *hiddenline =
-		"+HIDDEN3D_QUADTREE  "
-		"";
-
 	    const char *plotoptions=
 		"+OBJECTS  "
 #ifdef USE_STATS
@@ -1068,7 +1064,6 @@ show_version(FILE *fp)
 #ifdef HAVE_EXTERNAL_FUNCTIONS
 		"+EXTERNAL_FUNCTIONS "
 #endif
-		"+POLARGRID "
 	    "";
 
 	    const char *fblocks =
@@ -1091,11 +1086,11 @@ show_version(FILE *fp)
 	    const char *got_marks = "+MARKS ";
 
 	    sprintf(compile_options,
-		    "    %s%s\n    %s%s\n    %s%s%s%s\n    %s%s\n    %s%s%s%s\n    %s%s%s\n",
+		    "    %s%s\n    %s%s\n    %s%s%s%s\n    %s%s\n    %s%s%s\n    %s%s%s\n",
 		    rdline, gnu_rdline, unicodebuild, plotoptions,
 		    complexfunc, libcerf, libamos, have_cexint,
 		    libgd, image_input,
-		    nocwdrc, x11, use_mouse, hiddenline,
+		    nocwdrc, x11, use_mouse,
 		    fblocks, chi_shapes, got_marks
 		    );
 	}
@@ -1160,17 +1155,45 @@ show_version(FILE *fp)
 	c_token++;
 	fprintf(stderr, "\nCompile options:\n%s", compile_options);
 	fprintf(stderr, "    %d-bit integer arithmetic\n",(int)sizeof(intgr_t)*8);
-
-#ifdef WITH_EXTRA_COORDINATE
 	fprintf(stderr, "    sizeof(struct coordinate) = %d with extra coordinate\n",
 		(int)(sizeof(struct coordinate)));
 	if (sizeof(struct coordinate) > sizeof(struct gen_coord))
-	    fprintf(stderr, "\tThis is a waste of space. "\
-	    "You should reconfigure using --without-extra-coordinate\n");
+	    fprintf(stderr, "\tThis is a waste of space.\n");
+
+	/* configuraton options related to security */
+	fprintf(stderr, "Security-related configuration options:\n");
+	fprintf(stderr, "    %s %s %s\n",
+#ifdef ENABLE_SHELL_COMMAND
+	"--enable-shell"
 #else
-	fprintf(stderr, "    sizeof(struct coordinate) = %d without extra coordinate\n",
-		(int)(sizeof(struct coordinate)));
+	"--disable-shell"
 #endif
+	,
+#ifdef DISABLE_SYSTEM_COMMAND
+	"--disable-system-command"
+#else
+	"--enable-system-command"
+#endif
+	,
+#if defined(ENABLE_BACKTICKS)
+	"--enable-backticks"
+#else
+	"--disable-backticks"
+#endif
+	);
+	fprintf(stderr, "    %s %s\n",
+#ifdef PIPES
+	"--enable-pipes"
+#else
+	"--disable-pipes"
+#endif
+	,
+#ifdef DISABLE_FILEBROWSERS
+	"--disable-filebrowsers"
+#else
+	"--enable-filebrowsers"
+#endif
+	);
 
 	{
 	    char *driverdir = getenv("GNUPLOT_DRIVER_DIR");

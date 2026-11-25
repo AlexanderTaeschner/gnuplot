@@ -12,6 +12,12 @@
   \usepackage[nonewpage]{imakeidx}
   \makeindex
 
+% layout of level 5 doc entries {left}{before}{after}
+% titlesec should come before hyperref
+\usepackage{titlesec}
+\titlespacing*{\paragraph}{1em}{0pt}{0pt}
+\titlespacing*{\subparagraph}{1em}{0pt}{0pt}
+
 % hyperref must come before the ucs/utf8x encoding mangling
   \usepackage[
         hyperindex,
@@ -119,7 +125,6 @@
 \cfoot{}
 \rhead[\leftmark]{\thepage}
 \lhead[\thepage]{\leftmark}
-
 
 %
 % Words that may get hyphenated oddly if TeX is allowed to do so

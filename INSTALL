@@ -172,12 +172,9 @@ terminal emulators that accept Tektronix graphics protocols (1970s-1980s),
 and also build in support for a large set of 1990s era dot matrix printers
 (HP deskjet, epson, tandy, etc):
 
-  ./configure --with-tektronix --with-bitmap-terminals
+  ./configure --with-tektronix --with-old-printers
 
-Options marked with (*) are enabled by default, ie. these features or
-packages are used if configure detects them even if the corresponding
-option is not specified.  Please note that the `--with-PACKAGE'
-options can have additional arguments:
+Note that some `--with-PACKAGE' options can have additional arguments:
 
  o `--with-PACKAGE' is equivalent to `--with-PACKAGE=yes'
  o `--with-PACKAGE=no' disables checking for PACKAGE. It has the same
@@ -268,6 +265,31 @@ Examples from gnuplot 6 include
 
 These features may become standard in a subsequent release and will then
 no longer require a special configuration option.
+
+
+Security-related configuration options
+======================================
+
+Several configuration options allow you to restrict or disable gnuplot
+commands that spawn a subprocess to execute system commands provided by
+the user.  These options are intended to reduce security concerns when
+gnuplot is run as a service, for instance via a kiosk or web interface,
+and thus may be fed untrusted data or other input.
+
+For more detail about these configuration options, please see the file
+    README.security
+
+The default settings are:
+
+  --disable-shell		Do not accept the "shell" command
+  --disable-backticks		Do not expand backtick shell escapes
+  --enable-system-command	Accept the "system" command, the system() function call,
+				and accept a leading "!" on the command line for "system".
+  --enable-pipes		popen() is used to open a pipe
+				  when an input filename is given as "< shell-command"
+				  when an output filename is given as "| shell-command"
+  --enable-filebrowsers		The wxt and qt terminals provide an export widget
+				that saves the current plot display to a file
 
 
 Platform-specific tips

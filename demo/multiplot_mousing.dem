@@ -78,3 +78,21 @@ unset multiplot
 
 pause -1
 
+reset session
+
+set xtics nomirror
+set x2tics nomirror
+set multiplot layout 1,2
+set title "Logscale is OK in multiplot\n"
+set log y
+set xrange [0:10]
+plot x**2
+set link x2 via x**2 inverse sqrt(x)
+set title "Linked axes cannot be moused\nset link x2 via x*2 inverse x/2"
+set xrange [0:10]
+unset log y
+plot x**2
+unset multiplot
+
+pause -1
+

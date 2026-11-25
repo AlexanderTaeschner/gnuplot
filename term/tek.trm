@@ -484,8 +484,8 @@ static int SIXEL_lt;
 static int SIXEL_fp = 0;		/* start of gnuplot palette colors */
 static int SIXEL_np = 0;		/* size of gnuplot palette */
 static int SIXEL_anchor = 1;		/* Anchor plot at top left */
-static int SIXEL_transparent = 1;	/* background transparency=1, no transparency=0 */
-static int SIXEL_background = 0xfffff;	/* background color (default white) */
+static TBOOLEAN SIXEL_transparent = TRUE;	/* background transparency=1, no transparency=0 */
+static int SIXEL_background = 0xffffff;	/* background color (default white) */
 static int SIXEL_background_slot = 0;	/* background color (default white) */
 
 struct SIXEL_colorspec {
@@ -628,11 +628,11 @@ SIXEL_options()
 	    c_token++;
 	    break;
         case SIXEL_TRANSPARENT:
-	    SIXEL_transparent = 1;
+	    SIXEL_transparent = TRUE;
 	    c_token++;
 	    break;
 	case SIXEL_NOTRANSPARENT:
-	    SIXEL_transparent = 0;
+	    SIXEL_transparent = FALSE;
 	    c_token++;
 	    break;
 	case SIXEL_BACKGROUND:
@@ -642,7 +642,7 @@ SIXEL_options()
 	    } else {
 	         SIXEL_background = parse_color_name();
 	    }
-	    SIXEL_transparent = 0;  /* background implies notransparent */
+	    SIXEL_transparent = FALSE;  /* background implies notransparent */
 	    break;
 	case SIXEL_OTHER:
 	default:

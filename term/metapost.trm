@@ -389,10 +389,8 @@ MP_options()
 TERM_PUBLIC void
 MP_init()
 {
-    time_t now;
-    time(&now);
     MP_posx = MP_posy = 0;
-    fprintf(gpoutfile, "%%GNUPLOT Metapost output: %s",asctime(localtime(&now)));
+    fprintf(gpoutfile, "%%GNUPLOT Metapost output: %s",asctime(gp_now_tm()));
     if (MP_template)
 	fprintf(gpoutfile,"outputtemplate:=\"%s\";\n",MP_template);
     if (MP_prologues > -1) {

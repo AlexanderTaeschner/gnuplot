@@ -150,7 +150,10 @@ static void if_else_command(ifstate if_state);
 static void old_if_command(struct at_type *expr);
 static int report_error(int ierr);
 static void load_or_call_command( TBOOLEAN call );
-       void do_shell(void);
+
+#if defined (ENABLE_SHELL_COMMAND)
+static void do_shell(void);
+#endif
 
 static int expand_1level_macros(void);
 static void timed_pause(double sleep_time);
@@ -1765,12 +1768,14 @@ link_command()
 	else
 	    int_error(c_token,"not a valid nonlinear axis");
 	primary_axis = get_shadow_axis(secondary_axis);
-	/* Trap attempt to set an already-linked axis to nonlinear */
-	/* This catches the sequence "set link y; set nonlinear y2" */
-	if (secondary_axis->linked_to_primary && secondary_axis->linked_to_primary->index > 0)
-	    int_error(NO_CARET,"must unlink axis before setting it to nonlinear");
-	if (secondary_axis->linked_to_secondary && secondary_axis->linked_to_secondary->index > 0)
-	    int_error(NO_CARET,"must unlink axis before setting it to nonlinear");
+	if (!equals(command_token-1, "unset")) {
+	    /* Trap attempt to set an already-linked axis to nonlinear */
+	    /* This catches the sequence "set link y; set nonlinear y2" */
+	    if (secondary_axis->linked_to_primary && secondary_axis->linked_to_primary->index > 0)
+		int_error(NO_CARET,"must unlink axis before setting it to nonlinear");
+	    if (secondary_axis->linked_to_secondary && secondary_axis->linked_to_secondary->index > 0)
+		int_error(NO_CARET,"must unlink axis before setting it to nonlinear");
+	}
 	/* Clear previous log status */
 	secondary_axis->log = FALSE;
 	secondary_axis->ticdef.logscaling = FALSE;
@@ -2856,13 +2861,22 @@ screendump_command()
 /* set_command() is in set.c */
 /* show_command() is in show.c */
 
+/*
+ * DEPRECATED (Nov 2026 gnuplot 6.1)
+ */
 /* 'shell' command is processed by do_shell(), see below */
 void
 shell_command()
 {
+#if defined(ENABLE_SHELL_COMMAND)
+    if (!interactive)
+	int_error(NO_CARET, "\"shell\" command accepted only in interactive mode");
     if (evaluate_inside_functionblock)
-	int_error(NO_CARET, "bare shell commands not accepted in a function block");
+	int_error(NO_CARET, "\"shell\" command not accepted in a function block");
     do_shell();
+#else
+    int_error(NO_CARET, "This copy of gnuplot does not accept the \"shell\" command");
+#endif
 }
 
 /* process the 'splot' command */
@@ -3511,6 +3525,10 @@ do_system(const char *cmd)
 {
     int ierr;
 
+#if defined(DISABLE_SYSTEM_COMMAND)
+    int_error(NO_CARET, "This copy of gnuplot does not support system commands");
+#endif
+
 /* (am, 19980929)
  * OS/2 related note: cmd.exe returns 255 if called w/o argument.
  * i.e. calling a shell by "!" will always end with an error message.
@@ -3654,10 +3672,15 @@ rlgets(char *s, size_t n, const char *prompt)
 }
 # endif				/* USE_READLINE */
 
+/*
+ * DEPRECATED
+ * configuration optiont --enable-shell
+ */
+#if defined (ENABLE_SHELL_COMMAND)
 
 # if defined(MSDOS) || defined(_WIN32)
 
-void
+static void
 do_shell()
 {
     screen_ok = FALSE;
@@ -3677,7 +3700,7 @@ do_shell()
 
 #  elif defined(OS2)
 
-void
+static void
 do_shell()
 {
     screen_ok = FALSE;
@@ -3695,7 +3718,7 @@ do_shell()
 /* plain old Unix */
 
 #define EXEC "exec "
-void
+static void
 do_shell()
 {
     static char exec[100] = EXEC;
@@ -3714,13 +3737,16 @@ do_shell()
 
 #else // !HAVE_SYSTEM
 
-void
+static void
 do_shell()
 {
     int_error(NO_CARET, "This copy of gnuplot does not support bare shell commands");
 }
 
 # endif				/* !MSDOS */
+
+#endif /* defined (ENABLE_SHELL_COMMAND) */
+
 
 /* read from stdin */
 
@@ -4003,7 +4029,7 @@ int
 do_system_func(const char *cmd, char **output)
 {
 
-#if defined(PIPES)
+#if defined(HAVE_POPEN) && !defined(DISABLE_SYSTEM_COMMAND)
     int c;
     FILE *f;
     int result_allocated, result_pos;
@@ -4050,13 +4076,13 @@ do_system_func(const char *cmd, char **output)
 
     return ierr;
 
-#else /* PIPES */
+#else /* HAVE_POPEN */
 
-    int_warn(NO_CARET, "system() requires support for pipes");
+    int_warn(NO_CARET, "This copy of gnuplot does not support the system() function");
     *output = gp_strdup("");
     return 0;
 
-#endif /* PIPES */
+#endif /* HAVE_POPEN */
 
 }
 

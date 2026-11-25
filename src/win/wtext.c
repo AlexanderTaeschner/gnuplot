@@ -1924,33 +1924,38 @@ WndTextProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 	}
 	break;
     case WM_MOUSEWHEEL: {
+	    /* Accumulate increments up to WHEEL_DELTA before
+	       sending an event to the gnuplot core */
+	    static int wheel_accum = 0;
 	    WORD fwKeys;
 	    short int zDelta;
 
-	    fwKeys = LOWORD(wParam);
-	    zDelta = HIWORD(wParam);
-	    switch (fwKeys) {
-	    case 0:
-		if (zDelta < 0)
-		    SendMessage(hwnd, WM_VSCROLL, SB_LINEDOWN, (LPARAM)0);
-		else
-		    SendMessage(hwnd, WM_VSCROLL, SB_LINEUP, (LPARAM)0);
-		return 0;
-	    case MK_SHIFT:
-		if (zDelta < 0)
-		    SendMessage(hwnd, WM_VSCROLL, SB_PAGEDOWN, (LPARAM)0);
-		else
-		    SendMessage(hwnd, WM_VSCROLL, SB_PAGEUP, (LPARAM)0);
-		return 0;
-	    case MK_CONTROL:
-		if (zDelta < 0)
-		    SendMessage(hwnd, WM_CHAR, 0x0e, (LPARAM)0); // CTRL-N
-		else
-		    SendMessage(hwnd, WM_CHAR, 0x10, (LPARAM)0); // CTRL-P
-		return 0;
+	    fwKeys = GET_KEYSTATE_WPARAM(wParam);
+	    zDelta = GET_WHEEL_DELTA_WPARAM(wParam);
+	    if ((fwKeys != 0) && (fwKeys != MK_SHIFT) && (fwKeys != MK_CONTROL))
+		break;
+	    /* discard the remainder when the direction is reversed */
+	    if ((wheel_accum > 0 && zDelta < 0) || (wheel_accum < 0 && zDelta > 0))
+		wheel_accum = 0;
+	    wheel_accum += zDelta;
+	    while (abs(wheel_accum) >= WHEEL_DELTA) {
+		BOOL down = (wheel_accum < 0);
+
+		switch (fwKeys) {
+		case 0:
+		    SendMessage(hwnd, WM_VSCROLL, down ? SB_LINEDOWN : SB_LINEUP, (LPARAM)0);
+		    break;
+		case MK_SHIFT:
+		    SendMessage(hwnd, WM_VSCROLL, down ? SB_PAGEDOWN : SB_PAGEUP, (LPARAM)0);
+		    break;
+		case MK_CONTROL:
+		    SendMessage(hwnd, WM_CHAR, down ? 0x0e : 0x10, (LPARAM)0); // CTRL-N / CTRL-P
+		    break;
+		}
+		wheel_accum += down ? WHEEL_DELTA : -WHEEL_DELTA;
 	    }
+	    return 0;
 	}
-	break;
     case WM_CHAR: {
 	long count;
 	char char_mb[8];

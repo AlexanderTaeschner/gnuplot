@@ -9,11 +9,6 @@
 #	is not drawn (but this would break polar_quadrants.dem
 #
 
-if (!strstrt(GPVAL_COMPILE_OPTIONS, "+POLARGRID")) {
-    print "This copy of gnuplot does not support polar gridding"
-    exit  # return to caller
-}
-
 set key rmargin vertical top title "Polar gridded surface" font ":Bold"
 set key samplen 0.5
 set lmargin 5

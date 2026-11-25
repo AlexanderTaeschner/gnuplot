@@ -257,7 +257,7 @@ string_or_express(struct at_type **atptr)
 	if (!undefined && val.type == STRING) {
 	    /* prevent empty string variable from treated as special file '' or "" */
 	    if (*val.v.string_val == '\0') {
-		free(val.v.string_val);
+		gpfree_string(&val);
 		str = strdup(" ");
 	    } else {
 		str = val.v.string_val;
